@@ -20,7 +20,7 @@ Flag any PR that:
 
 ## Config / fail-fast pattern
 
-`grow/settings.py` reads `SECRET_KEY`/`DATABASE_URL`/`ALLOWED_HOSTS` via `os.environ` with no defaults — this is intentional fail-fast behavior, not an oversight. Don't suggest adding fallback defaults for required env vars.
+`grow/settings.py` reads `SECRET_KEY`/`DATABASE_URL` via `os.environ[...]` with no defaults — this is intentional fail-fast behavior, not an oversight. Don't suggest adding fallback defaults for these two required env vars. `DEBUG`/`ALLOWED_HOSTS` deliberately do use `os.environ.get(...)` with defaults (`"false"`/empty) since they're optional in local/dev setups — don't flag those as violating the fail-fast pattern.
 
 ## Migrations
 
