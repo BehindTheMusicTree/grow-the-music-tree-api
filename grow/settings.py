@@ -9,6 +9,8 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 
 SYSTEM_USERNAME = os.environ["SYSTEM_USERNAME"]
 
+GROW_API_KEY = os.environ["GROW_API_KEY"]
+
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
@@ -48,6 +50,9 @@ REST_FRAMEWORK = {
 }
 
 APP_VERSION = os.environ.get("APP_VERSION", "unknown")
+
+PAGINATION_PAGE_SIZE_DEFAULT = 30
+PAGINATION_PAGE_SIZE_MAX = 100
 
 CRITERIA_TYPE_LABEL_LEN_MAX = 50
 CRITERIA_NAME_LEN_MAX = 256
