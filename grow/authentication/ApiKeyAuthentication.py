@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from rest_framework.authentication import BaseAuthentication
 from rest_framework.request import Request
 
-from grow.model.user.get_or_create_system_user import get_or_create_system_user
+from grow.model.user.get_system_user import get_system_user
 
 
 class ApiKeyAuthentication(BaseAuthentication):
@@ -17,4 +17,4 @@ class ApiKeyAuthentication(BaseAuthentication):
         api_key = request.headers.get("X-API-Key")
         if not api_key or api_key != settings.GROW_API_KEY:
             return None
-        return get_or_create_system_user(), None
+        return get_system_user(), None
