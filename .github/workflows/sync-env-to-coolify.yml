@@ -3,8 +3,10 @@
 # fragment-never-leaves-the-runner approach).
 # DATABASE_URL is NOT included here — it's owned by Ansible infrastructure (group_vars/all.yml)
 # to avoid two sources of truth drifting apart.
-# Requires org-level vars COOLIFY_SUBDOMAIN, DOMAIN_NAME, GTMT_API_SUBDOMAIN, SYSTEM_USERNAME
+# Requires org-level vars COOLIFY_API_SUBDOMAIN, DOMAIN_NAME, GTMT_API_SUBDOMAIN, SYSTEM_USERNAME
 # and org-level secrets COOLIFY_API_TOKEN, SECRET_KEY, GROW_API_KEY.
+# Uses COOLIFY_API_SUBDOMAIN (not COOLIFY_SUBDOMAIN): the latter is gated by Cloudflare
+# Access (browser SSO only) and rejects unattended CI requests with a 302 redirect.
 name: Sync env to Coolify
 
 on:
@@ -49,7 +51,7 @@ jobs:
           app_name: gtmt-api
           coolify_environment: staging
           fragment_path: fragment.env
-          coolify_subdomain: ${{ vars.COOLIFY_SUBDOMAIN }}
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
 
@@ -88,6 +90,6 @@ jobs:
           app_name: gtmt-api
           coolify_environment: production
           fragment_path: fragment.env
-          coolify_subdomain: ${{ vars.COOLIFY_SUBDOMAIN }}
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
