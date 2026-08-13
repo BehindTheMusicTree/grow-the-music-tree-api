@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import include, path
 from rest_framework import routers
 
@@ -30,5 +31,5 @@ router.register(r"reference/library/uploaded", UploadedTrackViewSet, basename="r
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),
-    path("", include(router.urls)),
+    path(settings.API_ROOT_BASE, include(router.urls)),
 ]
