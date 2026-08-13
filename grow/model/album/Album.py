@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_api_kit.field.foreign_key.PrivateManyToManyField import PrivateManyToManyField
 
-from grow import settings
 from grow.model.artist.Artist import Artist
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.uploaded_track_mixin.UploadedTrackMixin import UploadedTrackMixin

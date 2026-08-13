@@ -1,8 +1,8 @@
+from django.conf import settings
 from django.db import models
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import PrivateOneToOneField
 
-from grow import settings
 from grow.model.playlist.children.manual import ManualPlaylistTypeLabel
 from grow.model.playlist.Fields import Fields as PlayListFields
 from grow.model.playlist.Playlist import Playlist
