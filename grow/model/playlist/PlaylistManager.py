@@ -73,7 +73,7 @@ class PlaylistManager(StandardResourceManager):
 
         return queryset
 
-    def get_ordered_relations_for_playlist(self, playlist: "Playlist") -> dict[int | None, "UploadedTrack"]:
+    def get_ordered_relations_for_playlist(self, playlist: Playlist) -> dict[int | None, UploadedTrack]:
         """
         Returns a dictionary of UploadedTrack objects where dict[position] = uploaded_track.
         Includes both non-archived tracks (with position) and archived tracks (position is None).
@@ -87,7 +87,7 @@ class PlaylistManager(StandardResourceManager):
         if not relations.exists():
             return {}
 
-        result: dict[int | None, "UploadedTrack"] = {}
+        result: dict[int | None, UploadedTrack] = {}
         for relation in relations.filter(position__isnull=False):
             relation = cast("UploadedTrackPlaylistRel", relation)
             result[relation.position] = relation.uploaded_track

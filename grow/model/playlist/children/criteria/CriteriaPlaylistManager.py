@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class CriteriaPlaylistManager(StandardResourceManager):
-    def get_by_name(self, user, name: str) -> "CriteriaPlaylist | None":
+    def get_by_name(self, user, name: str) -> CriteriaPlaylist | None:
         return (
             self.filter(user=user)
             .filter(
@@ -30,24 +30,24 @@ class CriteriaPlaylistManager(StandardResourceManager):
             .first()
         )
 
-    def update_instance(self, instance: "CriteriaPlaylist", **kwargs) -> "CriteriaPlaylist":
+    def update_instance(self, instance: CriteriaPlaylist, **kwargs) -> CriteriaPlaylist:
         original_root = instance.root
-        updated_instance: "CriteriaPlaylist" = super().update_instance(instance, **kwargs)
+        updated_instance: CriteriaPlaylist = super().update_instance(instance, **kwargs)
         if original_root != updated_instance.root:
             self.update_descendants_root(instance=updated_instance, root=updated_instance.root)
         return updated_instance
 
-    def update_instance_and_children_root(self, instance: "CriteriaPlaylist", root: "CriteriaPlaylist"):
+    def update_instance_and_children_root(self, instance: CriteriaPlaylist, root: CriteriaPlaylist):
         instance.root = root
         instance.save(update_fields=[Fields.ROOT])
         self.update_descendants_root(instance=instance, root=root)
 
-    def update_descendants_root(self, instance: "CriteriaPlaylist", root: "CriteriaPlaylist"):
+    def update_descendants_root(self, instance: CriteriaPlaylist, root: CriteriaPlaylist):
         for child in instance.children.all():
             self.update_instance_and_children_root(instance=child, root=root)
 
     def update_ascendants_uploaded_tracks(
-        self, instance: "CriteriaPlaylist", old_parent: "Criteria | None", common_criteria: "Criteria | None"
+        self, instance: CriteriaPlaylist, old_parent: Criteria | None, common_criteria: Criteria | None
     ):
         if instance.parent:
             self.add_uploaded_tracks_to_instance_and_ascendants_until_criteria_limit(
@@ -63,9 +63,9 @@ class CriteriaPlaylistManager(StandardResourceManager):
 
     def add_uploaded_tracks_to_instance_and_ascendants_until_criteria_limit(
         self,
-        instance: "CriteriaPlaylist",
-        uploaded_tracks: QuerySet["UploadedTrack"],
-        criteria_limit: "Criteria | None" = None,
+        instance: CriteriaPlaylist,
+        uploaded_tracks: QuerySet[UploadedTrack],
+        criteria_limit: Criteria | None = None,
     ):
         if instance.criteria != criteria_limit:
             from grow.model.uploaded_track_playlist_rel.UploadedTrackPlaylistRel import UploadedTrackPlaylistRel
@@ -80,9 +80,9 @@ class CriteriaPlaylistManager(StandardResourceManager):
 
     def remove_uploaded_tracks_from_instance_and_ascendants_until_criteria_limit(
         self,
-        instance: "CriteriaPlaylist",
-        uploaded_tracks: QuerySet["UploadedTrack"],
-        criteria_limit: "Criteria | None" = None,
+        instance: CriteriaPlaylist,
+        uploaded_tracks: QuerySet[UploadedTrack],
+        criteria_limit: Criteria | None = None,
     ):
         from grow.model.uploaded_track_playlist_rel.UploadedTrackPlaylistRel import UploadedTrackPlaylistRel
 
@@ -96,7 +96,7 @@ class CriteriaPlaylistManager(StandardResourceManager):
                 )
 
     def transfer_direct_tracks_to_criterialess_playlist(
-        self, direct_tracks: QuerySet["UploadedTrack"], criteria_playlist: "CriteriaPlaylist"
+        self, direct_tracks: QuerySet[UploadedTrack], criteria_playlist: CriteriaPlaylist
     ):
         from grow.model.uploaded_track_playlist_rel.UploadedTrackPlaylistRel import UploadedTrackPlaylistRel
 
@@ -114,7 +114,7 @@ class CriteriaPlaylistManager(StandardResourceManager):
 
         direct_tracks_rels_in_criteria_playlist.filter(position__isnull=True).update(playlist=criterialess_playlist)
 
-    def make_playlist_root(self, playlist: "CriteriaPlaylist"):
+    def make_playlist_root(self, playlist: CriteriaPlaylist):
         playlist.parent = None
         playlist.root = playlist
         playlist.save(update_fields=[Fields.PARENT, Fields.ROOT])

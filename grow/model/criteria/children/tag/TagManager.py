@@ -12,10 +12,10 @@ if TYPE_CHECKING:
 
 
 class TagManager(CriteriaManager):
-    model: "Tag"
+    model: Tag
 
     def _get_criteria_type(self) -> CriteriaType:
         return CriteriaType(pk=CriteriaTypePks.TAG)
 
-    def get_queryset(self) -> "QuerySet[Tag]":
+    def get_queryset(self) -> QuerySet[Tag]:
         return super().get_queryset().filter(type_id=CriteriaTypePks.TAG)

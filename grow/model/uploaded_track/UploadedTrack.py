@@ -59,7 +59,7 @@ class UploadedTrack(TrackablePlayCount):
     )
 
     if TYPE_CHECKING:
-        uploaded_track_playlist_rels: models.QuerySet["UploadedTrackPlaylistRel"]
+        uploaded_track_playlist_rels: models.QuerySet[UploadedTrackPlaylistRel]
 
     objects: UploadedTrackManager = UploadedTrackManager()
 

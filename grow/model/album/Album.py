@@ -31,11 +31,11 @@ class Album(UploadedTrackMixin):
         return self._name
 
     @property
-    def uploaded_tracks(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
         return getattr(self, Fields.UPLOADED_TRACKS_RELATED_NAME)
 
     @property
-    def uploaded_tracks_not_archived_sorted(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks_not_archived_sorted(self) -> models.QuerySet[UploadedTrack]:
         from grow.model.uploaded_track.Fields import Fields as UploadedTrackFields
 
         return self.uploaded_tracks_not_archived.annotate(null_position=Q(track_number__isnull=True)).order_by(
@@ -56,7 +56,7 @@ class Album(UploadedTrackMixin):
         else:
             string += " [No Artist]"
 
-        tracks: list["UploadedTrack"] = list(self.uploaded_tracks_not_archived.all())
+        tracks: list[UploadedTrack] = list(self.uploaded_tracks_not_archived.all())
         if tracks:
             track_details = []
             for track in tracks:

@@ -16,7 +16,7 @@ class CriteriaManager(AbstractCriteriaManager[T]):
     model: type[T]
 
     @property
-    def lineage_rel_model(self) -> "type[models.Model]":
+    def lineage_rel_model(self) -> type[models.Model]:
         from .lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 
         return CriteriaLineageRel
@@ -27,7 +27,7 @@ class CriteriaManager(AbstractCriteriaManager[T]):
         CriteriaPlaylist.objects.create(user=instance.user, criteria=instance, type=instance.type)
 
     def _on_parent_changed(
-        self, instance: T, *, old_parent: "Criteria | None", old_root: "Criteria", root_changed: bool
+        self, instance: T, *, old_parent: Criteria | None, old_root: Criteria, root_changed: bool
     ) -> None:
         from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 

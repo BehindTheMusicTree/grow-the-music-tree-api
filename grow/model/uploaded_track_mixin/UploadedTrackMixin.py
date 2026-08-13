@@ -21,16 +21,16 @@ class UploadedTrackMixin(PrivateUniqueResource):
 
     @property
     @abstractmethod
-    def uploaded_tracks(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
         pass
 
     @property
     @abstractmethod
-    def uploaded_tracks_not_archived(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks_not_archived(self) -> models.QuerySet[UploadedTrack]:
         return self.uploaded_tracks.filter(archived=False)
 
     @property
-    def uploaded_tracks_not_archived_sorted(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks_not_archived_sorted(self) -> models.QuerySet[UploadedTrack]:
         return self.uploaded_tracks_not_archived.order_by(f"-{Fields.CREATED_ON}")
 
     @property

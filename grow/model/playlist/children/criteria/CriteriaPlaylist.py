@@ -27,22 +27,22 @@ class CriteriaPlaylist(Playlist):
         Playlist, on_delete=models.CASCADE, parent_link=True, related_name=PlayListFields.CRITERIA_PLAYLIST
     )
 
-    criteria: "Criteria | None" = PrivateOneToOneField(  # type: ignore
+    criteria: Criteria | None = PrivateOneToOneField(  # type: ignore
         Criteria, on_delete=models.CASCADE, blank=True, null=True, related_name=CriteriaFields.CRITERIA_PLAYLIST
     )
 
-    parent: "CriteriaPlaylist | None" = PrivateForeignKey(
+    parent: CriteriaPlaylist | None = PrivateForeignKey(
         "self", on_delete=models.SET_NULL, null=True, related_name=Fields.CHILDREN
     )  # type: ignore
 
-    root: "CriteriaPlaylist" = PrivateForeignKey(
+    root: CriteriaPlaylist = PrivateForeignKey(
         "self", on_delete=models.DO_NOTHING, related_name=Fields.ROOT_DESCENDANTS
     )  # type: ignore
 
     type = AppForeignKey(CriteriaType, on_delete=models.CASCADE)
 
     if TYPE_CHECKING:
-        children: models.QuerySet["CriteriaPlaylist"]
+        children: models.QuerySet[CriteriaPlaylist]
 
     objects: CriteriaPlaylistManager = CriteriaPlaylistManager()
 
@@ -83,7 +83,7 @@ class CriteriaPlaylist(Playlist):
         current_parent_pk = getattr(self, f"{Fields.PARENT}_id", None)
 
         if self.criteria and self.criteria.parent:
-            parent: "CriteriaPlaylist" = CriteriaPlaylist.objects.get(criteria=self.criteria.parent)
+            parent: CriteriaPlaylist = CriteriaPlaylist.objects.get(criteria=self.criteria.parent)
             if current_parent_pk != parent.pk:
                 self.parent = parent
                 return True

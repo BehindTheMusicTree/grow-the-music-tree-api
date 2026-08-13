@@ -12,10 +12,10 @@ if TYPE_CHECKING:
 
 
 class GenreManager(CriteriaManager):
-    model: "Genre"
+    model: Genre
 
     def _get_criteria_type(self) -> CriteriaType:
         return CriteriaType(pk=CriteriaTypePks.GENRE)
 
-    def get_queryset(self) -> "QuerySet[Genre]":
+    def get_queryset(self) -> QuerySet[Genre]:
         return super().get_queryset().filter(type_id=CriteriaTypePks.GENRE)

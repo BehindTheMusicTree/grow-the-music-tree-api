@@ -21,9 +21,9 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
     objects: PlaylistManager = PlaylistManager()
 
     if TYPE_CHECKING:
-        uploaded_track_playlist_rels: models.QuerySet["UploadedTrackPlaylistRel"]
-        manual_playlist: "ManualPlaylist | None"
-        criteria_playlist: "CriteriaPlaylist | None"
+        uploaded_track_playlist_rels: models.QuerySet[UploadedTrackPlaylistRel]
+        manual_playlist: ManualPlaylist | None
+        criteria_playlist: CriteriaPlaylist | None
 
     class Meta:
         db_table = "grow_playlist"
@@ -35,7 +35,7 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         return f"{self.uuid} | {self.name}"
 
     @property
-    def uploaded_tracks(self) -> models.QuerySet["UploadedTrack"]:
+    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
         return getattr(self, Fields.UPLOADED_TRACKS_RELATED_NAME)
 
     @property
@@ -51,7 +51,7 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         raise ValueError("Playlist has no type")
 
     @property
-    def uploaded_tracks_not_archived_dict_by_position(self) -> dict[int | None, "UploadedTrack"]:
+    def uploaded_tracks_not_archived_dict_by_position(self) -> dict[int | None, UploadedTrack]:
         """
         Returns a dictionary of UploadedTrack objects where dict[position] = uploaded_track.
         Includes both non-archived tracks (with position) and archived tracks (position is None).
@@ -61,7 +61,7 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         return Playlist.get_ordered_relations_for_playlist(self)
 
     @classmethod
-    def get_ordered_relations_for_playlist(cls, playlist: "Playlist") -> dict[int | None, "UploadedTrack"]:
+    def get_ordered_relations_for_playlist(cls, playlist: Playlist) -> dict[int | None, UploadedTrack]:
         """
         Returns a dictionary of UploadedTrack objects where dict[position] = uploaded_track.
         Includes both non-archived tracks (with position) and archived tracks (position is None).
@@ -75,7 +75,7 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         if not relations.exists():
             return {}
 
-        result: dict[int | None, "UploadedTrack"] = {}
+        result: dict[int | None, UploadedTrack] = {}
         for relation in relations.filter(position__isnull=False):
             relation = cast("UploadedTrackPlaylistRel", relation)
             result[relation.position] = relation.uploaded_track
