@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "GrowTheMusicTreeAPI",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
