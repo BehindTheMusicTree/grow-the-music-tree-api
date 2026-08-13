@@ -11,6 +11,8 @@ jobs:
     # Dummy config only, no DB/secrets: mypy just needs settings.py importable via the django-stubs plugin.
     env:
       SECRET_KEY: mypy-ci-dummy-key
+      SYSTEM_USERNAME: mypy-ci-dummy-user
+      GROW_API_KEY: mypy-ci-dummy-key
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
     steps:
       - name: Checkout code
@@ -32,6 +34,27 @@ jobs:
 
       - name: mypy
         run: uv run mypy grow
+
+  migration-check:
+    name: Migration check
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: tests.settings
+      PYTHONPATH: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Sync dependencies
+        run: uv sync --all-extras
+
+      - name: makemigrations --check
+        run: uv run django-admin makemigrations grow --check --dry-run
 
   pytest:
     name: Pytest
