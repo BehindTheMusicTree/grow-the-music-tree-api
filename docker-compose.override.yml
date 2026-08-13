@@ -1,0 +1,16 @@
+services:
+  api:
+    volumes:
+      - ./:/home/app/
+      - api-venv:/opt/venv
+    environment:
+      UV_PROJECT_ENVIRONMENT: /opt/venv
+    command: >-
+      bash -lc "export PATH=/opt/venv/bin:$$PATH &&
+      uv sync --frozen --no-dev &&
+      bash scripts/wait-for-postgres-db.sh db 5432 20 2 &&
+      python3 manage.py migrate &&
+      python3 manage.py runserver 0.0.0.0:${APP_PORT:-8001}"
+
+volumes:
+  api-venv:

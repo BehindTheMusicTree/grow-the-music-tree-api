@@ -1,0 +1,57 @@
+name: gtmt-api-dev
+
+services:
+  db:
+    image: postgres:16.4
+    container_name: gtmt-api-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gtmt_api}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-0.1.0}
+        APP_NAME: ${APP_NAME:-gtmt-api}
+    container_name: gtmt-api
+    environment:
+      APP_NAME: ${APP_NAME:-gtmt-api}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      APP_PORT: ${APP_PORT:-8001}
+      DEBUG: ${DEBUG:-true}
+      SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
+      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-system}
+      GROW_API_KEY: ${GROW_API_KEY:-dev-only-api-key}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
+    ports:
+      - "${APP_PORT:-8001}:${APP_PORT:-8001}"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - import os, urllib.request; urllib.request.urlopen(f"http://127.0.0.1:{os.environ.get('APP_PORT', '8001')}/health/", timeout=5)
+      interval: 10s
+      timeout: 6s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  db-data:
