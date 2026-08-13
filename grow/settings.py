@@ -50,7 +50,9 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
 
-APP_VERSION = os.environ.get("APP_VERSION", "unknown")
+APP_VERSION = os.environ["APP_VERSION"]
+
+API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100
