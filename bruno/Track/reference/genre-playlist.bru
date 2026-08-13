@@ -1,0 +1,11 @@
+meta {
+  name: genre-playlist
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BASE_URL}}reference/genre-playlists/{{GENRE_PLAYLIST_UUID}}/
+  body: none
+  auth: inherit
+}
