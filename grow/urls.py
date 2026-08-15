@@ -30,5 +30,5 @@ router.register(r"reference/library/uploaded", UploadedTrackViewSet, basename="r
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),
-    path("", include(router.urls)),
+    path("v0/", include(router.urls)),
 ]

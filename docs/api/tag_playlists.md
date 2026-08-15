@@ -6,7 +6,7 @@ Playlists derived from the tag criteria tree.
 
 ## Base Path
 
-`/reference/tag-playlists/`
+`/v0/reference/tag-playlists/`
 
 Authentication: `X-API-Key` header (single static key, `GROW_API_KEY`).
 
