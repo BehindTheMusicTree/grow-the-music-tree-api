@@ -17,6 +17,8 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "grow.urls"
 
+API_ROOT_BASE = "v0/"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",

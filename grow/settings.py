@@ -15,16 +15,20 @@ DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
 
+CORS_ALLOWED_ORIGINS = [o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o]
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
+    "corsheaders",
     "the_music_tree_genre_kit",
     "grow",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
@@ -50,7 +54,9 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
 
-APP_VERSION = os.environ.get("APP_VERSION", "unknown")
+APP_VERSION = os.environ["APP_VERSION"]
+
+API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100
