@@ -26,6 +26,12 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_results,
         )
 
+    def _post_genres_tree_load_example(self):
+        return self.api_client.post(
+            path=reverse(self.list_endpoint) + "tree/load-example/",
+            handle_response=self._set_results,
+        )
+
     def _set_results(self, response):
         if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]:
             response_json = response.json()
