@@ -72,7 +72,7 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-All endpoints except `/health/` require an `X-API-Key` header set to `GROW_API_KEY`. The service is single-tenant: there's no per-user auth, every record belongs to the one "system user".
+Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `X-API-Key` header set to `GROW_API_KEY`. The service is single-tenant: there's no per-user auth, every record belongs to the one "system user".
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
