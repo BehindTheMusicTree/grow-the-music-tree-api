@@ -5,6 +5,8 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+DATA_DIR = BASE_DIR / "data"
+
 SECRET_KEY = os.environ["SECRET_KEY"]
 
 SYSTEM_USERNAME = os.environ["SYSTEM_USERNAME"]
