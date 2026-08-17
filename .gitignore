@@ -11,3 +11,7 @@ wheels/
 
 # Local scratch files
 .local/
+
+# Claude Code worktrees
+# =============================================================================
+.claude/worktrees/
