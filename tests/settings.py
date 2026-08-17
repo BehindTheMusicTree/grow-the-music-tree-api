@@ -1,9 +1,8 @@
 import os
-from pathlib import Path
+
+from the_music_tree_genre_kit.data import DATA_DIR
 
 SECRET_KEY = "fixture-only-not-for-production"
-
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

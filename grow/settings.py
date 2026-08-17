@@ -2,10 +2,9 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from the_music_tree_genre_kit.data import DATA_DIR
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-DATA_DIR = BASE_DIR / "data"
 
 SECRET_KEY = os.environ["SECRET_KEY"]
 
