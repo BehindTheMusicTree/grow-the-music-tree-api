@@ -4,7 +4,10 @@
 # DATABASE_URL is NOT included here — it's owned by Ansible infrastructure (group_vars/all.yml)
 # to avoid two sources of truth drifting apart.
 # Requires org-level vars COOLIFY_API_SUBDOMAIN, DOMAIN_NAME, GTMT_API_SUBDOMAIN, SYSTEM_USERNAME
-# and org-level secrets COOLIFY_API_TOKEN, SECRET_KEY, GROW_API_KEY.
+# and org-level secrets COOLIFY_API_TOKEN, SECRET_KEY, GTMT_API_KEY_STAGING, GTMT_API_KEY_PROD.
+# GTMT_API_KEY_{STAGING,PROD} are shared with grow-the-music-tree-frontend's vercel-sync-env.yml
+# (same value per environment, one org secret instead of two independently-set ones) — written
+# into the app as GROW_API_KEY, the name grow.settings actually reads.
 # Uses COOLIFY_API_SUBDOMAIN (not COOLIFY_SUBDOMAIN): the latter is gated by Cloudflare
 # Access (browser SSO only) and rejects unattended CI requests with a 302 redirect.
 name: Sync env to Coolify
@@ -26,7 +29,7 @@ jobs:
           SYSTEM_USERNAME: ${{ vars.SYSTEM_USERNAME }}
           ALLOWED_HOSTS: "${{ vars.GTMT_API_SUBDOMAIN }}-staging.${{ vars.DOMAIN_NAME }}"
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          GROW_API_KEY: ${{ secrets.GROW_API_KEY }}
+          GROW_API_KEY: ${{ secrets.GTMT_API_KEY_STAGING }}
         run: |
           : > fragment.env
           required=(SYSTEM_USERNAME ALLOWED_HOSTS SECRET_KEY GROW_API_KEY)
@@ -65,7 +68,7 @@ jobs:
           SYSTEM_USERNAME: ${{ vars.SYSTEM_USERNAME }}
           ALLOWED_HOSTS: "${{ vars.GTMT_API_SUBDOMAIN }}.${{ vars.DOMAIN_NAME }}"
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          GROW_API_KEY: ${{ secrets.GROW_API_KEY }}
+          GROW_API_KEY: ${{ secrets.GTMT_API_KEY_PROD }}
         run: |
           : > fragment.env
           required=(SYSTEM_USERNAME ALLOWED_HOSTS SECRET_KEY GROW_API_KEY)
