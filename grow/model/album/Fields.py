@@ -1,7 +1,7 @@
-from grow.model.uploaded_track_mixin.Fields import Fields as UploadedTrackMixinFields
+from grow.model.track_mixin.Fields import Fields as TrackMixinFields
 
 
-class Fields(UploadedTrackMixinFields):
-    UPLOADED_TRACKS_RELATED_NAME = "uploaded_tracks_of_album"
+class Fields(TrackMixinFields):
+    TRACKS_RELATED_NAME = "tracks_of_album"
     YEAR = "year"
     ALBUM_ARTISTS = "album_artists"

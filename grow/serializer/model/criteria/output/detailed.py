@@ -11,20 +11,18 @@ from grow.serializer.model.criteria_lineage_rel.without_descendant import (
     CriteriaLineageRelWithoutDescendantSerializer,
 )
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
-from grow.serializer.model.uploaded_track.output.simple.simple_without_album_and_genre import (
-    UploadedTrackWithoutAlbumPlaylistGenreSerializer,
+from grow.serializer.model.track.output.simple.simple_without_album_and_genre import (
+    TrackWithoutAlbumPlaylistGenreSerializer,
 )
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
 
 
 class CriteriaDetailedSerializer(AppInputSerializer, serializers.ModelSerializer):
-    uploaded_tracks = UploadedTrackWithoutAlbumPlaylistGenreSerializer(
-        source=CriteriaOutputFieldKey.UPLOADED_TRACKS_NOT_ARCHIVED_INTERNAL.value, many=True
+    tracks = TrackWithoutAlbumPlaylistGenreSerializer(
+        source=CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_INTERNAL.value, many=True
     )
-    uploaded_tracks_count = IntegerField(
-        source=CriteriaOutputFieldKey.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL.value
-    )
+    tracks_count = IntegerField(source=CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL.value)
     parent = CriteriaMinimumSerializer()
     ascendants = CriteriaLineageRelWithoutDescendantSerializer(source=ModelFields.ASCENDANTS_RELS, many=True)
     descendants = CriteriaLineageRelWithoutAscendantSerializer(source=ModelFields.DESCENDANTS_RELS, many=True)
@@ -44,9 +42,9 @@ class CriteriaDetailedSerializer(AppInputSerializer, serializers.ModelSerializer
             CriteriaOutputFieldKey.ROOT.value,
             CriteriaOutputFieldKey.CHILDREN.value,
             CriteriaOutputFieldKey.CRITERIA_PLAYLIST.value,
-            CriteriaOutputFieldKey.UPLOADED_TRACKS_NOT_ARCHIVED_PUBLIC.value,
-            CriteriaOutputFieldKey.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
-            CriteriaOutputFieldKey.UPLOADED_TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+            CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
+            CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
+            CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.CREATED_ON.value,
             CriteriaOutputFieldKey.UPDATED_ON.value,
         ]

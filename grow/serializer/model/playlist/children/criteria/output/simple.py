@@ -10,8 +10,8 @@ from grow.serializer.model.playlist.children.criteria.output.minimum import Crit
 class Fields:
     UUID = AvailableFields.UUID
     NAME = AvailableFields.NAME
-    UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL = AvailableFields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL
-    UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC = AvailableFields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC
+    TRACKS_NOT_ARCHIVED_COUNT_INTERNAL = AvailableFields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL
+    TRACKS_NOT_ARCHIVED_COUNT_PUBLIC = AvailableFields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC
     CRITERIA = AvailableFields.CRITERIA
     PARENT = AvailableFields.PARENT
     ROOT = AvailableFields.ROOT
@@ -23,7 +23,7 @@ class CriteriaPlaylistSimpleSerializer(serializers.ModelSerializer):
     criteria = CriteriaSimpleSerializer()
     parent = CriteriaPlaylistMinimumSerializer()
     root = CriteriaPlaylistMinimumSerializer()  # type: ignore
-    uploaded_tracks_count = serializers.IntegerField(source=Fields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
+    tracks_count = serializers.IntegerField(source=Fields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
 
     def to_representation(self, instance):
         if not isinstance(instance, CriteriaPlaylist):
@@ -38,7 +38,7 @@ class CriteriaPlaylistSimpleSerializer(serializers.ModelSerializer):
             Fields.CRITERIA,
             Fields.PARENT,
             Fields.ROOT,
-            Fields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
+            Fields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
             Fields.CREATED_ON,
             Fields.UPDATED_ON,
         ]

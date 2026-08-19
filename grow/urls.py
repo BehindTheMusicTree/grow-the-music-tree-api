@@ -12,7 +12,7 @@ from grow.view.viewset.model.playlist.children.criteria.genre.GenrePlaylistViewS
 from grow.view.viewset.model.playlist.children.criteria.tag.TagPlaylistViewSet import TagPlaylistViewSet
 from grow.view.viewset.model.playlist.children.manual.ManualPlaylistViewSet import ManualPlaylistViewSet
 from grow.view.viewset.model.playlist.PlaylistViewSet import PlaylistViewSet
-from grow.view.viewset.model.uploaded_track.UploadedTrackViewSet import UploadedTrackViewSet
+from grow.view.viewset.model.youtube_track.YoutubeTrackViewSet import YoutubeTrackViewSet
 
 router = routers.DefaultRouter()
 
@@ -27,7 +27,7 @@ router.register(r"reference/manual-playlists", ManualPlaylistViewSet, basename="
 router.register(r"reference/genre-playlists", GenrePlaylistViewSet, basename="reference-genre-playlist")
 router.register(r"reference/tag-playlists", TagPlaylistViewSet, basename="reference-tag-playlist")
 router.register(r"reference/plays", PlayViewSet, basename="reference-play")
-router.register(r"reference/library/uploaded", UploadedTrackViewSet, basename="reference-uploaded-track")
+router.register(r"reference/library/youtube", YoutubeTrackViewSet, basename="reference-youtube-track")
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),

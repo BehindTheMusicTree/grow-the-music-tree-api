@@ -4,24 +4,24 @@ from typing import TYPE_CHECKING, cast
 from django.db import models
 
 from grow.model.playlist.PlaylistManager import PlaylistManager
+from grow.model.track_mixin.TrackMixin import TrackMixin
 from grow.model.trackable_play_count.TrackablePlayCount import TrackablePlayCount
-from grow.model.uploaded_track_mixin.UploadedTrackMixin import UploadedTrackMixin
 
 from .Fields import Fields
 
 if TYPE_CHECKING:
-    from grow.model.uploaded_track.UploadedTrack import UploadedTrack
-    from grow.model.uploaded_track_playlist_rel.UploadedTrackPlaylistRel import UploadedTrackPlaylistRel
+    from grow.model.track.Track import Track
+    from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
     from .children.criteria.CriteriaPlaylist import CriteriaPlaylist
     from .children.manual.ManualPlaylist import ManualPlaylist
 
 
-class Playlist(UploadedTrackMixin, TrackablePlayCount):
+class Playlist(TrackMixin, TrackablePlayCount):
     objects: PlaylistManager = PlaylistManager()
 
     if TYPE_CHECKING:
-        uploaded_track_playlist_rels: models.QuerySet[UploadedTrackPlaylistRel]
+        track_playlist_rels: models.QuerySet[TrackPlaylistRel]
         manual_playlist: ManualPlaylist | None
         criteria_playlist: CriteriaPlaylist | None
 
@@ -35,8 +35,8 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         return f"{self.uuid} | {self.name}"
 
     @property
-    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
-        return getattr(self, Fields.UPLOADED_TRACKS_RELATED_NAME)
+    def tracks(self) -> models.QuerySet[Track]:
+        return getattr(self, Fields.TRACKS_RELATED_NAME)
 
     @property
     def type_label(self) -> str:
@@ -51,9 +51,9 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         raise ValueError("Playlist has no type")
 
     @property
-    def uploaded_tracks_not_archived_dict_by_position(self) -> dict[int | None, UploadedTrack]:
+    def tracks_not_archived_dict_by_position(self) -> dict[int | None, Track]:
         """
-        Returns a dictionary of UploadedTrack objects where dict[position] = uploaded_track.
+        Returns a dictionary of Track objects where dict[position] = track.
         Includes both non-archived tracks (with position) and archived tracks (position is None).
         Archived tracks (null positions) are sorted last.
         Returns empty dict if no tracks.
@@ -61,27 +61,27 @@ class Playlist(UploadedTrackMixin, TrackablePlayCount):
         return Playlist.get_ordered_relations_for_playlist(self)
 
     @classmethod
-    def get_ordered_relations_for_playlist(cls, playlist: Playlist) -> dict[int | None, UploadedTrack]:
+    def get_ordered_relations_for_playlist(cls, playlist: Playlist) -> dict[int | None, Track]:
         """
-        Returns a dictionary of UploadedTrack objects where dict[position] = uploaded_track.
+        Returns a dictionary of Track objects where dict[position] = track.
         Includes both non-archived tracks (with position) and archived tracks (position is None).
         Archived tracks (null positions) are sorted last.
         Returns empty dict if no tracks.
         """
-        from grow.model.uploaded_track_playlist_rel.UploadedTrackPlaylistRel import UploadedTrackPlaylistRel
+        from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
-        relations = UploadedTrackPlaylistRel.objects.get_ordered_relations_for_playlist(playlist)
+        relations = TrackPlaylistRel.objects.get_ordered_relations_for_playlist(playlist)
 
         if not relations.exists():
             return {}
 
-        result: dict[int | None, UploadedTrack] = {}
+        result: dict[int | None, Track] = {}
         for relation in relations.filter(position__isnull=False):
-            relation = cast("UploadedTrackPlaylistRel", relation)
-            result[relation.position] = relation.uploaded_track
+            relation = cast("TrackPlaylistRel", relation)
+            result[relation.position] = relation.track
         for relation in relations.filter(position__isnull=True):
-            relation = cast("UploadedTrackPlaylistRel", relation)
-            result[len(result) + 1] = relation.uploaded_track
+            relation = cast("TrackPlaylistRel", relation)
+            result[len(result) + 1] = relation.track
 
         return result
 

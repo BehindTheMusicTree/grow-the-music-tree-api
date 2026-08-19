@@ -7,8 +7,8 @@ from grow.serializer.model.playlist.base.output.Fields import Fields as Availabl
 
 class Fields:
     UUID = AvailableFields.UUID
-    UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL = AvailableFields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL
-    UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC = AvailableFields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC
+    TRACKS_NOT_ARCHIVED_COUNT_INTERNAL = AvailableFields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL
+    TRACKS_NOT_ARCHIVED_COUNT_PUBLIC = AvailableFields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC
     NAME = AvailableFields.NAME
     TYPE_LABEL_INTERNAL = AvailableFields.TYPE_LABEL_INTERNAL
     TYPE_LABEL_PUBLIC = AvailableFields.TYPE_LABEL_PUBLIC
@@ -17,7 +17,7 @@ class Fields:
 
 class PlaylistSimpleSerializer(serializers.ModelSerializer):
     type = AppCharField(source=Fields.TYPE_LABEL_INTERNAL)
-    uploaded_tracks_count = serializers.IntegerField(source=Fields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
+    tracks_count = serializers.IntegerField(source=Fields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
 
     class Meta:
         model = Playlist
@@ -25,6 +25,6 @@ class PlaylistSimpleSerializer(serializers.ModelSerializer):
             Fields.UUID,
             Fields.NAME,
             Fields.TYPE_LABEL_PUBLIC,
-            Fields.UPLOADED_TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
+            Fields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
             Fields.CREATED_ON,
         ]

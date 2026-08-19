@@ -9,17 +9,17 @@ from the_music_tree_api_kit.field.foreign_key.PrivateManyToManyField import Priv
 
 from grow.model.artist.Artist import Artist
 from grow.model.artist.Fields import Fields as ArtistFields
-from grow.model.uploaded_track_mixin.UploadedTrackMixin import UploadedTrackMixin
+from grow.model.track_mixin.TrackMixin import TrackMixin
 
 from .AlbumManager import AlbumManager
 from .Fields import Fields
 
 if TYPE_CHECKING:
-    from grow.model.uploaded_track.Fields import Fields as UploadedTrackFields
-    from grow.model.uploaded_track.UploadedTrack import UploadedTrack
+    from grow.model.track.Fields import Fields as TrackFields
+    from grow.model.track.Track import Track
 
 
-class Album(UploadedTrackMixin):
+class Album(TrackMixin):
     _name = AppCharField(max_length=settings.ALBUM_NAME_LEN_MAX, default=None, db_column=Fields.NAME_PUBLIC)
     year = AppCharField(max_length=4, default=None, null=True)
     album_artists: QuerySet[Artist] = PrivateManyToManyField(Artist, related_name=ArtistFields.ALBUMS)  # type: ignore
@@ -31,15 +31,15 @@ class Album(UploadedTrackMixin):
         return self._name
 
     @property
-    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
-        return getattr(self, Fields.UPLOADED_TRACKS_RELATED_NAME)
+    def tracks(self) -> models.QuerySet[Track]:
+        return getattr(self, Fields.TRACKS_RELATED_NAME)
 
     @property
-    def uploaded_tracks_not_archived_sorted(self) -> models.QuerySet[UploadedTrack]:
-        from grow.model.uploaded_track.Fields import Fields as UploadedTrackFields
+    def tracks_not_archived_sorted(self) -> models.QuerySet[Track]:
+        from grow.model.track.Fields import Fields as TrackFields
 
-        return self.uploaded_tracks_not_archived.annotate(null_position=Q(track_number__isnull=True)).order_by(
-            "null_position", UploadedTrackFields.TRACK_NUMBER, UploadedTrackFields.TITLE
+        return self.tracks_not_archived.annotate(null_position=Q(track_number__isnull=True)).order_by(
+            "null_position", TrackFields.TRACK_NUMBER, TrackFields.TITLE
         )
 
     class Meta:
@@ -56,7 +56,7 @@ class Album(UploadedTrackMixin):
         else:
             string += " [No Artist]"
 
-        tracks: list[UploadedTrack] = list(self.uploaded_tracks_not_archived.all())
+        tracks: list[Track] = list(self.tracks_not_archived.all())
         if tracks:
             track_details = []
             for track in tracks:
