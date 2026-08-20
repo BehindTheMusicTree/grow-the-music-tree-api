@@ -9,5 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Claude Code scratch files
+# Local scratch files
 .local/
+
+# Claude Code worktrees
+# =============================================================================
+.claude/worktrees/

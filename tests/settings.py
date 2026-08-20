@@ -1,5 +1,7 @@
 import os
 
+from the_music_tree_genre_kit.data import DATA_DIR
+
 SECRET_KEY = "fixture-only-not-for-production"
 
 INSTALLED_APPS = [
