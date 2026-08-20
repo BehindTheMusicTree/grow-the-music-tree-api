@@ -5,7 +5,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 class TestCase(AppTestCase):
-    list_endpoint = "reference-genre-list"
+    list_endpoint = "genre-list"
 
     def test_get_without_api_key_then_200_ok(self):
         self.api_client.credentials()

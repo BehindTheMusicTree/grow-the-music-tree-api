@@ -12,22 +12,22 @@ from grow.view.viewset.model.playlist.children.criteria.genre.GenrePlaylistViewS
 from grow.view.viewset.model.playlist.children.criteria.tag.TagPlaylistViewSet import TagPlaylistViewSet
 from grow.view.viewset.model.playlist.children.manual.ManualPlaylistViewSet import ManualPlaylistViewSet
 from grow.view.viewset.model.playlist.PlaylistViewSet import PlaylistViewSet
-from grow.view.viewset.model.uploaded_track.UploadedTrackViewSet import UploadedTrackViewSet
+from grow.view.viewset.model.youtube_track.YoutubeTrackViewSet import YoutubeTrackViewSet
 
 router = routers.DefaultRouter()
 
 # Do not move PlaylistViewSet after GenrePlaylistViewSet or ManualPlaylistViewSet or it will cause confusion
 # resolving reverse urls.
-router.register(r"reference/artists", ArtistViewSet, basename="reference-artist")
-router.register(r"reference/albums", AlbumViewSet, basename="reference-album")
-router.register(r"reference/genres", GenreViewSet, basename="reference-genre")
-router.register(r"reference/tags", TagViewSet, basename="reference-tag")
-router.register(r"reference/playlists", PlaylistViewSet, basename="reference-playlist")
-router.register(r"reference/manual-playlists", ManualPlaylistViewSet, basename="reference-manual-playlist")
-router.register(r"reference/genre-playlists", GenrePlaylistViewSet, basename="reference-genre-playlist")
-router.register(r"reference/tag-playlists", TagPlaylistViewSet, basename="reference-tag-playlist")
-router.register(r"reference/plays", PlayViewSet, basename="reference-play")
-router.register(r"reference/library/uploaded", UploadedTrackViewSet, basename="reference-uploaded-track")
+router.register(r"artists", ArtistViewSet, basename="artist")
+router.register(r"albums", AlbumViewSet, basename="album")
+router.register(r"genres", GenreViewSet, basename="genre")
+router.register(r"tags", TagViewSet, basename="tag")
+router.register(r"playlists", PlaylistViewSet, basename="playlist")
+router.register(r"manual-playlists", ManualPlaylistViewSet, basename="manual-playlist")
+router.register(r"genre-playlists", GenrePlaylistViewSet, basename="genre-playlist")
+router.register(r"tag-playlists", TagPlaylistViewSet, basename="tag-playlist")
+router.register(r"plays", PlayViewSet, basename="play")
+router.register(r"library/youtube", YoutubeTrackViewSet, basename="youtube-track")
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),

@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Coverage
+.coverage
+
 # Local scratch files
 .local/
 

@@ -37,7 +37,7 @@ class CriteriaManager(AbstractCriteriaManager[T]):
         )
 
         common_criteria = self.get_common_ascendant(instance, old_parent)
-        CriteriaPlaylist.objects.update_ascendants_uploaded_tracks(
+        CriteriaPlaylist.objects.update_ascendants_tracks(
             instance=instance.criteria_playlist, old_parent=old_parent, common_criteria=common_criteria
         )
 
@@ -49,14 +49,14 @@ class CriteriaManager(AbstractCriteriaManager[T]):
     def _on_before_delete(self, instance: T) -> None:
         from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 
-        criteria_uploaded_tracks = instance.uploaded_tracks.all()
-        for uploaded_track in criteria_uploaded_tracks:
-            uploaded_track.genre = instance.parent
-            uploaded_track.save(update_fields=["genre_id"])
+        criteria_tracks = instance.tracks.all()
+        for track in criteria_tracks:
+            track.genre = instance.parent
+            track.save(update_fields=["genre_id"])
 
         if instance.is_root:
             CriteriaPlaylist.objects.transfer_direct_tracks_to_criterialess_playlist(
-                direct_tracks=criteria_uploaded_tracks, criteria_playlist=instance.criteria_playlist
+                direct_tracks=criteria_tracks, criteria_playlist=instance.criteria_playlist
             )
 
         if instance.criteria_playlist.children.exists():

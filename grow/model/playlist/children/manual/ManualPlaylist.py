@@ -6,8 +6,8 @@ from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import Privat
 from grow.model.playlist.children.manual import ManualPlaylistTypeLabel
 from grow.model.playlist.Fields import Fields as PlayListFields
 from grow.model.playlist.Playlist import Playlist
-from grow.model.uploaded_track_mixin.UploadedTrackMixinWithInternalNameManager import (
-    UploadedTrackMixinWithInternalNameManager,
+from grow.model.track_mixin.TrackMixinWithInternalNameManager import (
+    TrackMixinWithInternalNameManager,
 )
 
 from .Fields import Fields
@@ -22,7 +22,7 @@ class ManualPlaylist(Playlist):
         max_length=settings.MANUAL_PLAYLIST_NAME_LEN_MAX, blank=False, null=False, db_column=Fields.NAME_PUBLIC
     )  # type: ignore
 
-    objects: UploadedTrackMixinWithInternalNameManager = UploadedTrackMixinWithInternalNameManager()
+    objects: TrackMixinWithInternalNameManager = TrackMixinWithInternalNameManager()
 
     @property
     def name(self) -> str:

@@ -9,7 +9,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 class GenreTestCase(AppTestCase):
     model_class = Genre
-    list_endpoint = "reference-genre-list"
+    list_endpoint = "genre-list"
 
     def _list_genres(self, **kwargs):
         return self.api_client.get(path=reverse(self.list_endpoint), data=kwargs, handle_response=self._set_results)
