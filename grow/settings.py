@@ -59,6 +59,10 @@ APP_VERSION = os.environ["APP_VERSION"]
 
 API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
 
+CRITERIA_MODEL = "grow.Criteria"
+TRACK_MODEL = "grow.Track"
+PLAYLIST_MODEL = "grow.Playlist"
+
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100
 

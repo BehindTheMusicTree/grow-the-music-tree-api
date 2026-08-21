@@ -41,6 +41,10 @@ SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 
 GROW_API_KEY = "test-api-key"
 
+CRITERIA_MODEL = "grow.Criteria"
+TRACK_MODEL = "grow.Track"
+PLAYLIST_MODEL = "grow.Playlist"
+
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100
 

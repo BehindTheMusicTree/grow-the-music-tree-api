@@ -3,7 +3,8 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from .TagPlaylistManager import TagPlaylistManager
 
 
-class TagPlaylist(CriteriaPlaylist):
+# See CriteriaPlaylist for why this django-stubs relation-resolution ignore is needed.
+class TagPlaylist(CriteriaPlaylist):  # type: ignore[django-manager-missing]
     objects: TagPlaylistManager = TagPlaylistManager()
 
     class Meta:
