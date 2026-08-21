@@ -19,3 +19,6 @@ class GenreManager(CriteriaManager):
 
     def get_queryset(self) -> QuerySet[Genre]:
         return super().get_queryset().filter(type_id=CriteriaTypePks.GENRE)
+
+    def _get_direct_tracks(self, instance: Genre) -> list:
+        return list(instance.tracks.all())

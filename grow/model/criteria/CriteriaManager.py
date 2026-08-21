@@ -45,24 +45,3 @@ class CriteriaManager(AbstractCriteriaManager[T]):
             CriteriaPlaylist.objects.update_instance_and_children_root(
                 instance=instance.criteria_playlist, root=instance.root.criteria_playlist
             )
-
-    def _on_before_delete(self, instance: T) -> None:
-        from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
-
-        criteria_tracks = instance.tracks.all()
-        for track in criteria_tracks:
-            track.genre = instance.parent
-            track.save(update_fields=["genre_id"])
-
-        if instance.is_root:
-            CriteriaPlaylist.objects.transfer_direct_tracks_to_criterialess_playlist(
-                direct_tracks=criteria_tracks, criteria_playlist=instance.criteria_playlist
-            )
-
-        if instance.criteria_playlist.children.exists():
-            for child_playlist in instance.criteria_playlist.children.all():
-                child_playlist.parent = instance.parent.criteria_playlist if instance.parent else None
-                child_playlist.save(update_fields=[Fields.PARENT])
-
-                if not instance.parent:
-                    CriteriaPlaylist.objects.make_playlist_root(child_playlist)
