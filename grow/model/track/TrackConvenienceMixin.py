@@ -8,9 +8,12 @@ from .Fields import Fields
 
 class TrackConvenienceMixin:
     """
-    Grow-only polymorphism conveniences for the kit's `Track`, shared by
-    `UploadedTrack`/`YoutubeTrack`. Kept out of the kit since hear has a
-    single concrete track type and never needs `resolve_concrete()`.
+    Shared by grow's two concrete `Track` subtypes, `UploadedTrack` and
+    `YoutubeTrack`, so generic `Track` references can be resolved to the
+    correct one via `resolve_concrete()`. Kept out of the kit because this
+    disambiguation is only needed where more than one concrete subtype
+    exists: hear has exactly one (its own, separately-defined
+    `UploadedTrack`), so a `Track` reference there is never ambiguous.
     """
 
     def resolve_concrete(self):
