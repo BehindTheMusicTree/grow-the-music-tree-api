@@ -7,7 +7,7 @@ from the_music_tree_api_kit.private_unique_resource.PrivateUniqueResource import
 from .Fields import Fields
 
 if TYPE_CHECKING:
-    from grow.model.track.Track import Track
+    from the_music_tree_genre_kit.track.Track import Track
 
 
 class TrackMixin(PrivateUniqueResource):

@@ -42,8 +42,11 @@ SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 GROW_API_KEY = "test-api-key"
 
 CRITERIA_MODEL = "grow.Criteria"
-TRACK_MODEL = "grow.Track"
+TRACK_MODEL = "the_music_tree_genre_kit.Track"
 PLAYLIST_MODEL = "grow.Playlist"
+ARTIST_MODEL = "grow.Artist"
+ALBUM_MODEL = "grow.Album"
+TRACK_PLAYLIST_REL_MODEL = "grow.TrackPlaylistRel"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100

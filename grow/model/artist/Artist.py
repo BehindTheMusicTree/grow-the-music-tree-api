@@ -10,8 +10,9 @@ from .ArtistManager import ArtistManager
 from .Fields import Fields
 
 if TYPE_CHECKING:
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.album.Album import Album
-    from grow.model.track.Track import Track
 
 
 class Artist(TrackMixin):

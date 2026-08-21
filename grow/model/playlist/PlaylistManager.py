@@ -11,8 +11,9 @@ from .Fields import Fields
 from .PlaylistQuerySet import PlaylistQuerySet
 
 if TYPE_CHECKING:
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.playlist.Playlist import Playlist
-    from grow.model.track.Track import Track
 
 
 class PlaylistManager(StandardResourceManager):

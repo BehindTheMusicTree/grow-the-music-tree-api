@@ -3,10 +3,10 @@ from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
 from the_music_tree_api_kit.serializer.field.foreign_key.PrivateUuidField import PrivateUuidField
+from the_music_tree_genre_kit.track.Track import Track
 
 from grow.model.ContentObjectFields import ContentObjectFields
 from grow.model.playlist.Playlist import Playlist
-from grow.model.track.Track import Track
 
 
 class PrivateContentUuidField(PrivateUuidField):

@@ -10,7 +10,8 @@ from grow.model.trackable_play_count.TrackablePlayCount import TrackablePlayCoun
 from .Fields import Fields
 
 if TYPE_CHECKING:
-    from grow.model.track.Track import Track
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
     from .children.criteria.CriteriaPlaylist import CriteriaPlaylist

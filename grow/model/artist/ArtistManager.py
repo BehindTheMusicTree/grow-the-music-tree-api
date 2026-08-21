@@ -33,8 +33,9 @@ class ArtistManager(TrackMixinWithInternalNameManager["Artist"]):
             self.delete_instance_with_albums_and_tracks(instance)
 
     def delete_instance_with_albums_and_tracks(self, instance: Artist) -> tuple[int, dict[str, int]]:
+        from the_music_tree_genre_kit.track.Track import Track
+
         from grow.model.album.Album import Album
-        from grow.model.track.Track import Track
 
         # Keep deletion order for rollback tests
 
