@@ -36,37 +36,38 @@ def noop_reverse(apps, schema_editor):
 
 def repoint_track_parent_link(apps, schema_editor):
     """
-    Repoints `UploadedTrack.track`/`YoutubeTrack.track` from `grow_track` to the kit's
-    `the_music_tree_genre_kit_track` at the database level, driving `schema_editor.alter_field`
-    directly with the live model classes instead of a declarative `AlterField` operation.
+    Repoints `YoutubeTrack.track` from `grow_track` to the kit's `the_music_tree_genre_kit_track`
+    at the database level, driving `schema_editor.alter_field` directly with the live model class
+    instead of a declarative `AlterField` operation.
 
     A plain `AlterField` can't express this: `SeparateDatabaseAndState.database_operations` never
     sees the `bases=` change (only `state_operations` does), so its own state stream still
-    declares `bases=('grow.track',)` for these models. Django's state renderer then finds no field
+    declares `bases=('grow.track',)` for this model. Django's state renderer then finds no field
     satisfying that declared parent link and silently injects an implicit `track_ptr` column
-    alongside our real one. Using the actual (already-correct) Python model classes here sidesteps
+    alongside our real one. Using the actual (already-correct) Python model class here sidesteps
     that state rendering path altogether.
+
+    `UploadedTrack` never needs this treatment: it's dead code with no live data, so its table is
+    dropped outright (see this migration's `database_operations`) instead of repointed.
     """
-    from grow.model.uploaded_track.UploadedTrack import UploadedTrack
     from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
     GrowTrack = apps.get_model("grow", "Track")
 
-    for real_model in (UploadedTrack, YoutubeTrack):
-        new_field = real_model._meta.get_field("track")
-        related_name = new_field.remote_field.related_name
+    new_field = YoutubeTrack._meta.get_field("track")
+    related_name = new_field.remote_field.related_name
 
-        old_field = PrivateOneToOneField(
-            GrowTrack,
-            on_delete=django.db.models.deletion.CASCADE,
-            parent_link=True,
-            primary_key=True,
-            related_name=related_name,
-        )
-        old_field.set_attributes_from_name("track")
-        old_field.model = real_model
+    old_field = PrivateOneToOneField(
+        GrowTrack,
+        on_delete=django.db.models.deletion.CASCADE,
+        parent_link=True,
+        primary_key=True,
+        related_name=related_name,
+    )
+    old_field.set_attributes_from_name("track")
+    old_field.model = YoutubeTrack
 
-        schema_editor.alter_field(real_model, old_field, new_field)
+    schema_editor.alter_field(YoutubeTrack, old_field, new_field)
 
 
 def noop_reverse_schema(apps, schema_editor):
@@ -77,10 +78,10 @@ class Migration(migrations.Migration):
     """
     Additive half of the Track-to-genre-kit move: copies every `grow_track` row into the
     kit's `the_music_tree_genre_kit_track` table under the same PK, then re-points the
-    `UploadedTrack`/`YoutubeTrack` MTI parent link and `TrackPlaylistRel.track` at the kit's
-    table. `grow_track` itself is left physically intact here on purpose -- dropping it is a
-    separate, later migration -- so a bad deploy can be halted after this step runs without a
-    destructive rollback.
+    `YoutubeTrack` MTI parent link and `TrackPlaylistRel.track` at the kit's table, and drops
+    the dead `UploadedTrack` model/table outright. `grow_track` itself is left physically intact
+    here on purpose -- dropping it is a separate, later migration -- so a bad deploy can be
+    halted after this step runs without a destructive rollback.
     """
 
     dependencies = [
@@ -101,32 +102,11 @@ class Migration(migrations.Migration):
         ),
         migrations.SeparateDatabaseAndState(
             database_operations=[
+                migrations.DeleteModel(name="UploadedTrack"),
                 migrations.RunPython(repoint_track_parent_link, noop_reverse_schema),
             ],
             state_operations=[
                 migrations.DeleteModel(name="UploadedTrack"),
-                migrations.CreateModel(
-                    name="UploadedTrack",
-                    fields=[
-                        (
-                            "track",
-                            PrivateOneToOneField(
-                                on_delete=django.db.models.deletion.CASCADE,
-                                parent_link=True,
-                                primary_key=True,
-                                related_name="uploadedtrack",
-                                serialize=False,
-                                to="the_music_tree_genre_kit.track",
-                            ),
-                        ),
-                    ],
-                    options={
-                        "verbose_name": "Uploaded Track",
-                        "verbose_name_plural": "Uploaded Tracks",
-                        "db_table": "grow_uploaded_track",
-                    },
-                    bases=("the_music_tree_genre_kit.track",),
-                ),
                 migrations.DeleteModel(name="YoutubeTrack"),
                 migrations.CreateModel(
                     name="YoutubeTrack",

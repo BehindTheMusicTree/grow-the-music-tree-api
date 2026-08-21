@@ -9,6 +9,6 @@ class GenreViewSet(GenreExampleTreeMixin[Genre], CriteriaViewSet):
         super().__init__(model_class=Genre, **kwargs)
 
     def on_example_tree_loaded(self, request) -> None:
-        from grow.model.uploaded_track.UploadedTrack import UploadedTrack
+        from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
-        UploadedTrack.objects.filter(user=request.user).update(genre=None)
+        YoutubeTrack.objects.filter(user=request.user).update(genre=None)

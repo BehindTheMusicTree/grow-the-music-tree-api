@@ -7,6 +7,3 @@ class GrowConfig(AppConfig):
 
     def ready(self):
         import grow.model.user.signals
-        from grow.model.track.bootstrap import install_track_convenience_methods
-
-        install_track_convenience_methods()
