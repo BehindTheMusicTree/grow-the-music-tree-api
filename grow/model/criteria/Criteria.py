@@ -9,8 +9,9 @@ from .CriteriaManager import CriteriaManager
 from .Fields import Fields
 
 if TYPE_CHECKING:
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
-    from grow.model.track.Track import Track
 
 
 class Criteria(AbstractCriteria, TrackMixin):

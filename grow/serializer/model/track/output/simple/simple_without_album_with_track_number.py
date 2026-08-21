@@ -1,6 +1,6 @@
 from rest_framework import serializers
+from the_music_tree_genre_kit.track.Track import Track
 
-from grow.model.track.Track import Track
 from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
 from grow.serializer.model.criteria.output.minimum import CriteriaMinimumSerializer
 

@@ -1,10 +1,11 @@
 from django.db import models
 from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import PrivateOneToOneField
 from the_music_tree_genre_kit.criteria.playlist.AbstractCriteriaPlaylist import AbstractCriteriaPlaylist
+from the_music_tree_genre_kit.track.Track import Track
 
 from grow.model.playlist.Fields import Fields as PlayListFields
 from grow.model.playlist.Playlist import Playlist
-from grow.model.track.Track import Track
+from grow.model.track.TrackManager import TrackManager
 from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
 from .CriteriaPlaylistManager import CriteriaPlaylistManager
@@ -32,3 +33,4 @@ class CriteriaPlaylist(AbstractCriteriaPlaylist, Playlist):  # type: ignore[djan
 
 CriteriaPlaylistManager.track_playlist_rel_model = TrackPlaylistRel
 CriteriaPlaylistManager.track_model = Track
+TrackManager.criteria_playlist_model = CriteriaPlaylist

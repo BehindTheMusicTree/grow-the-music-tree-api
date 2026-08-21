@@ -23,7 +23,6 @@ class PlayDetailedSerializer(serializers.ModelSerializer):
     def get_content(self, obj: Play) -> list | Any | dict:
         if isinstance(obj.content, Playlist):
             return PlaylistDetailedSerializer(obj.content).data
-        concrete = obj.content.resolve_concrete()
-        if isinstance(concrete, YoutubeTrack):
-            return YoutubeTrackDetailedSerializer(concrete).data
-        raise NotImplementedError(f"No detailed serializer for track type {type(concrete).__name__}")
+        if isinstance(obj.content, YoutubeTrack):
+            return YoutubeTrackDetailedSerializer(obj.content).data
+        raise NotImplementedError(f"No detailed serializer for track type {type(obj.content).__name__}")

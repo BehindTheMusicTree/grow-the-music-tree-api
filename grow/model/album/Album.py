@@ -15,8 +15,9 @@ from .AlbumManager import AlbumManager
 from .Fields import Fields
 
 if TYPE_CHECKING:
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.track.Fields import Fields as TrackFields
-    from grow.model.track.Track import Track
 
 
 class Album(TrackMixin):

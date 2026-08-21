@@ -62,7 +62,7 @@ class AlbumManager(TrackMixinWithInternalNameManager["Album"]):
             self.delete_instance_with_tracks_and_potentially_artists(instance)
 
     def delete_instance_with_tracks_and_potentially_artists(self, instance: Album):
-        from grow.model.track.Track import Track
+        from the_music_tree_genre_kit.track.Track import Track
 
         # Keep this deletion order for rollback tests: first delete tracks, then delete album, then delete artists
 
