@@ -1,5 +1,6 @@
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
+
 from grow.filtering.set.playlist.PlaylistFilterSet import PlaylistFilterSet
-from grow.model.playlist.Playlist import Playlist
 from grow.serializer.model.playlist.base.output.detailed import PlaylistDetailedSerializer
 from grow.serializer.model.playlist.base.output.simple import PlaylistSimpleSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet

@@ -2,8 +2,7 @@ from typing import TYPE_CHECKING
 
 from django.db import models
 from the_music_tree_genre_kit.criteria.AbstractCriteria import AbstractCriteria
-
-from grow.model.track_mixin.TrackMixin import TrackMixin
+from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
 
 from .CriteriaManager import CriteriaManager
 from .Fields import Fields
