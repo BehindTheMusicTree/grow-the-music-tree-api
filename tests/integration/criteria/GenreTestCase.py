@@ -9,7 +9,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 class GenreTestCase(AppTestCase):
     model_class = Genre
-    list_endpoint = "reference-genre-list"
+    list_endpoint = "genre-list"
 
     def _list_genres(self, **kwargs):
         return self.api_client.get(path=reverse(self.list_endpoint), data=kwargs, handle_response=self._set_results)
@@ -25,6 +25,15 @@ class GenreTestCase(AppTestCase):
             data=data,
             handle_response=self._set_results,
         )
+
+    def _post_genres_tree_load_example(self):
+        return self.api_client.post(
+            path=reverse(self.list_endpoint) + "tree/load-example/",
+            handle_response=self._set_results,
+        )
+
+    def _delete_genre(self, uuid):
+        return self.api_client.delete(path=reverse("genre-detail", kwargs={"pk": uuid}))
 
     def _set_results(self, response):
         if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]:

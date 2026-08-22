@@ -4,17 +4,18 @@ from django.conf import settings
 from django.db import models
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 
-from grow.model.uploaded_track_mixin.UploadedTrackMixin import UploadedTrackMixin
+from grow.model.track_mixin.TrackMixin import TrackMixin
 
 from .ArtistManager import ArtistManager
 from .Fields import Fields
 
 if TYPE_CHECKING:
+    from the_music_tree_genre_kit.track.Track import Track
+
     from grow.model.album.Album import Album
-    from grow.model.uploaded_track.UploadedTrack import UploadedTrack
 
 
-class Artist(UploadedTrackMixin):
+class Artist(TrackMixin):
     _name = AppCharField(max_length=settings.ARTIST_NAME_LEN_MAX, default=None, db_column=Fields.NAME_PUBLIC)
 
     @property
@@ -27,8 +28,8 @@ class Artist(UploadedTrackMixin):
     objects: ArtistManager = ArtistManager()
 
     @property
-    def uploaded_tracks(self) -> models.QuerySet[UploadedTrack]:
-        return getattr(self, Fields.UPLOADED_TRACKS_RELATED_NAME)
+    def tracks(self) -> models.QuerySet[Track]:
+        return getattr(self, Fields.TRACKS_RELATED_NAME)
 
     class Meta:
         db_table = "grow_artist"

@@ -5,8 +5,9 @@ from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
 
 from grow.model.play.Play import Play
 from grow.model.playlist.Playlist import Playlist
+from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.serializer.model.playlist.base.output.detailed import PlaylistDetailedSerializer
-from grow.serializer.model.uploaded_track.output.detailed import UploadedTrackDetailedSerializer
+from grow.serializer.model.youtube_track.output.detailed import YoutubeTrackDetailedSerializer
 
 from .Fields import Fields
 
@@ -22,4 +23,6 @@ class PlayDetailedSerializer(serializers.ModelSerializer):
     def get_content(self, obj: Play) -> list | Any | dict:
         if isinstance(obj.content, Playlist):
             return PlaylistDetailedSerializer(obj.content).data
-        return UploadedTrackDetailedSerializer(obj.content).data
+        if isinstance(obj.content, YoutubeTrack):
+            return YoutubeTrackDetailedSerializer(obj.content).data
+        raise NotImplementedError(f"No detailed serializer for track type {type(obj.content).__name__}")

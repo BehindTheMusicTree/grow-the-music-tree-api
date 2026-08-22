@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Coverage
+.coverage
+
+# Local scratch files
+.local/
+
+# Claude Code worktrees
+# =============================================================================
+.claude/worktrees/

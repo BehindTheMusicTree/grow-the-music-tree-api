@@ -4,9 +4,9 @@ from django.db import transaction
 from django.db.models import QuerySet
 
 from grow.model.artist.Artist import Artist
-from grow.model.uploaded_track_mixin.Fields import Fields
-from grow.model.uploaded_track_mixin.UploadedTrackMixinWithInternalNameManager import (
-    UploadedTrackMixinWithInternalNameManager,
+from grow.model.track_mixin.Fields import Fields
+from grow.model.track_mixin.TrackMixinWithInternalNameManager import (
+    TrackMixinWithInternalNameManager,
 )
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .Album import Album
 
 
-class AlbumManager(UploadedTrackMixinWithInternalNameManager["Album"]):
+class AlbumManager(TrackMixinWithInternalNameManager["Album"]):
     model: type[Album]
 
     def _get_instance_from_name_and_artists_after_potential_creations(
@@ -62,13 +62,13 @@ class AlbumManager(UploadedTrackMixinWithInternalNameManager["Album"]):
             self.delete_instance_with_tracks_and_potentially_artists(instance)
 
     def delete_instance_with_tracks_and_potentially_artists(self, instance: Album):
-        from grow.model.uploaded_track.UploadedTrack import UploadedTrack
+        from the_music_tree_genre_kit.track.Track import Track
 
         # Keep this deletion order for rollback tests: first delete tracks, then delete album, then delete artists
 
         artists_linked_to_album_and_track: list[Artist] = []
-        uploaded_tracks: QuerySet[UploadedTrack] = instance.uploaded_tracks.all()
-        for track in uploaded_tracks:
+        tracks: QuerySet[Track] = instance.tracks.all()
+        for track in tracks:
             if track.artists.exists():
                 for artist in track.artists.all():
                     if artist not in artists_linked_to_album_and_track:
@@ -85,7 +85,7 @@ class AlbumManager(UploadedTrackMixinWithInternalNameManager["Album"]):
             Artist.objects.delete_instance_if_nothing_linked(artist)
 
     def delete_instance_if_no_track_linked_with_potential_album_artist_deletion(self, instance: Album):
-        if instance.uploaded_tracks.count() == 0:
+        if instance.tracks.count() == 0:
             album_artists = list(instance.album_artists.all())  # Copy the list before the deletion
             instance.delete()
             for album_artist in album_artists:
