@@ -1,3 +1,5 @@
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.track.Track import Track
 
 from grow.model.album.Album import Album
@@ -11,8 +13,6 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
-from grow.model.playlist.Playlist import Playlist
-from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
 __all__ = [

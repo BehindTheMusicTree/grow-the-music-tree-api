@@ -1,4 +1,4 @@
-from grow.model.track_mixin.Fields import Fields as TrackMixinFields
+from the_music_tree_genre_kit.track_mixin.Fields import Fields as TrackMixinFields
 
 
 class Fields(TrackMixinFields):

@@ -61,10 +61,8 @@ API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
 
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"
-PLAYLIST_MODEL = "grow.Playlist"
 ARTIST_MODEL = "grow.Artist"
 ALBUM_MODEL = "grow.Album"
-TRACK_PLAYLIST_REL_MODEL = "grow.TrackPlaylistRel"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100

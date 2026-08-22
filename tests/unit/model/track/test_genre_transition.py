@@ -1,5 +1,6 @@
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
+
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
-from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from tests.utils.AppTestCase import AppTestCase
 

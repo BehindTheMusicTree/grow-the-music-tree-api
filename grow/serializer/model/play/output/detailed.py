@@ -2,9 +2,9 @@ from typing import Any
 
 from rest_framework import serializers
 from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.model.play.Play import Play
-from grow.model.playlist.Playlist import Playlist
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.serializer.model.playlist.base.output.detailed import PlaylistDetailedSerializer
 from grow.serializer.model.youtube_track.output.detailed import YoutubeTrackDetailedSerializer
