@@ -3,8 +3,7 @@ from typing import TYPE_CHECKING
 from django.conf import settings
 from django.db import models
 from the_music_tree_api_kit.field.AppCharField import AppCharField
-
-from grow.model.track_mixin.TrackMixin import TrackMixin
+from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
 
 from .ArtistManager import ArtistManager
 from .Fields import Fields

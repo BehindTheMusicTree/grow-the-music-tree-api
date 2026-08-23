@@ -529,7 +529,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="playlist",
-            index=models.Index(fields=["user", "uuid"], name="playlist_user_uuid_idx"),
+            index=models.Index(fields=["user", "uuid"], name="grow_playlist_user_uuid_idx"),
         ),
         migrations.AddIndex(
             model_name="play",

@@ -1,32 +1,19 @@
-from django.conf import settings
 from django.db import models
-from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import PrivateOneToOneField
-
-from grow.model.playlist.children.manual import ManualPlaylistTypeLabel
-from grow.model.playlist.Fields import Fields as PlayListFields
-from grow.model.playlist.Playlist import Playlist
-from grow.model.track_mixin.TrackMixinWithInternalNameManager import (
-    TrackMixinWithInternalNameManager,
-)
+from the_music_tree_genre_kit.manual_playlist.AbstractManualPlaylist import AbstractManualPlaylist
+from the_music_tree_genre_kit.playlist.Fields import Fields as PlayListFields
+from the_music_tree_genre_kit.playlist.Playlist import Playlist as KitPlaylist
 
 from .Fields import Fields
+from .ManualPlaylistManager import ManualPlaylistManager
 
 
-class ManualPlaylist(Playlist):
+class ManualPlaylist(AbstractManualPlaylist, KitPlaylist):  # type: ignore[django-manager-missing]
     playlist = PrivateOneToOneField(
-        Playlist, on_delete=models.CASCADE, parent_link=True, related_name=PlayListFields.MANUAL_PLAYLIST
+        KitPlaylist, on_delete=models.CASCADE, parent_link=True, related_name=PlayListFields.MANUAL_PLAYLIST
     )
 
-    _name = AppCharField(
-        max_length=settings.MANUAL_PLAYLIST_NAME_LEN_MAX, blank=False, null=False, db_column=Fields.NAME_PUBLIC
-    )  # type: ignore
-
-    objects: TrackMixinWithInternalNameManager = TrackMixinWithInternalNameManager()
-
-    @property
-    def name(self) -> str:
-        return self._name
+    objects: ManualPlaylistManager = ManualPlaylistManager()
 
     class Meta:
         db_table = "grow_manual_playlist"
@@ -34,7 +21,3 @@ class ManualPlaylist(Playlist):
         verbose_name = "Manual Playlist"
         verbose_name_plural = "Manual Playlists"
         indexes = [models.Index(fields=[Fields.NAME_INTERNAL], name="manual_playlist_name_idx")]
-
-    @property
-    def type_label(self):
-        return ManualPlaylistTypeLabel.VALUE

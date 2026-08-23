@@ -43,10 +43,8 @@ GROW_API_KEY = "test-api-key"
 
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"
-PLAYLIST_MODEL = "grow.Playlist"
 ARTIST_MODEL = "grow.Artist"
 ALBUM_MODEL = "grow.Album"
-TRACK_PLAYLIST_REL_MODEL = "grow.TrackPlaylistRel"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100

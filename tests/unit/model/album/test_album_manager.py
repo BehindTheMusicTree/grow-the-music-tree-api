@@ -1,6 +1,7 @@
+from the_music_tree_genre_kit.track_mixin.Fields import Fields
+
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
-from grow.model.track_mixin.Fields import Fields
 from tests.utils.AppTestCase import AppTestCase
 
 

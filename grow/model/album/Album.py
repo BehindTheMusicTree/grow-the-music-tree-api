@@ -6,10 +6,10 @@ from django.db.models import Q
 from django.db.models.query import QuerySet
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_api_kit.field.foreign_key.PrivateManyToManyField import PrivateManyToManyField
+from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
 
 from grow.model.artist.Artist import Artist
 from grow.model.artist.Fields import Fields as ArtistFields
-from grow.model.track_mixin.TrackMixin import TrackMixin
 
 from .AlbumManager import AlbumManager
 from .Fields import Fields

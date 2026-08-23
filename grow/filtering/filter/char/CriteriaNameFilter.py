@@ -1,12 +1,12 @@
 from django.db.models import Case, Q, Value, When
 from the_music_tree_api_kit.base.BaseQuerySet import BaseQuerySet
 from the_music_tree_api_kit.field.AppCharField import AppCharField
+from the_music_tree_genre_kit.criteria.playlist.CriterialessPlaylistNames import CriterialessPlaylistNames
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
 from grow.filtering.filter.char.NonEmptiableCharFilter import NonEmptiableCharFilter
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as CriteriaModelFields
-from grow.model.playlist.children.criteria.CriterialessPlaylistNames import CriterialessPlaylistNames
 
 
 class CriteriaNameFilter(NonEmptiableCharFilter):
