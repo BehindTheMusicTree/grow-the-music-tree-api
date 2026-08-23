@@ -83,4 +83,4 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 DJANGO_SETTINGS_MODULE = "tests.settings"
-addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=76"
+addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85"
