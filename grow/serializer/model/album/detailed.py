@@ -14,7 +14,7 @@ class AlbumDetailedSerializer(serializers.ModelSerializer):
         source=Fields.TRACKS_NOT_ARCHIVED_SORTED_INTERNAL, many=True
     )
     tracks_count = serializers.IntegerField(source=Fields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
-    tracks_archived_count = serializers.IntegerField(source=Fields.TRACKS_ARCHIVED_COUNT_INTERNAL)
+    tracks_archived_count = serializers.IntegerField()
     album_artists = ArtistMinimumSerializer(many=True)
 
     class Meta:
