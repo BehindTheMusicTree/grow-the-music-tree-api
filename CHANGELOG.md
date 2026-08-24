@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Added a `HEALTHCHECK` to the Dockerfile: it was missing entirely, so a Coolify deploy of the production image (which has no `curl`/`wget`, unlike `hear-the-music-tree-api`'s image) would report unhealthy. Uses the same `python3 -c "...urllib..."` probe already used by `docker-compose.yml`'s local healthcheck, so no extra package install is needed.
 - Fixed `ArtistSimpleSerializer`, `ArtistDetailedSerializer`, and `AlbumDetailedSerializer` raising an `AssertionError` on first use: each declared `tracks_archived_count` with a `source=` matching its own field name, which DRF rejects as redundant. Discovered while adding coverage for `Album`/`Artist`, which were previously untested.
 - Fixed `CriteriaPlaylist.DoesNotExist` on deleting a root `Genre` or `Tag`: the catch-all criteria-less `CriteriaPlaylist` row per `(user, type)` that `TrackManager`/`CriteriaPlaylistManager` assume exists was never created. A `post_save` signal now bootstraps it for new users, and a data migration backfills it for existing users.
 - Fixed tracks directly attached to a deleted root `Tag` being silently orphaned instead of moved to the criteria-less playlist: `CriteriaManager._on_before_delete` looked up "direct tracks to transfer" via the `Genre`-specific FK-leaf relation, which is always empty for `Tag`. Added regression tests covering root `Genre` deletion, root `Tag` deletion, and a track transitioning to genreless.
