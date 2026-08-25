@@ -72,6 +72,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("grow", "0007_delete_grow_track"),
+        ("grow", "0008_rename_legacy_playlist_index"),
         ("the_music_tree_genre_kit", "0004_playlist"),
     ]
 
