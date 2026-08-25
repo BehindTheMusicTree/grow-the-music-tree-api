@@ -32,6 +32,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "the_music_tree_api_kit.view.middleware.HostValidationMiddleware.HostValidationMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "the_music_tree_api_kit.view.middleware.CamelToSnakeMiddleware.CamelToSnakeMiddleware",
 ]
 
 ROOT_URLCONF = "grow.urls"
@@ -52,6 +53,12 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ("djangorestframework_camel_case.render.CamelCaseJSONRenderer",),
+    "DEFAULT_PARSER_CLASSES": (
+        "djangorestframework_camel_case.parser.CamelCaseJSONParser",
+        "djangorestframework_camel_case.parser.CamelCaseMultiPartParser",
+        "djangorestframework_camel_case.parser.CamelCaseFormParser",
+    ),
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
