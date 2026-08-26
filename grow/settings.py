@@ -12,6 +12,10 @@ SYSTEM_USERNAME = os.environ["SYSTEM_USERNAME"]
 
 GROW_API_KEY = os.environ["GROW_API_KEY"]
 
+PROTOTYPE_USERNAME = os.environ["PROTOTYPE_USERNAME"]
+
+GROW_PROTOTYPE_API_KEY = os.environ["GROW_PROTOTYPE_API_KEY"]
+
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]

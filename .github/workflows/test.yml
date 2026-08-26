@@ -13,6 +13,8 @@ jobs:
       SECRET_KEY: mypy-ci-dummy-key
       SYSTEM_USERNAME: mypy-ci-dummy-user
       GROW_API_KEY: mypy-ci-dummy-key
+      PROTOTYPE_USERNAME: mypy-ci-dummy-prototype-user
+      GROW_PROTOTYPE_API_KEY: mypy-ci-dummy-prototype-key
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
       APP_VERSION: "0.0.0"
     steps:

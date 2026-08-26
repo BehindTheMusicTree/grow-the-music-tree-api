@@ -35,6 +35,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
       SYSTEM_USERNAME: ${SYSTEM_USERNAME:-system}
       GROW_API_KEY: ${GROW_API_KEY:-dev-only-api-key}
+      PROTOTYPE_USERNAME: ${PROTOTYPE_USERNAME:-prototype}
+      GROW_PROTOTYPE_API_KEY: ${GROW_PROTOTYPE_API_KEY:-dev-only-prototype-api-key}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
     ports:
