@@ -45,6 +45,7 @@ class CriteriaDetailedSerializer(AppInputSerializer, serializers.ModelSerializer
             CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+            CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.CREATED_ON.value,
             CriteriaOutputFieldKey.UPDATED_ON.value,
         ]
