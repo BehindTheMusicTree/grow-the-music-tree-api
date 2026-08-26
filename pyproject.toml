@@ -13,7 +13,7 @@ dependencies = [
     "psycopg[binary]==3.2.13",
     "gunicorn==23.0.0",
     "djangorestframework-camel-case==1.4.2",
-    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.8.0",
+    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.9.0",
 ]
 
 [project.optional-dependencies]
