@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- `POST tree/load-example` now also (re)seeds the user's example songs, not just the example genre tree: `GenreViewSet.on_example_tree_loaded` loads the bundled `song_example.json` fixture (from `the-music-tree-genre-kit`'s `DATA_DIR`, already reused by this app) through the kit's `SongExampleImportSerializer` and `YoutubeTrack.objects.import_example_songs`. Also added `SongExampleTreeMixin[YoutubeTrack]` to `YoutubeTrackViewSet`, exposing a standalone `POST library/youtube/songs/load-example` action. **Behavior change:** because `import_example_songs` wipes-then-reseeds all of the user's tracks, `tree/load-example` now deletes the user's entire `YoutubeTrack` library on every call, not just genre associations as before (the old `YoutubeTrack.objects.filter(user=...).update(genre=None)` reset is removed as redundant).
+
 - Internal refactor, no API change: `CriteriaDetailedSerializer`'s `tracks`/`tracks_count`/`tracks_archived_count` fields and `CriteriaPlaylistMinimumSerializer` now source their DRF field/serializer definitions from `the-music-tree-genre-kit`'s new `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders instead of hand-duplicating them, now that both are backed by the kit's shared `TrackMixin`/`CriteriaPlaylist`.
 - Re-pinned `the-music-tree-genre-kit` to `v0.9.0`, which adds the `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders this refactor adopts.
 
