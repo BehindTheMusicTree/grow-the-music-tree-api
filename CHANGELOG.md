@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Internal refactor, no API change: `CriteriaDetailedSerializer`'s `tracks`/`tracks_count`/`tracks_archived_count` fields and `CriteriaPlaylistMinimumSerializer` now source their DRF field/serializer definitions from `the-music-tree-genre-kit`'s new `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders instead of hand-duplicating them, now that both are backed by the kit's shared `TrackMixin`/`CriteriaPlaylist`.
-- Temporarily repin `the-music-tree-genre-kit` to commit `96306a2a2966e225f57f1f586e28276f8d7696eb` (branch `refactor/criteria-detailed-tracks-and-playlist-serializer-builders`, kit PR #30), since these builders aren't in a tagged kit release yet. **Must be re-pinned to a proper `vX.Y.Z` tag once the kit PR merges and is released** — this PR cannot merge before that happens.
+- Re-pinned `the-music-tree-genre-kit` to `v0.9.0`, which adds the `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders this refactor adopts.
 
 ### Fixed
 
