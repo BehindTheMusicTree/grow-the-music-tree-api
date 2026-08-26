@@ -30,7 +30,7 @@ uv run manage.py runserver
 
 ## Commands
 
-- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=76`.
+- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
 - **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `SYSTEM_USERNAME`, `GROW_API_KEY`, `PROTOTYPE_USERNAME`, `GROW_PROTOTYPE_API_KEY`, `DATABASE_URL`, `APP_VERSION` all dummy values are fine, e.g.:
   ```bash
