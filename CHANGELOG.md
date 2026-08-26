@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Added a second, read-only "prototype" static-API-key identity alongside the existing system user: `PROTOTYPE_USERNAME`/`GROW_PROTOTYPE_API_KEY` settings, a prototype `User` bootstrapped via migration (with its own criteria-less `CriteriaPlaylist` rows), and enforcement in `ApiKeyAuthentication`/`GrowModelViewSet` so any write attempt authenticated with the prototype key returns `403 Forbidden`. Reads behave identically to the system user.
+
 ### Changed
 
 - `POST tree/load-example` now also (re)seeds the user's example songs, not just the example genre tree: `GenreViewSet.on_example_tree_loaded` loads the bundled `song_example.json` fixture (from `the-music-tree-genre-kit`'s `DATA_DIR`, already reused by this app) through the kit's `SongExampleImportSerializer` and `YoutubeTrack.objects.import_example_songs`. Also added `SongExampleTreeMixin[YoutubeTrack]` to `YoutubeTrackViewSet`, exposing a standalone `POST library/youtube/songs/load-example` action. **Behavior change:** because `import_example_songs` wipes-then-reseeds all of the user's tracks, `tree/load-example` now deletes the user's entire `YoutubeTrack` library on every call, not just genre associations as before (the old `YoutubeTrack.objects.filter(user=...).update(genre=None)` reset is removed as redundant).

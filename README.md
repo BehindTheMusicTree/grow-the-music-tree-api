@@ -62,6 +62,8 @@ uv run manage.py runserver
 | `SECRET_KEY`      | yes      | —         | Django secret key                                        |
 | `SYSTEM_USERNAME` | yes      | —         | Username for the single-tenant "system user"             |
 | `GROW_API_KEY`    | yes      | —         | Static API key checked against the `X-API-Key` header    |
+| `PROTOTYPE_USERNAME` | yes   | —         | Username for the read-only "prototype user"               |
+| `GROW_PROTOTYPE_API_KEY` | yes | —       | Static API key for the read-only prototype identity       |
 | `DATABASE_URL`    | yes      | —         | Postgres connection string, parsed via `dj-database-url` |
 | `DEBUG`           | no       | `false`   |                                                          |
 | `ALLOWED_HOSTS`   | no       | `""`      | Comma-separated                                          |
@@ -73,6 +75,8 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 ## API
 
 Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `X-API-Key` header set to `GROW_API_KEY`. The service is single-tenant: there's no per-user auth, every record belongs to the one "system user".
+
+A second static key, `GROW_PROTOTYPE_API_KEY`, authenticates as a separate "prototype user" that is restricted to reads — any write attempt with this key returns `403 Forbidden`.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
