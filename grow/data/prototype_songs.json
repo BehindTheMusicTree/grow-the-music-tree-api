@@ -1,0 +1,44 @@
+[
+  {
+    "title": "Prototype Deep House Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER01",
+    "genre_name": "Deep House"
+  },
+  {
+    "title": "Prototype Tech House Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER02",
+    "genre_name": "Tech House"
+  },
+  {
+    "title": "Prototype Detroit Techno Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER03",
+    "genre_name": "Detroit Techno"
+  },
+  {
+    "title": "Prototype Grunge Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER04",
+    "genre_name": "Grunge"
+  },
+  {
+    "title": "Prototype Heavy Metal Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER05",
+    "genre_name": "Heavy Metal"
+  },
+  {
+    "title": "Prototype Boom Bap Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER06",
+    "genre_name": "Boom Bap"
+  },
+  {
+    "title": "Prototype Trap Cut",
+    "artist": "Prototype Demo Artist",
+    "youtube_video_id": "PROTO_PLACEHOLDER07",
+    "genre_name": "Trap"
+  }
+]
