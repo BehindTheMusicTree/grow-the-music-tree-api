@@ -22,7 +22,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
 
 - Genre and tag criteria trees, with bulk tree import and export
 - Playlists automatically derived from genre/tag criteria, plus manually curated playlists
-- Artist, album, and uploaded-track library, with play tracking
+- Artist, album, and Youtube-track library, with play tracking
 - Single static API-key authentication — no per-user accounts, single-tenant reference dataset
 - `/health/` endpoint for uptime and database checks
 
@@ -83,14 +83,16 @@ A second static key, `GROW_PROTOTYPE_API_KEY`, authenticates as a separate "prot
 | `GET /health/`                | Health check (no auth)                               |
 | `/reference/artists`          | Artists                                              |
 | `/reference/albums`           | Albums                                               |
-| `/reference/genres`           | Genre criteria tree (CRUD + `tree/`, `tree/import/`) |
+| `/reference/genres`           | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-example/`) |
 | `/reference/tags`             | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
 | `/reference/playlists`        | Playlists                                            |
 | `/reference/manual-playlists` | Manual playlists                                     |
 | `/reference/genre-playlists`  | Playlists derived from the genre tree (read-only)    |
 | `/reference/tag-playlists`    | Playlists derived from the tag tree (read-only)      |
 | `/reference/plays`            | Play records                                         |
-| `/reference/library/uploaded` | Uploaded tracks                                      |
+| `/reference/library/youtube`  | Youtube tracks (CRUD + `songs/load-example/`)        |
+
+`POST tree/load-example` on `/reference/genres` (re)seeds the system user's example genre tree and example songs; `POST songs/load-example` on `/reference/library/youtube` seeds just the example songs. A `seed_prototype_tree` management command (`uv run manage.py seed_prototype_tree`) does the equivalent for the read-only prototype user, from dedicated fixtures.
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 
