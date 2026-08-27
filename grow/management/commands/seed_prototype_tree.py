@@ -20,18 +20,19 @@ PROTOTYPE_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 class Command(BaseCommand):
-    help = "(Re)seeds the prototype user's genre tree and tracks from grow/data/prototype_*.json"
+    help = (
+        "(Re)seeds the prototype user's genre tree from grow/data/prototype_genre_tree.json "
+        "and tracks from a required --songs-file"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--songs-file",
             type=str,
-            default=None,
+            required=True,
             help=(
-                "Path to an external JSON file of song entries (same shape as "
-                "prototype_songs.json: a list of {title, artist, youtube_video_id, genre_name} "
-                "objects) to seed instead of the small bundled prototype_songs.json. Not "
-                "committed to git - intended for large, externally-sourced datasets."
+                "Path to a JSON file of song entries (a list of {title, artist, "
+                "youtube_video_id, genre_name} objects). Not committed to git."
             ),
         )
 
@@ -46,9 +47,7 @@ class Command(BaseCommand):
         tree_serializer.is_valid(raise_exception=True)
         Genre.objects.import_criteria_tree(user, tree_serializer.validated_data)
 
-        songs_file = options["songs_file"]
-        songs_path = Path(songs_file) if songs_file else PROTOTYPE_DATA_DIR / "prototype_songs.json"
-        songs_data = json.loads(songs_path.read_text())
+        songs_data = json.loads(Path(options["songs_file"]).read_text())
         songs_serializer = SongExampleImportSerializer(data={SongExampleFields.SONGS: songs_data})
         songs_serializer.is_valid(raise_exception=True)
         YoutubeTrack.objects.import_example_songs(user, songs_serializer.validated_data[SongExampleFields.SONGS])
