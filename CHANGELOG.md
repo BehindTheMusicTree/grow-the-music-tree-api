@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Internal refactor, no API change: `CriteriaDetailedSerializer`'s `tracks`/`tracks_count`/`tracks_archived_count` fields and `CriteriaPlaylistMinimumSerializer` now source their DRF field/serializer definitions from `the-music-tree-genre-kit`'s new `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders instead of hand-duplicating them, now that both are backed by the kit's shared `TrackMixin`/`CriteriaPlaylist`.
 - Re-pinned `the-music-tree-genre-kit` to `v0.9.0`, which adds the `build_criteria_detailed_tracks_fields`/`build_criteria_playlist_minimum_serializer` builders this refactor adopts.
+- Bumped `the-music-tree-genre-kit` to `v0.10.0`, which renames the bundled `genre_example_tree.json`'s top-level `"Pop"` root to `"Mainstream Pop"` — needed by a frontend wheel-visualization component that requires a root with that exact name.
 
 ### Fixed
 
