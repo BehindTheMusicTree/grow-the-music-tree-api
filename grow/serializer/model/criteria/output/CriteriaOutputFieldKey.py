@@ -19,3 +19,4 @@ class CriteriaOutputFieldKey(StrEnum):
     DESCENDANTS = "descendants"
     CHILDREN = "children"
     CRITERIA_PLAYLIST = "criteria_playlist"
+    SIDE = "side"

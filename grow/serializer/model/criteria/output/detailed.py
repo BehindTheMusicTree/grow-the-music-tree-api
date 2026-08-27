@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from rest_framework.fields import IntegerField
 from the_music_tree_api_kit.serializer.AppInputSerializer import AppInputSerializer
 from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
+from the_music_tree_genre_kit.serializer.model.criteria.output.detailed_tracks import (
+    build_criteria_detailed_tracks_fields,
+)
 
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as ModelFields
@@ -17,12 +19,18 @@ from grow.serializer.model.track.output.simple.simple_without_album_and_genre im
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
 
+_tracks_fields = build_criteria_detailed_tracks_fields(
+    TrackWithoutAlbumPlaylistGenreSerializer,
+    CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
+    CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
+    CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+)
+
 
 class CriteriaDetailedSerializer(AppInputSerializer, serializers.ModelSerializer):
-    tracks = TrackWithoutAlbumPlaylistGenreSerializer(
-        source=CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_INTERNAL.value, many=True
-    )
-    tracks_count = IntegerField(source=CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL.value)
+    tracks = _tracks_fields[CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value]
+    tracks_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value]
+    tracks_archived_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value]
     parent = CriteriaMinimumSerializer()
     ascendants = CriteriaLineageRelWithoutDescendantSerializer(source=ModelFields.ASCENDANTS_RELS, many=True)
     descendants = CriteriaLineageRelWithoutAscendantSerializer(source=ModelFields.DESCENDANTS_RELS, many=True)
@@ -45,6 +53,7 @@ class CriteriaDetailedSerializer(AppInputSerializer, serializers.ModelSerializer
             CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+            CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.CREATED_ON.value,
             CriteriaOutputFieldKey.UPDATED_ON.value,
         ]

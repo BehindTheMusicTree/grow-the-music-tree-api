@@ -1,7 +1,7 @@
 from rest_framework import status
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
-from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from tests.integration.criteria.TagTestCase import TagTestCase
 
 

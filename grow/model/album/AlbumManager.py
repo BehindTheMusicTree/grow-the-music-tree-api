@@ -2,12 +2,12 @@ from typing import TYPE_CHECKING
 
 from django.db import transaction
 from django.db.models import QuerySet
-
-from grow.model.artist.Artist import Artist
-from grow.model.track_mixin.Fields import Fields
-from grow.model.track_mixin.TrackMixinWithInternalNameManager import (
+from the_music_tree_genre_kit.track_mixin.Fields import Fields
+from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager import (
     TrackMixinWithInternalNameManager,
 )
+
+from grow.model.artist.Artist import Artist
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User

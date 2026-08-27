@@ -56,15 +56,9 @@ class YoutubeTrack(KitTrack):
         return f"{self.uuid} | '{self.title}' by {artists_str}"
 
     @property
-    def playlists(self) -> QuerySet:
-        from grow.model.playlist.Playlist import Playlist
-
-        return Playlist.objects.filter(track_playlist_rels__track=self)
-
-    @property
     def playlists_with_positions(self) -> list[tuple[str, int]]:
-        from grow.model.track_playlist_rel.TrackPlaylistRel import Fields as TrackPlaylistRelFields
-        from grow.model.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
+        from the_music_tree_genre_kit.criteria.track_playlist_rel.Fields import Fields as TrackPlaylistRelFields
+        from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
         track_playlist_rels = TrackPlaylistRel.objects.filter(user=self.user, track=self)
         return list(

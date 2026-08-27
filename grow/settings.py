@@ -12,6 +12,10 @@ SYSTEM_USERNAME = os.environ["SYSTEM_USERNAME"]
 
 GROW_API_KEY = os.environ["GROW_API_KEY"]
 
+PROTOTYPE_USERNAME = os.environ["PROTOTYPE_USERNAME"]
+
+GROW_PROTOTYPE_API_KEY = os.environ["GROW_PROTOTYPE_API_KEY"]
+
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
@@ -30,7 +34,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "the_music_tree_api_kit.view.middleware.HostValidationMiddleware.HostValidationMiddleware",
     "django.middleware.common.CommonMiddleware",
+    "the_music_tree_api_kit.view.middleware.CamelToSnakeMiddleware.CamelToSnakeMiddleware",
 ]
 
 ROOT_URLCONF = "grow.urls"
@@ -51,6 +57,12 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ("djangorestframework_camel_case.render.CamelCaseJSONRenderer",),
+    "DEFAULT_PARSER_CLASSES": (
+        "djangorestframework_camel_case.parser.CamelCaseJSONParser",
+        "djangorestframework_camel_case.parser.CamelCaseMultiPartParser",
+        "djangorestframework_camel_case.parser.CamelCaseFormParser",
+    ),
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
@@ -61,10 +73,8 @@ API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
 
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"
-PLAYLIST_MODEL = "grow.Playlist"
 ARTIST_MODEL = "grow.Artist"
 ALBUM_MODEL = "grow.Album"
-TRACK_PLAYLIST_REL_MODEL = "grow.TrackPlaylistRel"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100

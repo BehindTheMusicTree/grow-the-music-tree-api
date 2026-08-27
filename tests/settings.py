@@ -41,12 +41,14 @@ SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 
 GROW_API_KEY = "test-api-key"
 
+PROTOTYPE_USERNAME = os.environ.setdefault("PROTOTYPE_USERNAME", "prototype")
+
+GROW_PROTOTYPE_API_KEY = "test-prototype-api-key"
+
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"
-PLAYLIST_MODEL = "grow.Playlist"
 ARTIST_MODEL = "grow.Artist"
 ALBUM_MODEL = "grow.Album"
-TRACK_PLAYLIST_REL_MODEL = "grow.TrackPlaylistRel"
 
 PAGINATION_PAGE_SIZE_DEFAULT = 30
 PAGINATION_PAGE_SIZE_MAX = 100

@@ -1,9 +1,8 @@
 from typing import TYPE_CHECKING
 
 from django.db import transaction
-
-from grow.model.track_mixin.Fields import Fields as TrackMixinFields
-from grow.model.track_mixin.TrackMixinWithInternalNameManager import (
+from the_music_tree_genre_kit.track_mixin.Fields import Fields as TrackMixinFields
+from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager import (
     TrackMixinWithInternalNameManager,
 )
 

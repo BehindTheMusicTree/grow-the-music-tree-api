@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
-from grow.model.playlist.Playlist import Playlist
 from grow.serializer.model.playlist.base.output.Fields import Fields as AvailableFields
 
 
