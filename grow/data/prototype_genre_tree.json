@@ -4,19 +4,987 @@
       "name": "Electronic",
       "children": [
         {
-          "name": "House (core)",
+          "name": "Electronic (core)",
           "children": [
-            {"name": "Deep House", "children": []},
-            {"name": "Tech House", "children": []}
+            {
+              "name": "House",
+              "children": [
+                {
+                  "name": "Deep House",
+                  "children": [
+                    {
+                      "name": "Soulful Deep House",
+                      "children": [
+                        {
+                          "name": "Classic Soulful Deep House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Atmospheric Deep House",
+                      "children": [
+                        {
+                          "name": "Classic Atmospheric Deep House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Lo-Fi Deep House",
+                      "children": [
+                        {
+                          "name": "Classic Lo-Fi Deep House",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Tech House",
+                  "children": [
+                    {
+                      "name": "Minimal Tech House",
+                      "children": [
+                        {
+                          "name": "Classic Minimal Tech House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Groove Tech House",
+                      "children": [
+                        {
+                          "name": "Classic Groove Tech House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Rolling Tech House",
+                      "children": [
+                        {
+                          "name": "Classic Rolling Tech House",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Progressive House",
+                  "children": [
+                    {
+                      "name": "Melodic Progressive House",
+                      "children": [
+                        {
+                          "name": "Classic Melodic Progressive House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Driving Progressive House",
+                      "children": [
+                        {
+                          "name": "Classic Driving Progressive House",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Acid House",
+                  "children": [
+                    {
+                      "name": "Classic Acid House",
+                      "children": [
+                        {
+                          "name": "Classic Classic Acid House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Modern Acid House",
+                      "children": [
+                        {
+                          "name": "Classic Modern Acid House",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Chicago House",
+                  "children": [
+                    {
+                      "name": "Jackin House",
+                      "children": [
+                        {
+                          "name": "Classic Jackin House",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Hard House Chicago Style",
+                      "children": [
+                        {
+                          "name": "Classic Hard House Chicago Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Tribal House",
+                  "children": [
+                    {
+                      "name": "Classic Tribal House",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Funky House",
+                  "children": [
+                    {
+                      "name": "Classic Funky House",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Electro House Roots",
+                  "children": [
+                    {
+                      "name": "Classic Electro House Roots",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Piano House",
+                  "children": [
+                    {
+                      "name": "Classic Piano House",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Techno",
+              "children": [
+                {
+                  "name": "Detroit Techno",
+                  "children": [
+                    {
+                      "name": "Minimal Detroit Techno",
+                      "children": [
+                        {
+                          "name": "Classic Minimal Detroit Techno",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Second Wave Detroit Techno",
+                      "children": [
+                        {
+                          "name": "Classic Second Wave Detroit Techno",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Minimal Techno",
+                  "children": [
+                    {
+                      "name": "Deep Minimal Techno",
+                      "children": [
+                        {
+                          "name": "Classic Deep Minimal Techno",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Microhouse Techno",
+                      "children": [
+                        {
+                          "name": "Classic Microhouse Techno",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Industrial Techno",
+                  "children": [
+                    {
+                      "name": "Hard Industrial Techno",
+                      "children": [
+                        {
+                          "name": "Classic Hard Industrial Techno",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Warehouse Industrial Techno",
+                      "children": [
+                        {
+                          "name": "Classic Warehouse Industrial Techno",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Melodic Techno",
+                  "children": [
+                    {
+                      "name": "Emotive Melodic Techno",
+                      "children": [
+                        {
+                          "name": "Classic Emotive Melodic Techno",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Cinematic Techno",
+                      "children": [
+                        {
+                          "name": "Classic Cinematic Techno",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Hard Techno",
+                  "children": [
+                    {
+                      "name": "Schranz",
+                      "children": [
+                        {
+                          "name": "Classic Schranz",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Hardgroove Techno",
+                      "children": [
+                        {
+                          "name": "Classic Hardgroove Techno",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Acid Techno",
+                  "children": [
+                    {
+                      "name": "Classic Acid Techno",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Dub Techno",
+                  "children": [
+                    {
+                      "name": "Classic Dub Techno",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Ambient Techno Roots",
+                  "children": [
+                    {
+                      "name": "Classic Ambient Techno Roots",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Peak Time Techno",
+                  "children": [
+                    {
+                      "name": "Classic Peak Time Techno",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Trance",
+              "children": [
+                {
+                  "name": "Progressive Trance",
+                  "children": [
+                    {
+                      "name": "Melodic Progressive Trance",
+                      "children": [
+                        {
+                          "name": "Classic Melodic Progressive Trance",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Driving Progressive Trance",
+                      "children": [
+                        {
+                          "name": "Classic Driving Progressive Trance",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Uplifting Trance",
+                  "children": [
+                    {
+                      "name": "Anthem Trance",
+                      "children": [
+                        {
+                          "name": "Classic Anthem Trance",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Euphoric Trance",
+                      "children": [
+                        {
+                          "name": "Classic Euphoric Trance",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Psytrance",
+                  "children": [
+                    {
+                      "name": "Full-On Psytrance",
+                      "children": [
+                        {
+                          "name": "Classic Full-On Psytrance",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Dark Psytrance",
+                      "children": [
+                        {
+                          "name": "Classic Dark Psytrance",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Progressive Psytrance",
+                      "children": [
+                        {
+                          "name": "Classic Progressive Psytrance",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Forest Psytrance",
+                      "children": [
+                        {
+                          "name": "Classic Forest Psytrance",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Vocal Trance",
+                  "children": [
+                    {
+                      "name": "Classic Vocal Trance",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Tech Trance",
+                  "children": [
+                    {
+                      "name": "Classic Tech Trance",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Acid Trance",
+                  "children": [
+                    {
+                      "name": "Classic Acid Trance",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Hard Trance",
+                  "children": [
+                    {
+                      "name": "Classic Hard Trance",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Drum and Bass",
+              "children": [
+                {
+                  "name": "Liquid Drum and Bass",
+                  "children": [
+                    {
+                      "name": "Atmospheric Liquid DnB",
+                      "children": [
+                        {
+                          "name": "Classic Atmospheric Liquid DnB",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Neurofunk",
+                  "children": [
+                    {
+                      "name": "Dark Neurofunk",
+                      "children": [
+                        {
+                          "name": "Classic Dark Neurofunk",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Technical Neurofunk",
+                      "children": [
+                        {
+                          "name": "Classic Technical Neurofunk",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Jump-Up",
+                  "children": [
+                    {
+                      "name": "Classic Jump-Up",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Jungle",
+                  "children": [
+                    {
+                      "name": "Darkside Jungle",
+                      "children": [
+                        {
+                          "name": "Classic Darkside Jungle",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Ragga-Influenced Jungle Style",
+                      "children": [
+                        {
+                          "name": "Classic Ragga-Influenced Jungle Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Techstep",
+                  "children": [
+                    {
+                      "name": "Classic Techstep",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Drumfunk",
+                  "children": [
+                    {
+                      "name": "Classic Drumfunk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Halftime Bass",
+                  "children": [
+                    {
+                      "name": "Classic Halftime Bass",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dubstep",
+              "children": [
+                {
+                  "name": "Brostep",
+                  "children": [
+                    {
+                      "name": "Classic Brostep",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Riddim",
+                  "children": [
+                    {
+                      "name": "Classic Riddim",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Melodic Dubstep",
+                  "children": [
+                    {
+                      "name": "Classic Melodic Dubstep",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Deep Dubstep",
+                  "children": [
+                    {
+                      "name": "Classic Deep Dubstep",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Post-Dubstep",
+                  "children": [
+                    {
+                      "name": "Classic Post-Dubstep",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Ambient",
+              "children": [
+                {
+                  "name": "Dark Ambient",
+                  "children": [
+                    {
+                      "name": "Ritual Dark Ambient",
+                      "children": [
+                        {
+                          "name": "Classic Ritual Dark Ambient",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Drone Ambient",
+                  "children": [
+                    {
+                      "name": "Classic Drone Ambient",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Ambient Techno Style",
+                  "children": [
+                    {
+                      "name": "Classic Ambient Techno Style",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Space Ambient",
+                  "children": [
+                    {
+                      "name": "Classic Space Ambient",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Generative Ambient",
+                  "children": []
+                },
+                {
+                  "name": "Ambient Dub",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Breakbeat",
+              "children": [
+                {
+                  "name": "Big Beat",
+                  "children": []
+                },
+                {
+                  "name": "Nu Skool Breaks",
+                  "children": []
+                },
+                {
+                  "name": "Progressive Breaks",
+                  "children": []
+                },
+                {
+                  "name": "Florida Breaks",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "IDM",
+              "children": [
+                {
+                  "name": "Glitch",
+                  "children": []
+                },
+                {
+                  "name": "Braindance",
+                  "children": []
+                },
+                {
+                  "name": "Ambient IDM",
+                  "children": []
+                },
+                {
+                  "name": "Experimental IDM",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Downtempo",
+              "children": [
+                {
+                  "name": "Trip Hop",
+                  "children": []
+                },
+                {
+                  "name": "Chillwave",
+                  "children": []
+                },
+                {
+                  "name": "Nu Jazz Downtempo",
+                  "children": []
+                },
+                {
+                  "name": "Balearic Downtempo",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Electro",
+              "children": [
+                {
+                  "name": "Electro-Funk",
+                  "children": []
+                },
+                {
+                  "name": "Minimal Electro",
+                  "children": []
+                },
+                {
+                  "name": "Synth Electro",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Garage",
+              "children": [
+                {
+                  "name": "UK Garage Style",
+                  "children": [
+                    {
+                      "name": "2-Step Garage Style",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Speed Garage Style",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Hardcore Electronic",
+              "children": [
+                {
+                  "name": "Gabber",
+                  "children": []
+                },
+                {
+                  "name": "Happy Hardcore",
+                  "children": []
+                },
+                {
+                  "name": "Uk Hardcore Style",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Synthwave",
+              "children": [
+                {
+                  "name": "Outrun",
+                  "children": []
+                },
+                {
+                  "name": "Darksynth",
+                  "children": []
+                },
+                {
+                  "name": "Retrowave",
+                  "children": []
+                },
+                {
+                  "name": "Cyberpunk Synthwave",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Footwork and Juke",
+              "children": [
+                {
+                  "name": "Chicago Footwork",
+                  "children": [
+                    {
+                      "name": "Experimental Footwork",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Juke",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Grime",
+              "children": [
+                {
+                  "name": "Instrumental Grime",
+                  "children": []
+                },
+                {
+                  "name": "Eskibeat",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Vaporwave",
+              "children": [
+                {
+                  "name": "Mallsoft",
+                  "children": []
+                },
+                {
+                  "name": "Vaportrap",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Witch House",
+              "children": []
+            },
+            {
+              "name": "Electro-Industrial",
+              "children": [
+                {
+                  "name": "EBM",
+                  "children": [
+                    {
+                      "name": "Classic EBM",
+                      "children": []
+                    },
+                    {
+                      "name": "Futurepop",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Aggrotech",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Chillout",
+              "children": [
+                {
+                  "name": "Balearic Chillout",
+                  "children": []
+                },
+                {
+                  "name": "Lounge Electronic",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Bassline",
+              "children": [
+                {
+                  "name": "UK Bassline",
+                  "children": []
+                },
+                {
+                  "name": "4x4 Bassline",
+                  "children": []
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "Techno",
-          "side": "pop",
+          "name": "EDM",
           "children": [
-            {"name": "Minimal Techno", "children": []},
-            {"name": "Detroit Techno", "children": []}
-          ]
+            {
+              "name": "Big Room House",
+              "children": [
+                {
+                  "name": "Festival Anthem House",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Electro House",
+              "children": [
+                {
+                  "name": "Fidget House",
+                  "children": []
+                },
+                {
+                  "name": "Complextro",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Future Bass",
+              "children": [
+                {
+                  "name": "Melodic Future Bass",
+                  "children": []
+                },
+                {
+                  "name": "Kawaii Future Bass",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Future House",
+              "children": [
+                {
+                  "name": "Bass House",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Tropical House",
+              "children": []
+            },
+            {
+              "name": "Progressive EDM",
+              "children": []
+            },
+            {
+              "name": "EDM Electropop",
+              "children": [
+                {
+                  "name": "Synth Dance-Pop",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Pop Trance",
+              "children": []
+            },
+            {
+              "name": "Moombahton Pop",
+              "children": []
+            },
+            {
+              "name": "Slap House",
+              "children": []
+            },
+            {
+              "name": "Brostep Pop Crossover",
+              "children": []
+            }
+          ],
+          "side": "pop"
         }
       ]
     },
@@ -24,42 +992,4138 @@
       "name": "Rock",
       "children": [
         {
-          "name": "Alternative Rock (core)",
+          "name": "Rock (core)",
           "children": [
-            {"name": "Grunge", "children": []},
-            {"name": "Indie Rock", "children": []}
+            {
+              "name": "Alternative Rock",
+              "children": [
+                {
+                  "name": "Grunge",
+                  "children": [
+                    {
+                      "name": "Post-Grunge",
+                      "children": [
+                        {
+                          "name": "Classic Post-Grunge",
+                          "children": [
+                            {
+                              "name": "Underground Classic Post-Grunge",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Seattle Grunge Style",
+                      "children": [
+                        {
+                          "name": "Classic Seattle Grunge Style",
+                          "children": [
+                            {
+                              "name": "Underground Classic Seattle Grunge Style",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Indie Rock",
+                  "children": [
+                    {
+                      "name": "Lo-Fi Indie Rock",
+                      "children": [
+                        {
+                          "name": "Classic Lo-Fi Indie Rock",
+                          "children": [
+                            {
+                              "name": "Underground Classic Lo-Fi Indie Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Jangle Indie Rock",
+                      "children": [
+                        {
+                          "name": "Classic Jangle Indie Rock",
+                          "children": [
+                            {
+                              "name": "Underground Classic Jangle Indie Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Shoegaze",
+                  "children": [
+                    {
+                      "name": "Dream Pop Rock",
+                      "children": [
+                        {
+                          "name": "Classic Dream Pop Rock",
+                          "children": [
+                            {
+                              "name": "Underground Classic Dream Pop Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Blackgaze",
+                      "children": [
+                        {
+                          "name": "Classic Blackgaze",
+                          "children": [
+                            {
+                              "name": "Underground Classic Blackgaze",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Post-Rock",
+                  "children": [
+                    {
+                      "name": "Instrumental Post-Rock",
+                      "children": [
+                        {
+                          "name": "Classic Instrumental Post-Rock",
+                          "children": [
+                            {
+                              "name": "Underground Classic Instrumental Post-Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Noise Rock",
+                  "children": [
+                    {
+                      "name": "Classic Noise Rock",
+                      "children": [
+                        {
+                          "name": "Underground Classic Noise Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Slacker Rock",
+                  "children": [
+                    {
+                      "name": "Classic Slacker Rock",
+                      "children": [
+                        {
+                          "name": "Underground Classic Slacker Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Classic Rock",
+              "children": [
+                {
+                  "name": "Hard Rock",
+                  "children": [
+                    {
+                      "name": "Classic Hard Rock",
+                      "children": [
+                        {
+                          "name": "Underground Classic Hard Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Blues Rock",
+                  "children": [
+                    {
+                      "name": "British Blues Rock",
+                      "children": [
+                        {
+                          "name": "Classic British Blues Rock",
+                          "children": [
+                            {
+                              "name": "Underground Classic British Blues Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Southern Rock",
+                  "children": [
+                    {
+                      "name": "Classic Southern Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Arena Rock",
+                  "children": [
+                    {
+                      "name": "Classic Arena Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Roots Rock",
+                  "children": [
+                    {
+                      "name": "Classic Roots Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Progressive Rock",
+              "children": [
+                {
+                  "name": "Symphonic Prog",
+                  "children": [
+                    {
+                      "name": "Classic Symphonic Prog",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Math Rock",
+                  "children": [
+                    {
+                      "name": "Technical Math Rock",
+                      "children": [
+                        {
+                          "name": "Classic Technical Math Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Space Rock",
+                  "children": [
+                    {
+                      "name": "Classic Space Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Canterbury Scene Style",
+                  "children": [
+                    {
+                      "name": "Classic Canterbury Scene Style",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Rock Opera",
+                  "children": [
+                    {
+                      "name": "Classic Rock Opera",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Punk Rock",
+              "children": [
+                {
+                  "name": "Hardcore Punk",
+                  "children": [
+                    {
+                      "name": "Post-Hardcore",
+                      "children": [
+                        {
+                          "name": "Classic Post-Hardcore",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Melodic Hardcore",
+                      "children": [
+                        {
+                          "name": "Classic Melodic Hardcore",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Pop Punk",
+                  "children": [
+                    {
+                      "name": "Classic Pop Punk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Skate Punk",
+                  "children": [
+                    {
+                      "name": "Classic Skate Punk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Garage Punk",
+                  "children": [
+                    {
+                      "name": "Classic Garage Punk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Anarcho Punk",
+                  "children": [
+                    {
+                      "name": "Classic Anarcho Punk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Street Punk",
+                  "children": [
+                    {
+                      "name": "Classic Street Punk",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Metal",
+              "children": [
+                {
+                  "name": "Heavy Metal",
+                  "children": [
+                    {
+                      "name": "Traditional Heavy Metal",
+                      "children": [
+                        {
+                          "name": "Classic Traditional Heavy Metal",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Thrash Metal",
+                  "children": [
+                    {
+                      "name": "Crossover Thrash",
+                      "children": [
+                        {
+                          "name": "Classic Crossover Thrash",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Doom Metal",
+                  "children": [
+                    {
+                      "name": "Stoner Doom",
+                      "children": [
+                        {
+                          "name": "Classic Stoner Doom",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Black Metal",
+                  "children": [
+                    {
+                      "name": "Atmospheric Black Metal",
+                      "children": [
+                        {
+                          "name": "Classic Atmospheric Black Metal",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Death Metal",
+                  "children": [
+                    {
+                      "name": "Melodic Death Metal",
+                      "children": [
+                        {
+                          "name": "Classic Melodic Death Metal",
+                          "children": []
+                        }
+                      ]
+                    },
+                    {
+                      "name": "Technical Death Metal",
+                      "children": [
+                        {
+                          "name": "Classic Technical Death Metal",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Power Metal",
+                  "children": [
+                    {
+                      "name": "Classic Power Metal",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Progressive Metal",
+                  "children": [
+                    {
+                      "name": "Classic Progressive Metal",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Nu Metal",
+                  "children": [
+                    {
+                      "name": "Classic Nu Metal",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Metalcore",
+                  "children": [
+                    {
+                      "name": "Classic Metalcore",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Groove Metal",
+                  "children": [
+                    {
+                      "name": "Classic Groove Metal",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Sludge Metal",
+                  "children": [
+                    {
+                      "name": "Classic Sludge Metal",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Folk Rock",
+              "children": [
+                {
+                  "name": "Psychedelic Folk Rock",
+                  "children": [
+                    {
+                      "name": "Classic Psychedelic Folk Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Country Rock",
+                  "children": [
+                    {
+                      "name": "Classic Country Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Celtic Folk Rock Style",
+                  "children": [
+                    {
+                      "name": "Classic Celtic Folk Rock Style",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Psychedelic Rock",
+              "children": [
+                {
+                  "name": "Acid Rock",
+                  "children": [
+                    {
+                      "name": "Classic Acid Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Neo-Psychedelia",
+                  "children": [
+                    {
+                      "name": "Classic Neo-Psychedelia",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Space Rock Psych",
+                  "children": [
+                    {
+                      "name": "Classic Space Rock Psych",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Post-Punk",
+              "children": [
+                {
+                  "name": "Gothic Rock",
+                  "children": [
+                    {
+                      "name": "Classic Gothic Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "No Wave",
+                  "children": [
+                    {
+                      "name": "Classic No Wave",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Art Punk",
+                  "children": [
+                    {
+                      "name": "Classic Art Punk",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Dark Post-Punk Revival",
+                  "children": [
+                    {
+                      "name": "Classic Dark Post-Punk Revival",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Surf Rock",
+              "children": [
+                {
+                  "name": "Instrumental Surf Rock",
+                  "children": [
+                    {
+                      "name": "Classic Instrumental Surf Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Krautrock",
+              "children": [
+                {
+                  "name": "Kosmische Music",
+                  "children": [
+                    {
+                      "name": "Classic Kosmische Music",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Rockabilly",
+              "children": [
+                {
+                  "name": "Psychobilly",
+                  "children": [
+                    {
+                      "name": "Classic Psychobilly",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Stoner Rock",
+              "children": [
+                {
+                  "name": "Desert Rock",
+                  "children": [
+                    {
+                      "name": "Classic Desert Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Industrial Rock",
+              "children": [
+                {
+                  "name": "Industrial Metal Rock",
+                  "children": [
+                    {
+                      "name": "Classic Industrial Metal Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Emo",
+              "children": [
+                {
+                  "name": "Midwest Emo",
+                  "children": [
+                    {
+                      "name": "Classic Midwest Emo",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Screamo",
+                  "children": [
+                    {
+                      "name": "Classic Screamo",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Gothic Rock and Deathrock",
+              "children": [
+                {
+                  "name": "Deathrock",
+                  "children": [
+                    {
+                      "name": "Classic Deathrock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Cold Wave Rock",
+                  "children": [
+                    {
+                      "name": "Classic Cold Wave Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Rock and Roll Revival",
+              "children": [
+                {
+                  "name": "Neo-Rockabilly",
+                  "children": [
+                    {
+                      "name": "Classic Neo-Rockabilly",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Blues",
+              "children": [
+                {
+                  "name": "Chicago Blues",
+                  "children": [
+                    {
+                      "name": "Classic Chicago Blues",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Electric Blues",
+                  "children": [
+                    {
+                      "name": "Classic Electric Blues",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Acoustic Blues Rock Style",
+                  "children": [
+                    {
+                      "name": "Classic Acoustic Blues Rock Style",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Experimental Rock",
+              "children": [
+                {
+                  "name": "Avant-Rock",
+                  "children": [
+                    {
+                      "name": "Classic Avant-Rock",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Drone Rock",
+                  "children": [
+                    {
+                      "name": "Classic Drone Rock",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "Metal",
-          "side": "pop",
+          "name": "Pop Rock",
           "children": [
-            {"name": "Heavy Metal", "children": []},
-            {"name": "Punk Rock", "children": []}
-          ]
+            {
+              "name": "Soft Rock",
+              "children": [
+                {
+                  "name": "Classic Soft Rock",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Power Pop",
+              "children": [
+                {
+                  "name": "Classic Power Pop",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Arena Pop Rock",
+              "children": [
+                {
+                  "name": "Classic Arena Pop Rock",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Adult Contemporary Rock",
+              "children": [
+                {
+                  "name": "Classic Adult Contemporary Rock",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Glam Rock",
+              "children": [
+                {
+                  "name": "Classic Glam Rock",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Yacht Rock",
+              "children": [
+                {
+                  "name": "Classic Yacht Rock",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Britpop",
+              "children": [
+                {
+                  "name": "Classic Britpop",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Emo Pop",
+              "children": [
+                {
+                  "name": "Classic Emo Pop",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Jangle Pop",
+              "children": [
+                {
+                  "name": "Classic Jangle Pop",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "Radio Alt-Pop Rock",
+              "children": [
+                {
+                  "name": "Classic Radio Alt-Pop Rock",
+                  "children": []
+                }
+              ]
+            }
+          ],
+          "side": "pop"
         }
       ]
     },
     {
-      "name": "Hip Hop",
+      "name": "Hip-Hop",
       "children": [
         {
-          "name": "Boom Bap (core)",
-          "children": []
+          "name": "Hip-Hop (core)",
+          "children": [
+            {
+              "name": "Boom Bap",
+              "children": [
+                {
+                  "name": "East Coast Boom Bap",
+                  "children": [
+                    {
+                      "name": "Classic East Coast Boom Bap",
+                      "children": [
+                        {
+                          "name": "Underground Classic East Coast Boom Bap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic East Coast Boom Bap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Jazz-Influenced Boom Bap",
+                  "children": [
+                    {
+                      "name": "Classic Jazz-Influenced Boom Bap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazz-Influenced Boom Bap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Jazz-Influenced Boom Bap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Golden Era Boom Bap",
+                  "children": [
+                    {
+                      "name": "Classic Golden Era Boom Bap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Golden Era Boom Bap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Golden Era Boom Bap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Trap",
+              "children": [
+                {
+                  "name": "Dark Trap",
+                  "children": [
+                    {
+                      "name": "Classic Dark Trap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Dark Trap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Dark Trap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Melodic Trap",
+                  "children": [
+                    {
+                      "name": "Classic Melodic Trap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Melodic Trap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Melodic Trap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Trap Soul",
+                  "children": [
+                    {
+                      "name": "Classic Trap Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Trap Soul",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Trap Soul",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Gangsta Rap",
+              "children": [
+                {
+                  "name": "West Coast G-Funk",
+                  "children": [
+                    {
+                      "name": "Classic West Coast G-Funk",
+                      "children": [
+                        {
+                          "name": "Underground Classic West Coast G-Funk",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic West Coast G-Funk",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Hardcore Gangsta Rap",
+                  "children": [
+                    {
+                      "name": "Classic Hardcore Gangsta Rap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Hardcore Gangsta Rap",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Hardcore Gangsta Rap",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Conscious Hip-Hop",
+              "children": [
+                {
+                  "name": "Political Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Political Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Political Hip-Hop",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Political Hip-Hop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Spiritual Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Spiritual Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Spiritual Hip-Hop",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Spiritual Hip-Hop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Underground Hip-Hop",
+              "children": [
+                {
+                  "name": "Abstract Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Abstract Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Abstract Hip-Hop",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Abstract Hip-Hop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Alternative Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Alternative Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Alternative Hip-Hop",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Alternative Hip-Hop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Experimental Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Experimental Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Experimental Hip-Hop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Drill",
+              "children": [
+                {
+                  "name": "UK Drill Style",
+                  "children": [
+                    {
+                      "name": "Classic UK Drill Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic UK Drill Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Chicago Drill Style",
+                  "children": [
+                    {
+                      "name": "Classic Chicago Drill Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Chicago Drill Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Brooklyn Drill Style",
+                  "children": [
+                    {
+                      "name": "Classic Brooklyn Drill Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Brooklyn Drill Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Cloud Rap",
+              "children": [
+                {
+                  "name": "Ambient Cloud Rap",
+                  "children": [
+                    {
+                      "name": "Classic Ambient Cloud Rap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Ambient Cloud Rap",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Horrorcore",
+              "children": [
+                {
+                  "name": "Classic Horrorcore",
+                  "children": [
+                    {
+                      "name": "Underground Classic Horrorcore",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Instrumental Hip-Hop",
+              "children": [
+                {
+                  "name": "Lo-Fi Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Lo-Fi Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Lo-Fi Hip-Hop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Chillhop",
+                  "children": [
+                    {
+                      "name": "Classic Chillhop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Chillhop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Jazz-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Jazz-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazz-Hop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Old School Hip-Hop",
+              "children": [
+                {
+                  "name": "Electro Hip-Hop Roots",
+                  "children": [
+                    {
+                      "name": "Classic Electro Hip-Hop Roots",
+                      "children": [
+                        {
+                          "name": "Underground Classic Electro Hip-Hop Roots",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Mumble Rap",
+              "children": [
+                {
+                  "name": "Classic Mumble Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Mumble Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Jazz Rap",
+              "children": [
+                {
+                  "name": "Classic Jazz Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Jazz Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Hyphy",
+              "children": [
+                {
+                  "name": "Classic Hyphy",
+                  "children": [
+                    {
+                      "name": "Underground Classic Hyphy",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Chopped and Screwed",
+              "children": [
+                {
+                  "name": "Classic Chopped and Screwed",
+                  "children": [
+                    {
+                      "name": "Underground Classic Chopped and Screwed",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Battle Rap",
+              "children": [
+                {
+                  "name": "Freestyle Battle Rap",
+                  "children": [
+                    {
+                      "name": "Classic Freestyle Battle Rap",
+                      "children": [
+                        {
+                          "name": "Underground Classic Freestyle Battle Rap",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Comedy Hip-Hop",
+              "children": [
+                {
+                  "name": "Classic Comedy Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Comedy Hip-Hop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Christian Hip-Hop",
+              "children": [
+                {
+                  "name": "Classic Christian Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Christian Hip-Hop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Experimental Hip-Hop Style",
+              "children": [
+                {
+                  "name": "Glitch Hop",
+                  "children": [
+                    {
+                      "name": "Classic Glitch Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Glitch Hop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Industrial Hip-Hop",
+                  "children": [
+                    {
+                      "name": "Classic Industrial Hip-Hop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Industrial Hip-Hop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Bounce",
+              "children": [
+                {
+                  "name": "New Orleans Bounce",
+                  "children": [
+                    {
+                      "name": "Classic New Orleans Bounce",
+                      "children": [
+                        {
+                          "name": "Underground Classic New Orleans Bounce",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Emo Rap",
+              "children": [
+                {
+                  "name": "Classic Emo Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Emo Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         },
         {
-          "name": "Trap",
-          "side": "pop",
-          "children": []
+          "name": "Pop Hip-Hop",
+          "children": [
+            {
+              "name": "Pop Rap",
+              "children": [
+                {
+                  "name": "Classic Pop Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Pop Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Crunk Pop",
+              "children": [
+                {
+                  "name": "Classic Crunk Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Crunk Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dance Rap",
+              "children": [
+                {
+                  "name": "Classic Dance Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Dance Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Rap Rock Crossover",
+              "children": [
+                {
+                  "name": "Classic Rap Rock Crossover",
+                  "children": [
+                    {
+                      "name": "Underground Classic Rap Rock Crossover",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Melodic Rap-Sung Hybrid",
+              "children": [
+                {
+                  "name": "Classic Melodic Rap-Sung Hybrid",
+                  "children": [
+                    {
+                      "name": "Underground Classic Melodic Rap-Sung Hybrid",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Radio Trap-Pop",
+              "children": [
+                {
+                  "name": "Classic Radio Trap-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Radio Trap-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Party Rap",
+              "children": [
+                {
+                  "name": "Classic Party Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Party Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Snap Pop-Rap",
+              "children": [
+                {
+                  "name": "Classic Snap Pop-Rap",
+                  "children": [
+                    {
+                      "name": "Underground Classic Snap Pop-Rap",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "side": "pop"
+        }
+      ]
+    },
+    {
+      "name": "Disco/Funk",
+      "children": [
+        {
+          "name": "Disco/Funk (core)",
+          "children": [
+            {
+              "name": "Funk",
+              "children": [
+                {
+                  "name": "P-Funk",
+                  "children": [
+                    {
+                      "name": "Classic P-Funk",
+                      "children": [
+                        {
+                          "name": "Underground Classic P-Funk",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic P-Funk",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Jazz-Funk",
+                  "children": [
+                    {
+                      "name": "Fusion Jazz-Funk",
+                      "children": [
+                        {
+                          "name": "Classic Fusion Jazz-Funk",
+                          "children": [
+                            {
+                              "name": "Underground Classic Fusion Jazz-Funk",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Boogie Funk",
+                  "children": [
+                    {
+                      "name": "Classic Boogie Funk",
+                      "children": [
+                        {
+                          "name": "Underground Classic Boogie Funk",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Boogie Funk",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Go-Go",
+                  "children": [
+                    {
+                      "name": "Classic Go-Go",
+                      "children": [
+                        {
+                          "name": "Underground Classic Go-Go",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Go-Go",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Deep Funk",
+                  "children": [
+                    {
+                      "name": "Classic Deep Funk",
+                      "children": [
+                        {
+                          "name": "Underground Classic Deep Funk",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Deep Funk",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Minneapolis Funk Style",
+                  "children": [
+                    {
+                      "name": "Classic Minneapolis Funk Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Minneapolis Funk Style",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Minneapolis Funk Style",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Funk Rock",
+                  "children": [
+                    {
+                      "name": "Classic Funk Rock",
+                      "children": [
+                        {
+                          "name": "Underground Classic Funk Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Disco",
+              "children": [
+                {
+                  "name": "Classic Disco",
+                  "children": [
+                    {
+                      "name": "Classic Classic Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Classic Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Euro Disco",
+                  "children": [
+                    {
+                      "name": "Classic Euro Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Euro Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Space Disco",
+                  "children": [
+                    {
+                      "name": "Classic Space Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Space Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Disco Soul",
+                  "children": [
+                    {
+                      "name": "Classic Disco Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Disco Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Orchestral Disco",
+                  "children": [
+                    {
+                      "name": "Classic Orchestral Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Orchestral Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Philly Disco Style",
+                  "children": [
+                    {
+                      "name": "Classic Philly Disco Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Philly Disco Style",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Boogie",
+              "children": [
+                {
+                  "name": "Electro Boogie",
+                  "children": [
+                    {
+                      "name": "Classic Electro Boogie",
+                      "children": [
+                        {
+                          "name": "Underground Classic Electro Boogie",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Modern Boogie",
+                  "children": [
+                    {
+                      "name": "Classic Modern Boogie",
+                      "children": [
+                        {
+                          "name": "Underground Classic Modern Boogie",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Soul",
+              "children": [
+                {
+                  "name": "Northern Soul",
+                  "children": [
+                    {
+                      "name": "Classic Northern Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Northern Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Southern Soul",
+                  "children": [
+                    {
+                      "name": "Classic Southern Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Southern Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Neo-Soul",
+                  "children": [
+                    {
+                      "name": "Classic Neo-Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Neo-Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Blue-Eyed Soul",
+                  "children": [
+                    {
+                      "name": "Classic Blue-Eyed Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Blue-Eyed Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Deep Soul",
+                  "children": [
+                    {
+                      "name": "Classic Deep Soul",
+                      "children": [
+                        {
+                          "name": "Underground Classic Deep Soul",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Rare Groove",
+              "children": [
+                {
+                  "name": "Classic Rare Groove",
+                  "children": [
+                    {
+                      "name": "Underground Classic Rare Groove",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Post-Disco",
+              "children": [
+                {
+                  "name": "Italo Disco",
+                  "children": [
+                    {
+                      "name": "Classic Italo Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Italo Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Hi-NRG",
+                  "children": [
+                    {
+                      "name": "Classic Hi-NRG",
+                      "children": [
+                        {
+                          "name": "Underground Classic Hi-NRG",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Boogie Post-Disco",
+                  "children": [
+                    {
+                      "name": "Classic Boogie Post-Disco",
+                      "children": [
+                        {
+                          "name": "Underground Classic Boogie Post-Disco",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Gospel Funk",
+              "children": [
+                {
+                  "name": "Classic Gospel Funk",
+                  "children": [
+                    {
+                      "name": "Underground Classic Gospel Funk",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Synth Funk",
+              "children": [
+                {
+                  "name": "Electro-Funk Synth",
+                  "children": [
+                    {
+                      "name": "Classic Electro-Funk Synth",
+                      "children": [
+                        {
+                          "name": "Underground Classic Electro-Funk Synth",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Sample-Based Funk Breaks",
+              "children": [
+                {
+                  "name": "Classic Sample-Based Funk Breaks",
+                  "children": [
+                    {
+                      "name": "Underground Classic Sample-Based Funk Breaks",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Soul Blues",
+              "children": [
+                {
+                  "name": "Classic Soul Blues",
+                  "children": [
+                    {
+                      "name": "Underground Classic Soul Blues",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Doo-Wop",
+              "children": [
+                {
+                  "name": "Classic Doo-Wop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Doo-Wop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Funk/Disco",
+          "children": [
+            {
+              "name": "Nu-Disco",
+              "children": [
+                {
+                  "name": "Classic Nu-Disco",
+                  "children": [
+                    {
+                      "name": "Underground Classic Nu-Disco",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Disco-Pop",
+              "children": [
+                {
+                  "name": "Classic Disco-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Disco-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Funk-Pop",
+              "children": [
+                {
+                  "name": "Classic Funk-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Funk-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dance-Funk",
+              "children": [
+                {
+                  "name": "Classic Dance-Funk",
+                  "children": [
+                    {
+                      "name": "Underground Classic Dance-Funk",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Synth-Funk Pop",
+              "children": [
+                {
+                  "name": "Classic Synth-Funk Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Synth-Funk Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Boogie-Pop",
+              "children": [
+                {
+                  "name": "Classic Boogie-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Boogie-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "side": "pop"
+        }
+      ]
+    },
+    {
+      "name": "Jazz",
+      "children": [
+        {
+          "name": "Jazz (core)",
+          "children": [
+            {
+              "name": "Bebop",
+              "children": [
+                {
+                  "name": "Hard Bop",
+                  "children": [
+                    {
+                      "name": "Classic Hard Bop",
+                      "children": [
+                        {
+                          "name": "Underground Classic Hard Bop",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Hard Bop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Cool Jazz",
+              "children": [
+                {
+                  "name": "West Coast Cool Jazz",
+                  "children": [
+                    {
+                      "name": "Classic West Coast Cool Jazz",
+                      "children": [
+                        {
+                          "name": "Underground Classic West Coast Cool Jazz",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic West Coast Cool Jazz",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Swing",
+              "children": [
+                {
+                  "name": "Big Band Swing",
+                  "children": [
+                    {
+                      "name": "Classic Big Band Swing",
+                      "children": [
+                        {
+                          "name": "Underground Classic Big Band Swing",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Big Band Swing",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Small Group Swing",
+                  "children": [
+                    {
+                      "name": "Classic Small Group Swing",
+                      "children": [
+                        {
+                          "name": "Underground Classic Small Group Swing",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Small Group Swing",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Free Jazz",
+              "children": [
+                {
+                  "name": "Avant-Garde Jazz",
+                  "children": [
+                    {
+                      "name": "Classic Avant-Garde Jazz",
+                      "children": [
+                        {
+                          "name": "Underground Classic Avant-Garde Jazz",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Avant-Garde Jazz",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Modal Jazz",
+              "children": [
+                {
+                  "name": "Classic Modal Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Modal Jazz",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Modal Jazz",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Fusion",
+              "children": [
+                {
+                  "name": "Jazz Rock Fusion",
+                  "children": [
+                    {
+                      "name": "Classic Jazz Rock Fusion",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazz Rock Fusion",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Jazz Rock Fusion",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Jazz Funk Fusion",
+                  "children": [
+                    {
+                      "name": "Classic Jazz Funk Fusion",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazz Funk Fusion",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Jazz Funk Fusion",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Post-Bop",
+              "children": [
+                {
+                  "name": "Classic Post-Bop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Post-Bop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Post-Bop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Vocal Jazz",
+              "children": [
+                {
+                  "name": "Jazz Scat Singing",
+                  "children": [
+                    {
+                      "name": "Classic Jazz Scat Singing",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazz Scat Singing",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Jazz Scat Singing",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dixieland",
+              "children": [
+                {
+                  "name": "New Orleans Traditional Jazz",
+                  "children": [
+                    {
+                      "name": "Classic New Orleans Traditional Jazz",
+                      "children": [
+                        {
+                          "name": "Underground Classic New Orleans Traditional Jazz",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Third Stream",
+              "children": [
+                {
+                  "name": "Classic Third Stream",
+                  "children": [
+                    {
+                      "name": "Underground Classic Third Stream",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Chamber Jazz",
+              "children": [
+                {
+                  "name": "Classic Chamber Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Chamber Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Acid Jazz",
+              "children": [
+                {
+                  "name": "Classic Acid Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Acid Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Spiritual Jazz",
+              "children": [
+                {
+                  "name": "Classic Spiritual Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Spiritual Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Gypsy Jazz",
+              "children": [
+                {
+                  "name": "Classic Gypsy Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Gypsy Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Soul Jazz",
+              "children": [
+                {
+                  "name": "Classic Soul Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Soul Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Stride Piano Jazz",
+              "children": [
+                {
+                  "name": "Classic Stride Piano Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Stride Piano Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Big Band",
+              "children": [
+                {
+                  "name": "Swing Era Big Band",
+                  "children": [
+                    {
+                      "name": "Classic Swing Era Big Band",
+                      "children": [
+                        {
+                          "name": "Underground Classic Swing Era Big Band",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Modern Big Band",
+                  "children": [
+                    {
+                      "name": "Classic Modern Big Band",
+                      "children": [
+                        {
+                          "name": "Underground Classic Modern Big Band",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Nu Jazz",
+              "children": [
+                {
+                  "name": "Jazztronica",
+                  "children": [
+                    {
+                      "name": "Classic Jazztronica",
+                      "children": [
+                        {
+                          "name": "Underground Classic Jazztronica",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Jazz",
+          "children": [
+            {
+              "name": "Smooth Jazz",
+              "children": [
+                {
+                  "name": "Classic Smooth Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Smooth Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Jazz Standards Pop",
+              "children": [
+                {
+                  "name": "Classic Jazz Standards Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Jazz Standards Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Vocal Jazz-Pop",
+              "children": [
+                {
+                  "name": "Classic Vocal Jazz-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Vocal Jazz-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Lounge Jazz",
+              "children": [
+                {
+                  "name": "Classic Lounge Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Lounge Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Crossover Contemporary Jazz",
+              "children": [
+                {
+                  "name": "Classic Crossover Contemporary Jazz",
+                  "children": [
+                    {
+                      "name": "Underground Classic Crossover Contemporary Jazz",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "side": "pop"
+        }
+      ]
+    },
+    {
+      "name": "Reggae/Dub",
+      "children": [
+        {
+          "name": "Reggae/Dub (core)",
+          "children": [
+            {
+              "name": "Roots Reggae",
+              "children": [
+                {
+                  "name": "Conscious Roots Reggae",
+                  "children": [
+                    {
+                      "name": "Classic Conscious Roots Reggae",
+                      "children": [
+                        {
+                          "name": "Underground Classic Conscious Roots Reggae",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Conscious Roots Reggae",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Nyabinghi Roots Style",
+                  "children": [
+                    {
+                      "name": "Classic Nyabinghi Roots Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Nyabinghi Roots Style",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Nyabinghi Roots Style",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dub",
+              "children": [
+                {
+                  "name": "Deep Dub",
+                  "children": [
+                    {
+                      "name": "Classic Deep Dub",
+                      "children": [
+                        {
+                          "name": "Underground Classic Deep Dub",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Deep Dub",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Digital Dub",
+                  "children": [
+                    {
+                      "name": "Classic Digital Dub",
+                      "children": [
+                        {
+                          "name": "Underground Classic Digital Dub",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Digital Dub",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Steppers Dub",
+                  "children": [
+                    {
+                      "name": "Classic Steppers Dub",
+                      "children": [
+                        {
+                          "name": "Underground Classic Steppers Dub",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Steppers Dub",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Ska",
+              "children": [
+                {
+                  "name": "Traditional Ska",
+                  "children": [
+                    {
+                      "name": "Classic Traditional Ska",
+                      "children": [
+                        {
+                          "name": "Underground Classic Traditional Ska",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Traditional Ska",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Two-Tone Ska",
+                  "children": [
+                    {
+                      "name": "Classic Two-Tone Ska",
+                      "children": [
+                        {
+                          "name": "Underground Classic Two-Tone Ska",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Two-Tone Ska",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Rocksteady",
+              "children": [
+                {
+                  "name": "Classic Rocksteady",
+                  "children": [
+                    {
+                      "name": "Underground Classic Rocksteady",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Rocksteady",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dancehall",
+              "children": [
+                {
+                  "name": "Digital Dancehall",
+                  "children": [
+                    {
+                      "name": "Classic Digital Dancehall",
+                      "children": [
+                        {
+                          "name": "Underground Classic Digital Dancehall",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Digital Dancehall",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Raga Dancehall Style",
+                  "children": [
+                    {
+                      "name": "Classic Raga Dancehall Style",
+                      "children": [
+                        {
+                          "name": "Underground Classic Raga Dancehall Style",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Raga Dancehall Style",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Lovers Rock",
+              "children": [
+                {
+                  "name": "Classic Lovers Rock",
+                  "children": [
+                    {
+                      "name": "Underground Classic Lovers Rock",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Lovers Rock",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dub Poetry",
+              "children": [
+                {
+                  "name": "Classic Dub Poetry",
+                  "children": [
+                    {
+                      "name": "Underground Classic Dub Poetry",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Dub Poetry",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Reggae Fusion",
+              "children": [
+                {
+                  "name": "Classic Reggae Fusion",
+                  "children": [
+                    {
+                      "name": "Underground Classic Reggae Fusion",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Reggae Fusion",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Early Reggae",
+              "children": [
+                {
+                  "name": "Classic Early Reggae",
+                  "children": [
+                    {
+                      "name": "Underground Classic Early Reggae",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Early Reggae",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Roots Dub",
+              "children": [
+                {
+                  "name": "Scientist-Style Dub",
+                  "children": [
+                    {
+                      "name": "Classic Scientist-Style Dub",
+                      "children": [
+                        {
+                          "name": "Underground Classic Scientist-Style Dub",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Scientist-Style Dub",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Reggae Instrumental",
+              "children": [
+                {
+                  "name": "Skinhead Reggae Instrumental",
+                  "children": [
+                    {
+                      "name": "Classic Skinhead Reggae Instrumental",
+                      "children": [
+                        {
+                          "name": "Underground Classic Skinhead Reggae Instrumental",
+                          "children": [
+                            {
+                              "name": "Experimental Underground Classic Skinhead Reggae Instrumental",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Reggae",
+          "children": [
+            {
+              "name": "Reggae Fusion Pop",
+              "children": [
+                {
+                  "name": "Classic Reggae Fusion Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Reggae Fusion Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Reggae Fusion Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Reggaeton-Adjacent Pop",
+              "children": [
+                {
+                  "name": "Classic Reggaeton-Adjacent Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Reggaeton-Adjacent Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Reggaeton-Adjacent Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Dancehall Pop",
+              "children": [
+                {
+                  "name": "Classic Dancehall Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Dancehall Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Acoustic Pop Reggae",
+              "children": [
+                {
+                  "name": "Classic Acoustic Pop Reggae",
+                  "children": [
+                    {
+                      "name": "Underground Classic Acoustic Pop Reggae",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Reggae-Rock Pop",
+              "children": [
+                {
+                  "name": "Classic Reggae-Rock Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Reggae-Rock Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "side": "pop"
+        }
+      ]
+    },
+    {
+      "name": "Classical",
+      "children": [
+        {
+          "name": "Classical (core)",
+          "children": [
+            {
+              "name": "Baroque",
+              "children": [
+                {
+                  "name": "Concerto Grosso",
+                  "children": [
+                    {
+                      "name": "Classic Concerto Grosso",
+                      "children": [
+                        {
+                          "name": "Underground Classic Concerto Grosso",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Baroque Opera",
+                  "children": [
+                    {
+                      "name": "Classic Baroque Opera",
+                      "children": [
+                        {
+                          "name": "Underground Classic Baroque Opera",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Fugue",
+                  "children": [
+                    {
+                      "name": "Classic Fugue",
+                      "children": [
+                        {
+                          "name": "Underground Classic Fugue",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Baroque Suite",
+                  "children": [
+                    {
+                      "name": "Classic Baroque Suite",
+                      "children": [
+                        {
+                          "name": "Underground Classic Baroque Suite",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Cantata",
+                  "children": [
+                    {
+                      "name": "Classic Cantata",
+                      "children": [
+                        {
+                          "name": "Underground Classic Cantata",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Classical Era",
+              "children": [
+                {
+                  "name": "Symphony",
+                  "children": [
+                    {
+                      "name": "Early Classical Symphony",
+                      "children": [
+                        {
+                          "name": "Classic Early Classical Symphony",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Sonata",
+                  "children": [
+                    {
+                      "name": "Classic Sonata",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Classical Concerto",
+                  "children": [
+                    {
+                      "name": "Classic Classical Concerto",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "String Quartet Classical Era",
+                  "children": [
+                    {
+                      "name": "Classic String Quartet Classical Era",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Serenade",
+                  "children": [
+                    {
+                      "name": "Classic Serenade",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Romantic",
+              "children": [
+                {
+                  "name": "Symphonic Poem",
+                  "children": [
+                    {
+                      "name": "Classic Symphonic Poem",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Romantic Opera",
+                  "children": [
+                    {
+                      "name": "Classic Romantic Opera",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Character Piece",
+                  "children": [
+                    {
+                      "name": "Classic Character Piece",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Romantic Concerto",
+                  "children": [
+                    {
+                      "name": "Classic Romantic Concerto",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Art Song",
+                  "children": [
+                    {
+                      "name": "Classic Art Song",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Nationalist Romantic Style",
+                  "children": [
+                    {
+                      "name": "Classic Nationalist Romantic Style",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Modernist",
+              "children": [
+                {
+                  "name": "Neoclassicism",
+                  "children": [
+                    {
+                      "name": "Classic Neoclassicism",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Serialism",
+                  "children": [
+                    {
+                      "name": "Twelve-Tone Serialism",
+                      "children": [
+                        {
+                          "name": "Classic Twelve-Tone Serialism",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Impressionist Classical",
+                  "children": [
+                    {
+                      "name": "Classic Impressionist Classical",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Expressionist Classical",
+                  "children": [
+                    {
+                      "name": "Classic Expressionist Classical",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Futurist Classical",
+                  "children": [
+                    {
+                      "name": "Classic Futurist Classical",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Contemporary Classical",
+              "children": [
+                {
+                  "name": "Minimalism",
+                  "children": [
+                    {
+                      "name": "Post-Minimalism",
+                      "children": [
+                        {
+                          "name": "Classic Post-Minimalism",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Spectral Music",
+                  "children": [
+                    {
+                      "name": "Classic Spectral Music",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Aleatoric Music",
+                  "children": [
+                    {
+                      "name": "Classic Aleatoric Music",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Electroacoustic Composition",
+                  "children": [
+                    {
+                      "name": "Classic Electroacoustic Composition",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "New Complexity",
+                  "children": [
+                    {
+                      "name": "Classic New Complexity",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Chamber Music",
+              "children": [
+                {
+                  "name": "String Quartet",
+                  "children": [
+                    {
+                      "name": "Classic String Quartet",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Piano Trio",
+                  "children": [
+                    {
+                      "name": "Classic Piano Trio",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Wind Quintet",
+                  "children": [
+                    {
+                      "name": "Classic Wind Quintet",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "String Quintet",
+                  "children": [
+                    {
+                      "name": "Classic String Quintet",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Choral Music",
+              "children": [
+                {
+                  "name": "Sacred Choral",
+                  "children": [
+                    {
+                      "name": "Requiem",
+                      "children": [
+                        {
+                          "name": "Classic Requiem",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "Secular Choral",
+                  "children": [
+                    {
+                      "name": "Classic Secular Choral",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Mass Setting",
+                  "children": [
+                    {
+                      "name": "Classic Mass Setting",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Opera",
+              "children": [
+                {
+                  "name": "Grand Opera",
+                  "children": [
+                    {
+                      "name": "Classic Grand Opera",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Opera Buffa",
+                  "children": [
+                    {
+                      "name": "Classic Opera Buffa",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Chamber Opera",
+                  "children": [
+                    {
+                      "name": "Classic Chamber Opera",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Verismo Opera",
+                  "children": [
+                    {
+                      "name": "Classic Verismo Opera",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Ballet Music",
+              "children": [
+                {
+                  "name": "Romantic Ballet",
+                  "children": [
+                    {
+                      "name": "Classic Romantic Ballet",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Modernist Ballet",
+                  "children": [
+                    {
+                      "name": "Classic Modernist Ballet",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Film and Concert Scoring",
+              "children": [
+                {
+                  "name": "Orchestral Film Score",
+                  "children": [
+                    {
+                      "name": "Classic Orchestral Film Score",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Concert Band Score",
+                  "children": [
+                    {
+                      "name": "Classic Concert Band Score",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Solo Instrumental Repertoire",
+              "children": [
+                {
+                  "name": "Piano Repertoire",
+                  "children": [
+                    {
+                      "name": "Classic Piano Repertoire",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Violin Repertoire",
+                  "children": [
+                    {
+                      "name": "Classic Violin Repertoire",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Organ Repertoire",
+                  "children": [
+                    {
+                      "name": "Classic Organ Repertoire",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Early Music",
+              "children": [
+                {
+                  "name": "Medieval Music",
+                  "children": [
+                    {
+                      "name": "Classic Medieval Music",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Renaissance Music",
+                  "children": [
+                    {
+                      "name": "Classic Renaissance Music",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Symphonic Repertoire",
+              "children": [
+                {
+                  "name": "Tone Poem Repertoire",
+                  "children": [
+                    {
+                      "name": "Classic Tone Poem Repertoire",
+                      "children": []
+                    }
+                  ]
+                },
+                {
+                  "name": "Program Symphony",
+                  "children": [
+                    {
+                      "name": "Classic Program Symphony",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
     {
       "name": "Mainstream Pop",
       "children": [
-        {"name": "Pop Rock", "children": []},
-        {"name": "Synth-Pop", "children": []},
-        {"name": "Dance-Pop", "children": []}
+        {
+          "name": "Dance-Pop",
+          "children": [
+            {
+              "name": "Electropop Dance",
+              "children": [
+                {
+                  "name": "Classic Electropop Dance",
+                  "children": [
+                    {
+                      "name": "Underground Classic Electropop Dance",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Electropop Dance",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Electropop Dance",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Club Pop",
+              "children": [
+                {
+                  "name": "Classic Club Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Club Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Club Pop",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Club Pop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Synth-Pop",
+          "children": [
+            {
+              "name": "Retro Synth-Pop",
+              "children": [
+                {
+                  "name": "Classic Retro Synth-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Retro Synth-Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Retro Synth-Pop",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Retro Synth-Pop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Modern Synth-Pop",
+              "children": [
+                {
+                  "name": "Classic Modern Synth-Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Modern Synth-Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Modern Synth-Pop",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Modern Synth-Pop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Teen Pop",
+          "children": [
+            {
+              "name": "Bubblegum Pop",
+              "children": [
+                {
+                  "name": "Classic Bubblegum Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Bubblegum Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Bubblegum Pop",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Bubblegum Pop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Adult Contemporary Pop",
+          "children": [
+            {
+              "name": "Soft Adult Pop",
+              "children": [
+                {
+                  "name": "Classic Soft Adult Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Soft Adult Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Soft Adult Pop",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Soft Adult Pop",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Power Ballad Pop",
+          "children": [
+            {
+              "name": "Classic Power Ballad Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Power Ballad Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Power Ballad Pop",
+                      "children": [
+                        {
+                          "name": "Revival Experimental Underground Classic Power Ballad Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Rock Crossover",
+          "children": [
+            {
+              "name": "Radio-Friendly Pop Rock",
+              "children": [
+                {
+                  "name": "Classic Radio-Friendly Pop Rock",
+                  "children": [
+                    {
+                      "name": "Underground Classic Radio-Friendly Pop Rock",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Radio-Friendly Pop Rock",
+                          "children": [
+                            {
+                              "name": "Revival Experimental Underground Classic Radio-Friendly Pop Rock",
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Electropop",
+          "children": [
+            {
+              "name": "Indietronica Pop",
+              "children": [
+                {
+                  "name": "Classic Indietronica Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Indietronica Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Indietronica Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Bedroom Pop",
+          "children": [
+            {
+              "name": "Classic Bedroom Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Bedroom Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Bedroom Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Hyperpop",
+          "children": [
+            {
+              "name": "Glitch Pop",
+              "children": [
+                {
+                  "name": "Classic Glitch Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Glitch Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Glitch Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Sophisti-Pop",
+          "children": [
+            {
+              "name": "Classic Sophisti-Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Sophisti-Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Sophisti-Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Chamber Pop",
+          "children": [
+            {
+              "name": "Classic Chamber Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Chamber Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Chamber Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Baroque Pop",
+          "children": [
+            {
+              "name": "Classic Baroque Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Baroque Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Baroque Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Soul",
+          "children": [
+            {
+              "name": "Classic Pop Soul",
+              "children": [
+                {
+                  "name": "Underground Classic Pop Soul",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Pop Soul",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Folk",
+          "children": [
+            {
+              "name": "Classic Pop Folk",
+              "children": [
+                {
+                  "name": "Underground Classic Pop Folk",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Pop Folk",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Dream Pop",
+          "children": [
+            {
+              "name": "Ethereal Dream Pop",
+              "children": [
+                {
+                  "name": "Classic Ethereal Dream Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Ethereal Dream Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Ethereal Dream Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Indie Pop",
+          "children": [
+            {
+              "name": "Twee Pop",
+              "children": [
+                {
+                  "name": "Classic Twee Pop",
+                  "children": [
+                    {
+                      "name": "Underground Classic Twee Pop",
+                      "children": [
+                        {
+                          "name": "Experimental Underground Classic Twee Pop",
+                          "children": []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Art Pop",
+          "children": [
+            {
+              "name": "Classic Art Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Art Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Art Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Pop Ballad",
+          "children": [
+            {
+              "name": "Classic Pop Ballad",
+              "children": [
+                {
+                  "name": "Underground Classic Pop Ballad",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Pop Ballad",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Wall of Sound Pop",
+          "children": [
+            {
+              "name": "Classic Wall of Sound Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Wall of Sound Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Wall of Sound Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Girl Group Pop",
+          "children": [
+            {
+              "name": "Classic Girl Group Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Girl Group Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Girl Group Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Boy Band Pop",
+          "children": [
+            {
+              "name": "Classic Boy Band Pop",
+              "children": [
+                {
+                  "name": "Underground Classic Boy Band Pop",
+                  "children": [
+                    {
+                      "name": "Experimental Underground Classic Boy Band Pop",
+                      "children": []
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
       ]
     }
   ]
