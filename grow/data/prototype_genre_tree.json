@@ -4,7 +4,7 @@
       "name": "Electronic",
       "children": [
         {
-          "name": "House",
+          "name": "House (core)",
           "children": [
             {"name": "Deep House", "children": []},
             {"name": "Tech House", "children": []}
@@ -12,6 +12,7 @@
         },
         {
           "name": "Techno",
+          "side": "pop",
           "children": [
             {"name": "Minimal Techno", "children": []},
             {"name": "Detroit Techno", "children": []}
@@ -23,7 +24,7 @@
       "name": "Rock",
       "children": [
         {
-          "name": "Alternative Rock",
+          "name": "Alternative Rock (core)",
           "children": [
             {"name": "Grunge", "children": []},
             {"name": "Indie Rock", "children": []}
@@ -31,6 +32,7 @@
         },
         {
           "name": "Metal",
+          "side": "pop",
           "children": [
             {"name": "Heavy Metal", "children": []},
             {"name": "Punk Rock", "children": []}
@@ -42,13 +44,22 @@
       "name": "Hip Hop",
       "children": [
         {
-          "name": "Boom Bap",
+          "name": "Boom Bap (core)",
           "children": []
         },
         {
           "name": "Trap",
+          "side": "pop",
           "children": []
         }
+      ]
+    },
+    {
+      "name": "Mainstream Pop",
+      "children": [
+        {"name": "Pop Rock", "children": []},
+        {"name": "Synth-Pop", "children": []},
+        {"name": "Dance-Pop", "children": []}
       ]
     }
   ]
