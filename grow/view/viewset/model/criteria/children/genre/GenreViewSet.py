@@ -1,6 +1,7 @@
 import json
 
 from django.conf import settings
+from rest_framework.decorators import action
 from the_music_tree_genre_kit.serializer.model.track.input.song_example.Fields import (
     Fields as SongExampleFields,
 )
@@ -18,6 +19,15 @@ class GenreViewSet(GenreExampleTreeMixin[Genre], CriteriaViewSet):
 
     def __init__(self, **kwargs):
         super().__init__(model_class=Genre, **kwargs)
+
+    @action(detail=False, methods=["post"], url_path="tree/load-example")
+    def load_example_tree(self, request):
+        from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
+
+        # Track.genre is on_delete=DO_NOTHING; clear tracks first or re-importing violates the FK constraint when the genre tree is wiped.
+        YoutubeTrack.objects.filter(user=request.user).delete()
+
+        return super().load_example_tree(request)
 
     def on_example_tree_loaded(self, request) -> None:
         from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
