@@ -27,7 +27,7 @@ Sibling app `hear-the-music-tree-api` consumes both kits too — a kit-facing ch
 | `grow/authentication/` | `ApiKeyAuthentication.py` — the two-key auth backend. |
 | `grow/migrations/` | Standard Django migrations; `0006`–`0011` document the genre-kit extraction (moving `Track`/`Playlist`/`TrackPlaylistRel` ownership into the kit); `0003`/`0013` seed the system/prototype users. |
 | `grow/management/commands/` | `seed_prototype_tree.py` — the only management command in the app. |
-| `grow/data/` | `prototype_genre_tree.json`, `prototype_songs.json` — dedicated prototype-user fixtures (the generic example-tree fixture used by `tree/load-example` lives in the kit's own `DATA_DIR`, not here). |
+| `grow/data/` | `prototype_genre_tree.json` — the prototype-user genre-tree fixture (`seed_prototype_tree`'s tracks come from a required `--songs-file` path instead, not committed here; the generic example-tree fixture used by `tree/load-example` lives in the kit's own `DATA_DIR`). |
 
 Known cleanup item, not fixed here: `grow/serializer/model/uploaded_track/`, `grow/filtering/set/uploaded_track/`, and `grow/view/viewset/model/uploaded_track/` still exist as empty directories (only stale `.pyc` cache remnants inside, no `.py` source) — leftover from the `UploadedTrack` model's removal. Safe to `git clean`/delete; not part of live structure.
 
