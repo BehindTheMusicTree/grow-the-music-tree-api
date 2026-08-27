@@ -1,0 +1,55 @@
+{
+  "tree": [
+    {
+      "name": "Electronic",
+      "children": [
+        {
+          "name": "House",
+          "children": [
+            {"name": "Deep House", "children": []},
+            {"name": "Tech House", "children": []}
+          ]
+        },
+        {
+          "name": "Techno",
+          "children": [
+            {"name": "Minimal Techno", "children": []},
+            {"name": "Detroit Techno", "children": []}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rock",
+      "children": [
+        {
+          "name": "Alternative Rock",
+          "children": [
+            {"name": "Grunge", "children": []},
+            {"name": "Indie Rock", "children": []}
+          ]
+        },
+        {
+          "name": "Metal",
+          "children": [
+            {"name": "Heavy Metal", "children": []},
+            {"name": "Punk Rock", "children": []}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hip Hop",
+      "children": [
+        {
+          "name": "Boom Bap",
+          "children": []
+        },
+        {
+          "name": "Trap",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
