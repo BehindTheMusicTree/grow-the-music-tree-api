@@ -1,3 +1,7 @@
+import json
+import tempfile
+from pathlib import Path
+
 from django.core.management import call_command
 from django.test import TransactionTestCase
 
@@ -35,3 +39,29 @@ class SeedPrototypeTreeTests(TransactionTestCase):
         call_command("seed_prototype_tree")
         assert Genre.objects.filter(user=user).count() == genre_count
         assert YoutubeTrack.objects.filter(user=user).count() == track_count
+
+        external_songs = [
+            {
+                "title": "External Deep House Cut",
+                "artist": "External Demo Artist",
+                "youtube_video_id": "EXTERNAL_01",
+                "genre_name": "Deep House",
+            },
+            {
+                "title": "External Unmatched Genre Cut",
+                "artist": "External Demo Artist",
+                "youtube_video_id": "EXTERNAL_02",
+                "genre_name": "Nonexistent Genre",
+            },
+        ]
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as songs_file:
+            json.dump(external_songs, songs_file)
+            songs_file_path = songs_file.name
+        try:
+            call_command("seed_prototype_tree", songs_file=songs_file_path)
+        finally:
+            Path(songs_file_path).unlink()
+
+        assert YoutubeTrack.objects.filter(user=user, title="External Deep House Cut").exists()
+        assert not YoutubeTrack.objects.filter(user=user, title="Prototype Deep House Cut").exists()
+        assert not YoutubeTrack.objects.filter(user=user, title="External Unmatched Genre Cut").exists()
