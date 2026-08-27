@@ -10,7 +10,9 @@ class TestCase(AppTestCase):
 
     def test_list_returns_created_tracks(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        youtube_track = self.model_fixture_factory.create_youtube_track(title="Mine", genre=genre)
+        youtube_track = self.model_fixture_factory.create_youtube_track(
+            title="Mine", genre=genre, youtube_video_id="abc123defgh"
+        )
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -21,7 +23,9 @@ class TestCase(AppTestCase):
     def test_list_does_not_return_other_users_tracks(self):
         other_user = User.objects.create(username="other-user")
         other_genre = self.model_fixture_factory.create_genre("Jazz", user=other_user)
-        self.model_fixture_factory.create_youtube_track(title="Not Mine", genre=other_genre, user=other_user)
+        self.model_fixture_factory.create_youtube_track(
+            title="Not Mine", genre=other_genre, user=other_user, youtube_video_id="def456ghijk"
+        )
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 

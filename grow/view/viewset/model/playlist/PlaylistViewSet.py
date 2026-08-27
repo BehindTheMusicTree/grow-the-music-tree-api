@@ -1,3 +1,4 @@
+from the_music_tree_genre_kit.playlist.Fields import Fields as PlaylistFields
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.filtering.set.playlist.PlaylistFilterSet import PlaylistFilterSet
@@ -14,6 +15,13 @@ class PlaylistViewSet(GrowModelViewSet[Playlist]):
             simple_serializer_class=PlaylistSimpleSerializer,
             detailed_serializer_class=PlaylistDetailedSerializer,
             **kwargs,
+        )
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .prefetch_related(f"{PlaylistFields.TRACK_PLAYLIST_RELS_INTERNAL}__track__youtubetrack")
         )
 
     def list(self, *args, **kwargs):

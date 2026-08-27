@@ -11,7 +11,7 @@ class TrackPlaylistRelWithoutPlaylist(AppInputSerializer, serializers.ModelSeria
     track = serializers.SerializerMethodField()
 
     def get_track(self, obj):
-        return YoutubeTrackDetailedSerializer(obj.track).data
+        return YoutubeTrackDetailedSerializer(obj.track.youtubetrack).data
 
     class Meta:
         model = TrackPlaylistRel
