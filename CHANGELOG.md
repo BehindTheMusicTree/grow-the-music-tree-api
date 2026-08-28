@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`CORS_ALLOWED_ORIGIN_REGEXES` env var had no effect**: `grow/settings.py` only ever parsed `CORS_ALLOWED_ORIGINS` (exact-match origins); the regex-based env var was set in infrastructure config but never read into a Django setting, so `django-cors-headers` silently treated it as empty. Every regex-based allowlist entry (Vercel preview deployments, PR-preview subdomains, local dev origins) has been a no-op. Now parsed the same way as `hear-the-music-tree-api`.
+
 ## [1.0.1] - 2026-08-28
 
 ### Fixed
