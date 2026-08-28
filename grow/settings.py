@@ -24,6 +24,9 @@ add_loopback_hosts(ALLOWED_HOSTS, os.environ.get("APP_PORT", "8000"))
 
 CORS_ALLOWED_ORIGINS = [o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o]
 
+CORS_ALLOWED_ORIGIN_REGEXES_STR = os.environ.get("CORS_ALLOWED_ORIGIN_REGEXES", "")
+CORS_ALLOWED_ORIGIN_REGEXES = [p.strip() for p in CORS_ALLOWED_ORIGIN_REGEXES_STR.split(",") if p.strip()]
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
