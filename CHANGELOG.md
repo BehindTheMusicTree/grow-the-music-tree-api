@@ -9,7 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add entries to the `[Unreleased]` section under the appropriate category: `Added`, `Changed`, `Improved`, `Deprecated`, `Removed`, `Fixed`.
 - Group related changes together; write clear, user-focused descriptions rather than raw git log dumps.
 - Mention tests within the related feature or fix entry — "Test" is not its own category.
+
 ## [Unreleased]
+
+## [1.0.1] - 2026-08-28
 
 ### Fixed
 
