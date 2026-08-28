@@ -1,6 +1,6 @@
 [project]
 name = "grow-the-music-tree-api"
-version = "0.1.0"
+version = "1.0.0"
 description = "Reference genre/tag/tree service for grow-the-music-tree-frontend"
 readme = "README.md"
 requires-python = ">=3.14"
