@@ -189,7 +189,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/f4/87/647ce93053cb5e35e
 
 [[package]]
 name = "grow-the-music-tree-api"
-version = "1.0.0"
+version = "1.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "dj-database-url" },
