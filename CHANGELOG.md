@@ -11,11 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Mention tests within the related feature or fix entry — "Test" is not its own category.
 ## [Unreleased]
 
-## [1.0.0] - 2026-08-27
+## [1.1.0] - 2026-08-28
 
 ### Added
 
 - `seed_prototype_tree` management command now requires `--songs-file <path>`, pointing at an externally-supplied JSON file of song entries (never committed to git) instead of a bundled fixture — fails fast if omitted rather than silently falling back to a small default dataset. Removed the now-unused `grow/data/prototype_songs.json`. Reuses the existing `SongExampleImportSerializer` validation and the kit's `import_example_songs`, which was made bulk-efficient in `the-music-tree-genre-kit` `v0.11.0` (single batched genre/artist lookup and `TrackPlaylistRel.bulk_create` instead of per-row queries). Re-pinned `the-music-tree-genre-kit` to `v0.11.0` for this.
+
+## [1.0.0] - 2026-08-27
+
+### Added
 
 - Added a second, read-only "prototype" static-API-key identity alongside the existing system user: `PROTOTYPE_USERNAME`/`GROW_PROTOTYPE_API_KEY` settings, a prototype `User` bootstrapped via migration (with its own criteria-less `CriteriaPlaylist` rows), and enforcement in `ApiKeyAuthentication`/`GrowModelViewSet` so any write attempt authenticated with the prototype key returns `403 Forbidden`. Reads behave identically to the system user.
 - New `seed_prototype_tree` management command (re)seeds the prototype user's genre tree and tracks from dedicated fixtures (`grow/data/prototype_genre_tree.json`, `grow/data/prototype_songs.json`), reusing the kit's existing `import_criteria_tree`/`import_example_songs` manager methods and serializers rather than reimplementing the import logic. Re-running the command is safe: it now clears the prototype user's tracks before re-importing the genre tree, working around a real bug the command's own idempotency test surfaced — `Track.genre` is `on_delete=DO_NOTHING`, so a second `import_criteria_tree` call (which wipes and rebuilds the genre tree) leaves existing tracks pointing at now-deleted genre rows, causing an `IntegrityError` on commit. This same failure mode existed in the kit-provided `tree/load-example` endpoint (`GenreViewSet`) on a second call for a user with existing tracks — fixed below.
