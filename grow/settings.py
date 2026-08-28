@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
 from the_music_tree_genre_kit.data import DATA_DIR
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +20,7 @@ GROW_PROTOTYPE_API_KEY = os.environ["GROW_PROTOTYPE_API_KEY"]
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
+add_loopback_hosts(ALLOWED_HOSTS, os.environ.get("APP_PORT", "8000"))
 
 CORS_ALLOWED_ORIGINS = [o for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o]
 

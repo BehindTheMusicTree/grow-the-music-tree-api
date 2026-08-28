@@ -11,6 +11,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Mention tests within the related feature or fix entry — "Test" is not its own category.
 ## [Unreleased]
 
+### Fixed
+
+- **Container healthchecks rejected with `DisallowedHost`**: `ALLOWED_HOSTS` was built purely from the `ALLOWED_HOSTS` env var, which only carries the externally exposed hostname. Both healthchecks reach the app over loopback — the `HEALTHCHECK` in [`Dockerfile`](Dockerfile) hits `127.0.0.1`, and Coolify's own container healthcheck (not configurable) execs against `localhost` — so Django answered them with a 400 and the container was marked unhealthy, rolling back the deployment. `grow/settings.py` now calls `the-music-tree-api-kit`'s shared `add_loopback_hosts`, appending `127.0.0.1`, `127.0.0.1:<APP_PORT>`, `localhost` and `localhost:<APP_PORT>`. `hear-the-music-tree-api` uses the same helper rather than duplicating the fix. This does not widen the real attack surface — loopback is not externally reachable.
+- **`Dockerfile` healthcheck probed the wrong port when `APP_PORT` is unset**: it defaulted to `8001` while [`scripts/start-server.sh`](scripts/start-server.sh) binds gunicorn to `${APP_PORT:-8000}`, so with no `APP_PORT` in the environment (as on Coolify) the probe hit a closed port and failed with `ConnectionRefusedError` regardless of app health. The healthcheck now defaults to `8000`, matching what the server binds. `docker-compose.yml` is unaffected — it sets `APP_PORT` explicitly.
+
+### Changed
+
+- Re-pinned `the-music-tree-genre-kit` to `v0.12.0`, which itself re-pins `the-music-tree-api-kit` to `v0.5.0` (the version adding `add_loopback_hosts`).
+
 ## [1.0.0] - 2026-08-27
 
 ### Added
