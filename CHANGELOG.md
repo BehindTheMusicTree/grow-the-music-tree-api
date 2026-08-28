@@ -11,6 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Mention tests within the related feature or fix entry — "Test" is not its own category.
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-28
+
+### Added
+
+- `seed_prototype_tree` management command now requires `--songs-file <path>`, pointing at an externally-supplied JSON file of song entries (never committed to git) instead of a bundled fixture — fails fast if omitted rather than silently falling back to a small default dataset. Removed the now-unused `grow/data/prototype_songs.json`. Reuses the existing `SongExampleImportSerializer` validation and the kit's `import_example_songs`, which was made bulk-efficient in `the-music-tree-genre-kit` `v0.11.0` (single batched genre/artist lookup and `TrackPlaylistRel.bulk_create` instead of per-row queries). Re-pinned `the-music-tree-genre-kit` to `v0.11.0` for this.
+
 ## [1.0.0] - 2026-08-27
 
 ### Added
@@ -30,6 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Updated `grow/data/prototype_genre_tree.json` (seeded by `seed_prototype_tree`) to satisfy the same frontend wheel-visualization component's requirements: added a `"Mainstream Pop"` root with an illustrative subtree, and tagged one direct child of each of the other three roots (`Techno`, `Metal`, `Trap`) with `"side": "pop"` so every non-`Mainstream Pop` root has at most one untagged ("core") direct child, renaming that remaining child to make the core/pop split explicit (`House` → `House (core)`, `Alternative Rock` → `Alternative Rock (core)`, `Boom Bap` → `Boom Bap (core)`). `grow/data/prototype_songs.json`'s `"Boom Bap"` `genre_name` reference updated to match.
 
 ### Fixed
+
+- Fixed `youtube_video_id` serializing as `null` in `track_playlist_relations[*].track` on `GET genre-playlists/{uuid}/` (and the equivalent `tag-playlists`/`criteria-playlists` detail endpoints): `TrackPlaylistRelWithoutPlaylist.get_track()` serialized the base `Track`/`KitTrack` instance through `YoutubeTrackDetailedSerializer` instead of downcasting via `.youtubetrack`, so DRF silently rendered youtube-only fields as `null`. Now downcasts explicitly, with `select_related`/`prefetch_related` added to the affected viewsets to avoid an N+1 from the extra join. `YoutubeTrack.youtube_video_id` is also now a required, non-nullable field (migration `0014_alter_youtubetrack_youtube_video_id`) — no existing rows had a null value, so no data backfill was needed. Added a regression test hitting the live endpoint.
 
 - Fixed `GET genre-playlists/{uuid}/` (and the equivalent `tag-playlists`/`criteria-playlists` detail endpoints) raising a `500` on every call: `CriteriaPlaylistDetailedSerializer.tracks_archived_count` declared a `source=` matching its own field name, which DRF rejects with an `AssertionError` as soon as the serializer's `.fields` are accessed — the same redundant-`source=` bug already fixed elsewhere for `ArtistSimpleSerializer`/`ArtistDetailedSerializer`/`AlbumDetailedSerializer`. Added a regression test hitting the live endpoint.
 

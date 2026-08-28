@@ -20,7 +20,21 @@ PROTOTYPE_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 
 
 class Command(BaseCommand):
-    help = "(Re)seeds the prototype user's genre tree and tracks from grow/data/prototype_*.json"
+    help = (
+        "(Re)seeds the prototype user's genre tree from grow/data/prototype_genre_tree.json "
+        "and tracks from a required --songs-file"
+    )
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--songs-file",
+            type=str,
+            required=True,
+            help=(
+                "Path to a JSON file of song entries (a list of {title, artist, "
+                "youtube_video_id, genre_name} objects). Not committed to git."
+            ),
+        )
 
     def handle(self, *args, **options):
         user = get_prototype_user()
@@ -33,7 +47,7 @@ class Command(BaseCommand):
         tree_serializer.is_valid(raise_exception=True)
         Genre.objects.import_criteria_tree(user, tree_serializer.validated_data)
 
-        songs_data = json.loads((PROTOTYPE_DATA_DIR / "prototype_songs.json").read_text())
+        songs_data = json.loads(Path(options["songs_file"]).read_text())
         songs_serializer = SongExampleImportSerializer(data={SongExampleFields.SONGS: songs_data})
         songs_serializer.is_valid(raise_exception=True)
         YoutubeTrack.objects.import_example_songs(user, songs_serializer.validated_data[SongExampleFields.SONGS])

@@ -92,7 +92,7 @@ A second static key, `GROW_PROTOTYPE_API_KEY`, authenticates as a separate "prot
 | `/reference/plays`            | Play records                                         |
 | `/reference/library/youtube`  | Youtube tracks (CRUD + `songs/load-example/`)        |
 
-`POST tree/load-example` on `/reference/genres` (re)seeds the system user's example genre tree and example songs; `POST songs/load-example` on `/reference/library/youtube` seeds just the example songs. A `seed_prototype_tree` management command (`uv run manage.py seed_prototype_tree`) does the equivalent for the read-only prototype user, from dedicated fixtures.
+`POST tree/load-example` on `/reference/genres` (re)seeds the system user's example genre tree and example songs; `POST songs/load-example` on `/reference/library/youtube` seeds just the example songs. A `seed_prototype_tree` management command (`uv run manage.py seed_prototype_tree --songs-file <path>`) does the equivalent for the read-only prototype user, seeding its genre tree from the bundled `grow/data/prototype_genre_tree.json` and its tracks from the required `--songs-file` JSON (a list of `{title, artist, youtube_video_id, genre_name}` objects, not committed to git) — useful for seeding thousands of tracks.
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 
