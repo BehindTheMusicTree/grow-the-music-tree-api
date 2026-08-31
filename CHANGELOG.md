@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped `the-music-tree-genre-kit` to `v0.13.0`. `AbstractCriteria.save()` now rejects setting `side` (`core`/`pop`) on a non-genre criteria, raising `AppValidationException(field_name="side", field_validation_error_code=FieldValidationErrorCode.DEPENDENCY_MISSING)` — previously a `Tag` could silently get a `side` with no error. Added a regression test (`tests/unit/model/criteria/test_criteria.py`) covering this for `Tag`. The kit also switched the `side` model field from `models.CharField` to `the-music-tree-api-kit`'s `AppCharField` (no DRF serializer behavior change, `choices` always forces `ChoiceField`); generated the corresponding `grow/migrations/0015_alter_criteria_side.py`.
+
 ### Fixed
 
 - **`CORS_ALLOWED_ORIGIN_REGEXES` env var had no effect**: `grow/settings.py` only ever parsed `CORS_ALLOWED_ORIGINS` (exact-match origins); the regex-based env var was set in infrastructure config but never read into a Django setting, so `django-cors-headers` silently treated it as empty. Every regex-based allowlist entry (Vercel preview deployments, PR-preview subdomains, local dev origins) has been a no-op. Now parsed the same way as `hear-the-music-tree-api`.
