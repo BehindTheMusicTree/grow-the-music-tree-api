@@ -1,24 +1,15 @@
 from typing import TYPE_CHECKING
 
-from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
-from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
+from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 
 from ...CriteriaManager import CriteriaManager
 
 if TYPE_CHECKING:
-    from django.db.models import QuerySet
-
     from .Genre import Genre
 
 
-class GenreManager(CriteriaManager):
+class GenreManager(AbstractGenreManager, CriteriaManager):
     model: Genre
-
-    def _get_criteria_type(self) -> CriteriaType:
-        return CriteriaType(pk=CriteriaTypePks.GENRE)
-
-    def get_queryset(self) -> QuerySet[Genre]:
-        return super().get_queryset().filter(type_id=CriteriaTypePks.GENRE)
 
     def _get_direct_tracks(self, instance: Genre) -> list:
         return list(instance.tracks.all())
