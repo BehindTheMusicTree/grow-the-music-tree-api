@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Renamed the `test.yml` GitHub Actions workflow to `validate.yml`.
+- Configured the validation workflow to run on pushes to `main` and `develop`, in addition to pull requests targeting these branches.
 - Bumped `the-music-tree-genre-kit` to `v0.13.0`. `AbstractCriteria.save()` now rejects setting `side` (`core`/`pop`) on a non-genre criteria, raising `AppValidationException(field_name="side", field_validation_error_code=FieldValidationErrorCode.DEPENDENCY_MISSING)` — previously a `Tag` could silently get a `side` with no error. Added a regression test (`tests/unit/model/criteria/test_criteria.py`) covering this for `Tag`. The kit also switched the `side` model field from `models.CharField` to `the-music-tree-api-kit`'s `AppCharField` (no DRF serializer behavior change, `choices` always forces `ChoiceField`); generated the corresponding `grow/migrations/0015_alter_criteria_side.py`.
 
 ### Fixed
