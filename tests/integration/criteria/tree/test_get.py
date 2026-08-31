@@ -5,6 +5,10 @@ from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 
 class TestCase(GenreTestCase):
+    """`parent` is a self-FK declared on `Criteria`, so it always resolves to a plain
+    `Criteria` instance -- never the `Genre` MTI subtype -- hence comparing by `pk`
+    below rather than object equality."""
+
     def test_empty_then_empty_tree(self):
         response = self._get_genres_tree()
 
@@ -43,8 +47,8 @@ class TestCase(GenreTestCase):
         metal = genres.get(name="Metal")
         assert punk is not None
         assert metal is not None
-        assert punk.parent == rock
-        assert metal.parent == rock
+        assert punk.parent.pk == rock.pk
+        assert metal.parent.pk == rock.pk
 
     def test_deep_tree_then_full_hierarchy(self):
         genre_rock = self.model_fixture_factory.create_genre(name="Rock")
@@ -64,14 +68,14 @@ class TestCase(GenreTestCase):
 
         punk = genres.get(name="Punk")
         assert punk is not None
-        assert punk.parent == rock
+        assert punk.parent.pk == rock.pk
         hardcore = genres.get(name="Hardcore")
         assert hardcore is not None
-        assert hardcore.parent == punk
+        assert hardcore.parent.pk == punk.pk
 
         metal = genres.get(name="Metal")
         assert metal is not None
-        assert metal.parent == rock
+        assert metal.parent.pk == rock.pk
 
     def test_multiple_roots_then_multiple_trees(self):
         genre_rock = self.model_fixture_factory.create_genre(name="Rock")
@@ -90,14 +94,14 @@ class TestCase(GenreTestCase):
         assert rock.parent is None
         punk = genres.get(name="Punk")
         assert punk is not None
-        assert punk.parent == rock
+        assert punk.parent.pk == rock.pk
 
         jazz = genres.get(name="Jazz")
         assert jazz is not None
         assert jazz.parent is None
         blues = genres.get(name="Blues")
         assert blues is not None
-        assert blues.parent == jazz
+        assert blues.parent.pk == jazz.pk
 
     def test_with_query_param_not_related_to_pagination_then_400_bad_request(self):
         response = self._get_genres_tree()
@@ -124,15 +128,15 @@ class TestCase(GenreTestCase):
         metal = genres.get(name="Metal")
         assert punk is not None
         assert metal is not None
-        assert punk.parent == rock
-        assert metal.parent == rock
+        assert punk.parent.pk == rock.pk
+        assert metal.parent.pk == rock.pk
 
         jazz = genres.get(name="Jazz")
         assert jazz is not None
         assert jazz.parent is None
         blues = genres.get(name="Blues")
         assert blues is not None
-        assert blues.parent == jazz
+        assert blues.parent.pk == jazz.pk
 
         pop = genres.get(name="Pop")
         assert pop is not None
