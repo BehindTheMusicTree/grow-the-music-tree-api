@@ -15,7 +15,8 @@ class CriteriaSimpleSerializer(_BaseCriteriaSimpleSerializer):
     side = serializers.SerializerMethodField()
 
     def get_side(self, obj) -> str | None:
-        return getattr(obj, CriteriaOutputFieldKey.SIDE.value, None)
+        genre = getattr(obj, "genre", None)
+        return genre.side if genre else None
 
     class Meta:
         model = Criteria
