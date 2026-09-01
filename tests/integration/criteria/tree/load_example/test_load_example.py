@@ -33,10 +33,10 @@ class TestLoadExample(GenreTestCase):
         tracks = YoutubeTrack.objects.filter(user=self.system_user)
         assert tracks.count() > 0
 
-        track = tracks.get(title="Your Love")
+        track = tracks.get(title="Alors on danse")
         assert track.genre is not None
-        assert track.genre.name == "Chicago Deep House"
-        assert track.artists.get().name == "Frankie Knuckles"
+        assert track.genre.name == "Tech House"
+        assert track.artists.get().name == "Stromae"
 
     def test_load_example_tree_replaces_existing_songs(self):
         response = self._post_genres_tree_load_example()
