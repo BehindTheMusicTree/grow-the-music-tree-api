@@ -32,6 +32,18 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_results,
         )
 
+    def _post_genre(self, data=None):
+        return self.api_client.post(
+            path=reverse(self.list_endpoint), data=data, handle_response=self._set_error_response_result_if_failure
+        )
+
+    def _put_genre(self, uuid, data=None):
+        return self.api_client.put(
+            path=reverse("genre-detail", kwargs={"pk": uuid}),
+            data=data,
+            handle_response=self._set_error_response_result_if_failure,
+        )
+
     def _delete_genre(self, uuid):
         return self.api_client.delete(path=reverse("genre-detail", kwargs={"pk": uuid}))
 

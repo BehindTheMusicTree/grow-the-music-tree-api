@@ -11,6 +11,8 @@ from the_music_tree_genre_kit.serializer.model.track.input.song_example.import_s
 from the_music_tree_genre_kit.view.viewset.genre.GenreExampleTreeMixin import GenreExampleTreeMixin
 
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.serializer.model.criteria.children.genre.input.post import GenrePostSerializer
+from grow.serializer.model.criteria.children.genre.input.put import GenrePutSerializer
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 
 
@@ -18,7 +20,12 @@ class GenreViewSet(GenreExampleTreeMixin[Genre], CriteriaViewSet):
     example_songs_filename: str = "song_example.json"
 
     def __init__(self, **kwargs):
-        super().__init__(model_class=Genre, **kwargs)
+        super().__init__(
+            model_class=Genre,
+            create_serializer_class=GenrePostSerializer,
+            update_serializer_class=GenrePutSerializer,
+            **kwargs,
+        )
 
     @action(detail=False, methods=["post"], url_path="tree/load-example")
     def load_example_tree(self, request):
