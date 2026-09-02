@@ -37,3 +37,27 @@ class TestCase(AppTestCase):
         data = CriteriaDetailedSerializer(base_instance).data
 
         assert data["side"] is None
+
+    def test_serializes_essential_tracks(self):
+        genre = self.model_fixture_factory.create_genre("Electronic")
+        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=genre)
+        genre.essential_tracks.add(track)
+
+        data = CriteriaDetailedSerializer(genre).data
+
+        assert [essential_track["uuid"] for essential_track in data["essential_tracks"]] == [str(track.uuid)]
+
+    def test_serializes_essential_tracks_as_empty_list_by_default(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+
+        data = CriteriaDetailedSerializer(genre).data
+
+        assert data["essential_tracks"] == []
+
+    def test_serializes_essential_tracks_as_empty_list_for_tag_from_base_criteria_instance(self):
+        tag = self.model_fixture_factory.create_tag("Live")
+        base_instance = Criteria.objects.get(uuid=tag.uuid)
+
+        data = CriteriaDetailedSerializer(base_instance).data
+
+        assert data["essential_tracks"] == []
