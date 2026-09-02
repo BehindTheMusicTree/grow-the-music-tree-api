@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Bumped `the-music-tree-genre-kit` to `v0.15.0`, which adds an optional `summary` `TextField` (`null=True, blank=True`) to `AbstractCriteria`, shared by both `Genre` and `Tag` — a short standalone blurb for hover/card UI, distinct from any future detailed-genre-page content. Generated `grow/migrations/0017_criteria_summary.py`. `summary` is now surfaced in `CriteriaSimpleSerializer` output (the `genre-list`/`tag-list`/`genre-playlists`/`tag-playlists` endpoints) automatically via the kit's `build_criteria_simple_serializer`, and mirrored into `grow`'s local `CriteriaOutputFieldKey` enum.
+
 ### Changed
 
 - Renamed the `test.yml` GitHub Actions workflow to `validate.yml`.
