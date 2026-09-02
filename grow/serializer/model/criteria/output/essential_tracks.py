@@ -24,4 +24,6 @@ class CriteriaEssentialTracksSerializerMixin:
         genre = getattr(obj, "genre", None)
         if not genre:
             return []
-        return TrackWithoutAlbumPlaylistGenreSerializer(genre.essential_tracks.all(), many=True).data
+        return TrackWithoutAlbumPlaylistGenreSerializer(
+            genre.essential_tracks.all(), many=True, context=self.context
+        ).data
