@@ -20,5 +20,4 @@ class CriteriaOutputFieldKey(StrEnum):
     CHILDREN = "children"
     CRITERIA_PLAYLIST = "criteria_playlist"
     SIDE = "side"
-    SUMMARY = "summary"
     ESSENTIAL_TRACKS = "essential_tracks"
