@@ -48,6 +48,7 @@ class CriteriaDetailedSerializer(
         fields = [
             CriteriaOutputFieldKey.UUID.value,
             CriteriaOutputFieldKey.NAME.value,
+            CriteriaOutputFieldKey.SUMMARY.value,
             CriteriaOutputFieldKey.PARENT.value,
             CriteriaOutputFieldKey.ASCENDANTS.value,
             CriteriaOutputFieldKey.DESCENDANTS.value,
