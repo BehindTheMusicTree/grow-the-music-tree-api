@@ -5,7 +5,7 @@ description: Use this skill when asked to run, start, or dev-serve grow-the-musi
 
 # Launch grow-the-music-tree-api
 
-Docker Compose is the only supported dev path — no env file is required, dev
+Docker Compose is the recommended dev path — no env file is required, dev
 defaults are baked into `docker-compose.yml`.
 
 ## Start
