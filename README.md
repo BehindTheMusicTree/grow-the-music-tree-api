@@ -62,8 +62,6 @@ uv run manage.py runserver
 | `SECRET_KEY`      | yes      | —         | Django secret key                                        |
 | `SYSTEM_USERNAME` | yes      | —         | Username for the single-tenant "system user"             |
 | `GROW_API_KEY`    | yes      | —         | Static API key checked against the `X-API-Key` header    |
-| `PROTOTYPE_USERNAME` | yes   | —         | Username for the read-only "prototype user"               |
-| `GROW_PROTOTYPE_API_KEY` | yes | —       | Static API key for the read-only prototype identity       |
 | `DATABASE_URL`    | yes      | —         | Postgres connection string, parsed via `dj-database-url` |
 | `DEBUG`           | no       | `false`   |                                                          |
 | `ALLOWED_HOSTS`   | no       | `""`      | Comma-separated                                          |
@@ -76,23 +74,21 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `X-API-Key` header set to `GROW_API_KEY`. The service is single-tenant: there's no per-user auth, every record belongs to the one "system user".
 
-A second static key, `GROW_PROTOTYPE_API_KEY`, authenticates as a separate "prototype user" that is restricted to reads — any write attempt with this key returns `403 Forbidden`.
-
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
 | `/reference/artists`          | Artists                                              |
 | `/reference/albums`           | Albums                                               |
-| `/reference/genres`           | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-example/`) |
+| `/reference/genres`           | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-seed/`) |
 | `/reference/tags`             | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
 | `/reference/playlists`        | Playlists                                            |
 | `/reference/manual-playlists` | Manual playlists                                     |
 | `/reference/genre-playlists`  | Playlists derived from the genre tree (read-only)    |
 | `/reference/tag-playlists`    | Playlists derived from the tag tree (read-only)      |
 | `/reference/plays`            | Play records                                         |
-| `/reference/library/youtube`  | Youtube tracks (CRUD + `songs/load-example/`)        |
+| `/reference/library/youtube`  | Youtube tracks (CRUD + `songs/load-seed/`)        |
 
-`POST tree/load-example` on `/reference/genres` (re)seeds the system user's example genre tree and example songs; `POST songs/load-example` on `/reference/library/youtube` seeds just the example songs. A `seed_prototype_tree` management command (`uv run manage.py seed_prototype_tree --songs-file <path>`) does the equivalent for the read-only prototype user, seeding its genre tree from the bundled `grow/data/prototype_genre_tree.json` and its tracks from the required `--songs-file` JSON (a list of `{title, artist, youtube_video_id, genre_name}` objects, not committed to git) — useful for seeding thousands of tracks.
+`POST tree/load-seed` on `/reference/genres` (re)seeds the system user's seed genre tree and seed songs; `POST songs/load-seed` on `/reference/library/youtube` seeds just the seed songs.
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 

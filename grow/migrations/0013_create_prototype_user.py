@@ -2,16 +2,12 @@ import os
 import uuid
 
 from django.contrib.auth.hashers import make_password
-from django.core.management.base import CommandError
 from django.db import migrations
 
 
 def create_prototype_user(apps, schema_editor):
     User = apps.get_model("auth", "User")
-    username = os.getenv("PROTOTYPE_USERNAME", None)
-
-    if not username:
-        raise CommandError("⚠️ PROTOTYPE_USERNAME must be set in environment variables before running migrations.")
+    username = os.getenv("PROTOTYPE_USERNAME") or "prototype"
 
     user, _created = User.objects.get_or_create(
         username=username,
