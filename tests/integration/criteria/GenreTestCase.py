@@ -26,9 +26,9 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_results,
         )
 
-    def _post_genres_tree_load_example(self):
+    def _post_genres_tree_load_seed(self):
         return self.api_client.post(
-            path=reverse(self.list_endpoint) + "tree/load-example/",
+            path=reverse(self.list_endpoint) + "tree/load-seed/",
             handle_response=self._set_results,
         )
 

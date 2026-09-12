@@ -6,11 +6,11 @@ from tests.utils.AppApiClient import AppApiClient
 from tests.utils.restore_kit_seeded_data import restore_kit_seeded_data, snapshot_kit_seeded_data
 
 
-class TestLoadExampleIdempotent(TransactionTestCase):
+class TestLoadSeedIdempotent(TransactionTestCase):
     """
     Uses TransactionTestCase (real commits) rather than TestCase: SQLite only
     enforces Track.genre's FK on commit, so TestCase's savepoint-wrapped tests
-    never actually hit the constraint violation a second `tree/load-example`
+    never actually hit the constraint violation a second `tree/load-seed`
     call triggers against tracks left over from the first (Track.genre is
     on_delete=DO_NOTHING, so wiping the old genre tree doesn't clear them).
     """
@@ -25,9 +25,9 @@ class TestLoadExampleIdempotent(TransactionTestCase):
         super()._fixture_teardown()
         restore_kit_seeded_data(snapshot)
 
-    def test_load_example_tree_twice_does_not_violate_track_genre_fk(self):
+    def test_load_seed_tree_twice_does_not_violate_track_genre_fk(self):
         api_client = AppApiClient()
-        url = reverse("genre-list") + "tree/load-example/"
+        url = reverse("genre-list") + "tree/load-seed/"
 
         first_response = api_client.post(path=url)
         assert first_response.status_code == status.HTTP_201_CREATED

@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the prototype user entirely: `ReadOnlyForPrototypeUser` permission class, `get_prototype_user` helper, and the `seed_prototype_tree` management command are gone; `ApiKeyAuthentication` now only resolves `GROW_API_KEY` to the system user (its `GROW_PROTOTYPE_API_KEY` branch is removed); `GrowModelViewSet.permission_classes` is now just `[AuthenticatedForWritesReturn401]`. `grow/settings.py` no longer requires `PROTOTYPE_USERNAME`/`GROW_PROTOTYPE_API_KEY`. Added `grow/migrations/0019_delete_prototype_user.py`, which deletes the `prototype` user row (cascading via FKs); `grow/migrations/0013_create_prototype_user.py` no longer hard-fails when `PROTOTYPE_USERNAME` is unset, defaulting to `"prototype"` instead, since the row it creates is now immediately removed by `0019` on a fresh database and the env var is no longer required anywhere else.
+
+### Changed
+
+- Bumped `the-music-tree-genre-kit` to `v0.18.0`, which renames its example-data mixins/routes/fields to "seed" terminology: `GenreExampleTreeMixin`→`GenreSeedTreeMixin`, `SongExampleTreeMixin`→`SongSeedTreeMixin`, `tree/load-example`→`tree/load-seed`, `songs/load-example`→`songs/load-seed`, `import_example_songs`→`import_seed_songs`, `SongExampleFields`→`SongSeedFields`, `SongExampleImportSerializer`→`SongSeedImportSerializer`. Updated all usages in `grow` accordingly (`GenreViewSet`, `YoutubeTrackViewSet`).
+- Renamed this repo's own analogous "example" identifiers to match: `GenreViewSet.load_example_tree`→`load_seed_tree`, `on_example_tree_loaded`→`on_seed_tree_loaded`, `example_songs_filename`→`seed_songs_filename`. Renamed the reusable fixture `grow/data/prototype_genre_tree.json`→`grow/data/seed_genre_tree.json`.
+
 ### Fixed
 
 - `summary` is now surfaced in `CriteriaDetailedSerializer` output (the `genre-detail`/`tag-detail` endpoints), matching its existing presence in `CriteriaSimpleSerializer`. It had been added to the list serializer alongside the `summary` field itself but never added to the detail serializer's field list.

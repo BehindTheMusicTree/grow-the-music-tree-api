@@ -1,4 +1,4 @@
-from the_music_tree_genre_kit.view.viewset.track.SongExampleTreeMixin import SongExampleTreeMixin
+from the_music_tree_genre_kit.view.viewset.track.SongSeedTreeMixin import SongSeedTreeMixin
 from the_music_tree_genre_kit.view.viewset.track.SongsImportMixin import SongsImportMixin
 
 from grow.filtering.set.youtube_track.YoutubeTrackFilterSet import YoutubeTrackFilterSet
@@ -8,7 +8,7 @@ from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
 class YoutubeTrackViewSet(
-    SongExampleTreeMixin[YoutubeTrack], SongsImportMixin[YoutubeTrack], GrowModelViewSet[YoutubeTrack]
+    SongSeedTreeMixin[YoutubeTrack], SongsImportMixin[YoutubeTrack], GrowModelViewSet[YoutubeTrack]
 ):
     def __init__(self, **kwargs):
         super().__init__(
