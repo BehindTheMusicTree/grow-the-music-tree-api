@@ -1,6 +1,8 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
+from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
+from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 
 from ...CriteriaManager import CriteriaManager
@@ -8,12 +10,22 @@ from ...CriteriaManager import CriteriaManager
 if TYPE_CHECKING:
     from .Genre import Genre
 
+MAINSTREAM_POP_ROOT_NAME = "Mainstream Pop"
+
 
 class GenreManager(AbstractGenreManager, CriteriaManager):
     model: Genre
 
     def _get_direct_tracks(self, instance: Genre) -> list:
         return list(instance.tracks.all())
+
+    def assert_mainstream_pop_root_present(self, user: Any) -> None:
+        if not self.get_roots(user).filter(name=MAINSTREAM_POP_ROOT_NAME).exists():
+            raise AppValidationException(
+                field_name="name",
+                message=f'A root genre named "{MAINSTREAM_POP_ROOT_NAME}" is required.',
+                field_validation_error_code=FieldValidationErrorCode.DEPENDENCY_MISSING,
+            )
 
     @transaction.atomic
     def create(self, **kwargs) -> Genre:
