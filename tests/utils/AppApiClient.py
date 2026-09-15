@@ -29,3 +29,8 @@ class AppApiClient(APIClient):
         handle_response = extra.pop("handle_response", None)
         response = super().put(path, data, format=format, follow=follow, **extra)
         return self._handle_response(response, handle_response)
+
+    def delete(self, path, data: Any = None, format="json", follow=False, **extra) -> HttpResponse:
+        handle_response = extra.pop("handle_response", None)
+        response = super().delete(path, data, format=format, follow=follow, **extra)
+        return self._handle_response(response, handle_response)

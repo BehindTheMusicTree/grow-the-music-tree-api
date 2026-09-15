@@ -37,7 +37,7 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
             YoutubeTrack.objects.filter(user=request.user).delete()
 
             response = super().load_seed_tree(request)
-            Genre.objects.assert_mainstream_pop_root_present(request.user)
+            Genre.objects.assert_required_roots_present(request.user)
 
         return response
 
@@ -45,7 +45,7 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
     def import_tree(self, request):
         with transaction.atomic():
             response = super().import_tree(request)
-            Genre.objects.assert_mainstream_pop_root_present(request.user)
+            Genre.objects.assert_required_roots_present(request.user)
 
         return response
 
