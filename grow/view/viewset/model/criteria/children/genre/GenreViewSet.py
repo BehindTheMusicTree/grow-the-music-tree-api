@@ -1,6 +1,7 @@
 import json
 
 from django.conf import settings
+from django.db import transaction
 from rest_framework.decorators import action
 from the_music_tree_genre_kit.serializer.model.track.input.song_seed.Fields import (
     Fields as SongSeedFields,
@@ -31,10 +32,22 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
     def load_seed_tree(self, request):
         from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
-        # Track.genre is on_delete=DO_NOTHING; clear tracks first or re-importing violates the FK constraint when the genre tree is wiped.
-        YoutubeTrack.objects.filter(user=request.user).delete()
+        with transaction.atomic():
+            # Track.genre is on_delete=DO_NOTHING; clear tracks first or re-importing violates the FK constraint when the genre tree is wiped.
+            YoutubeTrack.objects.filter(user=request.user).delete()
 
-        return super().load_seed_tree(request)
+            response = super().load_seed_tree(request)
+            Genre.objects.assert_mainstream_pop_root_present(request.user)
+
+        return response
+
+    @action(detail=False, methods=["post"], url_path="tree/import")
+    def import_tree(self, request):
+        with transaction.atomic():
+            response = super().import_tree(request)
+            Genre.objects.assert_mainstream_pop_root_present(request.user)
+
+        return response
 
     def on_seed_tree_loaded(self, request) -> None:
         from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
