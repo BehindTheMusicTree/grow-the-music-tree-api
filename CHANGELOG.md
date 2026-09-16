@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- The required "Mainstream Pop" root genre invariant (see below) now also guards direct `DELETE`/`PUT` on the root via normal Genre CRUD, not just `tree/import`/`tree/load-seed`: deleting the root, renaming it away, or reparenting it out from under `parent=None` now fails with a `dependency_missing` field error and rolls back. `GenreManager.REQUIRED_ROOT_GENRE_NAMES` generalizes the single hardcoded name into a set, the extension point for any future required root label (see `ARCHITECTURE.md`).
 - Bumped `the-music-tree-genre-kit` to `v0.18.0`, which renames its example-data mixins/routes/fields to "seed" terminology: `GenreExampleTreeMixin`→`GenreSeedTreeMixin`, `SongExampleTreeMixin`→`SongSeedTreeMixin`, `tree/load-example`→`tree/load-seed`, `songs/load-example`→`songs/load-seed`, `import_example_songs`→`import_seed_songs`, `SongExampleFields`→`SongSeedFields`, `SongExampleImportSerializer`→`SongSeedImportSerializer`. Updated all usages in `grow` accordingly (`GenreViewSet`, `YoutubeTrackViewSet`).
 - Renamed this repo's own analogous "example" identifiers to match: `GenreViewSet.load_example_tree`→`load_seed_tree`, `on_example_tree_loaded`→`on_seed_tree_loaded`, `example_songs_filename`→`seed_songs_filename`. Renamed the reusable fixture `grow/data/prototype_genre_tree.json`→`grow/data/seed_genre_tree.json`.
 

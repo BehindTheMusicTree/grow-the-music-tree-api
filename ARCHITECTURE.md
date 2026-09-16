@@ -46,6 +46,16 @@ Every `Criteria` node has a 1:1 shadow `CriteriaPlaylist`, kept in sync automati
 
 Net picture: one self-referential `Criteria` tree (parent/children + `CriteriaLineageRel` for precomputed ascendant/descendant lookups), `type` discriminating Genre vs Tag, with an auto-maintained shadow playlist per node that tracks attach to and get queried through.
 
+## Required root genre labels
+
+Some genre names are required to exist as a root (`parent=None`) of every user's tree — currently just `"Mainstream Pop"`. `GenreManager.REQUIRED_ROOT_GENRE_NAMES` (`grow/model/criteria/children/genre/GenreManager.py`) is a `frozenset` and the single place to add a future required label; `assert_required_roots_present` checks the whole set at once and reports every missing name in one `dependency_missing` error.
+
+The invariant is enforced in two different ways depending on what's being protected:
+- **`tree/import` and `tree/load-seed`** (`GenreViewSet`) assert it right after the bulk write, inside the same transaction — a bulk write that doesn't produce a compliant tree is rolled back entirely.
+- **`GenreManager.delete_instance`/`update_instance`** assert it only when the genre being deleted or updated *was itself* a required root before the operation. This guards an already-valid tree against a single `DELETE`/`PUT` silently breaking it (e.g. deleting the Mainstream Pop root, or renaming/reparenting it away), while leaving every other write untouched.
+
+It is deliberately **never** enforced on `create()`. A tree is legitimately incomplete while a client builds it up node-by-node via `POST /genres/`, and checking on every create would reject the first `POST` a fresh user makes.
+
 ## Track model
 
 Single concrete track type: `YoutubeTrack(KitTrack)` (`grow/model/youtube_track/YoutubeTrack.py`), MTI onto the kit's `Track` via `track = PrivateOneToOneField(KitTrack, on_delete=models.CASCADE, parent_link=True, ...)`. `settings.TRACK_MODEL = "grow.YoutubeTrack"` points directly at the concrete child — see `CLAUDE.md`'s Architecture section for why (no downcasting/`resolve_concrete` needed since there's only one child).
