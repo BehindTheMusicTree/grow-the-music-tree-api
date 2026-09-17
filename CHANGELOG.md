@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - `scripts/start-server.sh` now starts Gunicorn with `--timeout 120` and `--workers 2` (both overridable via `GUNICORN_TIMEOUT`/`GUNICORN_WORKERS`), replacing the implicit 30s timeout/1 worker defaults that were killing requests behind large imports.
+- Bumped `the-music-tree-genre-kit` to `v0.19.0`, which batches `import_criteria_tree`'s ascendant `CriteriaLineageRel` inserts into a single `bulk_create` call instead of one per ancestor per node — no API changes affecting `grow`.
 
 ### Removed
 
