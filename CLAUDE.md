@@ -11,6 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `hear-the-music-tree-api` is a sibling app consuming the same two kits — when changing shared kit behavior, check whether hear needs the equivalent change.
 
+**Nightly data source:** [`the-music-tree-pipelines`](https://github.com/BehindTheMusicTree/the-music-tree-pipelines) is an external ETL system (Bronze → Silver → Gold, MusicBrainz + Wikidata) that runs on a daily systemd timer per env (prod/staging) on the VPS. Once its Gold stage succeeds, it POSTs its two JSON exports straight to this API's `X-API-Key`-authenticated endpoints: the canonical genre tree to `genres/tree/import/`, then reconciled songs to `library/youtube/songs/import/` (songs import depends on matching genre criteria already existing, so tree import must run first). The real canonical tree is large (~1,710 nodes) — changes to genre/criteria import performance should be validated against a tree of that scale, not just small fixtures.
+
 ## Setup
 
 ```bash
