@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- **Dev tooling**: Added a `launch` Claude Code skill (`.claude/skills/launch/`) documenting how to start the app locally via Docker Compose.
 - Genre tree writes (`tree/import`, `tree/load-seed`) now require a root genre named "Mainstream Pop"; a missing one fails the request with a `dependency_missing` field error and rolls back the whole write.
 - Bumped `the-music-tree-genre-kit` to `v0.17.0`, which removes the constraint that at most one direct child of a root genre criteria may have `side="pop"` — a root may now have zero, one, or several pop children, needed for the pipelines Gold layer's canonical genre tree export to import cleanly.
 - Bumped `the-music-tree-genre-kit` to `v0.16.0`, which adds `SongsImportMixin`. `YoutubeTrackViewSet` now mixes it in alongside the existing `SongExampleTreeMixin`, exposing a new `songs/import` (POST) action that accepts an arbitrary flat list of `{"title", "artist", "youtube_video_id", "genre_name"}` entries and replaces the current user's tracks — unlike `songs/load-example`, the payload comes from the request body rather than a bundled fixture file, so any external system (e.g. the pipelines Gold layer) can push a songs list directly.
