@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Bumped `the-music-tree-genre-kit` to `v0.19.0`, which batches `import_criteria_tree`'s ascendant `CriteriaLineageRel` inserts into a single `bulk_create` call instead of one per ancestor per node — no API changes affecting `grow`.
 - Bumped `the-music-tree-genre-kit` to `v0.20.0`: `CriteriaManager` now overrides the kit's `_on_bulk_created` hook to call `CriteriaPlaylist.objects.bulk_create_for_criteria(instances)`, bulk-creating one `CriteriaPlaylist` row per criteria node after `import_criteria_tree`'s bulk insert instead of one `.create()` per node.
 - Bumped `the-music-tree-genre-kit` to `v0.21.0`, which fixes the tree-import gunicorn worker timeout on deep genre trees: tree-node validation no longer re-validates every descendant subtree once per ancestor level (cost compounded with tree depth, not just node count), and `bulk_create_mti`'s raw insert now issues real multi-row `INSERT` statements instead of one round-trip per row — no API changes affecting `grow`.
+- Bumped `the-music-tree-genre-kit` to `v0.22.0`, which makes `songs/import` return `{"imported": <count>, "skipped": <count>}` instead of an empty body — no changes needed in `grow`.
 
 ### Removed
 
