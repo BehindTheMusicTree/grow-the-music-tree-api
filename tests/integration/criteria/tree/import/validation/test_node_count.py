@@ -54,7 +54,7 @@ class TestNodeCount(GenreTestCase):
 
     @pytest.mark.slow
     def test_largest_then_ok(self):
-        root = {Fields.NAME_PUBLIC: "Root", Fields.CHILDREN: []}
+        root = {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
         for i in range(3000):
             root[Fields.CHILDREN].append({Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []})
 

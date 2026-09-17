@@ -26,9 +26,9 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_results,
         )
 
-    def _post_genres_tree_load_example(self):
+    def _post_genres_tree_load_seed(self):
         return self.api_client.post(
-            path=reverse(self.list_endpoint) + "tree/load-example/",
+            path=reverse(self.list_endpoint) + "tree/load-seed/",
             handle_response=self._set_results,
         )
 
@@ -45,7 +45,10 @@ class GenreTestCase(AppTestCase):
         )
 
     def _delete_genre(self, uuid):
-        return self.api_client.delete(path=reverse("genre-detail", kwargs={"pk": uuid}))
+        return self.api_client.delete(
+            path=reverse("genre-detail", kwargs={"pk": uuid}),
+            handle_response=self._set_error_response_result_if_failure,
+        )
 
     def _set_results(self, response):
         if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]:
@@ -57,7 +60,7 @@ class GenreTestCase(AppTestCase):
             self._set_error_response_result_if_failure(response)
 
     def _set_error_response_result_if_failure(self, response):
-        if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]:
+        if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED, status.HTTP_204_NO_CONTENT]:
             return
 
         self.bad_request_result = response.json()

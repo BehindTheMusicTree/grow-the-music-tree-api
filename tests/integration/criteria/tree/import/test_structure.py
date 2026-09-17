@@ -10,25 +10,32 @@ class TestStructure(GenreTestCase):
     `Criteria` instance -- never the `Genre` MTI subtype -- hence comparing by `pk`
     below rather than object equality."""
 
+    def _mainstream_pop_root(self) -> dict:
+        return {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
+
     def test_single_root_then_ok(self):
-        data = [{Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
-        assert response.status_code == status.HTTP_201_CREATED
-
-        genres = Genre.objects.filter(user=self.system_user)
-        assert genres.count() == 1
-        rock = genres.first()
-        assert rock is not None
-        assert rock.name == "Rock"
-        assert rock.parent is None
-
-    def test_multiple_roots_then_ok(self):
-        data = [{Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, {Fields.NAME_PUBLIC: "Jazz", Fields.CHILDREN: []}]
+        data = [{Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, self._mainstream_pop_root()]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=self.system_user)
         assert genres.count() == 2
+        rock = genres.get(name="Rock")
+        assert rock is not None
+        assert rock.name == "Rock"
+        assert rock.parent is None
+
+    def test_multiple_roots_then_ok(self):
+        data = [
+            {Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
+            {Fields.NAME_PUBLIC: "Jazz", Fields.CHILDREN: []},
+            self._mainstream_pop_root(),
+        ]
+        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        assert response.status_code == status.HTTP_201_CREATED
+
+        genres = Genre.objects.filter(user=self.system_user)
+        assert genres.count() == 3
         rock = genres.get(name="Rock")
         jazz = genres.get(name="Jazz")
         assert rock is not None
@@ -46,13 +53,14 @@ class TestStructure(GenreTestCase):
                         Fields.CHILDREN: [{Fields.NAME_PUBLIC: "Heavy Metal", Fields.CHILDREN: []}],
                     }
                 ],
-            }
+            },
+            self._mainstream_pop_root(),
         ]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=self.system_user)
-        assert genres.count() == 3
+        assert genres.count() == 4
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
         heavy_metal = genres.get(name="Heavy Metal")
@@ -83,13 +91,14 @@ class TestStructure(GenreTestCase):
                         ],
                     }
                 ],
-            }
+            },
+            self._mainstream_pop_root(),
         ]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=self.system_user)
-        assert genres.count() == 5
+        assert genres.count() == 6
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
         heavy_metal = genres.get(name="Heavy Metal")
@@ -115,13 +124,14 @@ class TestStructure(GenreTestCase):
                     {Fields.NAME_PUBLIC: "Punk", Fields.CHILDREN: []},
                     {Fields.NAME_PUBLIC: "Blues", Fields.CHILDREN: []},
                 ],
-            }
+            },
+            self._mainstream_pop_root(),
         ]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=self.system_user)
-        assert genres.count() == 4
+        assert genres.count() == 5
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
         punk = genres.get(name="Punk")
@@ -163,12 +173,13 @@ class TestStructure(GenreTestCase):
                     {Fields.NAME_PUBLIC: "Fusion", Fields.CHILDREN: []},
                 ],
             },
+            self._mainstream_pop_root(),
         ]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=self.system_user)
-        assert genres.count() == 10
+        assert genres.count() == 11
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
         heavy_metal = genres.get(name="Heavy Metal")
