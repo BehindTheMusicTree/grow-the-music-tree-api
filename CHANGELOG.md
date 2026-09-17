@@ -16,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `scripts/start-server.sh` now starts Gunicorn with `--timeout 120` and `--workers 2` (both overridable via `GUNICORN_TIMEOUT`/`GUNICORN_WORKERS`), replacing the implicit 30s timeout/1 worker defaults that were killing requests behind large imports.
 - Bumped `the-music-tree-genre-kit` to `v0.19.0`, which batches `import_criteria_tree`'s ascendant `CriteriaLineageRel` inserts into a single `bulk_create` call instead of one per ancestor per node — no API changes affecting `grow`.
+- Bumped `the-music-tree-genre-kit` to `v0.20.0`: `CriteriaManager` now overrides the kit's `_on_bulk_created` hook to call `CriteriaPlaylist.objects.bulk_create_for_criteria(instances)`, bulk-creating one `CriteriaPlaylist` row per criteria node after `import_criteria_tree`'s bulk insert instead of one `.create()` per node.
+- Bumped `the-music-tree-genre-kit` to `v0.21.0`, which fixes the tree-import gunicorn worker timeout on deep genre trees: tree-node validation no longer re-validates every descendant subtree once per ancestor level (cost compounded with tree depth, not just node count), and `bulk_create_mti`'s raw insert now issues real multi-row `INSERT` statements instead of one round-trip per row — no API changes affecting `grow`.
 
 ### Removed
 
