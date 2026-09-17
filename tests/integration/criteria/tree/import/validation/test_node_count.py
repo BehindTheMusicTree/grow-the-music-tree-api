@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from django.conf import settings
 from rest_framework import status
@@ -63,3 +65,35 @@ class TestNodeCount(GenreTestCase):
         assert response.status_code == status.HTTP_201_CREATED
         genres_count = Genre.objects.filter(user=self.system_user).count()
         assert genres_count == 3001
+
+    @pytest.mark.slow
+    def test_deep_tree_completes_well_under_timeout(self):
+        # Regression guard for the gunicorn worker timeout on deep (not just wide) genre trees --
+        # test_largest_then_ok above is flat/shallow and wouldn't catch a depth-driven blowup in
+        # tree-node validation. Shape mirrors the production genre taxonomy: real depth (60 levels)
+        # with a couple of siblings at each level, totalling ~1700 nodes -- close to the actual
+        # canonical tree's node count.
+        depth = 60
+        siblings_per_level = 2
+        node = {Fields.NAME_PUBLIC: "leaf-0", Fields.CHILDREN: []}
+        node_count = 1
+        for level in range(1, depth):
+            children = [node]
+            for sibling in range(siblings_per_level - 1):
+                children.append({Fields.NAME_PUBLIC: f"leaf-{level}-{sibling}", Fields.CHILDREN: []})
+                node_count += 1
+            node = {Fields.NAME_PUBLIC: f"node-{level}", Fields.CHILDREN: children}
+            node_count += 1
+
+        root = {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: [node]}
+        node_count += 1
+
+        start = time.monotonic()
+        response = self._post_genres_tree_import(data={Fields.TREE: [root]})
+        elapsed = time.monotonic() - start
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Genre.objects.filter(user=self.system_user).count() == node_count
+        # Gunicorn's default worker timeout is 120s; this leaves generous headroom as the real
+        # tree grows further while still catching a depth-driven regression.
+        assert elapsed < 30
