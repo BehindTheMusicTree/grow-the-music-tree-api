@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `scripts/start-server.sh` now starts Gunicorn with `--timeout 120` and `--workers 2` (both overridable via `GUNICORN_TIMEOUT`/`GUNICORN_WORKERS`), replacing the implicit 30s timeout/1 worker defaults that were killing requests behind large imports.
+
 ### Removed
 
 - Removed the prototype user entirely: `ReadOnlyForPrototypeUser` permission class, `get_prototype_user` helper, and the `seed_prototype_tree` management command are gone; `ApiKeyAuthentication` now only resolves `GROW_API_KEY` to the system user (its `GROW_PROTOTYPE_API_KEY` branch is removed); `GrowModelViewSet.permission_classes` is now just `[AuthenticatedForWritesReturn401]`. `grow/settings.py` no longer requires `PROTOTYPE_USERNAME`/`GROW_PROTOTYPE_API_KEY`. Added `grow/migrations/0019_delete_prototype_user.py`, which deletes the `prototype` user row (cascading via FKs); `grow/migrations/0013_create_prototype_user.py` no longer hard-fails when `PROTOTYPE_USERNAME` is unset, defaulting to `"prototype"` instead, since the row it creates is now immediately removed by `0019` on a fresh database and the env var is no longer required anywhere else.
