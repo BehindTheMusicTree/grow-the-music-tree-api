@@ -16,14 +16,15 @@ class TestLoadSeed(GenreTestCase):
         house = genres.get(name="House", parent=electronic)
         assert genres.get(name="Deep House", parent=house) is not None
 
-    def test_load_seed_tree_replaces_existing_genres(self):
+    def test_load_seed_tree_keeps_existing_genre_without_wikidata_id(self):
         self.model_fixture_factory.create_genre(name="Old Rock")
 
         response = self._post_genres_tree_load_seed()
         assert response.status_code == status.HTTP_201_CREATED
 
+        # "Old Rock" has no wikidataId, so import_criteria_tree never touches it (merge-by-wikidataId).
         genres = Genre.objects.filter(user=self.system_user)
-        assert not genres.filter(name="Old Rock").exists()
+        assert genres.filter(name="Old Rock").exists()
         assert genres.filter(name="Rock/Metal", parent=None).exists()
 
     def test_load_seed_tree_also_creates_songs_from_fixture(self):

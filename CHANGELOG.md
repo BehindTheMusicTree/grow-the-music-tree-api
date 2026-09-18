@@ -12,8 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `Genre` gained a nullable `wikidata_id` field (Wikidata QID, e.g. `"Q9778"`) and a `unique_wikidata_id_per_user` constraint (unique when non-null, per user), added via `grow/migrations/0020_genre_wikidata_id.py`.
+
 ### Changed
 
+- Bumped `the-music-tree-genre-kit` to `v0.23.1`: tree-import nodes may now carry an optional `id` (Wikidata QID); `import_criteria_tree` matches incoming nodes against existing rows by `wikidataId` instead of always deleting and recreating the whole tree. Existing genres with no `wikidataId` are never touched by import/load-seed. `v0.23.1` fixes the idempotency gap in `v0.23.0` where id-less nodes were always recreated instead of matched, and the `IntegrityError` handling that only matched Postgres-formatted error text.
 - `scripts/start-server.sh` now starts Gunicorn with `--timeout 120` and `--workers 2` (both overridable via `GUNICORN_TIMEOUT`/`GUNICORN_WORKERS`), replacing the implicit 30s timeout/1 worker defaults that were killing requests behind large imports.
 - Bumped `the-music-tree-genre-kit` to `v0.19.0`, which batches `import_criteria_tree`'s ascendant `CriteriaLineageRel` inserts into a single `bulk_create` call instead of one per ancestor per node — no API changes affecting `grow`.
 - Bumped `the-music-tree-genre-kit` to `v0.20.0`: `CriteriaManager` now overrides the kit's `_on_bulk_created` hook to call `CriteriaPlaylist.objects.bulk_create_for_criteria(instances)`, bulk-creating one `CriteriaPlaylist` row per criteria node after `import_criteria_tree`'s bulk insert instead of one `.create()` per node.
