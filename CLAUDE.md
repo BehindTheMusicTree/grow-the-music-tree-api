@@ -39,7 +39,7 @@ uv run manage.py runserver
   SECRET_KEY=x SYSTEM_USERNAME=x GROW_API_KEY=x DATABASE_URL=sqlite:///:memory: APP_VERSION=0.0.0 uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
-- These four map 1:1 to CI (`.github/workflows/test.yml` jobs `Lint`, `Migration check`, `Pytest`) — run all of them before opening a PR.
+- These four map 1:1 to CI (`.github/workflows/validate.yml` jobs `Lint`, `Migration check`, `Pytest`) — run all of them before opening a PR.
 
 ## Architecture
 

@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `CONTRIBUTING.md`/`CLAUDE.md` branch-prefix conventions aligned to canonical Gitflow (`feature/`, `release/`, `hotfix/` only), dropping the non-standard `fix/`/`chore/` prefixes.
 
+### Fixed
+
+- `CONTRIBUTING.md`/`CLAUDE.md` referenced a nonexistent `.github/workflows/test.yml` as the CI workflow — the actual file is `validate.yml`.
+
 ## [1.2.0] - 2026-09-22
 
 ### Fixed
