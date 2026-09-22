@@ -2,7 +2,6 @@ from rest_framework import status
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
 from grow.model.criteria.children.genre.Genre import Genre
-from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 
@@ -56,11 +55,13 @@ class TestOverwrite(GenreTestCase):
         assert not genres.filter(wikidata_id="Q182985").exists()
         assert genres.get(wikidata_id="Q11399").name == "Rock"
 
-    def test_import_deletes_genre_still_referenced_by_a_track(self):
-        # Track.genre is on_delete=DO_NOTHING, so deleting a genre still referenced by a track
-        # would otherwise violate the FK constraint (Genre still in the incoming tree_data below).
+    def test_import_reparents_track_off_a_genre_deleted_by_the_reimport(self):
+        # Track.genre is on_delete=DO_NOTHING; a raw bulk delete of a genre still referenced by a
+        # track would violate the FK constraint. the-music-tree-genre-kit reparents the track
+        # instead (up to the deleted genre's parent, or null for a deleted root) rather than
+        # raising or deleting the track.
         disco = self.model_fixture_factory.create_genre(name="Disco", wikidata_id="Q182985")
-        self.model_fixture_factory.create_youtube_track(title="Le Freak", genre=disco)
+        track = self.model_fixture_factory.create_youtube_track(title="Le Freak", genre=disco)
 
         tree_data = [
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
@@ -70,4 +71,5 @@ class TestOverwrite(GenreTestCase):
 
         assert response.status_code == status.HTTP_201_CREATED
         assert not Genre.objects.filter(user=self.system_user, wikidata_id="Q182985").exists()
-        assert not YoutubeTrack.objects.filter(user=self.system_user).exists()
+        track.refresh_from_db()
+        assert track.genre_id is None
