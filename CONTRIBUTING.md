@@ -68,7 +68,7 @@ uv run mypy grow
 uv run django-admin makemigrations grow --check --dry-run
 ```
 
-These are the same checks CI runs (`.github/workflows/test.yml`, jobs `Lint`, `Migration check`, `Pytest`) on every PR to `main` or `develop`.
+These are the same checks CI runs (`.github/workflows/validate.yml`, jobs `Lint`, `Migration check`, `Pytest`) on every PR to `main` or `develop`.
 
 ### 4. Committing
 
