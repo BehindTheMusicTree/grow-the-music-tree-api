@@ -9,7 +9,6 @@ from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypeP
 from grow.model.track.Fields import Fields as TrackFields
 
 from ...Criteria import Criteria
-from ...Fields import Fields
 from .GenreManager import GenreManager
 
 
@@ -24,13 +23,6 @@ class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-mis
 
     class Meta:
         db_table = "grow_genre"
-        constraints = [
-            models.UniqueConstraint(
-                fields=[Fields.WIKIDATA_ID, Fields.USER],
-                condition=models.Q(wikidata_id__isnull=False),
-                name="unique_wikidata_id_per_user",
-            ),
-        ]
 
     def save(self, *args, **kwargs):
         self.type = CriteriaType.objects.get(pk=CriteriaTypePks.GENRE)
