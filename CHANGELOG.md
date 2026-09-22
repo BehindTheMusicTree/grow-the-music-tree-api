@@ -14,7 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- `Genre` gained a nullable `wikidata_id` field (Wikidata QID, e.g. `"Q9778"`) and a `unique_wikidata_id_per_user` constraint (unique when non-null, per user), added via `grow/migrations/0020_genre_wikidata_id.py`.
+- `Genre` gained a nullable `wikidata_id` field (Wikidata QID, e.g. `"Q9778"`), added via `grow/migrations/0020_genre_wikidata_id.py`.
+
+### Fixed
+
+- **Staging deploys of `develop` crash-looped since `wikidata_id` landed**: `Genre.Meta` carried a `unique_wikidata_id_per_user` constraint over `(wikidata_id, user)`, but `user` lives on the parent `Criteria` table (multi-table inheritance), not on `Genre`'s own table — Django's `models.E016` check rejects a constraint over a non-local field. `manage.py check`/`pytest` never run with `--database`, so CI never caught it; `manage.py migrate` does, so every deploy since (both attempts, `2026-09-18` and this session's) failed its healthcheck and rolled back, leaving staging on stale code. Per-user uniqueness on `wikidata_id` is still enforced in practice by `import_criteria_tree`'s `filter(user=user, wikidata_id__in=...)` match-by-QID query; dropped the unenforceable DB constraint (and the now-dead `AddConstraint` op in `0020_genre_wikidata_id.py`, which had never successfully applied anywhere) rather than working around Django's MTI restriction.
 
 ### Fixed
 
