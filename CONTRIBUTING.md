@@ -47,13 +47,11 @@ This starts Postgres and the API with dev-friendly defaults already set in `dock
 
 - **`main`** — production. Coolify auto-deploys to prod on every push. No direct commits — only merges from PRs.
 - **`develop`** — staging integration branch. Coolify auto-deploys to staging on every push. No direct commits — only merges from PRs.
-- **`feature/<name>`** — new features, branched from `develop`, merged back into `develop` via PR.
-- **`fix/<name>`** — bug fixes, branched from `develop`, merged back into `develop` via PR.
-- **`chore/<name>`** — maintenance, tooling, CI/CD, dependency updates, branched from `develop`, merged back into `develop` via PR.
+- **`feature/<name>`** — all develop-targeted work (new features, non-urgent fixes, maintenance/tooling), branched from `develop`, merged back into `develop` via PR.
+- **`release/<name>`** — cuts a release from `develop`, merged into both `main` and back into `develop` via PR.
+- **`hotfix/<name>`** — urgent production fixes, branched from `main`, merged into both `main` and `develop` via PR.
 
 There is no automated branch-name enforcement (no `branch-protection.yml` workflow) — these prefixes are a convention, not a CI-checked rule.
-
-This repo has no `release/*` or `hotfix/*` flow yet and no tagged releases — `main`/`develop` deploy directly via Coolify on every push, so there's nothing to formally release. Add that process if/when it's actually needed.
 
 ### 3. Testing
 
@@ -99,7 +97,7 @@ Before opening a PR:
 - ✅ `CHANGELOG.md` updated under `[Unreleased]`
 - ✅ `README.md` updated if endpoints, env vars, or setup steps changed
 - ✅ No secrets, large files, or accidental commits
-- ✅ Branch targets `develop` (features/fixes/chores) — this repo has no `main`-targeting flow yet
+- ✅ Branch targets `develop` (`feature/*`) or `main` (`release/*`, `hotfix/*`)
 
 **PR title** follows the same `<type>(<scope>): <summary>` format as commits, e.g. `feat(track): add batch upload endpoint`.
 
