@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Local knowledge-graph tooling (`graphify`) wired up for this repo, with a post-commit hook to keep the graph current. Output is gitignored, dev-only.
+
+### Changed
+
+- `CONTRIBUTING.md`/`CLAUDE.md` branch-prefix conventions aligned to canonical Gitflow (`feature/`, `release/`, `hotfix/` only), dropping the non-standard `fix/`/`chore/` prefixes.
+
 ## [1.2.0] - 2026-09-22
 
 ### Fixed
