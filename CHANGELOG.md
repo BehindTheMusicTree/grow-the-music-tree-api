@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `Genre` gained a nullable `wikidata_id` field (Wikidata QID, e.g. `"Q9778"`) and a `unique_wikidata_id_per_user` constraint (unique when non-null, per user), added via `grow/migrations/0020_genre_wikidata_id.py`.
 
+### Fixed
+
+- **`genre-list/tree/import/` 500s when re-importing over genres still referenced by tracks**: `GenreViewSet.import_tree` deletes genres dropped from the incoming tree, but `YoutubeTrack.genre` is `on_delete=DO_NOTHING`, so re-importing after any earlier `tree/import/` or song import that left tracks pointing at a now-removed genre raised an unhandled `IntegrityError` (surfaced as a generic 500). `import_tree` now clears the requesting user's `YoutubeTrack` rows before importing, mirroring `load_seed_tree`'s existing behavior. Added `test_import_deletes_genre_still_referenced_by_a_track` (`tests/integration/criteria/tree/import/test_overwrite.py`).
+
 ### Changed
 
 - Bumped `the-music-tree-genre-kit` to `v0.23.1`: tree-import nodes may now carry an optional `id` (Wikidata QID); `import_criteria_tree` matches incoming nodes against existing rows by `wikidataId` instead of always deleting and recreating the whole tree. Existing genres with no `wikidataId` are never touched by import/load-seed. `v0.23.1` fixes the idempotency gap in `v0.23.0` where id-less nodes were always recreated instead of matched, and the `IntegrityError` handling that only matched Postgres-formatted error text.
