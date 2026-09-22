@@ -30,12 +30,7 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
 
     @action(detail=False, methods=["post"], url_path="tree/load-seed")
     def load_seed_tree(self, request):
-        from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
-
         with transaction.atomic():
-            # Track.genre is on_delete=DO_NOTHING; clear tracks first or re-importing violates the FK constraint when the genre tree is wiped.
-            YoutubeTrack.objects.filter(user=request.user).delete()
-
             response = super().load_seed_tree(request)
             Genre.objects.assert_required_roots_present(request.user)
 
