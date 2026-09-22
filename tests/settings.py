@@ -41,10 +41,6 @@ SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 
 GROW_API_KEY = "test-api-key"
 
-PROTOTYPE_USERNAME = os.environ.setdefault("PROTOTYPE_USERNAME", "prototype")
-
-GROW_PROTOTYPE_API_KEY = "test-prototype-api-key"
-
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"
 ARTIST_MODEL = "grow.Artist"

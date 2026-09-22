@@ -11,6 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `hear-the-music-tree-api` is a sibling app consuming the same two kits — when changing shared kit behavior, check whether hear needs the equivalent change.
 
+**Nightly data source:** [`the-music-tree-pipelines`](https://github.com/BehindTheMusicTree/the-music-tree-pipelines) is an external ETL system (Bronze → Silver → Gold, MusicBrainz + Wikidata) that runs on a daily systemd timer per env (prod/staging) on the VPS. Once its Gold stage succeeds, it POSTs its two JSON exports straight to this API's `X-API-Key`-authenticated endpoints: the canonical genre tree to `genres/tree/import/`, then reconciled songs to `library/youtube/songs/import/` (songs import depends on matching genre criteria already existing, so tree import must run first). The real canonical tree is large (~1,710 nodes) — changes to genre/criteria import performance should be validated against a tree of that scale, not just small fixtures.
+
 ## Setup
 
 ```bash
@@ -32,9 +34,9 @@ uv run manage.py runserver
 
 - **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
-- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `SYSTEM_USERNAME`, `GROW_API_KEY`, `PROTOTYPE_USERNAME`, `GROW_PROTOTYPE_API_KEY`, `DATABASE_URL`, `APP_VERSION` all dummy values are fine, e.g.:
+- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `SYSTEM_USERNAME`, `GROW_API_KEY`, `DATABASE_URL`, `APP_VERSION` all dummy values are fine, e.g.:
   ```bash
-  SECRET_KEY=x SYSTEM_USERNAME=x GROW_API_KEY=x PROTOTYPE_USERNAME=x GROW_PROTOTYPE_API_KEY=x DATABASE_URL=sqlite:///:memory: APP_VERSION=0.0.0 uv run mypy grow
+  SECRET_KEY=x SYSTEM_USERNAME=x GROW_API_KEY=x DATABASE_URL=sqlite:///:memory: APP_VERSION=0.0.0 uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
 - These four map 1:1 to CI (`.github/workflows/test.yml` jobs `Lint`, `Migration check`, `Pytest`) — run all of them before opening a PR.

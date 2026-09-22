@@ -10,7 +10,13 @@ from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
 class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criteria]):
-    def __init__(self, model_class: type[Criteria], **kwargs):
+    def __init__(
+        self,
+        model_class: type[Criteria],
+        create_serializer_class=CriteriaPostSerializer,
+        update_serializer_class=CriteriaPutSerializer,
+        **kwargs,
+    ):
         # Filtersets must be imported after Django is loaded
         from grow.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
 
@@ -19,8 +25,8 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
             filterset_class=CriteriaFilterSet,
             simple_serializer_class=CriteriaSimpleSerializer,
             detailed_serializer_class=CriteriaDetailedSerializer,
-            create_serializer_class=CriteriaPostSerializer,
-            update_serializer_class=CriteriaPutSerializer,
+            create_serializer_class=create_serializer_class,
+            update_serializer_class=update_serializer_class,
             **kwargs,
         )
 
