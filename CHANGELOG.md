@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`genre-tree/import/` 500s on a partial reimport that adds a new node under an already-existing root**: staging's daily gold-export sync hit this via `grow-the-music-tree-pipelines`' `sync_to_grow` step. Fixed at the source by bumping `the-music-tree-genre-kit` to `v0.23.3`, which falls back to a DB lookup for a new criteria's parent/root when it predates the current reimport batch instead of assuming it's always present, raising `KeyError`.
+
 ### Added
 
 - `Genre` gained a nullable `wikidata_id` field (Wikidata QID, e.g. `"Q9778"`), added via `grow/migrations/0020_genre_wikidata_id.py`.
