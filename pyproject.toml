@@ -32,8 +32,11 @@ dev = [
 
 [tool.uv]
 package = false
-# cryptography 49+ ships no macOS x86_64 wheel; keep Intel Macs off a from-source Rust build.
-constraint-dependencies = ["cryptography<49"]
+# cryptography 49+ ships no macOS x86_64 wheel: pin Intel Macs below it (no from-source Rust build), keep the rest current.
+constraint-dependencies = [
+    "cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "cryptography>=49; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+]
 
 [tool.ruff]
 # Shared rule set vendored from the-music-tree-genre-kit/baselines/ruff.toml (itself vendored from hear-the-music-tree-api).
