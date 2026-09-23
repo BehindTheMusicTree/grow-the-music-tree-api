@@ -34,8 +34,10 @@ RUN uv sync --frozen --no-dev
 
 RUN chmod +x scripts/entrypoint.sh scripts/start-server.sh scripts/wait-for-postgres-db.sh
 
+# The django-q2 worker reuses this image with qcluster as PID 1 and serves no HTTP; Coolify still
+# waits on this HEALTHCHECK to accept its deploys, so pass while that process is alive.
 HEALTHCHECK --interval=10s --timeout=6s --retries=5 --start-period=60s \
-    CMD python3 -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"APP_PORT\", \"8000\")}/health/', timeout=5)"
+    CMD grep -q qcluster /proc/1/cmdline || python3 -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"APP_PORT\", \"8000\")}/health/', timeout=5)"
 
 ENTRYPOINT ["bash", "scripts/entrypoint.sh"]
 CMD ["bash", "scripts/start-server.sh"]
