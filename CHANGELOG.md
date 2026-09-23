@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- Local knowledge-graph tooling (`graphify`) wired up for this repo, with a post-commit hook to keep the graph current. Output is gitignored, dev-only.
+- Local knowledge-graph tooling (`graphify`) wired up for this repo, with a post-commit hook to keep the graph current. Output is gitignored, dev-only. Claude Code is now instructed (CLAUDE.md + `.claude/settings.json` hooks) to query the graph before raw file searches.
 
 ### Changed
 
