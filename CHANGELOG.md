@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - `CONTRIBUTING.md`/`CLAUDE.md` referenced a nonexistent `.github/workflows/test.yml` as the CI workflow — the actual file is `validate.yml`.
+- Bumped `the-music-tree-genre-kit` to `v0.23.4`, which batches `import_seed_songs`'s per-song
+  artist M2M writes into a single `bulk_create`. Reduces one of the O(n) costs pushing
+  `/songs/import` toward the gunicorn/Cloudflare request timeout on large imports.
 
 ## [1.2.0] - 2026-09-22
 
