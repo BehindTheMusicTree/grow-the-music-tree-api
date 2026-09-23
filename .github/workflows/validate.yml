@@ -17,6 +17,7 @@ jobs:
       GROW_API_KEY: mypy-ci-dummy-key
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
       APP_VERSION: "0.0.0"
+      REDIS_URL: redis://localhost:6379/0
     steps:
       - name: Checkout code
         uses: actions/checkout@v5.0.1
