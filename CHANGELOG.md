@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-23
+
+### Fixed
+
+- **The django-q2 worker could never pass a deploy**: it reuses this image with `qcluster` as its process, but the image's `HEALTHCHECK` only probed the API's `/health/` endpoint, which the worker doesn't serve. Coolify waits on a Dockerfile `HEALTHCHECK` even when its own healthcheck is disabled, so every worker deploy would have failed. The healthcheck now passes while `qcluster` is running and still probes `/health/` in the API container.
+
 ## [2.0.0] - 2026-09-23
 
 ### Added
