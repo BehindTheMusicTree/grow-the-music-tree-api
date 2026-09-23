@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.urls import reverse
+from google.auth.exceptions import TransportError
 from rest_framework import status
 
 from tests.utils.AppTestCase import AppTestCase
@@ -50,6 +51,14 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["details"]["code"] == "invalid_token"
+
+    def test_google_unreachable_then_503_auth_provider_unavailable(self):
+        self._use_token()
+        with patch(VERIFY, side_effect=TransportError("certs fetch failed")):
+            response = self._post_genre()
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json()["details"]["code"] == "auth_provider_unavailable"
 
     def test_unverified_email_then_401_invalid_token(self):
         self._use_token()

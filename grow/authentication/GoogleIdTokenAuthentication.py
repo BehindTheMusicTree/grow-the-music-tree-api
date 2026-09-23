@@ -1,16 +1,36 @@
+import cachecontrol
 import requests
 from django.conf import settings
 from django.contrib.auth.models import User
+from google.auth.exceptions import TransportError
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token
 from rest_framework.authentication import BaseAuthentication
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import APIException, AuthenticationFailed
 from rest_framework.request import Request
+from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
+from the_music_tree_api_kit.view.error.ErrorResponse import ErrorResponse
 
 from grow.authentication.Principal import Principal
 from grow.model.user.get_system_user import get_system_user
 
-_google_request = GoogleRequest(session=requests.Session())
+# CacheControl honors the certs endpoint's Cache-Control max-age, so Google's signing certs aren't refetched per request.
+_google_request = GoogleRequest(session=cachecontrol.CacheControl(requests.Session()))
+
+
+class AuthProviderUnavailable(APIException):
+    status_code = 503
+    default_detail = "Google sign-in is temporarily unavailable"
+    default_code = "auth_provider_unavailable"
+
+
+ErrorResponse.register_handler(
+    AuthProviderUnavailable,
+    lambda exc: ErrorResponse.create_error_response(
+        error_detail={"message": exc.default_detail, "code": exc.default_code},
+        api_error_code=ApiErrorCodeNumeric.EXTERNAL_SERVICE_UNAVAILABLE,
+    ),
+)
 
 
 class GoogleIdTokenAuthentication(BaseAuthentication):
@@ -25,6 +45,8 @@ class GoogleIdTokenAuthentication(BaseAuthentication):
             return None
         try:
             claims = id_token.verify_oauth2_token(token, _google_request, audience=settings.GOOGLE_OAUTH_CLIENT_ID)
+        except TransportError as e:
+            raise AuthProviderUnavailable from e
         except ValueError as e:
             raise AuthenticationFailed(detail={"detail": "Invalid token", "code": "invalid_token"}) from e
         if not claims.get("email_verified"):
