@@ -14,6 +14,10 @@ SYSTEM_USERNAME = os.environ["SYSTEM_USERNAME"]
 
 GROW_API_KEY = os.environ["GROW_API_KEY"]
 
+GOOGLE_OAUTH_CLIENT_ID = os.environ["GOOGLE_OAUTH_CLIENT_ID"]
+
+ADMIN_GOOGLE_SUB = os.environ["ADMIN_GOOGLE_SUB"]
+
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
