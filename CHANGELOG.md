@@ -12,6 +12,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-23
+
+### Added
+
+- Local knowledge-graph tooling (`graphify`) wired up for this repo, with a post-commit hook to keep the graph current. Output is gitignored, dev-only. Claude Code is now instructed (CLAUDE.md + `.claude/settings.json` hooks) to query the graph before raw file searches.
+- `GET songs/import/<task_id>/status/` endpoint to poll the status of an in-progress song import (`pending`/`success`/`failed`).
+
+### Changed
+
+- `CONTRIBUTING.md`/`CLAUDE.md` branch-prefix conventions aligned to canonical Gitflow (`feature/`, `release/`, `hotfix/` only), dropping the non-standard `fix/`/`chore/` prefixes.
+- **Breaking:** `POST songs/import/` now enqueues the import as a background task and returns `202 Accepted` with `{"task_id": ...}` instead of blocking until the import completes and returning `201`. Callers must poll the new status endpoint for completion. Requires a `REDIS_URL` env var (django-q2's Redis broker) in every environment running this app.
+
+### Fixed
+
+- `CONTRIBUTING.md`/`CLAUDE.md` referenced a nonexistent `.github/workflows/test.yml` as the CI workflow — the actual file is `validate.yml`.
+- Bumped `the-music-tree-genre-kit` to `v0.23.4`, which batches `import_seed_songs`'s per-song
+  artist M2M writes into a single `bulk_create`. Reduces one of the O(n) costs pushing
+  `/songs/import` toward the gunicorn/Cloudflare request timeout on large imports.
+
 ## [1.2.0] - 2026-09-22
 
 ### Fixed

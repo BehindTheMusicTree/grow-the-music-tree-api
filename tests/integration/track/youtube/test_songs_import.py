@@ -19,9 +19,20 @@ class TestCase(AppTestCase):
 
         response = self.api_client.post(path=reverse("youtube-track-list") + "songs/import/", data=payload)
 
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        task_id = response.data["task_id"]
         titles = set(YoutubeTrack.objects.filter(user=self.system_user).values_list("title", flat=True))
         assert titles == {"Comfortably Numb"}
+
+        status_response = self.api_client.get(path=reverse("youtube-track-list") + f"songs/import/{task_id}/status/")
+        assert status_response.status_code == status.HTTP_200_OK
+        assert status_response.data["status"] == "success"
+
+    def test_import_status_reports_pending_for_unknown_task(self):
+        response = self.api_client.get(path=reverse("youtube-track-list") + "songs/import/does-not-exist/status/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "pending"
 
     def test_import_rejects_invalid_payload(self):
         response = self.api_client.post(
