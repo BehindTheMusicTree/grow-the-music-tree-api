@@ -2,6 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 from rest_framework import routers
 
+from grow.view.auth_me import AuthMeView
 from grow.view.health import HealthCheckView
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
@@ -31,5 +32,6 @@ router.register(r"library/youtube", YoutubeTrackViewSet, basename="youtube-track
 
 urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),
+    path(f"{settings.API_ROOT_BASE}auth/me/", AuthMeView.as_view(), name="auth-me"),
     path(settings.API_ROOT_BASE, include(router.urls)),
 ]
