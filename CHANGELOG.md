@@ -15,10 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Local knowledge-graph tooling (`graphify`) wired up for this repo, with a post-commit hook to keep the graph current. Output is gitignored, dev-only. Claude Code is now instructed (CLAUDE.md + `.claude/settings.json` hooks) to query the graph before raw file searches.
+- `GET songs/import/<task_id>/status/` endpoint to poll the status of an in-progress song import (`pending`/`success`/`failed`).
 
 ### Changed
 
 - `CONTRIBUTING.md`/`CLAUDE.md` branch-prefix conventions aligned to canonical Gitflow (`feature/`, `release/`, `hotfix/` only), dropping the non-standard `fix/`/`chore/` prefixes.
+- **Breaking:** `POST songs/import/` now enqueues the import as a background task and returns `202 Accepted` with `{"task_id": ...}` instead of blocking until the import completes and returning `201`. Callers must poll the new status endpoint for completion. Requires a `REDIS_URL` env var (django-q2's Redis broker) in every environment running this app.
 
 ### Fixed
 

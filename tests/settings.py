@@ -8,9 +8,15 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "rest_framework",
+    "django_q",
     "the_music_tree_genre_kit",
     "grow",
 ]
+
+Q_CLUSTER = {
+    "name": "gtmt_api_test",
+    "sync": True,
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

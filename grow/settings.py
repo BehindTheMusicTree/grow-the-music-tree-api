@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "rest_framework",
     "corsheaders",
+    "django_q",
     "the_music_tree_genre_kit",
     "grow",
 ]
@@ -46,6 +48,18 @@ WSGI_APPLICATION = "grow.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.parse(os.environ["DATABASE_URL"], conn_max_age=600),
+}
+
+_redis_url = urlparse(os.environ["REDIS_URL"])
+
+Q_CLUSTER = {
+    "name": "gtmt_api",
+    "redis": {
+        "host": _redis_url.hostname,
+        "port": _redis_url.port or 6379,
+        "password": _redis_url.password,
+        "db": int((_redis_url.path or "/0").lstrip("/") or 0),
+    },
 }
 
 AUTH_PASSWORD_VALIDATORS = []
