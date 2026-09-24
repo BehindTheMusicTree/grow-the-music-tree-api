@@ -2,13 +2,10 @@
 FROM python:3.14-bookworm
 
 ARG APP_NAME=gtmt-api
-# Filled by Coolify when include_source_commit_in_build is on; surfaced as "commit" in /health/.
-ARG SOURCE_COMMIT
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PROJECT_DIR=/home/app/ \
-    GIT_COMMIT=$SOURCE_COMMIT \
     APP_NAME=$APP_NAME \
     PATH="/home/app/.venv/bin:$PATH"
 

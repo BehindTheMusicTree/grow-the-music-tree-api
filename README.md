@@ -67,7 +67,7 @@ uv run manage.py runserver
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
 | `DEBUG`                  | no       | `false`   |                                                                                                            |
 | `ALLOWED_HOSTS`          | no       | `""`      | Comma-separated                                                                                            |
-| `GIT_COMMIT`             | no       | —         | Surfaced as `commit` in `/health/`; set from the `SOURCE_COMMIT` Docker build arg                          |
+| `SOURCE_COMMIT`          | no       | —         | Surfaced as `commit` in `/health/`; injected at runtime by Coolify                                         |
 | `APP_PORT`               | no       | `8001`    | Only used by Docker Compose                                                                                |
 
 There's no `.env.example` — Docker Compose supplies dev defaults for all of the above inline.

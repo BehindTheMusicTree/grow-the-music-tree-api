@@ -33,7 +33,7 @@ ROOT_URLCONF = "grow.urls"
 with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
     APP_VERSION = tomllib.load(_pyproject)["project"]["version"]
 
-GIT_COMMIT = os.environ.get("GIT_COMMIT") or None
+GIT_COMMIT = os.environ.get("SOURCE_COMMIT") or None
 
 API_VERSION = "v1"
 
