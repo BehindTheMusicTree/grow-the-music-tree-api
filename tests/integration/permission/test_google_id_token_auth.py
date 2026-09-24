@@ -103,7 +103,7 @@ class TestAuthMe(AppTestCase):
         assert response.json() == {"role": "viewer", "email": "viewer@example.com"}
 
     def test_pipeline(self):
-        self.api_client.credentials(HTTP_X_API_KEY=settings.GROW_API_KEY)
+        self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
 
         response = self._me()
 

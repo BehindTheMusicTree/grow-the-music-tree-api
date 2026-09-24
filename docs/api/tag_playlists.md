@@ -8,7 +8,7 @@ Playlists derived from the tag criteria tree.
 
 `/v1/tag-playlists/`
 
-Authentication: `X-API-Key` header (single static key, `GROW_API_KEY`).
+Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`).
 
 ## Endpoints
 

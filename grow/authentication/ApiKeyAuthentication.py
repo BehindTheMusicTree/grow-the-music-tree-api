@@ -11,7 +11,7 @@ from grow.model.user.get_system_user import get_system_user
 
 class ApiKeyAuthentication(BaseAuthentication):
     """
-    Authenticates requests against the static GROW_API_KEY, resolving to grow's
+    Authenticates requests against the static PIPELINE_API_KEY, resolving to grow's
     single system user with the `pipeline` role.
     """
 
@@ -19,6 +19,6 @@ class ApiKeyAuthentication(BaseAuthentication):
         api_key = request.headers.get("X-API-Key")
         if not api_key:
             return None
-        if hmac.compare_digest(api_key.encode(), settings.GROW_API_KEY.encode()):
+        if hmac.compare_digest(api_key.encode(), settings.PIPELINE_API_KEY.encode()):
             return get_system_user(), Principal(role="pipeline", email=None, sub=None)
         return None
