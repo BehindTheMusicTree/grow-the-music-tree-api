@@ -3,9 +3,6 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 AUTHENTICATION_REQUIRED_DETAIL = {"detail": "Authentication required", "code": "authentication_required"}
 
-# "pipeline" keeps full write power until the API key is scoped to the import endpoints.
-_WRITE_ROLES = {"admin", "pipeline"}
-
 
 class IsAdminOrReadOnly(BasePermission):
     """
@@ -18,4 +15,4 @@ class IsAdminOrReadOnly(BasePermission):
             return True
         if request.auth is None:
             raise NotAuthenticated(detail=AUTHENTICATION_REQUIRED_DETAIL)
-        return request.auth.role in _WRITE_ROLES
+        return request.auth.role == "admin"

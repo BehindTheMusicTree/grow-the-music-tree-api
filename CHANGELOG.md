@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- The `X-API-Key` now authenticates as the `pipeline` role. It keeps full write access for now; a follow-up will scope it to the import endpoints.
+- The `X-API-Key` now authenticates as the `pipeline` role and can only write to the nightly pipeline's import endpoints (`genres/tree/import/`, `library/youtube/songs/import/`); any other write with the key returns 403 `permission_denied`. The admin's Google token can still call the imports too. The key is now compared in constant time.
 
 ## [2.0.1] - 2026-09-23
 

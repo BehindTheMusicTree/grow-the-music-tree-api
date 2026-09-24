@@ -11,6 +11,7 @@ from grow.filtering.set.youtube_track.YoutubeTrackFilterSet import YoutubeTrackF
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.serializer.model.youtube_track.output.detailed import YoutubeTrackDetailedSerializer
 from grow.track.tasks import run_import_seed_songs
+from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
@@ -33,7 +34,7 @@ class YoutubeTrackViewSet(SongSeedTreeMixin[YoutubeTrack], GrowModelViewSet[Yout
     def destroy(self, *args, **kwargs):
         return self._handle_destroy()
 
-    @action(detail=False, methods=["post"], url_path="songs/import")
+    @action(detail=False, methods=["post"], url_path="songs/import", permission_classes=[IsPipelineOrAdmin])
     def import_songs(self, request):
         serializer = SongSeedEntrySerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
