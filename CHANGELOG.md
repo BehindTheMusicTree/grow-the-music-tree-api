@@ -24,6 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Bumped `the-music-tree-genre-kit` pin to `v0.25.0` (picking up `the-music-tree-api-kit` `v0.6.0`'s `AppModelViewSet._get_manager_write_kwargs` hook).
 
+### Fixed
+
+- Anonymous reads (e.g. the public frontend's `GET /v1/genre-playlists/`) returned empty lists because
+  querysets are scoped to `request.user`; anonymous requests now resolve to the system user (writes still
+  require credentials).
+
 ## [5.0.0] - 2026-09-24
 
 ### Removed

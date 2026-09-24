@@ -76,6 +76,15 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["details"]["code"] == "authentication_required"
 
+    def test_anonymous_get_then_lists_system_user_rows(self):
+        self._post_genre()
+        self.api_client.credentials()
+
+        response = self.api_client.get(path=reverse(self.list_endpoint))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["overallTotal"] == 1
+
     def test_default_client_admin_write_then_201(self):
         response = self._post_genre()
 

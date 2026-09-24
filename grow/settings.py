@@ -91,6 +91,8 @@ REST_FRAMEWORK = {
         "djangorestframework_camel_case.parser.CamelCaseFormParser",
     ),
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    # Single-tenant: anonymous reads see the system user's rows; writes still gate on request.auth.
+    "UNAUTHENTICATED_USER": "grow.model.user.get_system_user.get_system_user",
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
 
