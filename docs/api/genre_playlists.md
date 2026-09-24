@@ -8,7 +8,7 @@ Playlists derived from the genre criteria tree.
 
 `/v1/genre-playlists/`
 
-Authentication: `X-API-Key` header (single static key, `GROW_API_KEY`).
+Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`).
 
 ## Endpoints
 

@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** the API key env var is renamed from `GROW_API_KEY` to `PIPELINE_API_KEY`. The key
+  now only authorizes the pipeline import endpoints, and the pipelines are its only consumer. There
+  is no fallback to the old name: deployments must set `PIPELINE_API_KEY` before upgrading.
+
 ## [3.0.0] - 2026-09-24
 
 ### Added

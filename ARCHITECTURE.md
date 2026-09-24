@@ -4,7 +4,7 @@ This is a from-scratch walkthrough of how the pieces fit together — the domain
 
 ## System summary
 
-`grow` is a single-tenant Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. "Single-tenant" here means exactly one `User` row ever exists: the system user (full read/write, `GROW_API_KEY`). There are no per-user accounts, no signup flow, no custom user model — tenancy is a settings value compared against a request header.
+`grow` is a single-tenant Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. "Single-tenant" here means exactly one `User` row ever exists: the system user (full read/write, `PIPELINE_API_KEY`). There are no per-user accounts, no signup flow, no custom user model — tenancy is a settings value compared against a request header.
 
 ## Dependency architecture
 
@@ -66,7 +66,7 @@ The kit's `Track` deliberately has no `playlists` M2M field. `YoutubeTrack.playl
 
 Full chain for a single authenticated request:
 
-1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `GROW_API_KEY` → system user. Anything else → unauthenticated.
+1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → system user. Anything else → unauthenticated.
 2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [AuthenticatedForWritesReturn401]`:
    - `AuthenticatedForWritesReturn401` — allows unauthenticated `SAFE_METHODS`; on writes, raises `NotAuthenticated` (401) instead of DRF's default 403 if the request isn't authenticated at all.
 3. Every concrete viewset inherits `GrowModelViewSet` directly, with no per-viewset override — this permission composition applies uniformly across the whole API surface.
@@ -94,7 +94,7 @@ ALBUM_MODEL = "grow.Album"
 
 There's no `PLAYLIST_MODEL` or `TAG_MODEL`/`GENRE_MODEL` — Tag/Genre are proxy models of `Criteria` (see above), and Playlist variants resolve through `CRITERIA_MODEL`'s FK graph rather than their own setting.
 
-`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `GROW_API_KEY`), and no `SOURCE_COMMIT` from Coolify.
+`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `PIPELINE_API_KEY`), and no `SOURCE_COMMIT` from Coolify.
 
 ## Exception handling
 

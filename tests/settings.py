@@ -57,7 +57,7 @@ REST_FRAMEWORK = {
 
 SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 
-GROW_API_KEY = "test-api-key"
+PIPELINE_API_KEY = "test-api-key"
 
 GOOGLE_OAUTH_CLIENT_ID = "test-google-client-id"
 
