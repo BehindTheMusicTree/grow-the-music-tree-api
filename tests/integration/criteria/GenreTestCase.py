@@ -50,6 +50,12 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_error_response_result_if_failure,
         )
 
+    def _post_genre_exclude(self, uuid):
+        return self.api_client.post(
+            path=reverse("genre-detail", kwargs={"pk": uuid}) + "exclude/",
+            handle_response=self._set_error_response_result_if_failure,
+        )
+
     def _set_results(self, response):
         if response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]:
             response_json = response.json()

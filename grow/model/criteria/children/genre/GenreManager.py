@@ -5,6 +5,9 @@ from the_music_tree_api_kit.exception.validation.app.AppValidationException impo
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
+
 from ...CriteriaManager import CriteriaManager
 
 if TYPE_CHECKING:
@@ -23,8 +26,46 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def _is_required_root(self, instance: Genre) -> bool:
         return instance.parent_id is None and instance.name in REQUIRED_ROOT_GENRE_NAMES
 
+    def _lock(self, instance: Genre) -> None:
+        instance.is_manually_edited = True
+        instance.save(update_fields=["is_manually_edited"])
+
+    def _on_created(self, instance: Genre, *, actor: Any = None) -> None:
+        super()._on_created(instance, actor=actor)
+        if actor is not None:
+            self._lock(instance)
+        HistoryEntry.objects.record(instance, action=HistoryAction.CREATED, actor=actor)
+
+    def _on_bulk_created(self, instances: list[Genre], *, actor: Any = None) -> None:
+        super()._on_bulk_created(instances, actor=actor)
+        for instance in instances:
+            HistoryEntry.objects.record(instance, action=HistoryAction.CREATED, actor=actor)
+
+    def _on_parent_changed(
+        self, instance: Genre, *, old_parent: Genre | None, old_root: Genre, root_changed: bool, actor: Any = None
+    ) -> None:
+        super()._on_parent_changed(
+            instance, old_parent=old_parent, old_root=old_root, root_changed=root_changed, actor=actor
+        )
+        if actor is not None:
+            self._lock(instance)
+        HistoryEntry.objects.record(
+            instance,
+            action=HistoryAction.PARENT_CHANGED,
+            actor=actor,
+            old_value=old_parent.name if old_parent else None,
+            new_value=instance.parent.name if instance.parent else None,
+        )
+
+    def _on_renamed(self, instance: Genre, *, old_name: str, actor: Any = None) -> None:
+        if actor is not None:
+            self._lock(instance)
+        HistoryEntry.objects.record(
+            instance, action=HistoryAction.RENAMED, actor=actor, old_value=old_name, new_value=instance.name
+        )
+
     def assert_required_roots_present(self, user: Any) -> None:
-        existing_root_names = set(self.get_roots(user).values_list("_name", flat=True))
+        existing_root_names = set(self.get_roots(user).filter(is_excluded=False).values_list("_name", flat=True))
         missing_root_names = sorted(REQUIRED_ROOT_GENRE_NAMES - existing_root_names)
         if missing_root_names:
             names = ", ".join(f'"{name}"' for name in missing_root_names)
@@ -48,9 +89,23 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
         was_required_root = self._is_required_root(instance)
         user = instance.user
+        HistoryEntry.objects.record(instance, action=HistoryAction.DELETED, actor=actor, old_value=instance.name)
         super().delete_instance(instance, actor=actor)
         if was_required_root:
             self.assert_required_roots_present(user)
+
+    @transaction.atomic
+    def exclude_instance(self, instance: Genre, actor: Any = None) -> Genre:
+        """Soft-remove a wikidata-backed genre: excluded from the visible tree, protected from
+        re-creation/deletion by the next pipeline import, unlike a real DELETE (see
+        `AbstractGenreCriteria.is_excluded`)."""
+        was_required_root = self._is_required_root(instance)
+        instance.is_excluded = True
+        instance.save(update_fields=["is_excluded"])
+        if was_required_root:
+            self.assert_required_roots_present(instance.user)
+        HistoryEntry.objects.record(instance, action=HistoryAction.EXCLUDED, actor=actor)
+        return instance
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
