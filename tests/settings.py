@@ -24,7 +24,6 @@ Q_CLUSTER = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "grow.middleware.DeprecationHeadersMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
