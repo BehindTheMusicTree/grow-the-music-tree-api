@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-`grow-the-music-tree-api`: the reference genre/tag/tree service backing `grow-the-music-tree-frontend`. Single-tenant (one "system user", no per-user accounts), API-key-authenticated Django/DRF app. Depends on two shared internal packages pulled via git in `pyproject.toml`:
+`grow-the-music-tree-api`: the reference genre/tag/tree service backing `grow-the-music-tree-frontend`. Single-tenant (one "system user", no per-user accounts) Django/DRF app: Google ID token (admin/viewer) or API key (pipeline) auth; anonymous requests resolve to the system user via `UNAUTHENTICATED_USER`, so reads are public and writes gate on `request.auth`. Depends on two shared internal packages pulled via git in `pyproject.toml`:
 
 - [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/the-music-tree-genre-kit) — shared genre/tag/criteria/tree logic, plus the shared `Track` base model (Django MTI).
 - [`the-music-tree-api-kit`](https://github.com/BehindTheMusicTree/the-music-tree-api-kit) — shared DRF error handling, field types, and swappable-model FK plumbing (`PrivateForeignKey`, `PrivateOneToOneField`, etc.).
