@@ -1,3 +1,5 @@
+import hmac
+
 from django.conf import settings
 from django.contrib.auth.models import User
 from rest_framework.authentication import BaseAuthentication
@@ -17,6 +19,6 @@ class ApiKeyAuthentication(BaseAuthentication):
         api_key = request.headers.get("X-API-Key")
         if not api_key:
             return None
-        if api_key == settings.GROW_API_KEY:
+        if hmac.compare_digest(api_key.encode(), settings.GROW_API_KEY.encode()):
             return get_system_user(), Principal(role="pipeline", email=None, sub=None)
         return None

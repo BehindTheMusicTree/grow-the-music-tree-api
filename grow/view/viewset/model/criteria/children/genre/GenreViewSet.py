@@ -14,6 +14,7 @@ from the_music_tree_genre_kit.view.viewset.genre.GenreSeedTreeMixin import Genre
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.serializer.model.criteria.children.genre.input.post import GenrePostSerializer
 from grow.serializer.model.criteria.children.genre.input.put import GenrePutSerializer
+from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 
 
@@ -36,7 +37,7 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
 
         return response
 
-    @action(detail=False, methods=["post"], url_path="tree/import")
+    @action(detail=False, methods=["post"], url_path="tree/import", permission_classes=[IsPipelineOrAdmin])
     def import_tree(self, request):
         with transaction.atomic():
             response = super().import_tree(request)

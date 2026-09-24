@@ -76,7 +76,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["details"]["code"] == "authentication_required"
 
-    def test_api_key_write_then_201(self):
+    def test_default_client_admin_write_then_201(self):
         response = self._post_genre()
 
         assert response.status_code == status.HTTP_201_CREATED
@@ -103,6 +103,8 @@ class TestAuthMe(AppTestCase):
         assert response.json() == {"role": "viewer", "email": "viewer@example.com"}
 
     def test_pipeline(self):
+        self.api_client.credentials(HTTP_X_API_KEY=settings.GROW_API_KEY)
+
         response = self._me()
 
         assert response.status_code == status.HTTP_200_OK

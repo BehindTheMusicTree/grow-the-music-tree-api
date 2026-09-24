@@ -74,7 +74,7 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require either an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account, or an `X-API-Key` header set to `GROW_API_KEY`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v{N}/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
+Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `GROW_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v{N}/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
