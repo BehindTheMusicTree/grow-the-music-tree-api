@@ -1,4 +1,5 @@
 import os
+import tomllib
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -40,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "grow.middleware.DeprecationHeadersMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "the_music_tree_api_kit.view.middleware.HostValidationMiddleware.HostValidationMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -93,9 +95,14 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
 
-APP_VERSION = os.environ["APP_VERSION"]
+with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
+    APP_VERSION = tomllib.load(_pyproject)["project"]["version"]
 
-API_ROOT_BASE = f"v{APP_VERSION.split('.')[0]}/"
+GIT_COMMIT = os.environ.get("GIT_COMMIT") or None
+
+API_VERSION = "v1"
+
+API_ROOT_BASE = f"{API_VERSION}/"
 
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.YoutubeTrack"

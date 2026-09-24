@@ -36,12 +36,10 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.1.0}
         APP_NAME: ${APP_NAME:-gtmt-api}
     container_name: gtmt-api
     environment:
       APP_NAME: ${APP_NAME:-gtmt-api}
-      APP_VERSION: ${APP_VERSION:-0.1.0}
       APP_PORT: ${APP_PORT:-8001}
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
@@ -75,13 +73,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        APP_VERSION: ${APP_VERSION:-0.1.0}
         APP_NAME: ${APP_NAME:-gtmt-api}
     container_name: gtmt-api-worker
     command: ["python3", "manage.py", "qcluster"]
     environment:
       APP_NAME: ${APP_NAME:-gtmt-api}
-      APP_VERSION: ${APP_VERSION:-0.1.0}
       APP_PORT: ${APP_PORT:-8001}
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}

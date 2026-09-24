@@ -1,6 +1,10 @@
 import os
+import tomllib
+from pathlib import Path
 
 from the_music_tree_genre_kit.data import DATA_DIR
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "fixture-only-not-for-production"
 
@@ -20,12 +24,20 @@ Q_CLUSTER = {
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "grow.middleware.DeprecationHeadersMiddleware",
     "django.middleware.common.CommonMiddleware",
 ]
 
 ROOT_URLCONF = "grow.urls"
 
-API_ROOT_BASE = "v0/"
+with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
+    APP_VERSION = tomllib.load(_pyproject)["project"]["version"]
+
+GIT_COMMIT = os.environ.get("GIT_COMMIT") or None
+
+API_VERSION = "v1"
+
+API_ROOT_BASE = f"{API_VERSION}/"
 
 DATABASES = {
     "default": {

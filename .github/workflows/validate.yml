@@ -18,7 +18,6 @@ jobs:
       GOOGLE_OAUTH_CLIENT_ID: mypy-ci-dummy-client-id
       ADMIN_GOOGLE_SUB: mypy-ci-dummy-sub
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
-      APP_VERSION: "0.0.0"
       REDIS_URL: redis://localhost:6379/0
     steps:
       - name: Checkout code
