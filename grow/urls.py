@@ -2,6 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 from rest_framework import routers
 
+from grow.view.auth_me import AuthMeView
 from grow.view.health import HealthCheckView
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
@@ -29,7 +30,11 @@ router.register(r"tag-playlists", TagPlaylistViewSet, basename="tag-playlist")
 router.register(r"plays", PlayViewSet, basename="play")
 router.register(r"library/youtube", YoutubeTrackViewSet, basename="youtube-track")
 
-urlpatterns = [
-    path("health/", HealthCheckView.as_view(), name="health"),
-    path(settings.API_ROOT_BASE, include(router.urls)),
-]
+urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
+
+# v0/ is a deprecated alias of v1/ (see DeprecationHeadersMiddleware). Listed first so reverse() resolves to v1/.
+for root in ("v0/", settings.API_ROOT_BASE):
+    urlpatterns += [
+        path(f"{root}auth/me/", AuthMeView.as_view(), name="auth-me"),
+        path(root, include(router.urls)),
+    ]

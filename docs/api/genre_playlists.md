@@ -6,7 +6,7 @@ Playlists derived from the genre criteria tree.
 
 ## Base Path
 
-`/reference/genre-playlists/`
+`/v1/genre-playlists/`
 
 Authentication: `X-API-Key` header (single static key, `GROW_API_KEY`).
 

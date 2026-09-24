@@ -12,6 +12,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-24
+
+### Added
+
+- **Google sign-in for the admin**: requests can authenticate with `Authorization: Bearer <Google ID token>`, verified against `GOOGLE_OAUTH_CLIENT_ID`. The account whose `sub` matches `ADMIN_GOOGLE_SUB` gets the `admin` role and can write; any other verified Google account is a read-only `viewer` (writes return 403 `permission_denied`). Invalid or expired tokens return 401 `invalid_token`. Google's signing certs are cached per their `Cache-Control` max-age, and if Google can't be reached, the request returns 503 `auth_provider_unavailable` instead of a 500. Both env vars are required.
+- `GET /v1/auth/me/` returns the caller's `{"role", "email"}`, or 401 `authentication_required` when anonymous.
+- **Stable `v1` URL namespace**: the API is served under `/v1/`, a fixed constant instead of the major of `APP_VERSION`, so a release version bump no longer changes every URL. `/health/` now reports `version` from `pyproject.toml` and `commit` from the `SOURCE_COMMIT` env var Coolify injects at runtime.
+
+### Changed
+
+- The `X-API-Key` now authenticates as the `pipeline` role and can only write to the nightly pipeline's import endpoints (`genres/tree/import/`, `library/youtube/songs/import/`); any other write with the key returns 403 `permission_denied`. The admin's Google token can still call the imports too. The key is now compared in constant time.
+
+### Deprecated
+
+- `/v0/` stays as an alias of `/v1/` until it's removed; its responses carry `Deprecation` (RFC 9745) and `Sunset: Thu, 24 Dec 2026 00:00:00 GMT` (RFC 8594) headers.
+
+### Removed
+
+- The `APP_VERSION` env var and Docker build arg; the version is read from `pyproject.toml`.
+
 ## [2.0.1] - 2026-09-23
 
 ### Fixed

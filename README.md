@@ -57,38 +57,40 @@ uv run manage.py runserver
 
 ## Environment variables
 
-| Variable          | Required | Default   | Notes                                                    |
-| ----------------- | -------- | --------- | -------------------------------------------------------- |
-| `SECRET_KEY`      | yes      | —         | Django secret key                                        |
-| `SYSTEM_USERNAME` | yes      | —         | Username for the single-tenant "system user"             |
-| `GROW_API_KEY`    | yes      | —         | Static API key checked against the `X-API-Key` header    |
-| `DATABASE_URL`    | yes      | —         | Postgres connection string, parsed via `dj-database-url` |
-| `DEBUG`           | no       | `false`   |                                                          |
-| `ALLOWED_HOSTS`   | no       | `""`      | Comma-separated                                          |
-| `APP_VERSION`     | no       | `unknown` | Surfaced in `/health/`                                   |
-| `APP_PORT`        | no       | `8001`    | Only used by Docker Compose                              |
+| Variable                 | Required | Default   | Notes                                                                                                      |
+| ------------------------ | -------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `SECRET_KEY`             | yes      | —         | Django secret key                                                                                          |
+| `SYSTEM_USERNAME`        | yes      | —         | Username for the single-tenant "system user"                                                               |
+| `GROW_API_KEY`           | yes      | —         | Static API key checked against the `X-API-Key` header                                                      |
+| `GOOGLE_OAUTH_CLIENT_ID` | yes      | —         | Google OAuth client ID; the expected `aud` of Google ID tokens                                             |
+| `ADMIN_GOOGLE_SUB`       | yes      | —         | Google account `sub` that gets the `admin` role; any other verified Google account is a read-only `viewer` |
+| `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
+| `DEBUG`                  | no       | `false`   |                                                                                                            |
+| `ALLOWED_HOSTS`          | no       | `""`      | Comma-separated                                                                                            |
+| `SOURCE_COMMIT`          | no       | —         | Surfaced as `commit` in `/health/`; injected at runtime by Coolify                                         |
+| `APP_PORT`               | no       | `8001`    | Only used by Docker Compose                                                                                |
 
 There's no `.env.example` — Docker Compose supplies dev defaults for all of the above inline.
 
 ## API
 
-Reads (`GET`) on `/reference/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `X-API-Key` header set to `GROW_API_KEY`. The service is single-tenant: there's no per-user auth, every record belongs to the one "system user".
+Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `GROW_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
-| `/reference/artists`          | Artists                                              |
-| `/reference/albums`           | Albums                                               |
-| `/reference/genres`           | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-seed/`) |
-| `/reference/tags`             | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
-| `/reference/playlists`        | Playlists                                            |
-| `/reference/manual-playlists` | Manual playlists                                     |
-| `/reference/genre-playlists`  | Playlists derived from the genre tree (read-only)    |
-| `/reference/tag-playlists`    | Playlists derived from the tag tree (read-only)      |
-| `/reference/plays`            | Play records                                         |
-| `/reference/library/youtube`  | Youtube tracks (CRUD + `songs/load-seed/`)        |
+| `/v1/artists`                 | Artists                                              |
+| `/v1/albums`                  | Albums                                               |
+| `/v1/genres`                  | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-seed/`) |
+| `/v1/tags`                    | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
+| `/v1/playlists`               | Playlists                                            |
+| `/v1/manual-playlists`        | Manual playlists                                     |
+| `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only)    |
+| `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only)      |
+| `/v1/plays`                   | Play records                                         |
+| `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/load-seed/`)        |
 
-`POST tree/load-seed` on `/reference/genres` (re)seeds the system user's seed genre tree and seed songs; `POST songs/load-seed` on `/reference/library/youtube` seeds just the seed songs.
+`POST tree/load-seed` on `/v1/genres` (re)seeds the system user's seed genre tree and seed songs; `POST songs/load-seed` on `/v1/library/youtube` seeds just the seed songs.
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 

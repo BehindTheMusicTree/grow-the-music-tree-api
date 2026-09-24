@@ -1,21 +1,11 @@
 # syntax=docker/dockerfile:1
 FROM python:3.14-bookworm
 
-ARG APP_VERSION
 ARG APP_NAME=gtmt-api
-
-RUN for var in APP_VERSION; do \
-    eval "value=\$$var"; \
-    if [ -z "$value" ]; then \
-        echo "ERROR: The $var argument is not provided" >&2; \
-        exit 1; \
-    fi; \
-done
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PROJECT_DIR=/home/app/ \
-    APP_VERSION=$APP_VERSION \
     APP_NAME=$APP_NAME \
     PATH="/home/app/.venv/bin:$PATH"
 
