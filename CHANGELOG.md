@@ -16,7 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Google sign-in for the admin**: requests can authenticate with `Authorization: Bearer <Google ID token>`, verified against `GOOGLE_OAUTH_CLIENT_ID`. The account whose `sub` matches `ADMIN_GOOGLE_SUB` gets the `admin` role and can write; any other verified Google account is a read-only `viewer` (writes return 403 `permission_denied`). Invalid or expired tokens return 401 `invalid_token`. Google's signing certs are cached per their `Cache-Control` max-age, and if Google can't be reached, the request returns 503 `auth_provider_unavailable` instead of a 500. Both env vars are required.
 - `GET /v1/auth/me/` returns the caller's `{"role", "email"}`, or 401 `authentication_required` when anonymous.
-- **Stable `v1` URL namespace**: the API is served under `/v1/`, a fixed constant instead of the major of `APP_VERSION`, so a release version bump no longer changes every URL. `/health/` now reports `version` from `pyproject.toml` and `commit` from the `GIT_COMMIT` env var (set from Coolify's `SOURCE_COMMIT` build arg).
+- **Stable `v1` URL namespace**: the API is served under `/v1/`, a fixed constant instead of the major of `APP_VERSION`, so a release version bump no longer changes every URL. `/health/` now reports `version` from `pyproject.toml` and `commit` from the `SOURCE_COMMIT` env var Coolify injects at runtime.
 
 ### Changed
 

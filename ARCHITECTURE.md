@@ -94,7 +94,7 @@ ALBUM_MODEL = "grow.Album"
 
 There's no `PLAYLIST_MODEL` or `TAG_MODEL`/`GENRE_MODEL` — Tag/Genre are proxy models of `Criteria` (see above), and Playlist variants resolve through `CRITERIA_MODEL`'s FK graph rather than their own setting.
 
-`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `GROW_API_KEY`), and no `GIT_COMMIT` from the Docker build.
+`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `GROW_API_KEY`), and no `SOURCE_COMMIT` from Coolify.
 
 ## Exception handling
 
