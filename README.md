@@ -61,7 +61,7 @@ uv run manage.py runserver
 | ------------------------ | -------- | --------- | ---------------------------------------------------------------------------------------------------------- |
 | `SECRET_KEY`             | yes      | —         | Django secret key                                                                                          |
 | `SYSTEM_USERNAME`        | yes      | —         | Username for the single-tenant "system user"                                                               |
-| `GROW_API_KEY`           | yes      | —         | Static API key checked against the `X-API-Key` header                                                      |
+| `PIPELINE_API_KEY`           | yes      | —         | Static API key checked against the `X-API-Key` header                                                      |
 | `GOOGLE_OAUTH_CLIENT_ID` | yes      | —         | Google OAuth client ID; the expected `aud` of Google ID tokens                                             |
 | `ADMIN_GOOGLE_SUB`       | yes      | —         | Google account `sub` that gets the `admin` role; any other verified Google account is a read-only `viewer` |
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
@@ -74,7 +74,7 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `GROW_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
+Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
@@ -94,7 +94,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 
-A [Bruno](https://www.usebruno.com/) collection for manual testing is at [`bruno/Track/`](bruno/Track/) — open it in the Bruno app, select the `local` environment, and set the `API_KEY` secret to your `GROW_API_KEY`.
+A [Bruno](https://www.usebruno.com/) collection for manual testing is at [`bruno/Track/`](bruno/Track/) — open it in the Bruno app, select the `local` environment, and set the `API_KEY` secret to your `PIPELINE_API_KEY`.
 
 ## Tests
 

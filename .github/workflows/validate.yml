@@ -14,7 +14,7 @@ jobs:
     env:
       SECRET_KEY: mypy-ci-dummy-key
       SYSTEM_USERNAME: mypy-ci-dummy-user
-      GROW_API_KEY: mypy-ci-dummy-key
+      PIPELINE_API_KEY: mypy-ci-dummy-key
       GOOGLE_OAUTH_CLIENT_ID: mypy-ci-dummy-client-id
       ADMIN_GOOGLE_SUB: mypy-ci-dummy-sub
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
