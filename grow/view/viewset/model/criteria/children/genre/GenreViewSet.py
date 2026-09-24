@@ -3,6 +3,9 @@ import json
 from django.conf import settings
 from django.db import transaction
 from rest_framework.decorators import action
+from rest_framework.request import Request
+from rest_framework.response import Response
+from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_genre_kit.serializer.model.track.input.song_seed.Fields import (
     Fields as SongSeedFields,
 )
@@ -16,9 +19,10 @@ from grow.serializer.model.criteria.children.genre.input.post import GenrePostSe
 from grow.serializer.model.criteria.children.genre.input.put import GenrePutSerializer
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
+from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 
-class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
+class GenreViewSet(HistoryActionMixin, GenreSeedTreeMixin[Genre], CriteriaViewSet):
     seed_songs_filename: str = "song_seed.json"
 
     def __init__(self, **kwargs):
@@ -44,6 +48,12 @@ class GenreViewSet(GenreSeedTreeMixin[Genre], CriteriaViewSet):
             Genre.objects.assert_required_roots_present(request.user)
 
         return response
+
+    @action(detail=True, methods=["post"])
+    def exclude(self, request: Request, *args, **kwargs) -> Response:
+        instance = Genre.objects.exclude_instance(self.get_object(), **self._get_manager_write_kwargs(request))
+        serializer = self._require_serializer(SerializerType.DETAILED)(instance=instance)
+        return Response(data=serializer.data)
 
     def on_seed_tree_loaded(self, request) -> None:
         from grow.model.youtube_track.YoutubeTrack import YoutubeTrack

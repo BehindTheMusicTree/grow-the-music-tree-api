@@ -13,9 +13,10 @@ from grow.serializer.model.youtube_track.output.detailed import YoutubeTrackDeta
 from grow.track.tasks import run_import_seed_songs
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
+from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 
-class YoutubeTrackViewSet(SongSeedTreeMixin[YoutubeTrack], GrowModelViewSet[YoutubeTrack]):
+class YoutubeTrackViewSet(HistoryActionMixin, SongSeedTreeMixin[YoutubeTrack], GrowModelViewSet[YoutubeTrack]):
     def __init__(self, **kwargs):
         super().__init__(
             model_class=YoutubeTrack,

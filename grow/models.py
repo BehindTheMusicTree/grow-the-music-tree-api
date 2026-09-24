@@ -8,6 +8,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
@@ -23,6 +24,7 @@ __all__ = [
     "CriteriaPlaylist",
     "Genre",
     "GenrePlaylist",
+    "HistoryEntry",
     "ManualPlaylist",
     "Play",
     "Playlist",

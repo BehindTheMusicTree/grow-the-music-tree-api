@@ -2,6 +2,8 @@ import pytest
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -65,3 +67,69 @@ class TestCase(AppTestCase):
         updated = Genre.objects.update_instance(root, summary="A short blurb.")
 
         assert updated.summary == "A short blurb."
+
+    def test_create_without_actor_does_not_lock_and_logs_pipeline_history(self):
+        genre = self.model_fixture_factory.create_genre("Electronic")
+
+        assert genre.is_manually_edited is False
+        entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.CREATED)
+        assert entry.actor_email is None
+
+    def test_create_with_actor_locks_and_logs_admin_history(self):
+        genre = self.model_fixture_factory.create_genre("Electronic", actor="admin@example.com")
+
+        assert genre.is_manually_edited is True
+        entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.CREATED)
+        assert entry.actor_email == "admin@example.com"
+
+    def test_update_instance_parent_change_by_admin_locks_and_logs(self):
+        root = self.model_fixture_factory.create_genre("Rock")
+        genre = self.model_fixture_factory.create_genre("Electronic")
+
+        Genre.objects.update_instance(genre, parent=root, actor="admin@example.com")
+
+        genre.refresh_from_db()
+        assert genre.is_manually_edited is True
+        entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.PARENT_CHANGED)
+        assert entry.actor_email == "admin@example.com"
+        assert entry.old_value is None
+        assert entry.new_value == "Rock"
+
+    def test_update_instance_rename_by_admin_locks_and_logs(self):
+        genre = self.model_fixture_factory.create_genre("Electronic")
+
+        Genre.objects.update_instance(genre, name="Electronica", actor="admin@example.com")
+
+        genre.refresh_from_db()
+        assert genre.is_manually_edited is True
+        entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.RENAMED)
+        assert entry.old_value == "Electronic"
+        assert entry.new_value == "Electronica"
+
+    def test_delete_instance_logs_history_before_deletion(self):
+        genre = self.model_fixture_factory.create_genre("Electronic")
+        genre_uuid = genre.uuid
+
+        Genre.objects.delete_instance(genre, actor="admin@example.com")
+
+        entry = HistoryEntry.objects.get(content_uuid=genre_uuid, action=HistoryAction.DELETED)
+        assert entry.old_value == "Electronic"
+        assert entry.actor_email == "admin@example.com"
+
+    def test_exclude_instance_sets_flag_and_logs_history(self):
+        genre = self.model_fixture_factory.create_genre("Electronic")
+
+        excluded = Genre.objects.exclude_instance(genre, actor="admin@example.com")
+
+        assert excluded.is_excluded is True
+        entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.EXCLUDED)
+        assert entry.actor_email == "admin@example.com"
+
+    def test_exclude_instance_on_sole_required_root_raises_and_rolls_back(self):
+        root = self.model_fixture_factory.create_genre("Mainstream Pop")
+
+        with pytest.raises(AppValidationException):
+            Genre.objects.exclude_instance(root, actor="admin@example.com")
+
+        root.refresh_from_db()
+        assert root.is_excluded is False

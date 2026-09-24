@@ -16,6 +16,7 @@ class YoutubeTrack(KitTrack):
         KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.YOUTUBE_TRACK_RELATED_NAME
     )
     youtube_video_id = AppCharField(max_length=settings.YOUTUBE_TRACK_VIDEO_ID_LEN_MAX)
+    is_manually_edited = models.BooleanField(default=False)
 
     objects: TrackManager[YoutubeTrack] = TrackManager()
 
