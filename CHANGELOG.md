@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-09-24
+
 ### Changed
 
 - **BREAKING:** the API key env var is renamed from `GROW_API_KEY` to `PIPELINE_API_KEY`. The key
