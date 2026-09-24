@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-09-24
+
+### Removed
+
+- **BREAKING:** the deprecated `/v0/` URL namespace and its `Deprecation`/`Sunset` headers middleware
+  are removed. All endpoints are served under `/v1/` only; `/v0/` requests now return 404.
+
 ## [4.0.0] - 2026-09-24
 
 ### Changed
