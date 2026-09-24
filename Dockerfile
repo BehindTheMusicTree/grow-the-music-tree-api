@@ -1,21 +1,14 @@
 # syntax=docker/dockerfile:1
 FROM python:3.14-bookworm
 
-ARG APP_VERSION
 ARG APP_NAME=gtmt-api
-
-RUN for var in APP_VERSION; do \
-    eval "value=\$$var"; \
-    if [ -z "$value" ]; then \
-        echo "ERROR: The $var argument is not provided" >&2; \
-        exit 1; \
-    fi; \
-done
+# Filled by Coolify when include_source_commit_in_build is on; surfaced as "commit" in /health/.
+ARG SOURCE_COMMIT
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PROJECT_DIR=/home/app/ \
-    APP_VERSION=$APP_VERSION \
+    GIT_COMMIT=$SOURCE_COMMIT \
     APP_NAME=$APP_NAME \
     PATH="/home/app/.venv/bin:$PATH"
 

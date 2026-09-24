@@ -18,7 +18,8 @@ class HealthCheckView(APIView):
     def get(self, request):
         health_status = {
             "status": "healthy",
-            "version": getattr(settings, "APP_VERSION", "unknown"),
+            "version": settings.APP_VERSION,
+            "commit": settings.GIT_COMMIT,
             "uptime_seconds": int(time.time() - START_TIME),
             "checks": {},
         }

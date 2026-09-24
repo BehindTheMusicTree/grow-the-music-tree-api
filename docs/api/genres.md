@@ -6,7 +6,7 @@ Manage genre hierarchies and trees.
 
 ## Base Path
 
-`/reference/genres/`
+`/v1/genres/`
 
 Authentication: `X-API-Key` header (single static key, `GROW_API_KEY`). grow-api is a
 single-tenant service — this is the canonical reference dataset, not scoped per user.
