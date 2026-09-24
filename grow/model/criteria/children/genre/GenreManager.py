@@ -35,27 +35,27 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             )
 
     @transaction.atomic
-    def create(self, **kwargs) -> Genre:
+    def create(self, actor: Any = None, **kwargs) -> Genre:
         # essential_tracks is a many-to-many field: it can't be passed to Model(**kwargs)
         # before the instance has a primary key, so it's set separately after creation.
         essential_tracks = kwargs.pop("essential_tracks", None)
-        instance = super().create(**kwargs)
+        instance = super().create(actor=actor, **kwargs)
         if essential_tracks is not None:
             instance.essential_tracks.set(essential_tracks)
         return instance
 
     @transaction.atomic
-    def delete_instance(self, instance: Genre) -> None:
+    def delete_instance(self, instance: Genre, actor: Any = None) -> None:
         was_required_root = self._is_required_root(instance)
         user = instance.user
-        super().delete_instance(instance)
+        super().delete_instance(instance, actor=actor)
         if was_required_root:
             self.assert_required_roots_present(user)
 
     @transaction.atomic
-    def update_instance(self, instance: Genre, **kwargs) -> Genre:
+    def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
         was_required_root = self._is_required_root(instance)
-        updated = super().update_instance(instance, **kwargs)
+        updated = super().update_instance(instance, actor=actor, **kwargs)
         if was_required_root:
             self.assert_required_roots_present(updated.user)
         return updated
