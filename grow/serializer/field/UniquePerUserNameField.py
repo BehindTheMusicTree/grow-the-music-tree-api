@@ -1,6 +1,7 @@
 from django.utils.translation import gettext as _
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
+from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
 
 
@@ -13,7 +14,7 @@ class UniquePerUserNameField(AppCharField):
         value = super().run_validation(data)
         request = self.context.get("request")
         if request and value:
-            user = request.user
+            user = get_request_owner(request)
             if self.model.objects.filter(user=user, name=value).exists():
                 raise AppValidationException(
                     field_name="name",

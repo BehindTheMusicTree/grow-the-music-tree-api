@@ -13,9 +13,9 @@ from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
 
 class ModelFixtureFactory:
-    default_user: User
+    default_user: User | None
 
-    def __init__(self, default_user: User) -> None:
+    def __init__(self, default_user: User | None) -> None:
         self.default_user = default_user
 
     def _create_criteria(self, name: str, model_class: type[Criteria], user: User | None = None, **kwargs) -> Criteria:

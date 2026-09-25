@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -11,6 +12,10 @@ from .HistoryEntryManager import HistoryEntryManager
 
 class HistoryEntry(PrivateUniqueResource):
     """Actor+timestamp+action log entry for a genre or track edit. Written by manager hooks, never by API writes."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
+    )
 
     content_type = AppForeignKey(ContentType, on_delete=models.CASCADE)
     content_uuid = models.UUIDField(db_column="object_pk")

@@ -13,7 +13,6 @@ jobs:
     # Dummy config only, no DB/secrets: mypy just needs settings.py importable via the django-stubs plugin.
     env:
       SECRET_KEY: mypy-ci-dummy-key
-      SYSTEM_USERNAME: mypy-ci-dummy-user
       PIPELINE_API_KEY: mypy-ci-dummy-key
       GOOGLE_OAUTH_CLIENT_ID: mypy-ci-dummy-client-id
       ADMIN_GOOGLE_SUB: mypy-ci-dummy-sub

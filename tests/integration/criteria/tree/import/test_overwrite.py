@@ -18,7 +18,7 @@ class TestOverwrite(GenreTestCase):
         assert response.status_code == status.HTTP_201_CREATED
 
         # "Old Rock" has no wikidataId, so import_criteria_tree never touches it (merge-by-wikidataId).
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 3
         assert genres.get(name="New Rock") is not None
         assert genres.get(name="Old Rock") is not None
@@ -34,7 +34,7 @@ class TestOverwrite(GenreTestCase):
 
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 2
         updated = genres.get(wikidata_id="Q11399")
         assert updated.pk == existing.pk
@@ -51,7 +51,7 @@ class TestOverwrite(GenreTestCase):
 
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert not genres.filter(wikidata_id="Q182985").exists()
         assert genres.get(wikidata_id="Q11399").name == "Rock"
 
@@ -70,6 +70,6 @@ class TestOverwrite(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert not Genre.objects.filter(user=self.system_user, wikidata_id="Q182985").exists()
+        assert not Genre.objects.filter(user=None, wikidata_id="Q182985").exists()
         track.refresh_from_db()
         assert track.genre_id is None

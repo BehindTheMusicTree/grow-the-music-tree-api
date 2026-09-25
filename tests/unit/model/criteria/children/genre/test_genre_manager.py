@@ -12,19 +12,19 @@ class TestCase(AppTestCase):
         self.model_fixture_factory.create_genre("Electronic")
 
         with pytest.raises(AppValidationException):
-            Genre.objects.assert_required_roots_present(self.system_user)
+            Genre.objects.assert_required_roots_present(None)
 
     def test_assert_required_roots_present_does_not_raise_when_present(self):
         self.model_fixture_factory.create_genre("Mainstream Pop")
 
-        Genre.objects.assert_required_roots_present(self.system_user)
+        Genre.objects.assert_required_roots_present(None)
 
     def test_assert_required_roots_present_requires_root_placement(self):
         root = self.model_fixture_factory.create_genre("Electronic")
         self.model_fixture_factory.create_genre("Mainstream Pop", parent=root)
 
         with pytest.raises(AppValidationException):
-            Genre.objects.assert_required_roots_present(self.system_user)
+            Genre.objects.assert_required_roots_present(None)
 
     def test_delete_instance_on_sole_required_root_raises_and_rolls_back(self):
         root = self.model_fixture_factory.create_genre("Mainstream Pop")

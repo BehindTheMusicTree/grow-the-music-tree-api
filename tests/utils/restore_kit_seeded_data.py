@@ -31,9 +31,6 @@ def snapshot_kit_seeded_data():
 
 
 def restore_kit_seeded_data(snapshot):
-    # bulk_create (not .create()/.save()) deliberately skips post_save signals:
-    # create_user_criterialess_playlists would otherwise bootstrap fresh-uuid
-    # CriteriaPlaylist rows here, duplicating the ones restored below by pk.
     missing_user_rows = [row for row in snapshot["users"] if not User.objects.filter(pk=row["id"]).exists()]
     User.objects.bulk_create([User(**row) for row in missing_user_rows])
 

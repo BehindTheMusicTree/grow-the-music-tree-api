@@ -12,7 +12,6 @@ from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
 from the_music_tree_api_kit.view.error.ErrorResponse import ErrorResponse
 
 from grow.authentication.Principal import Principal
-from grow.model.user.get_system_user import get_system_user
 
 # CacheControl honors the certs endpoint's Cache-Control max-age, so Google's signing certs aren't refetched per request.
 _google_request = GoogleRequest(session=cachecontrol.CacheControl(requests.Session()))
@@ -35,8 +34,8 @@ ErrorResponse.register_handler(
 
 class GoogleIdTokenAuthentication(BaseAuthentication):
     """
-    Verifies a Google ID token from `Authorization: Bearer <token>`. Every principal acts on the system user;
-    the role (admin iff the token's `sub` is ADMIN_GOOGLE_SUB, else viewer) lives on `request.auth`.
+    Verifies a Google ID token from `Authorization: Bearer <token>`. Each Google account maps to a `User`
+    keyed by its `sub`; the role (admin iff the token's `sub` is ADMIN_GOOGLE_SUB, else viewer) lives on `request.auth`.
     """
 
     def authenticate(self, request: Request) -> tuple[User, Principal] | None:
@@ -52,7 +51,8 @@ class GoogleIdTokenAuthentication(BaseAuthentication):
         if not claims.get("email_verified"):
             raise AuthenticationFailed(detail={"detail": "Email not verified", "code": "invalid_token"})
         role = "admin" if claims["sub"] == settings.ADMIN_GOOGLE_SUB else "viewer"
-        return get_system_user(), Principal(role=role, email=claims.get("email"), sub=claims["sub"])
+        user, _ = User.objects.get_or_create(username=claims["sub"], defaults={"email": claims.get("email", "")})
+        return user, Principal(role=role, email=claims.get("email"), sub=claims["sub"])
 
     def authenticate_header(self, request: Request) -> str:
         return "Bearer"

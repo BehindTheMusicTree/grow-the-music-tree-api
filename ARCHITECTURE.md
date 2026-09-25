@@ -4,7 +4,7 @@ This is a from-scratch walkthrough of how the pieces fit together — the domain
 
 ## System summary
 
-`grow` is a single-tenant Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. "Single-tenant" here means exactly one `User` row ever exists: the system user (full read/write, `PIPELINE_API_KEY`). There are no per-user accounts, no signup flow, no custom user model — tenancy is a settings value compared against a request header.
+`grow` is a Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. It serves one canonical reference dataset whose rows have no owner (`user IS NULL`); `user = <id>` is reserved for a user's personal variations. `User` rows exist only for Google accounts that have signed in (keyed by their Google `sub`); the pipeline API key is a row-less service principal. There is no custom user model.
 
 ## Dependency architecture
 
@@ -25,7 +25,7 @@ Sibling app `hear-the-music-tree-api` consumes both kits too — a kit-facing ch
 | `grow/serializer/model/<model>/{input,output}/` | Per-model serializers. |
 | `grow/filtering/` | django-filter `FilterSet` subclasses and custom filter field classes. |
 | `grow/authentication/` | `ApiKeyAuthentication.py` — the single-key auth backend. |
-| `grow/migrations/` | Standard Django migrations; `0006`–`0011` document the genre-kit extraction (moving `Track`/`Playlist`/`TrackPlaylistRel` ownership into the kit); `0003` seeds the system user; `0013`/`0019` create and later delete the now-removed prototype user. |
+| `grow/migrations/` | Standard Django migrations; `0006`–`0011` document the genre-kit extraction (moving `Track`/`Playlist`/`TrackPlaylistRel` ownership into the kit); `0003` creates a transient system user that `0024` removes after moving its rows to `user IS NULL`; `0013`/`0019` create and later delete the now-removed prototype user. |
 | `grow/data/` | `seed_genre_tree.json` — reusable seed genre-tree fixture data (currently unreferenced by app code; the seed-tree fixture used by `tree/load-seed` lives in the kit's own `DATA_DIR`). |
 
 Known cleanup item, not fixed here: `grow/serializer/model/uploaded_track/`, `grow/filtering/set/uploaded_track/`, and `grow/view/viewset/model/uploaded_track/` still exist as empty directories (only stale `.pyc` cache remnants inside, no `.py` source) — leftover from the `UploadedTrack` model's removal. Safe to `git clean`/delete; not part of live structure.
@@ -66,12 +66,13 @@ The kit's `Track` deliberately has no `playlists` M2M field. `YoutubeTrack.playl
 
 Full chain for a single authenticated request:
 
-1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → system user. Anything else → unauthenticated.
-2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [AuthenticatedForWritesReturn401]`:
-   - `AuthenticatedForWritesReturn401` — allows unauthenticated `SAFE_METHODS`; on writes, raises `NotAuthenticated` (401) instead of DRF's default 403 if the request isn't authenticated at all.
+1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → row-less `PipelineUser` with the `pipeline` role. Anything else → unauthenticated. `GoogleIdTokenAuthentication` resolves a bearer ID token to the `User` keyed by its `sub` (created on first sign-in), with the `admin` role for `ADMIN_GOOGLE_SUB` and `viewer` otherwise.
+2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [IsAdminOrReadOnly]` and overrides api-kit's `get_owner` to return `None`:
+   - `IsAdminOrReadOnly` — allows anonymous `SAFE_METHODS`; writes need the `admin` role on `request.auth` (401 without credentials, 403 otherwise). It is also `DEFAULT_PERMISSION_CLASSES`.
+   - `get_owner` → `None` scopes every query and every created row to canonical data (`user IS NULL`), whoever the caller is.
 3. Every concrete viewset inherits `GrowModelViewSet` directly, with no per-viewset override — this permission composition applies uniformly across the whole API surface.
 
-"Tenancy" is entirely a settings + username string comparison — there's no custom user model.
+Identity (`request.user`, `request.auth`) decides what a caller may do; `get_owner` alone decides which rows it sees.
 
 ## Request lifecycle, traced through Genre
 

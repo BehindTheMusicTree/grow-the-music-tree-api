@@ -5,6 +5,7 @@ from django.db import transaction
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_genre_kit.serializer.model.track.input.song_seed.Fields import (
     Fields as SongSeedFields,
@@ -37,7 +38,7 @@ class GenreViewSet(HistoryActionMixin, GenreSeedTreeMixin[Genre], CriteriaViewSe
     def load_seed_tree(self, request):
         with transaction.atomic():
             response = super().load_seed_tree(request)
-            Genre.objects.assert_required_roots_present(request.user)
+            Genre.objects.assert_required_roots_present(get_request_owner(request))
 
         return response
 
@@ -45,7 +46,7 @@ class GenreViewSet(HistoryActionMixin, GenreSeedTreeMixin[Genre], CriteriaViewSe
     def import_tree(self, request):
         with transaction.atomic():
             response = super().import_tree(request)
-            Genre.objects.assert_required_roots_present(request.user)
+            Genre.objects.assert_required_roots_present(get_request_owner(request))
 
         return response
 
@@ -68,4 +69,6 @@ class GenreViewSet(HistoryActionMixin, GenreSeedTreeMixin[Genre], CriteriaViewSe
         serializer = SongSeedImportSerializer(data={SongSeedFields.SONGS: data})
         serializer.is_valid(raise_exception=True)
 
-        YoutubeTrack.objects.import_seed_songs(request.user, serializer.validated_data[SongSeedFields.SONGS])
+        YoutubeTrack.objects.import_seed_songs(
+            get_request_owner(request), serializer.validated_data[SongSeedFields.SONGS]
+        )

@@ -1,18 +1,18 @@
 from typing import Any
 
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.http import HttpResponse
 from rest_framework.test import APIClient
 
 from grow.authentication.Principal import Principal
-from grow.model.user.get_system_user import get_system_user
 
 
 class AppApiClient(APIClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.force_authenticate(
-            user=get_system_user(),
+            user=User(username=settings.ADMIN_GOOGLE_SUB),
             token=Principal(role="admin", email="admin@example.com", sub=settings.ADMIN_GOOGLE_SUB),
         )
 
