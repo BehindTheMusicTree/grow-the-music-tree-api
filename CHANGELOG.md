@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `wikidata_id`: `user` lives on the parent `Criteria` table (MTI, `models.E016`), which crashed the staging
     `migrate`; the keyed import matches by `wikidata_id` instead. A test now runs the database system checks.
   - Covered by tree, import, and migration tests.
+- Bumped `the-music-tree-genre-kit` to v0.29.3: the songs import batches playlist moves for re-genred tracks
+  instead of shifting positions one track at a time (staging import timed out at the 1800s django-q limit).
 
 ## [6.0.0] - 2026-09-25
 
