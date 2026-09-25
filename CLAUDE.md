@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-`grow-the-music-tree-api`: the reference genre/tag/tree service backing `grow-the-music-tree-frontend`. Single-tenant (one "system user", no per-user accounts), API-key-authenticated Django/DRF app. Depends on two shared internal packages pulled via git in `pyproject.toml`:
+`grow-the-music-tree-api`: the reference genre/tag/tree service backing `grow-the-music-tree-frontend`. Serves one canonical reference dataset (rows with `user IS NULL`, publicly readable; admin writes via Google sign-in, pipeline writes via API key) from a Django/DRF app. Depends on two shared internal packages pulled via git in `pyproject.toml`:
 
 - [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/the-music-tree-genre-kit) — shared genre/tag/criteria/tree logic, plus the shared `Track` base model (Django MTI).
 - [`the-music-tree-api-kit`](https://github.com/BehindTheMusicTree/the-music-tree-api-kit) — shared DRF error handling, field types, and swappable-model FK plumbing (`PrivateForeignKey`, `PrivateOneToOneField`, etc.).
@@ -25,7 +25,7 @@ Local (uv + external Postgres) alternative:
 
 ```bash
 uv sync
-# set SECRET_KEY, SYSTEM_USERNAME, PIPELINE_API_KEY, GOOGLE_OAUTH_CLIENT_ID, ADMIN_GOOGLE_SUB, DATABASE_URL (see README.md)
+# set SECRET_KEY, PIPELINE_API_KEY, GOOGLE_OAUTH_CLIENT_ID, ADMIN_GOOGLE_SUB, DATABASE_URL (see README.md)
 uv run manage.py migrate
 uv run manage.py runserver
 ```
@@ -34,9 +34,9 @@ uv run manage.py runserver
 
 - **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
-- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `SYSTEM_USERNAME`, `PIPELINE_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB` all dummy values are fine, e.g.:
+- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB` all dummy values are fine, e.g.:
   ```bash
-  SECRET_KEY=x SYSTEM_USERNAME=x PIPELINE_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x uv run mypy grow
+  SECRET_KEY=x PIPELINE_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
 - These four map 1:1 to CI (`.github/workflows/validate.yml` jobs `Lint`, `Migration check`, `Pytest`) — run all of them before opening a PR.
@@ -49,11 +49,9 @@ uv run manage.py runserver
 
 **The kit's `Track` deliberately has no `playlists` M2M field** (avoids a migration-dependency cycle across app boundaries — see the kit's own `Track.py` docstring). Playlist membership is reconstructed at the app level via `YoutubeTrack.playlists_with_positions`, which queries `TrackPlaylistRel.objects.filter(user=self.user, track=self)` directly.
 
-**`grow/apps.py`'s `GrowConfig.ready()`** imports `grow.model.user.signals`, which bootstraps a criteria-less `CriteriaPlaylist` row per new user — see `CHANGELOG.md` for the bug this fixes. That's the only thing it wires up.
+**Ownership:** `GrowModelViewSet.get_owner` returns `None`, so api-kit scopes every query and created row to canonical data (`user IS NULL`); the concrete models override the kit's `user` FK as nullable. The canonical criteria-less `CriteriaPlaylist` rows (Genreless/Tagless) are created once by migration `0024`, not per user.
 
 **Custom DRF exception handler** (`the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler`, wired via `REST_FRAMEWORK["EXCEPTION_HANDLER"]`) always converts exceptions to JSON under pytest (`"pytest" in sys.argv[0]`), regardless of `DEBUG`. Unregistered exception types fall through to a generic `{"message": "An internal error occurred"}` response with **no logging of the underlying exception** — if a test gets an unexplained 500, don't trust `caplog`; temporarily instrument the installed package file directly (back it up first) to print the traceback, then revert it before committing anything.
-
-**Prototype-user seeding (`seed_prototype_tree`)**: `grow/management/commands/seed_prototype_tree.py` (re)seeds the read-only prototype user's genre tree from the bundled `grow/data/prototype_genre_tree.json` and its tracks from a **required** `--songs-file <path>` JSON (list of `{title, artist, youtube_video_id, genre_name}` objects; fails fast if omitted — there is no bundled fallback). That file is produced externally by `the-music-tree-pipelines` (`musicbrainz` pipeline's Silver `song_example` step + `scripts/export_song_example_json.py`), not committed to this repo. This command is **not wired into any deploy hook or CI job** — a `develop`/`main` push never re-runs it, so it must be run by hand (e.g. `docker exec` into the running `gtmt-api` container) whenever the upstream song dataset changes. See `infrastructure` repo's `diag-vps` command doc for the VPS container-resolution steps.
 
 ## Repo conventions (from `CONTRIBUTING.md`)
 

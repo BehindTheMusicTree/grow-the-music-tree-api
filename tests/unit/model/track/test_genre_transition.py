@@ -18,7 +18,7 @@ class TestCase(AppTestCase):
         assert not TrackPlaylistRel.objects.filter(playlist=rock_criteria.criteria_playlist, track=track).exists()
         assert not TrackPlaylistRel.objects.filter(playlist=punk_criteria.criteria_playlist, track=track).exists()
 
-        genreless_playlist = GenrePlaylist.objects.get(user=self.system_user, criteria=None)
+        genreless_playlist = GenrePlaylist.objects.get(user=None, criteria=None)
         tracks_dict_by_position = genreless_playlist.tracks_not_archived_dict_by_position
         assert len(tracks_dict_by_position) == 1
         assert tracks_dict_by_position[1].uuid == track.uuid

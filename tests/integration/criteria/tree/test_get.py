@@ -13,7 +13,7 @@ class TestCase(GenreTestCase):
         response = self._get_genres_tree()
 
         assert response.status_code == status.HTTP_200_OK
-        assert Genre.objects.filter(user=self.system_user).count() == 0
+        assert Genre.objects.filter(user=None).count() == 0
 
     def test_single_root_then_single_node(self):
         genre_rock = self.model_fixture_factory.create_genre(name="Rock")
@@ -21,7 +21,7 @@ class TestCase(GenreTestCase):
         response = self._get_genres_tree()
 
         assert response.status_code == status.HTTP_200_OK
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 1
         rock = genres.first()
         assert rock is not None
@@ -36,7 +36,7 @@ class TestCase(GenreTestCase):
         response = self._get_genres_tree()
 
         assert response.status_code == status.HTTP_200_OK
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 3
 
         rock = genres.get(name="Rock")
@@ -59,7 +59,7 @@ class TestCase(GenreTestCase):
         response = self._get_genres_tree()
 
         assert response.status_code == status.HTTP_200_OK
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 4
 
         rock = genres.get(name="Rock")
@@ -86,7 +86,7 @@ class TestCase(GenreTestCase):
         response = self._get_genres_tree()
 
         assert response.status_code == status.HTTP_200_OK
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 4
 
         rock = genres.get(name="Rock")
@@ -118,7 +118,7 @@ class TestCase(GenreTestCase):
         response = self._list_genres(page=2, page_size=1)
         assert response.status_code == status.HTTP_200_OK
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 6
 
         rock = genres.get(name="Rock")

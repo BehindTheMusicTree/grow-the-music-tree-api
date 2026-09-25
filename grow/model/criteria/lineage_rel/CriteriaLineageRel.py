@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from the_music_tree_api_kit.field.foreign_key.PrivateForeignKey import PrivateForeignKey
 from the_music_tree_genre_kit.criteria.lineage_rel.AbstractCriteriaLineageRel import AbstractCriteriaLineageRel
@@ -8,6 +9,10 @@ from ..Fields import Fields as CriteriaFields
 
 
 class CriteriaLineageRel(AbstractCriteriaLineageRel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
+    )
+
     descendant = PrivateForeignKey(Criteria, on_delete=models.CASCADE, related_name=CriteriaFields.ASCENDANTS_RELS)
     ascendant = PrivateForeignKey(Criteria, on_delete=models.CASCADE, related_name=CriteriaFields.DESCENDANTS_RELS)
 

@@ -23,7 +23,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
 - Genre and tag criteria trees, with bulk tree import and export
 - Playlists automatically derived from genre/tag criteria, plus manually curated playlists
 - Artist, album, and Youtube-track library, with play tracking
-- Single static API-key authentication — no per-user accounts, single-tenant reference dataset
+- Public reads of one canonical reference dataset (rows with no owner); writes via Google sign-in (admin) or the pipeline API key
 - `/health/` endpoint for uptime and database checks
 
 ## Requirements
@@ -60,7 +60,6 @@ uv run manage.py runserver
 | Variable                 | Required | Default   | Notes                                                                                                      |
 | ------------------------ | -------- | --------- | ---------------------------------------------------------------------------------------------------------- |
 | `SECRET_KEY`             | yes      | —         | Django secret key                                                                                          |
-| `SYSTEM_USERNAME`        | yes      | —         | Username for the single-tenant "system user"                                                               |
 | `PIPELINE_API_KEY`           | yes      | —         | Static API key checked against the `X-API-Key` header                                                      |
 | `GOOGLE_OAUTH_CLIENT_ID` | yes      | —         | Google OAuth client ID; the expected `aud` of Google ID tokens                                             |
 | `ADMIN_GOOGLE_SUB`       | yes      | —         | Google account `sub` that gets the `admin` role; any other verified Google account is a read-only `viewer` |
@@ -74,23 +73,21 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). The service is single-tenant: every principal acts on the one "system user", and every record belongs to it.
+Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/` and `library/youtube/songs/import/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). Reference data has no owner (`user IS NULL`) and is the same for every caller; a Google sign-in creates a `User` keyed by the account's `sub`, which owns nothing yet.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
 | `/v1/artists`                 | Artists                                              |
 | `/v1/albums`                  | Albums                                               |
-| `/v1/genres`                  | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-seed/`) |
+| `/v1/genres`                  | Genre criteria tree (CRUD + `tree/`, `tree/import/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
 | `/v1/playlists`               | Playlists                                            |
 | `/v1/manual-playlists`        | Manual playlists                                     |
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only)    |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only)      |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/load-seed/`)        |
-
-`POST tree/load-seed` on `/v1/genres` (re)seeds the system user's seed genre tree and seed songs; `POST songs/load-seed` on `/v1/library/youtube` seeds just the seed songs.
+| `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/import/`)           |
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 

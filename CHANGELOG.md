@@ -12,6 +12,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-09-25
+
+### Added
+
+- Admin edits to genres and songs now win over the next pipeline sync: an admin rename, reparent, or
+  re-tag locks that field against the daily rebuild, and `POST /v1/genres/{id}/exclude/` soft-removes
+  a Wikidata-backed genre without it reappearing on the next import.
+- `GET /v1/genres/{id}/history/` and `GET /v1/library/youtube/songs/{id}/history/` return each
+  genre's/song's actor+timestamp+action edit history.
+
+### Changed
+
+- Reference data no longer belongs to a "system user": genres, tags, playlists, tracks, artists, albums, plays,
+  and history rows are now canonical rows with no owner (`user IS NULL`), readable by everyone. Migration
+  `0024_ownerless_reference_data` moves the system user's rows to `user IS NULL` and deletes the system user.
+  Criteria names are unique among canonical rows, and per user among personal rows. Covered by new permission,
+  ownership, and migration tests.
+- Google sign-in now resolves to a real `User` keyed by the account's `sub` (created on first sign-in); the
+  pipeline API key resolves to a row-less service principal. Neither owns reference data.
+- The default DRF permission is now `IsAdminOrReadOnly` instead of `IsAuthenticated`.
+- Bumped `the-music-tree-genre-kit` pin to `v0.26.0` (nullable `user` on `Track`/`Playlist`/`TrackPlaylistRel`,
+  and `the-music-tree-api-kit` `v0.7.0`'s `get_owner` hook).
+
+### Removed
+
+- `SYSTEM_USERNAME` setting and environment variable, `get_system_user`, and the `post_save` signal that
+  bootstrapped criteria-less playlists per user.
+- `POST /v1/genres/tree/load-seed/` and `POST /v1/library/youtube/songs/load-seed/`, the bundled
+  `grow/data/seed_genre_tree.json` fixture, and the `DATA_DIR` setting. Genre data now comes only from the
+  pipeline import (`tree/import/`, `songs/import/`) and admin edits. Bumped `the-music-tree-genre-kit` pin to
+  `v0.27.0`, which drops the seed mixins. Load-seed tests removed.
+
 ## [5.0.0] - 2026-09-24
 
 ### Removed

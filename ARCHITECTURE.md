@@ -4,13 +4,13 @@ This is a from-scratch walkthrough of how the pieces fit together — the domain
 
 ## System summary
 
-`grow` is a single-tenant Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. "Single-tenant" here means exactly one `User` row ever exists: the system user (full read/write, `PIPELINE_API_KEY`). There are no per-user accounts, no signup flow, no custom user model — tenancy is a settings value compared against a request header.
+`grow` is a Django/DRF service backing the genre/tag/tree domain for `grow-the-music-tree-frontend`. It serves one canonical reference dataset whose rows have no owner (`user IS NULL`); `user = <id>` is reserved for a user's personal variations. `User` rows exist only for Google accounts that have signed in (keyed by their Google `sub`); the pipeline API key is a row-less service principal. There is no custom user model.
 
 ## Dependency architecture
 
 Two internal git-pulled packages sit underneath `grow`, and they're pinned differently — worth knowing before you go looking for one in `pyproject.toml` and can't find it:
 
-- **`the-music-tree-genre-kit`** (currently `v0.9.0`) — the **direct** dependency, listed in `pyproject.toml`. Provides the shared `Track`/`Playlist` MTI parent models, `AbstractCriteria`/`AbstractCriteriaManager`, `TrackMixin`, the seed-tree/seed-song import mixins (`GenreSeedTreeMixin`, `SongSeedTreeMixin`), and the shared `DATA_DIR` fixture directory.
+- **`the-music-tree-genre-kit`** (currently `v0.27.0`) — the **direct** dependency, listed in `pyproject.toml`. Provides the shared `Track`/`Playlist` MTI parent models, `AbstractCriteria`/`AbstractCriteriaManager`, `TrackMixin`, and the songs-import mixin (`SongsImportMixin`).
 - **`the-music-tree-api-kit`** (currently `v0.4.0`) — **transitive only**. It's a dependency of genre-kit, not of `grow` — pinned in `uv.lock`, not in `pyproject.toml`. Provides `BaseModel`/`BaseManager` (the `.save()` pipeline every model ultimately runs through), `AppModelViewSet` (the real CRUD/pagination/filtering scaffolding `GrowModelViewSet` sits on), the FK/serializer field types (`PrivateForeignKey`, `PrivateOneToOneField`, `PrivateUuidField`, `AppCharField`), the exception handler, and middleware (`CamelToSnakeMiddleware`, `HostValidationMiddleware`).
 
 Sibling app `hear-the-music-tree-api` consumes both kits too — a kit-facing change here may need the equivalent change there (see `CLAUDE.md`).
@@ -25,8 +25,7 @@ Sibling app `hear-the-music-tree-api` consumes both kits too — a kit-facing ch
 | `grow/serializer/model/<model>/{input,output}/` | Per-model serializers. |
 | `grow/filtering/` | django-filter `FilterSet` subclasses and custom filter field classes. |
 | `grow/authentication/` | `ApiKeyAuthentication.py` — the single-key auth backend. |
-| `grow/migrations/` | Standard Django migrations; `0006`–`0011` document the genre-kit extraction (moving `Track`/`Playlist`/`TrackPlaylistRel` ownership into the kit); `0003` seeds the system user; `0013`/`0019` create and later delete the now-removed prototype user. |
-| `grow/data/` | `seed_genre_tree.json` — reusable seed genre-tree fixture data (currently unreferenced by app code; the seed-tree fixture used by `tree/load-seed` lives in the kit's own `DATA_DIR`). |
+| `grow/migrations/` | Standard Django migrations; `0006`–`0011` document the genre-kit extraction (moving `Track`/`Playlist`/`TrackPlaylistRel` ownership into the kit); `0003` creates a transient system user that `0024` removes after moving its rows to `user IS NULL`; `0013`/`0019` create and later delete the now-removed prototype user. |
 
 Known cleanup item, not fixed here: `grow/serializer/model/uploaded_track/`, `grow/filtering/set/uploaded_track/`, and `grow/view/viewset/model/uploaded_track/` still exist as empty directories (only stale `.pyc` cache remnants inside, no `.py` source) — leftover from the `UploadedTrack` model's removal. Safe to `git clean`/delete; not part of live structure.
 
@@ -51,7 +50,7 @@ Net picture: one self-referential `Criteria` tree (parent/children + `CriteriaLi
 Some genre names are required to exist as a root (`parent=None`) of every user's tree — currently just `"Mainstream Pop"`. `GenreManager.REQUIRED_ROOT_GENRE_NAMES` (`grow/model/criteria/children/genre/GenreManager.py`) is a `frozenset` and the single place to add a future required label; `assert_required_roots_present` checks the whole set at once and reports every missing name in one `dependency_missing` error.
 
 The invariant is enforced in two different ways depending on what's being protected:
-- **`tree/import` and `tree/load-seed`** (`GenreViewSet`) assert it right after the bulk write, inside the same transaction — a bulk write that doesn't produce a compliant tree is rolled back entirely.
+- **`tree/import`** (`GenreViewSet`) asserts it right after the bulk write, inside the same transaction — a bulk write that doesn't produce a compliant tree is rolled back entirely.
 - **`GenreManager.delete_instance`/`update_instance`** assert it only when the genre being deleted or updated *was itself* a required root before the operation. This guards an already-valid tree against a single `DELETE`/`PUT` silently breaking it (e.g. deleting the Mainstream Pop root, or renaming/reparenting it away), while leaving every other write untouched.
 
 It is deliberately **never** enforced on `create()`. A tree is legitimately incomplete while a client builds it up node-by-node via `POST /genres/`, and checking on every create would reject the first `POST` a fresh user makes.
@@ -66,16 +65,17 @@ The kit's `Track` deliberately has no `playlists` M2M field. `YoutubeTrack.playl
 
 Full chain for a single authenticated request:
 
-1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → system user. Anything else → unauthenticated.
-2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [AuthenticatedForWritesReturn401]`:
-   - `AuthenticatedForWritesReturn401` — allows unauthenticated `SAFE_METHODS`; on writes, raises `NotAuthenticated` (401) instead of DRF's default 403 if the request isn't authenticated at all.
+1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → row-less `PipelineUser` with the `pipeline` role. Anything else → unauthenticated. `GoogleIdTokenAuthentication` resolves a bearer ID token to the `User` keyed by its `sub` (created on first sign-in), with the `admin` role for `ADMIN_GOOGLE_SUB` and `viewer` otherwise.
+2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [IsAdminOrReadOnly]` and overrides api-kit's `get_owner` to return `None`:
+   - `IsAdminOrReadOnly` — allows anonymous `SAFE_METHODS`; writes need the `admin` role on `request.auth` (401 without credentials, 403 otherwise). It is also `DEFAULT_PERMISSION_CLASSES`.
+   - `get_owner` → `None` scopes every query and every created row to canonical data (`user IS NULL`), whoever the caller is.
 3. Every concrete viewset inherits `GrowModelViewSet` directly, with no per-viewset override — this permission composition applies uniformly across the whole API surface.
 
-"Tenancy" is entirely a settings + username string comparison — there's no custom user model.
+Identity (`request.user`, `request.auth`) decides what a caller may do; `get_owner` alone decides which rows it sees.
 
 ## Request lifecycle, traced through Genre
 
-`Genre` (proxy of `Criteria`) → `GenreManager` (`grow/model/criteria/children/genre/GenreManager.py`, extends `CriteriaManager`, filters `type_id=CriteriaTypePks.GENRE`, overrides `_get_direct_tracks`) → serializers in `grow/serializer/model/criteria/` — there are no genre-specific serializer files; Genre reuses the shared `Criteria*Serializer` family (`CriteriaDetailedSerializer`, `CriteriaSimpleSerializer`, `CriteriaPostSerializer`, `CriteriaPutSerializer`) → `CriteriaViewSet` (`grow/view/viewset/model/criteria/CriteriaViewSet.py`) wires `model_class`/`filterset_class`/all four serializer classes and implements `create`/`destroy`/`list`/`retrieve`/`update` → `GenreViewSet` (`grow/view/viewset/model/criteria/children/genre/GenreViewSet.py`) subclasses `GenreSeedTreeMixin[Genre]` + `CriteriaViewSet`, adding `POST tree/load-seed` → `grow/urls.py` registers it: `router.register(r"genres", GenreViewSet, basename="genre")`.
+`Genre` (proxy of `Criteria`) → `GenreManager` (`grow/model/criteria/children/genre/GenreManager.py`, extends `CriteriaManager`, filters `type_id=CriteriaTypePks.GENRE`, overrides `_get_direct_tracks`) → serializers in `grow/serializer/model/criteria/` — there are no genre-specific serializer files; Genre reuses the shared `Criteria*Serializer` family (`CriteriaDetailedSerializer`, `CriteriaSimpleSerializer`, `CriteriaPostSerializer`, `CriteriaPutSerializer`) → `CriteriaViewSet` (`grow/view/viewset/model/criteria/CriteriaViewSet.py`) wires `model_class`/`filterset_class`/all four serializer classes and implements `create`/`destroy`/`list`/`retrieve`/`update` → `GenreViewSet` (`grow/view/viewset/model/criteria/children/genre/GenreViewSet.py`) subclasses `HistoryActionMixin` + `CriteriaViewSet`, adding `POST tree/import` and `POST {id}/exclude` → `grow/urls.py` registers it: `router.register(r"genres", GenreViewSet, basename="genre")`.
 
 One thing this trace surfaces that's easy to miss: `AppModelViewSet` (api-kit) defaults **every** action (`list`/`create`/`retrieve`/`update`/`destroy`) to `MethodNotAllowed`. A concrete viewset gets nothing for free — `CriteriaViewSet` has to explicitly implement each one it wants to expose. If a new viewset silently 405s on an action you expected to work, this is why.
 

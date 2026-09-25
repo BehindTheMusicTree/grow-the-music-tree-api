@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from the_music_tree_genre_kit.criteria.AbstractCriteriaManager import AbstractCriteriaManager
 
@@ -21,18 +21,18 @@ class CriteriaManager(AbstractCriteriaManager[T]):
 
         return CriteriaLineageRel
 
-    def _on_created(self, instance: T) -> None:
+    def _on_created(self, instance: T, *, actor: Any = None) -> None:
         from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 
         CriteriaPlaylist.objects.create(user=instance.user, criteria=instance, type=instance.type)
 
-    def _on_bulk_created(self, instances: list[T]) -> None:
+    def _on_bulk_created(self, instances: list[T], *, actor: Any = None) -> None:
         from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 
         CriteriaPlaylist.objects.bulk_create_for_criteria(instances)
 
     def _on_parent_changed(
-        self, instance: T, *, old_parent: Criteria | None, old_root: Criteria, root_changed: bool
+        self, instance: T, *, old_parent: Criteria | None, old_root: Criteria, root_changed: bool, actor: Any = None
     ) -> None:
         from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 

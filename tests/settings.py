@@ -2,8 +2,6 @@ import os
 import tomllib
 from pathlib import Path
 
-from the_music_tree_genre_kit.data import DATA_DIR
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "fixture-only-not-for-production"
@@ -50,11 +48,10 @@ USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
 
-SYSTEM_USERNAME = os.environ.setdefault("SYSTEM_USERNAME", "system")
 
 PIPELINE_API_KEY = "test-api-key"
 

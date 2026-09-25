@@ -18,7 +18,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 2
         rock = genres.get(name="Rock")
         assert rock is not None
@@ -34,7 +34,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 3
         rock = genres.get(name="Rock")
         jazz = genres.get(name="Jazz")
@@ -59,7 +59,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 4
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
@@ -97,7 +97,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 6
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
@@ -130,7 +130,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 5
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")
@@ -178,7 +178,7 @@ class TestStructure(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() == 11
         rock = genres.get(name="Rock")
         metal = genres.get(name="Metal")

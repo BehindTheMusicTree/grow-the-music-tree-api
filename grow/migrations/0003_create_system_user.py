@@ -1,16 +1,13 @@
 import os
 
 from django.contrib.auth.hashers import make_password
-from django.core.management.base import CommandError
 from django.db import migrations
 
 
 def create_system_user(apps, schema_editor):
     User = apps.get_model("auth", "User")
-    username = os.getenv("SYSTEM_USERNAME", None)
-
-    if not username:
-        raise CommandError("⚠️ SYSTEM_USERNAME must be set in environment variables before running migrations.")
+    # Transient on fresh databases: 0023_ownerless_reference_data moves its rows to user=NULL and deletes it.
+    username = os.getenv("SYSTEM_USERNAME") or "system"
 
     user, _created = User.objects.get_or_create(
         username=username,

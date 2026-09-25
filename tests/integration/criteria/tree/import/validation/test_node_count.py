@@ -63,7 +63,7 @@ class TestNodeCount(GenreTestCase):
         data = [root]
         response = self._post_genres_tree_import(data={Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
-        genres_count = Genre.objects.filter(user=self.system_user).count()
+        genres_count = Genre.objects.filter(user=None).count()
         assert genres_count == 3001
 
     @pytest.mark.slow
@@ -93,7 +93,7 @@ class TestNodeCount(GenreTestCase):
         elapsed = time.monotonic() - start
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert Genre.objects.filter(user=self.system_user).count() == node_count
+        assert Genre.objects.filter(user=None).count() == node_count
         # Gunicorn's default worker timeout is 120s; this leaves generous headroom as the real
         # tree grows further while still catching a depth-driven regression.
         assert elapsed < 30

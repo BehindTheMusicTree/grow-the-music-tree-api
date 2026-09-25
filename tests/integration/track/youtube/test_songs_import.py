@@ -21,7 +21,7 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_202_ACCEPTED
         task_id = response.data["task_id"]
-        titles = set(YoutubeTrack.objects.filter(user=self.system_user).values_list("title", flat=True))
+        titles = set(YoutubeTrack.objects.filter(user=None).values_list("title", flat=True))
         assert titles == {"Comfortably Numb"}
 
         status_response = self.api_client.get(path=reverse("youtube-track-list") + f"songs/import/{task_id}/status/")
