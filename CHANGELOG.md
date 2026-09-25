@@ -12,6 +12,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** upgraded `the-music-tree-genre-kit` from v0.27.0 to v0.29.0 (multi-parent criteria).
+  - `GET /v1/{genres,tags}/tree/` now requires the `allowsMultiplePrimaryParents` query param; omitting it returns 400.
+  - Tree import payloads must carry `allowsMultiplePrimaryParents`, and every genre node must have a Wikidata `id` (`Q<n>`).
+  - Tree output now includes `allowsMultiplePrimaryParents`, `primaryParents`, and `secondaryParents`.
+  - A tree import only deletes pipeline-sourced, non-manually-edited genres. It is refused (400) when it would delete
+    more than `CRITERIA_TREE_IMPORT_STALE_DELETE_MAX_FRACTION` (0.5) of them.
+- Criteria names are now unique case-insensitively. Genre `wikidata_id` is unique among canonical rows and per user.
+  - Migration `0025` adds the multi-parent fields plus genre `source`/`last_seen_run`.
+  - Migration `0026` backfills `source` (`admin` for manually edited rows, `pipeline` for Wikidata-backed rows). It also
+    deletes legacy ownerless genres that have no `wikidata_id` and whose name case-insensitively duplicates a current
+    genre. It reparents their tracks, playlists, and children the way a pipeline stale-delete does.
+  - Migration `0027` adds the constraints and fails on any remaining conflict.
+  - Covered by tree, import, and migration tests.
+
 ## [6.0.0] - 2026-09-25
 
 ### Added
