@@ -20,12 +20,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Tree output now includes `allowsMultiplePrimaryParents`, `primaryParents`, and `secondaryParents`.
   - A tree import only deletes pipeline-sourced, non-manually-edited genres. It is refused (400) when it would delete
     more than `CRITERIA_TREE_IMPORT_STALE_DELETE_MAX_FRACTION` (0.5) of them.
-- Criteria names are now unique case-insensitively. Genre `wikidata_id` is unique among canonical rows and per user.
+- Criteria names are now unique case-insensitively.
   - Migration `0025` adds the multi-parent fields plus genre `source`/`last_seen_run`.
   - Migration `0026` backfills `source`: `admin` for manually edited rows, `pipeline` for other ownerless or
     Wikidata-backed rows. Legacy ownerless genres imported without an id (NULL `wikidata_id`) are kept; genre-kit
     0.29.1's import adopts them by name and sets their `wikidata_id`.
-  - Migration `0027` adds the constraints and fails on any remaining conflict.
+  - Migration `0027` adds the constraints and fails on any remaining conflict. No DB constraint on genre
+    `wikidata_id`: `user` lives on the parent `Criteria` table (MTI, `models.E016`), which crashed the staging
+    `migrate`; the keyed import matches by `wikidata_id` instead. A test now runs the database system checks.
   - Covered by tree, import, and migration tests.
 
 ## [6.0.0] - 2026-09-25
