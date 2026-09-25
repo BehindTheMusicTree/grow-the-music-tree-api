@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Covered by tree, import, and migration tests.
 - Bumped `the-music-tree-genre-kit` to v0.29.3: the songs import batches playlist moves for re-genred tracks
   instead of shifting positions one track at a time (staging import timed out at the 1800s django-q limit).
+- Bumped `the-music-tree-genre-kit` to v0.29.4: the tree import rebuilds genre lineage in one batch instead of
+  per-row queries (staging's canonical tree import took >120s and hit the gunicorn timeout; now ~13s).
 
 ## [6.0.0] - 2026-09-25
 
