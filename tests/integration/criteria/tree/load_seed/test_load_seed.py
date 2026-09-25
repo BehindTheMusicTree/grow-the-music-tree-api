@@ -10,7 +10,7 @@ class TestLoadSeed(GenreTestCase):
         response = self._post_genres_tree_load_seed()
         assert response.status_code == status.HTTP_201_CREATED
 
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.count() > 0
         electronic = genres.get(name="Electronic", parent=None)
         house = genres.get(name="House", parent=electronic)
@@ -23,7 +23,7 @@ class TestLoadSeed(GenreTestCase):
         assert response.status_code == status.HTTP_201_CREATED
 
         # "Old Rock" has no wikidataId, so import_criteria_tree never touches it (merge-by-wikidataId).
-        genres = Genre.objects.filter(user=self.system_user)
+        genres = Genre.objects.filter(user=None)
         assert genres.filter(name="Old Rock").exists()
         assert genres.filter(name="Rock/Metal", parent=None).exists()
 
@@ -31,7 +31,7 @@ class TestLoadSeed(GenreTestCase):
         response = self._post_genres_tree_load_seed()
         assert response.status_code == status.HTTP_201_CREATED
 
-        tracks = YoutubeTrack.objects.filter(user=self.system_user)
+        tracks = YoutubeTrack.objects.filter(user=None)
         assert tracks.count() > 0
 
         track = tracks.get(title="Alors on danse")
@@ -42,10 +42,10 @@ class TestLoadSeed(GenreTestCase):
     def test_load_seed_tree_replaces_existing_songs(self):
         response = self._post_genres_tree_load_seed()
         assert response.status_code == status.HTTP_201_CREATED
-        first_load_track_count = YoutubeTrack.objects.filter(user=self.system_user).count()
+        first_load_track_count = YoutubeTrack.objects.filter(user=None).count()
 
         response = self._post_genres_tree_load_seed()
         assert response.status_code == status.HTTP_201_CREATED
 
-        tracks = YoutubeTrack.objects.filter(user=self.system_user)
+        tracks = YoutubeTrack.objects.filter(user=None)
         assert tracks.count() == first_load_track_count

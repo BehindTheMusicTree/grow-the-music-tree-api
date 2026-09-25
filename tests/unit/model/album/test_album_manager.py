@@ -10,7 +10,7 @@ class TestCase(AppTestCase):
         artist = self.model_fixture_factory.create_artist("Pink Floyd")
 
         album = Album.objects.create_instance_with_album_artists_list(
-            user=self.system_user, name="The Wall", album_artists_list=[artist]
+            user=None, name="The Wall", album_artists_list=[artist]
         )
 
         assert album.name == "The Wall"
@@ -18,7 +18,7 @@ class TestCase(AppTestCase):
 
     def test_create_instance_with_album_artists_list_without_artists(self):
         album = Album.objects.create_instance_with_album_artists_list(
-            user=self.system_user, name="No Artist Album", album_artists_list=[]
+            user=None, name="No Artist Album", album_artists_list=[]
         )
 
         assert album.name == "No Artist Album"
@@ -28,7 +28,7 @@ class TestCase(AppTestCase):
         artist = self.model_fixture_factory.create_artist("Daft Punk")
 
         album = Album.objects._get_instance_from_name_and_artists_after_potential_creations(
-            user=self.system_user, name="Discovery", album_artists=[artist]
+            user=None, name="Discovery", album_artists=[artist]
         )
 
         assert album is not None
@@ -38,20 +38,20 @@ class TestCase(AppTestCase):
     def test_get_instance_from_name_and_artists_after_potential_creations_returns_existing(self):
         artist = self.model_fixture_factory.create_artist("Daft Punk")
         existing_album = Album.objects.create_instance_with_album_artists_list(
-            user=self.system_user, name="Discovery", album_artists_list=[artist]
+            user=None, name="Discovery", album_artists_list=[artist]
         )
 
         album = Album.objects._get_instance_from_name_and_artists_after_potential_creations(
-            user=self.system_user, name="Discovery", album_artists=[artist]
+            user=None, name="Discovery", album_artists=[artist]
         )
 
         assert album is not None
         assert album.uuid == existing_album.uuid
-        assert Album.objects.filter(user=self.system_user, name="Discovery").count() == 1
+        assert Album.objects.filter(user=None, name="Discovery").count() == 1
 
     def test_get_instance_from_name_and_artists_after_potential_creations_without_artists(self):
         album = Album.objects._get_instance_from_name_and_artists_after_potential_creations(
-            user=self.system_user, name="Compilation", album_artists=[]
+            user=None, name="Compilation", album_artists=[]
         )
 
         assert album is not None
@@ -60,16 +60,16 @@ class TestCase(AppTestCase):
 
     def test_get_album_from_name_and_album_artists_names_after_potential_creations_creates_artists(self):
         album = Album.objects.get_album_from_name_and_album_artists_names_after_potential_creations(
-            user=self.system_user, name="Random Access Memories", album_artists_names=["Daft Punk"]
+            user=None, name="Random Access Memories", album_artists_names=["Daft Punk"]
         )
 
         assert album is not None
         assert album.name == "Random Access Memories"
-        assert Artist.objects.filter(user=self.system_user, name="Daft Punk").exists()
+        assert Artist.objects.filter(user=None, name="Daft Punk").exists()
 
     def test_get_album_from_name_and_album_artists_names_after_potential_creations_without_names(self):
         album = Album.objects.get_album_from_name_and_album_artists_names_after_potential_creations(
-            user=self.system_user, name="No Artist Album", album_artists_names=[]
+            user=None, name="No Artist Album", album_artists_names=[]
         )
 
         assert album is not None

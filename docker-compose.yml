@@ -43,7 +43,6 @@ services:
       APP_PORT: ${APP_PORT:-8001}
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
-      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-system}
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}
@@ -81,7 +80,6 @@ services:
       APP_PORT: ${APP_PORT:-8001}
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
-      SYSTEM_USERNAME: ${SYSTEM_USERNAME:-system}
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}

@@ -2,6 +2,7 @@ from django_q.tasks import async_task, fetch
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_genre_kit.serializer.model.track.input.song_seed.entry_serializer import (
     SongSeedEntrySerializer,
 )
@@ -39,7 +40,8 @@ class YoutubeTrackViewSet(HistoryActionMixin, SongSeedTreeMixin[YoutubeTrack], G
     def import_songs(self, request):
         serializer = SongSeedEntrySerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
-        task_id = async_task(run_import_seed_songs, request.user.pk, serializer.validated_data)
+        owner = get_request_owner(request)
+        task_id = async_task(run_import_seed_songs, owner and owner.pk, serializer.validated_data)
         return Response({"task_id": task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=["get"], url_path=r"songs/import/(?P<task_id>[^/.]+)/status")

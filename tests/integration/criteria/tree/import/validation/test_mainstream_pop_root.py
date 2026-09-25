@@ -13,14 +13,14 @@ class TestMainstreamPopRoot(GenreTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.DEPENDENCY_MISSING
-        assert not Genre.objects.filter(user=self.system_user).exists()
+        assert not Genre.objects.filter(user=None).exists()
 
     def test_mainstream_pop_root_present_then_201_created(self):
         tree_data = [{Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}]
         response = self._post_genres_tree_import(data={Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert Genre.objects.get(user=self.system_user, name="Mainstream Pop", parent=None) is not None
+        assert Genre.objects.get(user=None, name="Mainstream Pop", parent=None) is not None
 
     def test_mainstream_pop_as_non_root_does_not_satisfy_requirement(self):
         tree_data = [
@@ -33,4 +33,4 @@ class TestMainstreamPopRoot(GenreTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.DEPENDENCY_MISSING
-        assert not Genre.objects.filter(user=self.system_user).exists()
+        assert not Genre.objects.filter(user=None).exists()

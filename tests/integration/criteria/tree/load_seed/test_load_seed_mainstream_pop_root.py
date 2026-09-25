@@ -26,5 +26,5 @@ class TestLoadSeedMainstreamPopRoot(GenreTestCase):
                 response = self._post_genres_tree_load_seed()
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not Genre.objects.filter(user=self.system_user).exists()
-        assert not YoutubeTrack.objects.filter(user=self.system_user).exists()
+        assert not Genre.objects.filter(user=None).exists()
+        assert not YoutubeTrack.objects.filter(user=None).exists()

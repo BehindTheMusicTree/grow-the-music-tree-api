@@ -30,7 +30,7 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
-        genreless_playlist = GenrePlaylist.objects.get(user=self.system_user, criteria=None)
+        genreless_playlist = GenrePlaylist.objects.get(user=None, criteria=None)
         tracks_dict_by_position = genreless_playlist.tracks_not_archived_dict_by_position
         assert len(tracks_dict_by_position) == 4
         assert tracks_dict_by_position[1].uuid == rock_track_added_fifth.uuid

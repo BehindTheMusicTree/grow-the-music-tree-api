@@ -8,27 +8,25 @@ from tests.utils.AppTestCase import AppTestCase
 class TestCase(AppTestCase):
     def test_get_artists_list_from_names_after_potential_creation_creates_missing_artists(self):
         artists = Artist.objects.get_artists_list_from_names_after_potential_creation(
-            user=self.system_user, artists_names=["Daft Punk"]
+            user=None, artists_names=["Daft Punk"]
         )
 
         assert len(artists) == 1
         assert artists[0].name == "Daft Punk"
-        assert Artist.objects.filter(user=self.system_user, name="Daft Punk").exists()
+        assert Artist.objects.filter(user=None, name="Daft Punk").exists()
 
     def test_get_artists_list_from_names_after_potential_creation_reuses_existing_artist(self):
         existing = self.model_fixture_factory.create_artist("Daft Punk")
 
         artists = Artist.objects.get_artists_list_from_names_after_potential_creation(
-            user=self.system_user, artists_names=["Daft Punk"]
+            user=None, artists_names=["Daft Punk"]
         )
 
         assert len(artists) == 1
         assert artists[0].uuid == existing.uuid
 
     def test_get_artists_list_from_names_after_potential_creation_without_names(self):
-        artists = Artist.objects.get_artists_list_from_names_after_potential_creation(
-            user=self.system_user, artists_names=None
-        )
+        artists = Artist.objects.get_artists_list_from_names_after_potential_creation(user=None, artists_names=None)
 
         assert artists == []
 
