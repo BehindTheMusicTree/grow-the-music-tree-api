@@ -6,7 +6,6 @@ from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_genre_kit.serializer.model.track.input.song_seed.entry_serializer import (
     SongSeedEntrySerializer,
 )
-from the_music_tree_genre_kit.view.viewset.track.SongSeedTreeMixin import SongSeedTreeMixin
 
 from grow.filtering.set.youtube_track.YoutubeTrackFilterSet import YoutubeTrackFilterSet
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
@@ -17,7 +16,7 @@ from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 
-class YoutubeTrackViewSet(HistoryActionMixin, SongSeedTreeMixin[YoutubeTrack], GrowModelViewSet[YoutubeTrack]):
+class YoutubeTrackViewSet(HistoryActionMixin, GrowModelViewSet[YoutubeTrack]):
     def __init__(self, **kwargs):
         super().__init__(
             model_class=YoutubeTrack,

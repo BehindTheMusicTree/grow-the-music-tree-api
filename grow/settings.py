@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 
 import dj_database_url
 from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
-from the_music_tree_genre_kit.data import DATA_DIR
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 

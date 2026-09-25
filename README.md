@@ -80,16 +80,14 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `GET /health/`                | Health check (no auth)                               |
 | `/v1/artists`                 | Artists                                              |
 | `/v1/albums`                  | Albums                                               |
-| `/v1/genres`                  | Genre criteria tree (CRUD + `tree/`, `tree/import/`, `tree/load-seed/`) |
+| `/v1/genres`                  | Genre criteria tree (CRUD + `tree/`, `tree/import/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `tree/`, `tree/import/`)   |
 | `/v1/playlists`               | Playlists                                            |
 | `/v1/manual-playlists`        | Manual playlists                                     |
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only)    |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only)      |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/load-seed/`)        |
-
-`POST tree/load-seed` on `/v1/genres` (re)seeds the reference seed genre tree and seed songs; `POST songs/load-seed` on `/v1/library/youtube` seeds just the seed songs.
+| `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/import/`)           |
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 

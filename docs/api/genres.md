@@ -45,10 +45,3 @@ Each node may carry an optional `id` (a Wikidata QID, e.g. `"Q9778"`). Nodes wit
 matched against existing genres by `id` and updated in place; nodes without one are always
 created as new genres. Existing genres with no `id` are never touched by import. `id` is not
 exposed on any read endpoint (List/Retrieve/Tree) — it's import-only.
-
-#### Load Seed
-
-`POST {base}tree/load-seed/`
-
-(Re)seeds the system user's genre tree and seed songs from the bundled fixture. Same
-merge-by-`id` semantics as Import Tree.

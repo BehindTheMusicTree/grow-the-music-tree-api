@@ -37,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `SYSTEM_USERNAME` setting and environment variable, `get_system_user`, and the `post_save` signal that
   bootstrapped criteria-less playlists per user.
+- `POST /v1/genres/tree/load-seed/` and `POST /v1/library/youtube/songs/load-seed/`, the bundled
+  `grow/data/seed_genre_tree.json` fixture, and the `DATA_DIR` setting. Genre data now comes only from the
+  pipeline import (`tree/import/`, `songs/import/`) and admin edits. Bumped `the-music-tree-genre-kit` pin to
+  `v0.27.0`, which drops the seed mixins. Load-seed tests removed.
 
 ## [5.0.0] - 2026-09-24
 
