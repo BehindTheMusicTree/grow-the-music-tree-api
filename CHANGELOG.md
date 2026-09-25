@@ -22,9 +22,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     more than `CRITERIA_TREE_IMPORT_STALE_DELETE_MAX_FRACTION` (0.5) of them.
 - Criteria names are now unique case-insensitively. Genre `wikidata_id` is unique among canonical rows and per user.
   - Migration `0025` adds the multi-parent fields plus genre `source`/`last_seen_run`.
-  - Migration `0026` backfills `source` (`admin` for manually edited rows, `pipeline` for Wikidata-backed rows). It also
-    deletes legacy ownerless genres that have no `wikidata_id` and whose name case-insensitively duplicates a current
-    genre. It reparents their tracks, playlists, and children the way a pipeline stale-delete does.
+  - Migration `0026` backfills `source`: `admin` for manually edited rows, `pipeline` for other ownerless or
+    Wikidata-backed rows. Legacy ownerless genres imported without an id (NULL `wikidata_id`) are kept; genre-kit
+    0.29.1's import adopts them by name and sets their `wikidata_id`.
   - Migration `0027` adds the constraints and fails on any remaining conflict.
   - Covered by tree, import, and migration tests.
 
