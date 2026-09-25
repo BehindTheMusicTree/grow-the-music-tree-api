@@ -23,6 +23,18 @@ class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-mis
 
     class Meta:
         db_table = "grow_genre"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["wikidata_id"],
+                condition=models.Q(wikidata_id__isnull=False, user__isnull=True),
+                name="unique_canonical_wikidata_id",
+            ),
+            models.UniqueConstraint(
+                fields=["wikidata_id", "user"],
+                condition=models.Q(wikidata_id__isnull=False, user__isnull=False),
+                name="unique_wikidata_id_per_user",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         self.type = CriteriaType.objects.get(pk=CriteriaTypePks.GENRE)

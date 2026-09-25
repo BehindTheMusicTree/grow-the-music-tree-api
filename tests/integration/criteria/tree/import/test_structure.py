@@ -11,11 +11,13 @@ class TestStructure(GenreTestCase):
     below rather than object equality."""
 
     def _mainstream_pop_root(self) -> dict:
-        return {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
+        return {Fields.ID: "Q101", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
 
     def test_single_root_then_ok(self):
-        data = [{Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, self._mainstream_pop_root()]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        data = [{Fields.ID: "Q102", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, self._mainstream_pop_root()]
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -27,11 +29,13 @@ class TestStructure(GenreTestCase):
 
     def test_multiple_roots_then_ok(self):
         data = [
-            {Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
-            {Fields.NAME_PUBLIC: "Jazz", Fields.CHILDREN: []},
+            {Fields.ID: "Q103", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
+            {Fields.ID: "Q104", Fields.NAME_PUBLIC: "Jazz", Fields.CHILDREN: []},
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -46,17 +50,21 @@ class TestStructure(GenreTestCase):
     def test_nested_structure_then_ok(self):
         data = [
             {
+                Fields.ID: "Q116",
                 Fields.NAME_PUBLIC: "Rock",
                 Fields.CHILDREN: [
                     {
+                        Fields.ID: "Q117",
                         Fields.NAME_PUBLIC: "Metal",
-                        Fields.CHILDREN: [{Fields.NAME_PUBLIC: "Heavy Metal", Fields.CHILDREN: []}],
+                        Fields.CHILDREN: [{Fields.ID: "Q105", Fields.NAME_PUBLIC: "Heavy Metal", Fields.CHILDREN: []}],
                     }
                 ],
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -74,17 +82,23 @@ class TestStructure(GenreTestCase):
     def test_deep_nesting_then_ok(self):
         data = [
             {
+                Fields.ID: "Q118",
                 Fields.NAME_PUBLIC: "Rock",
                 Fields.CHILDREN: [
                     {
+                        Fields.ID: "Q119",
                         Fields.NAME_PUBLIC: "Metal",
                         Fields.CHILDREN: [
                             {
+                                Fields.ID: "Q120",
                                 Fields.NAME_PUBLIC: "Heavy Metal",
                                 Fields.CHILDREN: [
                                     {
+                                        Fields.ID: "Q121",
                                         Fields.NAME_PUBLIC: "Classic Metal",
-                                        Fields.CHILDREN: [{Fields.NAME_PUBLIC: "Power Metal", Fields.CHILDREN: []}],
+                                        Fields.CHILDREN: [
+                                            {Fields.ID: "Q106", Fields.NAME_PUBLIC: "Power Metal", Fields.CHILDREN: []}
+                                        ],
                                     }
                                 ],
                             }
@@ -94,7 +108,9 @@ class TestStructure(GenreTestCase):
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -118,16 +134,19 @@ class TestStructure(GenreTestCase):
     def test_multiple_children_then_ok(self):
         data = [
             {
+                Fields.ID: "Q122",
                 Fields.NAME_PUBLIC: "Rock",
                 Fields.CHILDREN: [
-                    {Fields.NAME_PUBLIC: "Metal", Fields.CHILDREN: []},
-                    {Fields.NAME_PUBLIC: "Punk", Fields.CHILDREN: []},
-                    {Fields.NAME_PUBLIC: "Blues", Fields.CHILDREN: []},
+                    {Fields.ID: "Q107", Fields.NAME_PUBLIC: "Metal", Fields.CHILDREN: []},
+                    {Fields.ID: "Q108", Fields.NAME_PUBLIC: "Punk", Fields.CHILDREN: []},
+                    {Fields.ID: "Q109", Fields.NAME_PUBLIC: "Blues", Fields.CHILDREN: []},
                 ],
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -148,34 +167,40 @@ class TestStructure(GenreTestCase):
     def test_complex_structure_then_ok(self):
         data = [
             {
+                Fields.ID: "Q123",
                 Fields.NAME_PUBLIC: "Rock",
                 Fields.CHILDREN: [
                     {
+                        Fields.ID: "Q124",
                         Fields.NAME_PUBLIC: "Metal",
                         Fields.CHILDREN: [
-                            {Fields.NAME_PUBLIC: "Heavy Metal", Fields.CHILDREN: []},
-                            {Fields.NAME_PUBLIC: "Death Metal", Fields.CHILDREN: []},
+                            {Fields.ID: "Q110", Fields.NAME_PUBLIC: "Heavy Metal", Fields.CHILDREN: []},
+                            {Fields.ID: "Q111", Fields.NAME_PUBLIC: "Death Metal", Fields.CHILDREN: []},
                         ],
                     },
                     {
+                        Fields.ID: "Q125",
                         Fields.NAME_PUBLIC: "Punk",
                         Fields.CHILDREN: [
-                            {Fields.NAME_PUBLIC: "Hardcore", Fields.CHILDREN: []},
-                            {Fields.NAME_PUBLIC: "Pop Punk", Fields.CHILDREN: []},
+                            {Fields.ID: "Q112", Fields.NAME_PUBLIC: "Hardcore", Fields.CHILDREN: []},
+                            {Fields.ID: "Q113", Fields.NAME_PUBLIC: "Pop Punk", Fields.CHILDREN: []},
                         ],
                     },
                 ],
             },
             {
+                Fields.ID: "Q126",
                 Fields.NAME_PUBLIC: "Jazz",
                 Fields.CHILDREN: [
-                    {Fields.NAME_PUBLIC: "Bebop", Fields.CHILDREN: []},
-                    {Fields.NAME_PUBLIC: "Fusion", Fields.CHILDREN: []},
+                    {Fields.ID: "Q114", Fields.NAME_PUBLIC: "Bebop", Fields.CHILDREN: []},
+                    {Fields.ID: "Q115", Fields.NAME_PUBLIC: "Fusion", Fields.CHILDREN: []},
                 ],
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)

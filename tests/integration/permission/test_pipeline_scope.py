@@ -8,7 +8,13 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
-TREE_PAYLOAD = {Fields.TREE: [{Fields.NAME_PUBLIC: n, Fields.CHILDREN: []} for n in ("Rock", "Mainstream Pop")]}
+TREE_PAYLOAD = {
+    Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False,
+    Fields.TREE: [
+        {Fields.ID: qid, Fields.NAME_PUBLIC: n, Fields.CHILDREN: []}
+        for qid, n in (("Q11399", "Rock"), ("Q373342", "Mainstream Pop"))
+    ],
+}
 SONG = {"title": "Comfortably Numb", "artist": "Pink Floyd", "youtube_video_id": "abc123defgh", "genre_name": "Rock"}
 
 
