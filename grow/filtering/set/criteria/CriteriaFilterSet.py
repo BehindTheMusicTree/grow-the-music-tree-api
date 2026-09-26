@@ -1,3 +1,5 @@
+from django_filters import BooleanFilter
+
 from grow.filtering.filter.char.NonEmptiableCharFilter import NonEmptiableCharFilter
 from grow.filtering.filter.foreign_key.DescendantAwareFilter import DescendantAwareFilter
 from grow.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import PrivateUniqueResourceFilterSet
@@ -14,7 +16,13 @@ class CriteriaFilterSet(PrivateUniqueResourceFilterSet):
         field_name=Fields.NAME_INTERNAL, field_name_public=Fields.NAME_PUBLIC, lookup_expr="icontains"
     )
     parent = DescendantAwareFilter(queryset=Criteria.objects.all())
+    has_name_conflict = BooleanFilter(field_name="has_name_conflict")
 
     class Meta:
         model = Criteria
-        fields = [Fields.NAME_PUBLIC, Fields.PARENT, *PrivateUniqueResourceFilterSet.get_date_fields()]
+        fields = [
+            Fields.NAME_PUBLIC,
+            Fields.PARENT,
+            "has_name_conflict",
+            *PrivateUniqueResourceFilterSet.get_date_fields(),
+        ]

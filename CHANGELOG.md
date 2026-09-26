@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Genre name conflicts no longer fail the tree import. When a genre's name is already taken, case-insensitively, by a genre with a different Wikidata ID, it is imported as `"<name> (<wikidata_id>)"` and flagged with `hasNameConflict`. The new `GET /v1/genres/?hasNameConflict=true` filter lists these genres for admin review. An admin rename clears the flag and locks the name against later imports. Upgraded `the-music-tree-genre-kit` to v0.30.0.
+
 ## [7.0.0] - 2026-09-26
 
 ### Changed
