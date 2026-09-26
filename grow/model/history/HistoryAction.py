@@ -8,3 +8,4 @@ class HistoryAction(models.TextChoices):
     EXCLUDED = "excluded", "Excluded"
     GENRE_CHANGED = "genre_changed", "Genre changed"
     DELETED = "deleted", "Deleted"
+    NAME_CONFLICT_RESOLVED = "name_conflict_resolved", "Name conflict resolved"
