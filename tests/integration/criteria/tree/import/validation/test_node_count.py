@@ -12,25 +12,31 @@ from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 class TestNodeCount(GenreTestCase):
     def test_no_data_then_400_bad_request(self):
-        response = self._post_genres_tree_import(data={Fields.TREE: None})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: None}
+        )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.REQUIRED
 
     def test_empty_then_400_bad_request(self):
-        response = self._post_genres_tree_import(data={Fields.TREE: []})
+        response = self._post_genres_tree_import(data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: []})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.REQUIRED
 
     @pytest.mark.slow
     def test_one_too_large_then_400_bad_request(self):
-        root = {Fields.NAME_PUBLIC: "Root1", Fields.CHILDREN: []}
+        root = {Fields.ID: "Q101", Fields.NAME_PUBLIC: "Root1", Fields.CHILDREN: []}
         for i in range(settings.CRITERIA_TREE_IMPORT_MAX_TOTAL_COUNT - 1):
-            root[Fields.CHILDREN].append({Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []})
+            root[Fields.CHILDREN].append(
+                {Fields.ID: f"Q{1000 + i}", Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []}
+            )
 
-        data = [root, {Fields.NAME_PUBLIC: "Root2", Fields.CHILDREN: []}]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        data = [root, {Fields.ID: "Q102", Fields.NAME_PUBLIC: "Root2", Fields.CHILDREN: []}]
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.TREE_TOO_LARGE
@@ -39,29 +45,36 @@ class TestNodeCount(GenreTestCase):
     def test_multiple_with_one_too_large_then_400_bad_request(self):
         data = [
             {
+                Fields.ID: "Q107",
                 Fields.NAME_PUBLIC: "Rock",
                 Fields.CHILDREN: [
-                    {Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []}
+                    {Fields.ID: f"Q{1000 + i}", Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []}
                     for i in range(settings.CRITERIA_TREE_IMPORT_MAX_TOTAL_COUNT - 1)
                 ],
             }
         ]
 
-        data[0][Fields.CHILDREN].append({Fields.NAME_PUBLIC: "Extra Child", Fields.CHILDREN: []})
+        data[0][Fields.CHILDREN].append({Fields.ID: "Q103", Fields.NAME_PUBLIC: "Extra Child", Fields.CHILDREN: []})
 
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.TREE_TOO_LARGE
 
     @pytest.mark.slow
     def test_largest_then_ok(self):
-        root = {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
+        root = {Fields.ID: "Q104", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
         for i in range(3000):
-            root[Fields.CHILDREN].append({Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []})
+            root[Fields.CHILDREN].append(
+                {Fields.ID: f"Q{1000 + i}", Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []}
+            )
 
         data = [root]
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
         assert response.status_code == status.HTTP_201_CREATED
         genres_count = Genre.objects.filter(user=None).count()
         assert genres_count == 3001
@@ -75,21 +88,29 @@ class TestNodeCount(GenreTestCase):
         # canonical tree's node count.
         depth = 60
         siblings_per_level = 2
-        node = {Fields.NAME_PUBLIC: "leaf-0", Fields.CHILDREN: []}
+        node = {Fields.ID: "Q105", Fields.NAME_PUBLIC: "leaf-0", Fields.CHILDREN: []}
         node_count = 1
         for level in range(1, depth):
             children = [node]
             for sibling in range(siblings_per_level - 1):
-                children.append({Fields.NAME_PUBLIC: f"leaf-{level}-{sibling}", Fields.CHILDREN: []})
+                children.append(
+                    {
+                        Fields.ID: f"Q{100000 + level}",
+                        Fields.NAME_PUBLIC: f"leaf-{level}-{sibling}",
+                        Fields.CHILDREN: [],
+                    }
+                )
                 node_count += 1
-            node = {Fields.NAME_PUBLIC: f"node-{level}", Fields.CHILDREN: children}
+            node = {Fields.ID: f"Q{200000 + level}", Fields.NAME_PUBLIC: f"node-{level}", Fields.CHILDREN: children}
             node_count += 1
 
-        root = {Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: [node]}
+        root = {Fields.ID: "Q106", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: [node]}
         node_count += 1
 
         start = time.monotonic()
-        response = self._post_genres_tree_import(data={Fields.TREE: [root]})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: [root]}
+        )
         elapsed = time.monotonic() - start
 
         assert response.status_code == status.HTTP_201_CREATED

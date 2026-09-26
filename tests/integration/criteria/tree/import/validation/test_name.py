@@ -7,8 +7,10 @@ from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 class TestName(GenreTestCase):
     def test_empty_name_then_400_bad_request(self):
-        tree_data = [{Fields.NAME_PUBLIC: "", Fields.CHILDREN: []}]
-        response = self._post_genres_tree_import(data={Fields.TREE: tree_data})
+        tree_data = [{Fields.ID: "Q101", Fields.NAME_PUBLIC: "", Fields.CHILDREN: []}]
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: tree_data}
+        )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.NAME_PUBLIC
@@ -16,16 +18,23 @@ class TestName(GenreTestCase):
 
     def test_missing_name_then_400_bad_request(self):
         tree_data = [{Fields.CHILDREN: []}]
-        response = self._post_genres_tree_import(data={Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: tree_data}
+        )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.FORMAT_INVALID
 
     def test_duplicate_values_then_400_bad_request(self):
-        data = [{Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, {Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}]
+        data = [
+            {Fields.ID: "Q102", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
+            {Fields.ID: "Q103", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
+        ]
 
-        response = self._post_genres_tree_import(data={Fields.TREE: data})
+        response = self._post_genres_tree_import(
+            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
+        )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE

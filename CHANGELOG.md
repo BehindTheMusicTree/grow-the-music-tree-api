@@ -12,6 +12,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-26
+
+### Changed
+
+- **Breaking:** upgraded `the-music-tree-genre-kit` from v0.27.0 to v0.29.0 (multi-parent criteria).
+  - `GET /v1/{genres,tags}/tree/` now requires the `allowsMultiplePrimaryParents` query param; omitting it returns 400.
+  - Tree import payloads must carry `allowsMultiplePrimaryParents`, and every genre node must have a Wikidata `id` (`Q<n>`).
+  - Tree output now includes `allowsMultiplePrimaryParents`, `primaryParents`, and `secondaryParents`.
+  - A tree import only deletes pipeline-sourced, non-manually-edited genres. It is refused (400) when it would delete
+    more than `CRITERIA_TREE_IMPORT_STALE_DELETE_MAX_FRACTION` (0.5) of them.
+- Criteria names are now unique case-insensitively.
+  - Migration `0025` adds the multi-parent fields plus genre `source`/`last_seen_run`.
+  - Migration `0026` backfills `source`: `admin` for manually edited rows, `pipeline` for other ownerless or
+    Wikidata-backed rows. Legacy ownerless genres imported without an id (NULL `wikidata_id`) are kept; genre-kit
+    0.29.1's import adopts them by name and sets their `wikidata_id`.
+  - Migration `0027` adds the constraints and fails on any remaining conflict. No DB constraint on genre
+    `wikidata_id`: `user` lives on the parent `Criteria` table (MTI, `models.E016`), which crashed the staging
+    `migrate`; the keyed import matches by `wikidata_id` instead. A test now runs the database system checks.
+  - Covered by tree, import, and migration tests.
+- Bumped `the-music-tree-genre-kit` to v0.29.3: the songs import batches playlist moves for re-genred tracks
+  instead of shifting positions one track at a time (staging import timed out at the 1800s django-q limit).
+- Bumped `the-music-tree-genre-kit` to v0.29.4: the tree import rebuilds genre lineage in one batch instead of
+  per-row queries (staging's canonical tree import took >120s and hit the gunicorn timeout; now ~13s).
+
 ## [6.0.0] - 2026-09-25
 
 ### Added
