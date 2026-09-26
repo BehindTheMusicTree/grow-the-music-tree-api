@@ -59,6 +59,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     def _on_renamed(self, instance: Genre, *, old_name: str, actor: Any = None) -> None:
         if actor is not None:
+            instance.has_name_conflict = False
+            instance.save(update_fields=["has_name_conflict"])
             self._lock(instance)
         HistoryEntry.objects.record(
             instance, action=HistoryAction.RENAMED, actor=actor, old_value=old_name, new_value=instance.name
