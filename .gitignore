@@ -22,3 +22,7 @@ wheels/
 
 # graphify
 graphify-out/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/

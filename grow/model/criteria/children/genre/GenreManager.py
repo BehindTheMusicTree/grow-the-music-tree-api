@@ -109,6 +109,65 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         HistoryEntry.objects.record(instance, action=HistoryAction.EXCLUDED, actor=actor)
         return instance
 
+    def get_name_conflict_groups(self, user: Any) -> list[dict[str, Any]]:
+        """Groups each import-flagged genre (named `"<base> (<wikidata_id>)"`, see the genre kit's
+        `_disambiguate_conflicting_names`) with every genre whose name is its base name."""
+        flagged = list(self.filter(user=user, has_name_conflict=True))
+        base_names = {genre.pk: genre.name.removesuffix(f" ({genre.wikidata_id})") for genre in flagged}
+        groups: dict[str, dict[str, Any]] = {}
+        for genre in flagged:
+            base_name = base_names[genre.pk]
+            groups.setdefault(base_name.lower(), {"name": base_name, "genres": []})["genres"].append(genre)
+        for group in groups.values():
+            group["genres"] = [
+                *self.filter(user=user, _name__iexact=group["name"]).exclude(pk__in=base_names),
+                *group["genres"],
+            ]
+        return sorted(groups.values(), key=lambda group: group["name"].lower())
+
+    @transaction.atomic
+    def validate_name_conflict_group(self, user: Any, names: dict[Any, str], actor: Any = None) -> None:
+        """Applies the admin's final `names` (uuid -> name) to a conflict group and marks each of its
+        flagged genres as reviewed: renamed ones via `_on_renamed`, unchanged ones here."""
+        genres = {genre.uuid: genre for genre in self.filter(user=user, uuid__in=names)}
+        missing = [str(uuid) for uuid in names if uuid not in genres]
+        if missing:
+            raise AppValidationException(
+                field_name=missing[0],
+                message="Genre not found",
+                field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
+            )
+        # The unique-name constraint spans the whole criteria table, case-insensitively.
+        base_model = (self.model._meta.get_parent_list() or [self.model])[-1]
+        taken = {
+            name.lower()
+            for name in base_model._base_manager.filter(user=user)
+            .exclude(pk__in=[genre.pk for genre in genres.values()])
+            .values_list("_name", flat=True)
+        }
+        for uuid, name in names.items():
+            if name.lower() in taken:
+                raise AppValidationException(
+                    field_name=str(uuid),
+                    message=f'The name "{name}" is already used',
+                    field_validation_error_code=FieldValidationErrorCode.NAME_DUPLICATE,
+                )
+            taken.add(name.lower())
+        # Park renamed rows on their uuid first, so names can be swapped within the group without
+        # tripping the unique-name constraint mid-loop.
+        for uuid, name in names.items():
+            if name != genres[uuid].name:
+                self.filter(pk=genres[uuid].pk).update(_name=str(uuid))
+        for uuid, name in names.items():
+            genre = genres[uuid]
+            if name != genre.name:
+                self.update_instance(genre, actor=actor, name=name)
+            elif genre.has_name_conflict:
+                genre.has_name_conflict = False
+                genre.save(update_fields=["has_name_conflict"])
+                self._lock(genre)
+                HistoryEntry.objects.record(genre, action=HistoryAction.NAME_CONFLICT_RESOLVED, actor=actor)
+
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
         was_required_root = self._is_required_root(instance)

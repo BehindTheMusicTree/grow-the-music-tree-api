@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Genre name conflicts can now be reviewed as groups. `GET /v1/genres/name-conflicts/` groups each flagged genre with the genres that share its base name. With `POST /v1/genres/name-conflicts/validate/`, an admin saves the group's final names in one step: unchanged flagged genres are marked as reviewed and locked, and a clashing name returns a 400 on that genre's uuid, with nothing saved.
+
 ## [7.1.0] - 2026-09-26
 
 ### Added
