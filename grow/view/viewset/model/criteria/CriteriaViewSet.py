@@ -15,15 +15,20 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
         model_class: type[Criteria],
         create_serializer_class=CriteriaPostSerializer,
         update_serializer_class=CriteriaPutSerializer,
+        simple_serializer_class=CriteriaSimpleSerializer,
+        filterset_class=None,
         **kwargs,
     ):
-        # Filtersets must be imported after Django is loaded
-        from grow.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
+        if filterset_class is None:
+            # Filtersets must be imported after Django is loaded
+            from grow.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
+
+            filterset_class = CriteriaFilterSet
 
         super().__init__(
             model_class=model_class,
-            filterset_class=CriteriaFilterSet,
-            simple_serializer_class=CriteriaSimpleSerializer,
+            filterset_class=filterset_class,
+            simple_serializer_class=simple_serializer_class,
             detailed_serializer_class=CriteriaDetailedSerializer,
             create_serializer_class=create_serializer_class,
             update_serializer_class=update_serializer_class,

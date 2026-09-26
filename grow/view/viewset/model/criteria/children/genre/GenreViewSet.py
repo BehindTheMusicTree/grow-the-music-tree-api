@@ -8,6 +8,7 @@ from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.serializer.model.criteria.children.genre.input.post import GenrePostSerializer
 from grow.serializer.model.criteria.children.genre.input.put import GenrePutSerializer
+from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
@@ -15,8 +16,12 @@ from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def __init__(self, **kwargs):
+        from grow.filtering.set.criteria.children.genre.GenreFilterSet import GenreFilterSet
+
         super().__init__(
             model_class=Genre,
+            simple_serializer_class=GenreSimpleSerializer,
+            filterset_class=GenreFilterSet,
             create_serializer_class=GenrePostSerializer,
             update_serializer_class=GenrePutSerializer,
             **kwargs,

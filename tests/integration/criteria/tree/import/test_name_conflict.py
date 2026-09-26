@@ -1,3 +1,4 @@
+from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
@@ -51,3 +52,7 @@ class TestNameConflict(GenreTestCase):
         )
         self._list_genres(has_name_conflict="true")
         assert [g["name"] for g in self.results] == ["new wave (Q1142655)"]
+
+    def test_name_conflict_filter_is_rejected_on_tags(self):
+        response = self.api_client.get(path=reverse("tag-list"), data={"has_name_conflict": "true"})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
