@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-26
+
 ### Changed
 
 - **Breaking:** upgraded `the-music-tree-genre-kit` from v0.27.0 to v0.29.0 (multi-parent criteria).
