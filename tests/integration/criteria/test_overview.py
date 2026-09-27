@@ -32,12 +32,12 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
-        assert set(body) == {"uuid", "name", "summary", "side", "essential_tracks"}
+        assert set(body) == {"uuid", "name", "summary", "side", "essentialTracks"}
         assert body["name"] == "EDM"
         assert body["summary"] == "Loud."
         assert body["side"] == CriteriaSide.POP
-        assert [track["title"] for track in body["essential_tracks"]] == ["Track 0"]
-        assert set(body["essential_tracks"][0]) == {"uuid", "title", "artists", "rating", "language", "play_count"}
+        assert [track["title"] for track in body["essentialTracks"]] == ["Track 0"]
+        assert set(body["essentialTracks"][0]) == {"uuid", "title", "artists", "rating", "language", "playCount"}
 
     def test_tag_overview_has_no_side_or_essential_tracks(self):
         tag = self.model_fixture_factory.create_tag("Live")
@@ -46,7 +46,7 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["side"] is None
-        assert response.json()["essential_tracks"] == []
+        assert response.json()["essentialTracks"] == []
 
     def test_unknown_uuid_returns_404(self):
         response = self._get_overview(uuid.uuid4())
@@ -65,5 +65,5 @@ class TestCase(GenreTestCase):
             response = self._get_overview(many.uuid)
 
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.json()["essential_tracks"]) == 8
+        assert len(response.json()["essentialTracks"]) == 8
         assert len(many_queries.captured_queries) == len(few_queries.captured_queries)

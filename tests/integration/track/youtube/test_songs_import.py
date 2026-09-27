@@ -12,8 +12,8 @@ class TestCase(AppTestCase):
             {
                 "title": "Comfortably Numb",
                 "artist": "Pink Floyd",
-                "youtube_video_id": "abc123defgh",
-                "genre_name": "Rock",
+                "youtubeVideoId": "abc123defgh",
+                "genreName": "Rock",
             }
         ]
 

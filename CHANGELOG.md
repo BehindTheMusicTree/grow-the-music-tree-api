@@ -12,6 +12,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `GET /v1/{playlists,genre-playlists,tag-playlists,manual-playlists}/{uuid}/tracks/`: a paginated, position-ordered page of a playlist's tracks, without each track's nested `playlists`. The largest genre's first 100 tracks load in about 60 ms, against about 4.5 s for the full detail. Query budget and latency SLO included.
+
+### Changed
+
+- Upgraded `the-music-tree-genre-kit` to v0.33.0: a playlist can no longer hold the same track twice, and positions stay unique across song re-imports.
+- Playlist detail `tracksCount` now counts distinct tracks, like the lists.
+- `GET /v1/plays/` returns `content` at minimum depth (uuid plus name or title) and runs a fixed number of queries.
+- Tests now run with the production camelCase parser and renderer, so they exercise the real wire format.
+
 ## [8.1.0] - 2026-09-27
 
 ### Added

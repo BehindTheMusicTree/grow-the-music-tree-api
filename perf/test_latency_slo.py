@@ -24,6 +24,7 @@ SLO_MS = {
     # ponytail: ~5,900 tracks unpaginated in one response; ceiling drops once detail tracks are paginated
     "genre-playlist-detail (largest genre)": 13000,
     "playlist-detail (largest genre)": 13000,
+    "genre-playlist-tracks?page_size=100 (largest genre)": 150,
 }
 
 
@@ -39,6 +40,10 @@ PATHS = {
     "genre-list?page_size=100": lambda: (reverse("genre-list"), {"page_size": 100}),
     "genre-playlist-detail (largest genre)": lambda: (_large_playlist("genre-playlist-detail"), {}),
     "playlist-detail (largest genre)": lambda: (_large_playlist("playlist-detail"), {}),
+    "genre-playlist-tracks?page_size=100 (largest genre)": lambda: (
+        _large_playlist("genre-playlist-tracks"),
+        {"page_size": 100},
+    ),
 }
 
 

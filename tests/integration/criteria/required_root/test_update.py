@@ -30,7 +30,7 @@ class TestCase(GenreTestCase):
         root = self.model_fixture_factory.create_genre("Mainstream Pop")
         track = self.model_fixture_factory.create_youtube_track("Strobe", genre=root)
 
-        response = self._put_genre(root.uuid, data={"essential_tracks": [str(track.uuid)]})
+        response = self._put_genre(root.uuid, data={"essentialTracks": [str(track.uuid)]})
 
         assert response.status_code == status.HTTP_200_OK
         root.refresh_from_db()

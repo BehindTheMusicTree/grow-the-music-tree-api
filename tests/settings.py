@@ -2,6 +2,8 @@ import os
 import tomllib
 from pathlib import Path
 
+from grow.rest_framework_settings import REST_FRAMEWORK
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "fixture-only-not-for-production"
@@ -46,11 +48,6 @@ DATABASES = {
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-REST_FRAMEWORK = {
-    "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
-    "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
-}
 
 
 PIPELINE_API_KEY = "test-api-key"
