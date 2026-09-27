@@ -1,6 +1,3 @@
-from django.db.models import Count
-from the_music_tree_genre_kit.playlist.Fields import Fields as PlaylistFields
-
 from grow.filtering.set.playlist.children.criteria.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.serializer.model.playlist.children.criteria.output.detailed import CriteriaPlaylistDetailedSerializer
@@ -17,16 +14,6 @@ class CriteriaPlaylistViewSet(GrowModelViewSet[CriteriaPlaylist]):
             detailed_serializer_class=CriteriaPlaylistDetailedSerializer,
             **kwargs,
         )
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.action == "list":
-            return (
-                queryset.select_related("criteria__parent", "criteria__genre", "parent__criteria", "root__criteria")
-                .prefetch_related("criteria__additional_primary_parents", "criteria__secondary_parents")
-                .annotate(tracks_count_annotated=Count(PlaylistFields.TRACKS_RELATED_NAME, distinct=True))
-            )
-        return queryset.prefetch_related(f"{PlaylistFields.TRACK_PLAYLIST_RELS_INTERNAL}__track__youtubetrack")
 
     def list(self, *args, **kwargs):
         return self._handle_list()

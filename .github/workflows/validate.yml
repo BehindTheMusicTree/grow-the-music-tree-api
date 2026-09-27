@@ -77,3 +77,31 @@ jobs:
 
       - name: Run pytest
         run: uv run pytest
+
+  perf:
+    name: Perf
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PERF_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Sync dependencies
+        run: uv sync --all-extras
+
+      - name: Latency SLOs on prod Gold data
+        run: uv run pytest perf --no-cov -q -s --ds=perf.settings
