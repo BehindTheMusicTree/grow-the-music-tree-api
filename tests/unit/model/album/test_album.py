@@ -30,7 +30,7 @@ class TestCase(AppTestCase):
 
         assert "Another Brick In The Wall" in result
 
-    def test_tracks_not_archived_sorted_orders_by_track_number(self):
+    def test_tracks_sorted_orders_by_track_number(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         album = self.model_fixture_factory.create_album(name="The Wall")
         second_track = self.model_fixture_factory.create_youtube_track(
@@ -40,6 +40,6 @@ class TestCase(AppTestCase):
             title="First", genre=genre, album=album, track_number=1
         )
 
-        tracks = list(album.tracks_not_archived_sorted)
+        tracks = list(album.tracks_sorted)
 
         assert [track.uuid for track in tracks] == [first_track.uuid, second_track.uuid]

@@ -8,13 +8,13 @@ from .Fields import Fields
 
 class ManualPlaylistSimpleSerializer(serializers.ModelSerializer):
     name = AppCharField()
-    tracks_count = serializers.IntegerField(source=Fields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
+    tracks_count = serializers.IntegerField()
 
     class Meta:
         model = ManualPlaylist
         fields = [
             Fields.UUID,
             Fields.NAME_PUBLIC,
-            Fields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
+            Fields.TRACKS_COUNT_PUBLIC,
             Fields.CREATED_ON,
         ]

@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded `the-music-tree-genre-kit` to v0.31.0. Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
+
+### Removed
+
+- `tracksArchivedCount` from the artist, album, playlist, genre-playlist and genre detail responses, and `archived` from YouTube track responses.
+
+### Fixed
+
+- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size, and a query-count test guards against regressions.
+
 ## [7.2.0] - 2026-09-26
 
 ### Added

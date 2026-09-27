@@ -1,3 +1,5 @@
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
@@ -27,3 +29,20 @@ class TestCase(AppTestCase):
         results = response.json()["results"]
         edm_result = next(result for result in results if result["criteria"] and result["criteria"]["name"] == "EDM")
         assert edm_result["criteria"]["summary"] == "Electronic dance music"
+
+    def test_list_genre_playlists_query_count_does_not_grow_with_page_size(self):
+        root = self.model_fixture_factory.create_genre("Electronic")
+        for index in range(3):
+            genre = self.model_fixture_factory.create_genre(f"Genre {index}", parent=root)
+            self.model_fixture_factory.create_youtube_track(title=f"Track {index}", genre=genre)
+        with CaptureQueriesContext(connection) as small_page:
+            self.api_client.get(path=reverse("genre-playlist-list"))
+
+        for index in range(3, 10):
+            genre = self.model_fixture_factory.create_genre(f"Genre {index}", parent=root)
+            self.model_fixture_factory.create_youtube_track(title=f"Track {index}", genre=genre)
+        with CaptureQueriesContext(connection) as large_page:
+            response = self.api_client.get(path=reverse("genre-playlist-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(large_page.captured_queries) == len(small_page.captured_queries)
