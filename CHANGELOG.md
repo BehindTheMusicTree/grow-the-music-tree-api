@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.1.0] - 2026-09-27
+
 ### Added
 
 - Performance gates. Query budgets per endpoint run in `pytest`. Latency SLOs run in the new CI job `Perf`, on Postgres, seeded from a pinned snapshot of the prod pipeline's Gold exports. See README "Performance".
