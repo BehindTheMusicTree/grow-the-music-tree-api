@@ -18,7 +18,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- Upgraded `the-music-tree-genre-kit` to v0.32.1 (and `the-music-tree-api-kit` to v0.8.0 through it). Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
+- Upgraded `the-music-tree-genre-kit` to v0.32.1, and `the-music-tree-api-kit` to v0.8.0 through it.
+
+### Fixed
+
+- `GET /v1/playlists/`, `GET /v1/genres/`, and the playlist and genre-playlist detail endpoints ran queries per row or per track. Each serializer now declares what it loads, so every endpoint runs a fixed number of queries. The largest genre's detail went from 9,000 queries and about 165 s to 6 queries and about 5 s. The playlist list went from 503 queries and 2.6 s to 2 queries and 47 ms.
+
+## [8.0.0] - 2026-09-27
+
+### Added
+
+- `GET /v1/genres/{uuid}/overview/` (and `/v1/tags/{uuid}/overview/`): a lean criteria payload with only `uuid`, `name`, `summary`, `side` and `essentialTracks`, for views that don't need the full detail response (tracks, lineage, children, playlist). It runs a fixed number of queries however many essential tracks the genre has; tests guard the field set, the 404 and the query count.
+
+### Changed
+
+- Upgraded `the-music-tree-genre-kit` to v0.31.0. Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
 
 ### Removed
 
@@ -26,8 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size.
-- `GET /v1/playlists/`, `GET /v1/genres/`, and the playlist and genre-playlist detail endpoints also ran queries per row or per track. Each serializer now declares what it loads, so every endpoint runs a fixed number of queries. The largest genre's detail went from 9,000 queries and about 165 s to 6 queries and about 5 s. The playlist list went from 503 queries and 2.6 s to 2 queries and 47 ms.
+- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size, and a query-count test guards against regressions.
 
 ## [7.2.0] - 2026-09-26
 

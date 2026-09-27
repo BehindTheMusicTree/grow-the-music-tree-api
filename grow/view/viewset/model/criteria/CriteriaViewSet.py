@@ -1,3 +1,6 @@
+from django.db.models import prefetch_related_objects
+from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_genre_kit.view.viewset.AbstractCriteriaViewSet import AbstractCriteriaViewSet
 
@@ -5,6 +8,7 @@ from grow.model.criteria.Criteria import Criteria
 from grow.serializer.model.criteria.input.post import CriteriaPostSerializer
 from grow.serializer.model.criteria.input.put import CriteriaPutSerializer
 from grow.serializer.model.criteria.output.detailed import CriteriaDetailedSerializer
+from grow.serializer.model.criteria.output.overview import CriteriaOverviewSerializer
 from grow.serializer.model.criteria.output.simple import CriteriaSimpleSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
@@ -58,3 +62,9 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
 
     def update(self, request, *args, **kwargs):
         return self._handle_update(request)
+
+    @action(detail=True, methods=["get"])
+    def overview(self, request: Request, *args, **kwargs) -> Response:
+        instance = self.get_object()
+        prefetch_related_objects([instance], "genre__essential_tracks__artists")
+        return Response(data=CriteriaOverviewSerializer(instance).data)
