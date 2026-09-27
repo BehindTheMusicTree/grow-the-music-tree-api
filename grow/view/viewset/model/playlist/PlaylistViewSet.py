@@ -1,12 +1,16 @@
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
+from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
 from grow.filtering.set.playlist.PlaylistFilterSet import PlaylistFilterSet
 from grow.serializer.model.playlist.base.output.detailed import PlaylistDetailedSerializer
 from grow.serializer.model.playlist.base.output.simple import PlaylistSimpleSerializer
+from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
-class PlaylistViewSet(GrowModelViewSet[Playlist]):
+class PlaylistViewSet(PlaylistTracksActionMixin, GrowModelViewSet[Playlist]):
+    track_playlist_rel_serializer_class = TrackPlaylistRelInPageSerializer
+
     def __init__(self, **kwargs):
         super().__init__(
             model_class=Playlist,

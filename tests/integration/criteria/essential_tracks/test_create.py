@@ -9,7 +9,7 @@ class TestCase(GenreTestCase):
         genre = self.model_fixture_factory.create_genre("Electronic")
         track = self.model_fixture_factory.create_youtube_track("Strobe", genre=genre)
 
-        response = self._post_genre(data={"name": "EDM", "essential_tracks": [str(track.uuid)]})
+        response = self._post_genre(data={"name": "EDM", "essentialTracks": [str(track.uuid)]})
 
         assert response.status_code == status.HTTP_201_CREATED
         created = Genre.objects.get(uuid=response.json()["uuid"])

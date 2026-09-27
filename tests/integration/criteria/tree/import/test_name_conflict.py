@@ -38,7 +38,7 @@ class TestNameConflict(GenreTestCase):
         ]
 
         self._list_genres(has_name_conflict="true")
-        assert sorted((g["name"], g["has_name_conflict"]) for g in self.results) == [
+        assert sorted((g["name"], g["hasNameConflict"]) for g in self.results) == [
             ("Pub rock (Q16250593)", True),
             ("new wave (Q1142655)", True),
         ]

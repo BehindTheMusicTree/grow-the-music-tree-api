@@ -6,6 +6,8 @@ from urllib.parse import urlparse
 import dj_database_url
 from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
 
+from grow.rest_framework_settings import REST_FRAMEWORK
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ["SECRET_KEY"]
@@ -81,16 +83,6 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-REST_FRAMEWORK = {
-    "DEFAULT_RENDERER_CLASSES": ("djangorestframework_camel_case.render.CamelCaseJSONRenderer",),
-    "DEFAULT_PARSER_CLASSES": (
-        "djangorestframework_camel_case.parser.CamelCaseJSONParser",
-        "djangorestframework_camel_case.parser.CamelCaseMultiPartParser",
-        "djangorestframework_camel_case.parser.CamelCaseFormParser",
-    ),
-    "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
-    "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
-}
 
 with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
     APP_VERSION = tomllib.load(_pyproject)["project"]["version"]
