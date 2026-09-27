@@ -14,4 +14,3 @@ class TrackOutputFieldKey(StrEnum):
     LANGUAGE = "language"
     PLAYLISTS_PUBLIC = "playlists"
     PLAY_COUNT = "play_count"
-    ARCHIVED = "archived"

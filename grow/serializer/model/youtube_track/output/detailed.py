@@ -30,7 +30,6 @@ class YoutubeTrackDetailedSerializer(AppInputSerializer, serializers.ModelSerial
             YoutubeTrackOutputFieldKey.LANGUAGE.value,
             YoutubeTrackOutputFieldKey.PLAYLISTS_PUBLIC.value,
             YoutubeTrackOutputFieldKey.PLAY_COUNT.value,
-            YoutubeTrackOutputFieldKey.ARCHIVED.value,
             YoutubeTrackOutputFieldKey.YOUTUBE_VIDEO_ID.value,
             YoutubeTrackOutputFieldKey.CREATED_ON.value,
             YoutubeTrackOutputFieldKey.UPDATED_ON.value,
