@@ -12,9 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Performance gates. Query budgets per endpoint run in `pytest`. Latency SLOs run in the new CI job `Perf`, on Postgres, seeded from a pinned snapshot of the prod pipeline's Gold exports. See README "Performance".
+
 ### Changed
 
-- Upgraded `the-music-tree-genre-kit` to v0.31.0. Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
+- Upgraded `the-music-tree-genre-kit` to v0.32.1 (and `the-music-tree-api-kit` to v0.8.0 through it). Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
 
 ### Removed
 
@@ -22,7 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size, and a query-count test guards against regressions.
+- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size.
+- `GET /v1/playlists/`, `GET /v1/genres/`, and the playlist and genre-playlist detail endpoints also ran queries per row or per track. Each serializer now declares what it loads, so every endpoint runs a fixed number of queries. The largest genre's detail went from 9,000 queries and about 165 s to 6 queries and about 5 s. The playlist list went from 503 queries and 2.6 s to 2 queries and 47 ms.
 
 ## [7.2.0] - 2026-09-26
 

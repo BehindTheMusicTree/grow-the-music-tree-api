@@ -68,6 +68,8 @@ uv run mypy grow
 uv run django-admin makemigrations grow --check --dry-run
 ```
 
+If you touch a serializer, a queryset or an import, also run the latency SLO suite on Postgres (see README, "Performance").
+
 These are the same checks CI runs (`.github/workflows/validate.yml`, jobs `Lint`, `Migration check`, `Pytest`) on every PR to `main` or `develop`.
 
 ### 4. Committing
@@ -93,6 +95,7 @@ Use imperative mood, keep the summary under ~70 characters, include issue IDs wh
 Before opening a PR:
 
 - ✅ `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy grow`, and `uv run pytest` all pass
+- ✅ Latency SLOs pass (`uv run pytest perf --ds=perf.settings`, CI job `Perf`) when a serializer, queryset or import changed
 - ✅ New features/bug fixes have corresponding tests
 - ✅ `CHANGELOG.md` updated under `[Unreleased]`
 - ✅ `README.md` updated if endpoints, env vars, or setup steps changed

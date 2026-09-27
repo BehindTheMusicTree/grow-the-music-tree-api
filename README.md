@@ -16,6 +16,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
   - [Environment variables](#environment-variables)
   - [API](#api)
   - [Tests](#tests)
+- [Performance](#performance)
   - [License](#license)
 
 ## Features
@@ -105,6 +106,26 @@ Tests run against an in-memory SQLite database and need no environment variables
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy grow
+```
+
+## Performance
+
+Two gates keep list and detail endpoints fast. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
+
+- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and no more than its `BUDGETS` entry.
+- **Latency SLOs** (`perf/`, CI job `Perf`): median latency per endpoint on Postgres (p95 is printed too), seeded with a pinned snapshot of the prod pipeline's Gold exports (`perf/fixtures/`), imported through the same endpoints and in the same order as the nightly sync.
+
+```bash
+docker run -d --name grow-perf-pg -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:55432:5432 postgres:16-alpine
+PERF_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/postgres uv run pytest perf --no-cov -s --ds=perf.settings --reuse-db
+```
+
+The fixture is refreshed by hand, since an SLO needs fixed data (re-calibrate `SLO_MS` in the same PR):
+
+```bash
+for f in 1_canonical_genre_tree 1_regional_genre_tree 2_songs; do
+  scp <vps>:/home/btmt-deploy/music-tree-pipelines-prod/data/gold/$f.json perf/fixtures/ && gzip -9f perf/fixtures/$f.json
+done
 ```
 
 ## License
