@@ -83,10 +83,10 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/albums`                  | Albums                                               |
 | `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |
-| `/v1/playlists`               | Playlists                                            |
-| `/v1/manual-playlists`        | Manual playlists                                     |
-| `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only)    |
-| `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only)      |
+| `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`)                  |
+| `/v1/manual-playlists`        | Manual playlists (CRUD + `{uuid}/tracks/`)           |
+| `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
+| `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
 | `/v1/library/youtube`         | Youtube tracks (CRUD + `songs/import/`)           |
 
