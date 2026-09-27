@@ -23,18 +23,16 @@ from .essential_tracks import CriteriaEssentialTracksSerializerMixin
 
 _tracks_fields = build_criteria_detailed_tracks_fields(
     TrackWithoutAlbumPlaylistGenreSerializer,
-    CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
-    CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
-    CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+    CriteriaOutputFieldKey.TRACKS_PUBLIC.value,
+    CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
 )
 
 
 class CriteriaDetailedSerializer(
     CriteriaSideSerializerMixin, CriteriaEssentialTracksSerializerMixin, AppInputSerializer, serializers.ModelSerializer
 ):
-    tracks = _tracks_fields[CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value]
-    tracks_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value]
-    tracks_archived_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value]
+    tracks = _tracks_fields[CriteriaOutputFieldKey.TRACKS_PUBLIC.value]
+    tracks_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value]
     parent = CriteriaMinimumSerializer()
     ascendants = CriteriaLineageRelWithoutDescendantSerializer(source=ModelFields.ASCENDANTS_RELS, many=True)
     descendants = CriteriaLineageRelWithoutAscendantSerializer(source=ModelFields.DESCENDANTS_RELS, many=True)
@@ -55,9 +53,8 @@ class CriteriaDetailedSerializer(
             CriteriaOutputFieldKey.ROOT.value,
             CriteriaOutputFieldKey.CHILDREN.value,
             CriteriaOutputFieldKey.CRITERIA_PLAYLIST.value,
-            CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_PUBLIC.value,
-            CriteriaOutputFieldKey.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC.value,
-            CriteriaOutputFieldKey.TRACKS_ARCHIVED_COUNT_PUBLIC.value,
+            CriteriaOutputFieldKey.TRACKS_PUBLIC.value,
+            CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
             CriteriaOutputFieldKey.CREATED_ON.value,

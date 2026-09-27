@@ -40,10 +40,10 @@ class Album(TrackMixin):
         return getattr(self, Fields.TRACKS_RELATED_NAME)
 
     @property
-    def tracks_not_archived_sorted(self) -> models.QuerySet[Track]:
+    def tracks_sorted(self) -> models.QuerySet[Track]:
         from grow.model.track.Fields import Fields as TrackFields
 
-        return self.tracks_not_archived.annotate(null_position=Q(track_number__isnull=True)).order_by(
+        return self.tracks.annotate(null_position=Q(track_number__isnull=True)).order_by(
             "null_position", TrackFields.TRACK_NUMBER, TrackFields.TITLE
         )
 
@@ -61,7 +61,7 @@ class Album(TrackMixin):
         else:
             string += " [No Artist]"
 
-        tracks: list[Track] = list(self.tracks_not_archived.all())
+        tracks: list[Track] = list(self.tracks.all())
         if tracks:
             track_details = []
             for track in tracks:
@@ -70,6 +70,6 @@ class Album(TrackMixin):
                 track_artists = f"{track_artists} | " if track_artists else "[No Artist] | "
                 track_details.append(f"{track_position}{track_artists}{track.title}")
             track_details_str = "; ".join(track_details)
-            string += f" | Tracks not archived: {track_details_str}"
+            string += f" | Tracks: {track_details_str}"
 
         return string

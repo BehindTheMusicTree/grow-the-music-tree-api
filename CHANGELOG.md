@@ -12,6 +12,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-09-27
+
+### Added
+
+- `GET /v1/genres/{uuid}/overview/` (and `/v1/tags/{uuid}/overview/`): a lean criteria payload with only `uuid`, `name`, `summary`, `side` and `essentialTracks`, for views that don't need the full detail response (tracks, lineage, children, playlist). It runs a fixed number of queries however many essential tracks the genre has; tests guard the field set, the 404 and the query count.
+
+### Changed
+
+- Upgraded `the-music-tree-genre-kit` to v0.31.0. Track archiving now belongs to hear only, and the kit migration drops the unused `archived` column from the shared track table. Every grow track had `archived = false`.
+
+### Removed
+
+- `tracksArchivedCount` from the artist, album, playlist, genre-playlist and genre detail responses, and `archived` from YouTube track responses.
+
+### Fixed
+
+- `GET /v1/genre-playlists/` ran several queries per row, so large pages timed out behind the proxy with a 502. The list now runs a fixed number of queries whatever the page size, and a query-count test guards against regressions.
+
 ## [7.2.0] - 2026-09-26
 
 ### Added

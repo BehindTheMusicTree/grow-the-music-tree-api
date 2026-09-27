@@ -14,4 +14,3 @@ class TestCase(AppTestCase):
         assert len(data["albums"]) == 1
         assert data["albums"][0]["name"] == "The Wall"
         assert data["tracks_count"] == 0
-        assert data["tracks_archived_count"] == 0

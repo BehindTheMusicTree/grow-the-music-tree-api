@@ -8,7 +8,7 @@ from .Fields import Fields
 
 class AlbumSimpleSerializer(serializers.ModelSerializer):
     album_artists = ArtistMinimumSerializer(many=True)
-    tracks_count = serializers.IntegerField(source=Fields.TRACKS_NOT_ARCHIVED_COUNT_INTERNAL)
+    tracks_count = serializers.IntegerField()
 
     class Meta:
         model = Album
@@ -17,6 +17,6 @@ class AlbumSimpleSerializer(serializers.ModelSerializer):
             Fields.NAME_PUBLIC,
             Fields.YEAR,
             Fields.ALBUM_ARTISTS,
-            Fields.TRACKS_NOT_ARCHIVED_COUNT_PUBLIC,
+            Fields.TRACKS_COUNT_PUBLIC,
             Fields.CREATED_ON,
         ]

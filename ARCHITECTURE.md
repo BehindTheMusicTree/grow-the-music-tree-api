@@ -79,7 +79,7 @@ Identity (`request.user`, `request.auth`) decides what a caller may do; `get_own
 
 One thing this trace surfaces that's easy to miss: `AppModelViewSet` (api-kit) defaults **every** action (`list`/`create`/`retrieve`/`update`/`destroy`) to `MethodNotAllowed`. A concrete viewset gets nothing for free — `CriteriaViewSet` has to explicitly implement each one it wants to expose. If a new viewset silently 405s on an action you expected to work, this is why.
 
-`CriteriaDetailedSerializer` (`grow/serializer/model/criteria/output/detailed.py`) is a good example of the composition style used throughout: it nests `CriteriaMinimumSerializer` (parent/root/children), `CriteriaLineageRelWithout{Ascendant,Descendant}Serializer`, `CriteriaPlaylistMinimumSerializer` for the shadow playlist, and the kit-provided `build_criteria_detailed_tracks_fields(...)` helper for the tracks/tracks_count/tracks_archived_count fields.
+`CriteriaDetailedSerializer` (`grow/serializer/model/criteria/output/detailed.py`) is a good example of the composition style used throughout: it nests `CriteriaMinimumSerializer` (parent/root/children), `CriteriaLineageRelWithout{Ascendant,Descendant}Serializer`, `CriteriaPlaylistMinimumSerializer` for the shadow playlist, and the kit-provided `build_criteria_detailed_tracks_fields(...)` helper for the tracks/tracks_count fields.
 
 ## Settings model
 

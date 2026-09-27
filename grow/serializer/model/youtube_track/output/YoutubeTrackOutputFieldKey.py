@@ -15,5 +15,4 @@ class YoutubeTrackOutputFieldKey(StrEnum):
     LANGUAGE = "language"
     PLAYLISTS_PUBLIC = "playlists"
     PLAY_COUNT = "play_count"
-    ARCHIVED = "archived"
     YOUTUBE_VIDEO_ID = "youtube_video_id"
