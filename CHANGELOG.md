@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.2.0] - 2026-09-27
+
 ### Added
 
 - `GET /v1/{playlists,genre-playlists,tag-playlists,manual-playlists}/{uuid}/tracks/`: a paginated, position-ordered page of a playlist's tracks, without each track's nested `playlists`. The largest genre's first 100 tracks load in about 60 ms, against about 4.5 s for the full detail. Query budget and latency SLO included.
