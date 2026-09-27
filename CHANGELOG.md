@@ -18,9 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- Upgraded `the-music-tree-genre-kit` to v0.33.0: a playlist can no longer hold the same track twice, and positions stay unique across song re-imports.
+- Upgraded `the-music-tree-genre-kit` to v0.33.0: a playlist can no longer hold the same track twice, and positions stay unique across song re-imports. Its migration deletes duplicate playlist-track rows (keeping the lowest position) and renumbers positions 1..n per playlist; it cannot be reversed.
 - Playlist detail `tracksCount` now counts distinct tracks, like the lists.
-- `GET /v1/plays/` returns `content` at minimum depth (uuid plus name or title) and runs a fixed number of queries.
+- `/v1/plays/` (list, retrieve and create) returns `content` at minimum depth (uuid plus name or title) instead of the full playlist or track, and the list runs a fixed number of queries. No client reads plays' nested content.
 - Tests now run with the production camelCase parser and renderer, so they exercise the real wire format.
 
 ## [8.1.0] - 2026-09-27
