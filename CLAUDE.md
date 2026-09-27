@@ -39,6 +39,7 @@ uv run manage.py runserver
   SECRET_KEY=x PIPELINE_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
+- **Perf:** `PERF_DATABASE_URL=postgres://... uv run pytest perf --no-cov -s --ds=perf.settings --reuse-db`. Latency SLOs on Postgres, seeded from the pinned prod Gold exports in `perf/fixtures/` through the real import endpoints (seed takes about 1 min, `--reuse-db` skips it). Query budgets live in `tests/integration/perf/` and run in plain `pytest`. `perf/settings.py` switches to prod's camelCase parser/renderer, which `tests/settings.py` doesn't use (so test payloads are snake_case, unlike the wire). CI job `Perf`.
 - These four map 1:1 to CI (`.github/workflows/validate.yml` jobs `Lint`, `Migration check`, `Pytest`) — run all of them before opening a PR.
 
 ## Architecture

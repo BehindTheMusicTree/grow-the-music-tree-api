@@ -1,5 +1,8 @@
+from django.db.models import Prefetch
 from rest_framework import serializers
 from the_music_tree_api_kit.serializer.AppInputSerializer import AppInputSerializer
+from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.serializer.model.album.minimum import AlbumMinimumSerializer
@@ -10,11 +13,18 @@ from grow.serializer.model.playlist.base.output.minimum import PlaylistMinimumSe
 from .YoutubeTrackOutputFieldKey import YoutubeTrackOutputFieldKey
 
 
-class YoutubeTrackDetailedSerializer(AppInputSerializer, serializers.ModelSerializer):
+class YoutubeTrackDetailedSerializer(EagerLoadingMixin, AppInputSerializer, serializers.ModelSerializer):
     artists = ArtistMinimumSerializer(many=True)
     album = AlbumMinimumSerializer()
     genre = CriteriaMinimumSerializer()
     playlists = PlaylistMinimumSerializer(many=True)
+
+    @classmethod
+    def setup_queryset(cls, queryset, prefix=""):
+        playlists = PlaylistMinimumSerializer.setup_queryset(Playlist._default_manager.all())
+        return queryset.select_related(f"{prefix}album", f"{prefix}genre").prefetch_related(
+            f"{prefix}artists", Prefetch(f"{prefix}playlists", queryset=playlists)
+        )
 
     class Meta:
         model = YoutubeTrack
