@@ -1,0 +1,121 @@
+# Builds the image on GitHub-hosted runners (this repo is public, so minutes are free) and pushes it
+# to GHCR, keeping Docker builds off the CPU-bound VPS. One image serves both Coolify apps: gtmt-api
+# and its django-q2 worker (same image, qcluster entrypoint override set in the infrastructure repo).
+# Coolify deploys the moving `staging` / `prod` tag. Requires org-level vars COOLIFY_API_SUBDOMAIN,
+# DOMAIN_NAME, SERVER_HOST and org-level secret COOLIFY_API_TOKEN. The api health check passes
+# health_check_origin_ip (SERVER_HOST) to curl --resolve straight to the origin, bypassing
+# Cloudflare's Bot Fight Mode.
+name: Build and deploy
+
+on:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  IMAGE: ghcr.io/behindthemusictree/gtmt-api
+
+jobs:
+  build:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=prod,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy (staging)
+    if: github.ref == 'refs/heads/develop'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: STAGING
+    concurrency:
+      group: deploy-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      # api first: its start script runs the migrations the worker's tasks depend on.
+      - name: Trigger gtmt-api deploy
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.3.4
+        with:
+          app_name: gtmt-api
+          coolify_environment: staging
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
+          health_check_path: /health/
+          health_check_origin_ip: ${{ vars.SERVER_HOST }}
+
+      - name: Trigger worker deploy
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.3.4
+        with:
+          app_name: worker
+          coolify_environment: staging
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
+
+  deploy-prod:
+    name: Deploy (prod)
+    if: github.ref == 'refs/heads/main'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: PROD
+    concurrency:
+      group: deploy-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Trigger gtmt-api deploy
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.3.4
+        with:
+          app_name: gtmt-api
+          coolify_environment: production
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
+          health_check_path: /health/
+          health_check_origin_ip: ${{ vars.SERVER_HOST }}
+
+      - name: Trigger worker deploy
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.3.4
+        with:
+          app_name: worker
+          coolify_environment: production
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
