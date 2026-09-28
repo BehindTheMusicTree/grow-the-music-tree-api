@@ -8,4 +8,4 @@ _GenreBaseSimpleSerializer = build_criteria_simple_serializer(Genre)
 
 class GenreSimpleSerializer(_GenreBaseSimpleSerializer):  # type: ignore[valid-type,misc]
     class Meta(_GenreBaseSimpleSerializer.Meta):  # type: ignore[name-defined]
-        fields = [*_GenreBaseSimpleSerializer.Meta.fields, "has_name_conflict"]  # type: ignore[name-defined]
+        fields = [*_GenreBaseSimpleSerializer.Meta.fields, "has_name_conflict", "is_unaccepted_root"]  # type: ignore[name-defined]

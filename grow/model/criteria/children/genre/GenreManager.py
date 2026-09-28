@@ -48,6 +48,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance, old_parent=old_parent, old_root=old_root, root_changed=root_changed, actor=actor
         )
         if actor is not None:
+            if instance.parent_id is not None:
+                instance.is_unaccepted_root = False
+                instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
         HistoryEntry.objects.record(
             instance,
@@ -167,6 +170,25 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 genre.save(update_fields=["has_name_conflict"])
                 self._lock(genre)
                 HistoryEntry.objects.record(genre, action=HistoryAction.NAME_CONFLICT_RESOLVED, actor=actor)
+
+    def get_unaccepted_roots(self, user: Any) -> list[Genre]:
+        return list(self.filter(user=user, is_unaccepted_root=True, is_excluded=False).order_by("_name"))
+
+    @transaction.atomic
+    def accept_roots(self, user: Any, uuids: list[Any], actor: Any = None) -> None:
+        genres = {genre.uuid: genre for genre in self.filter(user=user, uuid__in=uuids, is_unaccepted_root=True)}
+        missing = [str(uuid) for uuid in uuids if uuid not in genres]
+        if missing:
+            raise AppValidationException(
+                field_name=missing[0],
+                message="Unaccepted root genre not found",
+                field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
+            )
+        for genre in genres.values():
+            genre.is_unaccepted_root = False
+            genre.save(update_fields=["is_unaccepted_root"])
+            self._lock(genre)
+            HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
