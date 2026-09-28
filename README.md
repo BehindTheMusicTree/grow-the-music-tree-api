@@ -13,6 +13,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
   - [Setup](#setup)
     - [Docker Compose (recommended)](#docker-compose-recommended)
     - [Local (uv + external Postgres)](#local-uv--external-postgres)
+    - [Prod data locally](#prod-data-locally)
   - [Environment variables](#environment-variables)
   - [API](#api)
   - [Tests](#tests)
@@ -55,6 +56,14 @@ Set the required environment variables (see below), then:
 uv run manage.py migrate
 uv run manage.py runserver
 ```
+
+### Prod data locally
+
+```bash
+RCLONE_CONFIG=~/.config/rclone/gtmt-backup.conf R2_BACKUP_BUCKET_NAME=<bucket> ./scripts/restore-prod-db.sh
+```
+
+Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `pg_dump` to Cloudflare R2), then restarts `api`/`worker`, which apply the current branch's migrations. Includes admin curation that the pipeline Gold exports in `perf/fixtures/` lack. The dump holds only the public canonical dataset, so it is safe on a laptop. Requires [rclone](https://rclone.org/) and a config with an `[r2]` remote (`type = s3`, `provider = Cloudflare`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`) using a **read-only** R2 token scoped to the backup bucket, not the VPS's read/write one.
 
 ## Environment variables
 
