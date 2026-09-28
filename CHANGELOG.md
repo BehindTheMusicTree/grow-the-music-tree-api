@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.3.0] - 2026-09-28
+
 ### Added
 
 - Unaccepted root genres: the tree import copies each node's optional `isUnacceptedRoot` onto the genre (recomputed for unlocked rows), so the pipeline can emit a canonical root it hasn't accepted instead of failing. `GET /v1/genres/unaccepted-roots/` lists them (uuid, name, `wikidataId`, …, ordered by name); `POST /v1/genres/unaccepted-roots/accept/` (`{"genres": [{"uuid": ...}]}`, admin only, 204) unflags and locks them and records a `root_accepted` history entry. An admin reparent also clears the flag. Genres expose `isUnacceptedRoot` and filter on `?is_unaccepted_root=`. Tests included.
