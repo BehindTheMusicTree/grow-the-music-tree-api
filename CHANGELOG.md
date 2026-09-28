@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.3.1] - 2026-09-28
+
 ### Added
 
 - `build-and-deploy.yml` workflow: on push to `develop`/`main`, builds the Docker image on GitHub-hosted runners and pushes it to GHCR (`ghcr.io/behindthemusictree/gtmt-api`, tags `staging`/`prod` plus `sha-<short>`), then triggers the Coolify deploys of `gtmt-api` and its `worker`, moving image builds off the VPS.
