@@ -10,12 +10,14 @@ command -v rclone >/dev/null || { echo "rclone is required (brew install rclone)
 
 cd "$(dirname "$0")/.."
 
-latest_object="$(rclone lsjson "r2:${R2_BACKUP_BUCKET_NAME}" --recursive \
+# Coolify's upload prefix; listing the whole bucket also walks the TMD asset snapshots and takes minutes.
+prefix="data/coolify/backups/databases"
+latest_object="$(rclone lsjson "r2:${R2_BACKUP_BUCKET_NAME}/${prefix}" --recursive --files-only \
   | python3 -c "
 import json, sys
-entries = [e for e in json.load(sys.stdin) if not e['IsDir'] and 'gtmt-api-db' in e['Path']]
+entries = [e for e in json.load(sys.stdin) if 'gtmt-api-db' in e['Path']]
 entries.sort(key=lambda e: e['ModTime'], reverse=True)
-print(entries[0]['Path'] if entries else '')
+print('${prefix}/' + entries[0]['Path'] if entries else '')
 ")"
 [ -n "$latest_object" ] || { echo "No gtmt-api-db backup found in ${R2_BACKUP_BUCKET_NAME}" >&2; exit 1; }
 
