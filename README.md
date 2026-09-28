@@ -81,7 +81,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `GET /health/`                | Health check (no auth)                               |
 | `/v1/artists`                 | Artists                                              |
 | `/v1/albums`                  | Albums                                               |
-| `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`) |
+| `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |
 | `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`)                  |
 | `/v1/manual-playlists`        | Manual playlists (CRUD + `{uuid}/tracks/`)           |

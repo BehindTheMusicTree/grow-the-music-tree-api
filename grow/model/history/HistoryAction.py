@@ -9,3 +9,4 @@ class HistoryAction(models.TextChoices):
     GENRE_CHANGED = "genre_changed", "Genre changed"
     DELETED = "deleted", "Deleted"
     NAME_CONFLICT_RESOLVED = "name_conflict_resolved", "Name conflict resolved"
+    ROOT_ACCEPTED = "root_accepted", "Root accepted"

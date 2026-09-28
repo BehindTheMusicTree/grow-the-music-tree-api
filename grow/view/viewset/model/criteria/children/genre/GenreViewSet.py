@@ -12,7 +12,13 @@ from grow.serializer.model.criteria.children.genre.input.name_conflict_validate 
 )
 from grow.serializer.model.criteria.children.genre.input.post import GenrePostSerializer
 from grow.serializer.model.criteria.children.genre.input.put import GenrePutSerializer
-from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
+from grow.serializer.model.criteria.children.genre.input.unaccepted_root_accept import (
+    GenreUnacceptedRootAcceptSerializer,
+)
+from grow.serializer.model.criteria.children.genre.output.name_conflict_group import (
+    GenreNameConflictGroupSerializer,
+    GenreNameConflictMemberSerializer,
+)
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
@@ -58,6 +64,22 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         Genre.objects.validate_name_conflict_group(
             get_request_owner(request),
             {genre["uuid"]: genre["name"] for genre in serializer.validated_data["genres"]},
+            **self._get_manager_write_kwargs(request),
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=["get"], url_path="unaccepted-roots")
+    def unaccepted_roots(self, request: Request) -> Response:
+        genres = Genre.objects.get_unaccepted_roots(get_request_owner(request))
+        return Response(data=GenreNameConflictMemberSerializer(genres, many=True).data)
+
+    @action(detail=False, methods=["post"], url_path="unaccepted-roots/accept")
+    def accept_unaccepted_roots(self, request: Request) -> Response:
+        serializer = GenreUnacceptedRootAcceptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        Genre.objects.accept_roots(
+            get_request_owner(request),
+            [genre["uuid"] for genre in serializer.validated_data["genres"]],
             **self._get_manager_write_kwargs(request),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
