@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [8.3.2] - 2026-09-29
+
 ### Added
 
 - Manual `workflow_dispatch` trigger on `build-and-deploy.yml`, to rebuild and redeploy a branch's image when a push run didn't fire.
