@@ -76,7 +76,7 @@ Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `p
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
 | `DEBUG`                  | no       | `false`   |                                                                                                            |
 | `ALLOWED_HOSTS`          | no       | `""`      | Comma-separated                                                                                            |
-| `SOURCE_COMMIT`          | no       | —         | Surfaced as `commit` in `/health/`; injected at runtime by Coolify                                         |
+| `GIT_COMMIT`             | no       | —         | Surfaced as `commit` in `/health/`; baked into the image by the build workflow                             |
 | `APP_PORT`               | no       | `8001`    | Only used by Docker Compose                                                                                |
 
 There's no `.env.example` — Docker Compose supplies dev defaults for all of the above inline.

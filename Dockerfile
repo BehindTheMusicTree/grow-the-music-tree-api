@@ -24,6 +24,11 @@ RUN uv sync --frozen --no-dev
 
 RUN chmod +x scripts/entrypoint.sh scripts/start-server.sh scripts/wait-for-postgres-db.sh
 
+# Last so a new commit doesn't invalidate the cached layers above. Not SOURCE_COMMIT: Coolify
+# overrides that one at runtime (with "HEAD" for image-based apps).
+ARG GIT_COMMIT
+ENV GIT_COMMIT=$GIT_COMMIT
+
 # The django-q2 worker reuses this image with qcluster as PID 1 and serves no HTTP; Coolify still
 # waits on this HEALTHCHECK to accept its deploys, so pass while that process is alive.
 HEALTHCHECK --interval=10s --timeout=6s --retries=5 --start-period=60s \
