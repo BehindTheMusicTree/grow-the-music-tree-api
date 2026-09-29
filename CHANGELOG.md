@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking**: playlist detail responses (`GET {playlists|genre-playlists|tag-playlists|manual-playlists}/{uuid}/`) no longer include `trackPlaylistRelations`; read tracks from the paged `{uuid}/tracks/` endpoint. The largest genre's detail drops from ~5 s to tens of ms (2 queries); detail query budgets and latency SLOs tightened accordingly. The `youtubeVideoId` regression test now covers the tracks endpoint.
+
+### Added
+
+- Bruno `genre-playlist-tracks` request.
+
 ## [8.3.3] - 2026-09-29
 
 ### Fixed

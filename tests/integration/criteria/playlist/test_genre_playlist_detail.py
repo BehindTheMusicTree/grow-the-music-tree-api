@@ -14,21 +14,4 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["tracksCount"] == 0
-
-    def test_retrieve_genre_playlist_returns_track_youtube_video_id(self):
-        rock_criteria = self.model_fixture_factory.create_genre(name="rock")
-        youtube_track = self.model_fixture_factory.create_youtube_track(
-            title="Track Title",
-            genre=rock_criteria,
-            youtube_video_id="abc123defgh",
-        )
-        playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
-
-        response = self.api_client.get(path=reverse("genre-playlist-detail", kwargs={"pk": playlist.uuid}))
-
-        assert response.status_code == status.HTTP_200_OK
-        track_playlist_relations = response.json()["trackPlaylistRelations"]
-        assert len(track_playlist_relations) == 1
-        assert track_playlist_relations[0]["track"]["uuid"] == str(youtube_track.uuid)
-        assert track_playlist_relations[0]["track"]["youtubeVideoId"] == youtube_track.youtube_video_id
-        assert track_playlist_relations[0]["track"]["youtubeVideoId"] == "abc123defgh"
+        assert "trackPlaylistRelations" not in response.json()

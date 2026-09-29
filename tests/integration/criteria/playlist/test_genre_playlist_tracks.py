@@ -23,3 +23,15 @@ class TestCase(AppTestCase):
         assert rel["position"] == 1
         assert rel["track"]["uuid"] == str(second.uuid)
         assert "playlists" not in rel["track"]
+
+    def test_tracks_page_returns_track_youtube_video_id(self):
+        rock_criteria = self.model_fixture_factory.create_genre(name="rock")
+        self.model_fixture_factory.create_youtube_track(
+            title="Track Title", genre=rock_criteria, youtube_video_id="abc123defgh"
+        )
+        playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
+
+        response = self.api_client.get(path=reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid}))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["results"][0]["track"]["youtubeVideoId"] == "abc123defgh"
