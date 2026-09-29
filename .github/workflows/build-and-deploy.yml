@@ -10,9 +10,15 @@ name: Build and deploy
 on:
   push:
     branches: [develop, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# Serializes build+deploy per branch so an older run can't overwrite a newer :staging/:prod tag.
+concurrency:
+  group: build-and-deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -54,6 +60,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -65,9 +73,6 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     environment: STAGING
-    concurrency:
-      group: deploy-${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: false
     steps:
       # api first: its start script runs the migrations the worker's tasks depend on.
       - name: Trigger gtmt-api deploy
@@ -96,9 +101,6 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     environment: PROD
-    concurrency:
-      group: deploy-${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: false
     steps:
       - name: Trigger gtmt-api deploy
         uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.3.4

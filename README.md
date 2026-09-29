@@ -60,10 +60,10 @@ uv run manage.py runserver
 ### Prod data locally
 
 ```bash
-RCLONE_CONFIG=~/.config/rclone/gtmt-backup.conf R2_BACKUP_BUCKET_NAME=<bucket> ./scripts/restore-prod-db.sh
+RCLONE_CONFIG=~/.config/rclone/gtmt-backup.conf R2_BACKUP_BUCKET_NAME=btmt-backups ./scripts/restore-prod-db.sh
 ```
 
-Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `pg_dump` to Cloudflare R2), then restarts `api`/`worker`, which apply the current branch's migrations. Includes admin curation that the pipeline Gold exports in `perf/fixtures/` lack. The dump holds only the public canonical dataset, so it is safe on a laptop. Requires [rclone](https://rclone.org/) and a config with an `[r2]` remote (`type = s3`, `provider = Cloudflare`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`) using a **read-only** R2 token scoped to the backup bucket, not the VPS's read/write one.
+Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `pg_dump` to Cloudflare R2), then restarts `api`/`worker`, which apply the current branch's migrations. Includes admin curation that the pipeline Gold exports in `perf/fixtures/` lack. The dump holds only the public canonical dataset, so it is safe on a laptop. Requires [rclone](https://rclone.org/) and a config with an `[r2]` remote (`type = s3`, `provider = Cloudflare`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`) using a **read-only** R2 token scoped to the backup bucket, not the VPS's read/write one. Token setup: infrastructure's [`docs/guides/cloudflare-r2-backup-setup.md` § 5](https://github.com/BehindTheMusicTree/infrastructure/blob/main/docs/guides/cloudflare-r2-backup-setup.md#5-local-dev-read-only-token-prod-db-restore).
 
 ## Environment variables
 
@@ -76,7 +76,7 @@ Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `p
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
 | `DEBUG`                  | no       | `false`   |                                                                                                            |
 | `ALLOWED_HOSTS`          | no       | `""`      | Comma-separated                                                                                            |
-| `SOURCE_COMMIT`          | no       | —         | Surfaced as `commit` in `/health/`; injected at runtime by Coolify                                         |
+| `GIT_COMMIT`             | no       | —         | Surfaced as `commit` in `/health/`; baked into the image by the build workflow                             |
 | `APP_PORT`               | no       | `8001`    | Only used by Docker Compose                                                                                |
 
 There's no `.env.example` — Docker Compose supplies dev defaults for all of the above inline.

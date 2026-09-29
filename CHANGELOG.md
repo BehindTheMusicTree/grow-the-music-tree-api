@@ -20,6 +20,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Bruno `genre-playlist-tracks` request.
 
+## [8.3.3] - 2026-09-29
+
+### Fixed
+
+- **`/health/` `commit` on image-based deploys**: Coolify sets `SOURCE_COMMIT=HEAD` at runtime for apps deployed from a registry image, so `commit` reported `HEAD`. The build workflow now bakes the commit SHA into the image as `GIT_COMMIT` (Dockerfile build arg), which the settings read instead of `SOURCE_COMMIT`.
+- **Build tag races**: `build-and-deploy.yml` now serializes runs per branch (workflow-level concurrency), so a slower older build can no longer overwrite a newer `:staging`/`:prod` tag.
+
+## [8.3.2] - 2026-09-29
+
+### Added
+
+- Manual `workflow_dispatch` trigger on `build-and-deploy.yml`, to rebuild and redeploy a branch's image when a push run didn't fire.
+
 ## [8.3.1] - 2026-09-28
 
 ### Added
