@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The Docker image is now a multi-stage build on `python:3.14-slim-bookworm`: 244 MB on disk instead of 1.17 GB. uv and git stay in the `builder` stage, which `docker-compose.override.yml` now targets for local dev. Added a `.dockerignore`.
+
 ### Removed
 
 - **Breaking**: playlist detail responses (`GET {playlists|genre-playlists|tag-playlists|manual-playlists}/{uuid}/`) no longer include `trackPlaylistRelations`; read tracks from the paged `{uuid}/tracks/` endpoint. The largest genre's detail drops from ~5 s to tens of ms (2 queries); detail query budgets and latency SLOs tightened accordingly. The `youtubeVideoId` regression test now covers the tracks endpoint.
