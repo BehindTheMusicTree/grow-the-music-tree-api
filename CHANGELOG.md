@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `genre-playlists/` list accepts `?allows_multiple_primary_parents=` to pick one genre tree. `false` returns only the canonical tree. Without it, the regional tree's ~630 genres that have no regional parent show up as extra roots. Test included.
 - Bruno `genre-playlist-tracks` request.
 - GET responses now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified` (Django `ConditionalGetMiddleware`), so clients revalidating the genre tree skip re-downloading it. The query and serialization still run; only the transfer is saved.
 
