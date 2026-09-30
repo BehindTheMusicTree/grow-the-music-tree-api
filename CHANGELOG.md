@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- `UserProfile` model (`pseudo`, unique) and the `set_user_pseudo <email> <pseudo>` management command.
+- `UserProfile` model (`pseudo`, unique) and the `set_user_pseudo <email> <pseudo>` management command (refuses a pseudo already taken).
 
 **Deploy note**: after migrating, run `manage.py set_user_pseudo <admin-email> <pseudo>` for every admin with history entries. Until then, history endpoints listing their entries return 500.
 

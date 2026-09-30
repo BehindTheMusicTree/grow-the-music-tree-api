@@ -1,5 +1,6 @@
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand, CommandError
+from django.db import IntegrityError
 
 from grow.model.user.UserProfile import UserProfile
 
@@ -18,5 +19,8 @@ class Command(BaseCommand):
             raise CommandError(f"No User with email {email}") from e
         except User.MultipleObjectsReturned as e:
             raise CommandError(f"Several Users with email {email}") from e
-        UserProfile.objects.update_or_create(user=user, defaults={"pseudo": pseudo})
+        try:
+            UserProfile.objects.update_or_create(user=user, defaults={"pseudo": pseudo})
+        except IntegrityError as e:
+            raise CommandError(f"Pseudo {pseudo} is already taken") from e
         self.stdout.write(f"{email} -> {pseudo}")
