@@ -26,6 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Bruno `genre-playlist-tracks` request.
 - GET responses now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified` (Django `ConditionalGetMiddleware`), so clients revalidating the genre tree skip re-downloading it. The query and serialization still run; only the transfer is saved.
 
+### Fixed
+
+- Staging deploys failed Coolify's healthcheck since the slim image, which dropped `curl`/`wget` that Coolify runs inside the container, so every deploy rolled back. The image installs `curl` again.
+
 ## [8.3.3] - 2026-09-29
 
 ### Fixed
