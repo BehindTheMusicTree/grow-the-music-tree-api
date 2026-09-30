@@ -16,7 +16,7 @@ class TestCase(GenreTestCase):
         genre.refresh_from_db()
         assert genre.is_excluded is True
         entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.EXCLUDED)
-        assert entry.actor_email == "admin@example.com"
+        assert entry.actor == self.admin
 
     def test_exclude_sole_mainstream_pop_root_then_400_bad_request(self):
         root = self.model_fixture_factory.create_genre("Mainstream Pop")

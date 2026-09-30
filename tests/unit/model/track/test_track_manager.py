@@ -14,7 +14,7 @@ class TestCase(AppTestCase):
 
         assert updated.is_manually_edited is False
         entry = HistoryEntry.objects.get(content_uuid=track.uuid, action=HistoryAction.GENRE_CHANGED)
-        assert entry.actor_email is None
+        assert entry.actor is None
         assert entry.old_value == "Rock"
         assert entry.new_value == "Pop"
 
@@ -23,8 +23,8 @@ class TestCase(AppTestCase):
         pop = self.model_fixture_factory.create_genre(name="Pop")
         track = self.model_fixture_factory.create_youtube_track(title="wech", genre=rock)
 
-        updated = YoutubeTrack.objects.update_instance(track, genre=pop, actor="admin@example.com")
+        updated = YoutubeTrack.objects.update_instance(track, genre=pop, actor=self.admin)
 
         assert updated.is_manually_edited is True
         entry = HistoryEntry.objects.get(content_uuid=track.uuid, action=HistoryAction.GENRE_CHANGED)
-        assert entry.actor_email == "admin@example.com"
+        assert entry.actor == self.admin

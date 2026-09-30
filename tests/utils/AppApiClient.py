@@ -6,14 +6,22 @@ from django.http import HttpResponse
 from rest_framework.test import APIClient
 
 from grow.authentication.Principal import Principal
+from grow.model.user.UserProfile import UserProfile
+
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PSEUDO = "admin"
 
 
 class AppApiClient(APIClient):
+    admin: User
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.admin, _ = User.objects.get_or_create(username=settings.ADMIN_GOOGLE_SUB, defaults={"email": ADMIN_EMAIL})
+        UserProfile.objects.get_or_create(user=self.admin, defaults={"pseudo": ADMIN_PSEUDO})
         self.force_authenticate(
-            user=User(username=settings.ADMIN_GOOGLE_SUB),
-            token=Principal(role="admin", email="admin@example.com", sub=settings.ADMIN_GOOGLE_SUB),
+            user=self.admin,
+            token=Principal(role="admin", email=ADMIN_EMAIL, sub=settings.ADMIN_GOOGLE_SUB),
         )
 
     def credentials(self, **kwargs):
