@@ -12,9 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [9.0.0] - 2026-09-30
+
 ### Changed
 
-- The Docker image is now a multi-stage build on `python:3.14-slim-bookworm`: 244 MB on disk instead of 1.17 GB. uv and git stay in the `builder` stage, which `docker-compose.override.yml` now targets for local dev. Added a `.dockerignore`.
+- The Docker image is now a multi-stage build on `python:3.14-slim-bookworm`: 244 MB on disk instead of 1.17 GB. It keeps `curl`, which Coolify's own healthcheck runs inside the container. uv and git stay in the `builder` stage, which `docker-compose.override.yml` now targets for local dev. Added a `.dockerignore`.
 
 ### Removed
 
@@ -25,10 +27,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `genre-playlists/` list accepts `?allows_multiple_primary_parents=` to pick one genre tree. `false` returns only the canonical tree. Without it, the regional tree's ~630 genres that have no regional parent show up as extra roots. Test included.
 - Bruno `genre-playlist-tracks` request.
 - GET responses now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified` (Django `ConditionalGetMiddleware`), so clients revalidating the genre tree skip re-downloading it. The query and serialization still run; only the transfer is saved.
-
-### Fixed
-
-- Staging deploys failed Coolify's healthcheck since the slim image, which dropped `curl`/`wget` that Coolify runs inside the container, so every deploy rolled back. The image installs `curl` again.
 
 ## [8.3.3] - 2026-09-29
 
