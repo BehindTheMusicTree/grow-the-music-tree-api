@@ -16,6 +16,9 @@ Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`).
 
 `GET {base}`
 
+`?treeName=canonical|regional` picks one genre tree. `canonical` also returns the Genreless
+playlist. An unknown value returns 400.
+
 #### Retrieve
 
 `GET {base}{id}/`
