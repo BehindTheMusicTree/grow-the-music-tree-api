@@ -1,3 +1,5 @@
+from django_filters import BooleanFilter
+
 from grow.filtering.filter.char.CriteriaNameFilter import CriteriaNameFilter
 from grow.filtering.filter.foreign_key.ForeignKeyFilter import ForeignKeyFilter
 from grow.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import PrivateUniqueResourceFilterSet
@@ -14,7 +16,15 @@ class CriteriaPlaylistFilterSet(PrivateUniqueResourceFilterSet):
         lookup_expr="icontains",
     )
     parent = ForeignKeyFilter()
+    allows_multiple_primary_parents = BooleanFilter(
+        field_name=f"{ModelFields.CRITERIA}__allows_multiple_primary_parents"
+    )
 
     class Meta:
         model = CriteriaPlaylist
-        fields = [Fields.NAME_PUBLIC, Fields.PARENT, *PrivateUniqueResourceFilterSet.get_date_fields()]
+        fields = [
+            Fields.NAME_PUBLIC,
+            Fields.PARENT,
+            "allows_multiple_primary_parents",
+            *PrivateUniqueResourceFilterSet.get_date_fields(),
+        ]
