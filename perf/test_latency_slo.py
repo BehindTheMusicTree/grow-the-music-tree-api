@@ -21,9 +21,8 @@ SLO_MS = {
     "tag-playlist-list?page_size=100": 100,
     "playlist-list?page_size=100": 100,
     "genre-list?page_size=100": 200,
-    # ponytail: ~5,900 tracks unpaginated in one response; ceiling drops once detail tracks are paginated
-    "genre-playlist-detail (largest genre)": 13000,
-    "playlist-detail (largest genre)": 13000,
+    "genre-playlist-detail (largest genre)": 100,
+    "playlist-detail (largest genre)": 100,
     "genre-playlist-tracks?page_size=100 (largest genre)": 150,
 }
 

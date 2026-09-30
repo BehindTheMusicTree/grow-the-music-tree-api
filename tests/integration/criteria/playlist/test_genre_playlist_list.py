@@ -27,3 +27,23 @@ class TestCase(AppTestCase):
         results = response.json()["results"]
         edm_result = next(result for result in results if result["criteria"] and result["criteria"]["name"] == "EDM")
         assert edm_result["criteria"]["summary"] == "Electronic dance music"
+
+    def test_list_genre_playlists_filters_by_tree_scope(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Italian progressive rock", allows_multiple_primary_parents=True)
+
+        response = self.api_client.get(
+            path=reverse("genre-playlist-list"), data={"allows_multiple_primary_parents": "false"}
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        names = [result["criteria"]["name"] for result in response.json()["results"] if result["criteria"]]
+        assert names == ["Rock"]
+
+    def test_list_genre_playlists_returns_304_when_etag_matches(self):
+        self.model_fixture_factory.create_genre("Electronic")
+
+        first = self.api_client.get(path=reverse("genre-playlist-list"))
+        second = self.api_client.get(path=reverse("genre-playlist-list"), HTTP_IF_NONE_MATCH=first["ETag"])
+
+        assert second.status_code == status.HTTP_304_NOT_MODIFIED

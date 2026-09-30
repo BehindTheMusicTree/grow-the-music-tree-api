@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.14-bookworm
+FROM python:3.14-slim-bookworm AS base
 
 ARG APP_NAME=gtmt-api
 
@@ -9,18 +9,32 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_NAME=$APP_NAME \
     PATH="/home/app/.venv/bin:$PATH"
 
+# curl: Coolify's own healthcheck runs curl/wget inside the container.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client && \
+    apt-get install -y --no-install-recommends postgresql-client curl && \
     apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR $PROJECT_DIR
+
+# Also the local dev target (docker-compose.override.yml), which runs uv sync at startup.
+FROM base AS builder
+
+# uv clones the kits over git+https.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 COPY . $PROJECT_DIR
 
-WORKDIR $PROJECT_DIR
-
 RUN uv sync --frozen --no-dev
+
+FROM base
+
+# Same path as the builder: the venv's scripts hardcode it in their shebangs.
+COPY --from=builder $PROJECT_DIR $PROJECT_DIR
 
 RUN chmod +x scripts/entrypoint.sh scripts/start-server.sh scripts/wait-for-postgres-db.sh
 
