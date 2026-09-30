@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [10.0.0] - 2026-09-30
+
 ### Changed
 
 - **Breaking**: a genre's tree is now named by `treeName` (`canonical` or `regional`) instead of the `allowsMultiplePrimaryParents` flag. Tree import payloads must carry `treeName`; `GET {genres|tags}/tree/` requires `?treeName=`; `genre-playlists/` filters with `?treeName=` (`canonical` keeps the Genreless playlist) instead of `?allows_multiple_primary_parents=`. Unknown values return 400. Migration `0033` maps `allows_multiple_primary_parents=True` to `regional`. Perf fixtures refreshed to the new payload shape. Bumps genre-kit to v0.35.1 (api-kit v0.9.0). Tests cover the migration, both filters, and the 400s.
