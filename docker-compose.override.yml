@@ -1,5 +1,7 @@
 services:
   api:
+    build:
+      target: builder
     volumes:
       - ./:/home/app/
       - api-venv:/opt/venv

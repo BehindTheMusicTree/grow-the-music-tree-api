@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+.claude
+.local
+graphify-out
+tests
+perf
+docs
+bruno
+**/__pycache__
+.mypy_cache
+.pytest_cache
+.coverage
