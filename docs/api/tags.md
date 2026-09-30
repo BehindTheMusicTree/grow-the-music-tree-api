@@ -35,8 +35,10 @@ single-tenant service — this is the canonical reference dataset, not scoped pe
 
 #### Tree
 
-`GET {base}tree/`
+`GET {base}tree/?treeName=canonical|regional`
 
 #### Import Tree
 
 `POST {base}tree/import/`
+
+Body: `{"treeName": "canonical"|"regional", "tree": [...]}`.

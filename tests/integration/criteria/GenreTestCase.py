@@ -14,12 +14,8 @@ class GenreTestCase(AppTestCase):
     def _list_genres(self, **kwargs):
         return self.api_client.get(path=reverse(self.list_endpoint), data=kwargs, handle_response=self._set_results)
 
-    def _get_genres_tree(self, allows_multiple_primary_parents: str | None = "false"):
-        data = (
-            {}
-            if allows_multiple_primary_parents is None
-            else {"allows_multiple_primary_parents": allows_multiple_primary_parents}
-        )
+    def _get_genres_tree(self, tree_name: str | None = "canonical"):
+        data = {} if tree_name is None else {"tree_name": tree_name}
         return self.api_client.get(
             path=reverse(self.list_endpoint) + "tree/",
             data=data,

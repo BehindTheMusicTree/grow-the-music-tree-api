@@ -35,7 +35,9 @@ single-tenant service — this is the canonical reference dataset, not scoped pe
 
 #### Tree
 
-`GET {base}tree/`
+`GET {base}tree/?treeName=canonical|regional`
+
+`treeName` is required; a missing or unknown value returns 400.
 
 #### History
 
@@ -64,6 +66,9 @@ with `manage.py set_user_pseudo <email> <pseudo>`.
 #### Import Tree
 
 `POST {base}tree/import/`
+
+Body: `{"treeName": "canonical"|"regional", "tree": [...]}`. `treeName` is required. Only
+`regional` nodes may carry several `primaryParents`.
 
 Each node may carry an optional `id` (a Wikidata QID, e.g. `"Q9778"`). Nodes with an `id` are
 matched against existing genres by `id` and updated in place; nodes without one are always

@@ -24,9 +24,7 @@ class TestUnacceptedRoot(GenreTestCase):
         self.pala = Genre.objects.get(user=None, wikidata_id="Q15724583")
 
     def _import(self, tree):
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: tree}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree})
         assert response.status_code == status.HTTP_201_CREATED
 
     def _unaccepted_roots(self):
@@ -55,6 +53,10 @@ class TestUnacceptedRoot(GenreTestCase):
 
         self._list_genres(is_unaccepted_root="true")
         assert [g["name"] for g in self.results] == ["Pala"]
+
+    def test_list_with_non_boolean_is_unaccepted_root_then_400(self):
+        response = self.api_client.get(path=reverse("genre-list"), data={"is_unaccepted_root": "yes"})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_accept_unflags_locks_and_records_history(self):
         assert self._accept([self.pala.uuid]).status_code == status.HTTP_204_NO_CONTENT
