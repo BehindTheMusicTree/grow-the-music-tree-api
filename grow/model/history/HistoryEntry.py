@@ -22,7 +22,9 @@ class HistoryEntry(PrivateUniqueResource):
     content = GenericForeignKey(ct_field=Fields.CONTENT_TYPE, fk_field=Fields.CONTENT_UUID)  # type: ignore
 
     action = models.CharField(max_length=32, choices=HistoryAction.choices)
-    actor_email = models.CharField(max_length=255, null=True, blank=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="history_actions", null=True, blank=True
+    )
     """`None` means the pipeline import made the change, not an admin."""
     old_value = models.TextField(null=True, blank=True)
     new_value = models.TextField(null=True, blank=True)
@@ -38,4 +40,4 @@ class HistoryEntry(PrivateUniqueResource):
         ]
 
     def __str__(self) -> str:
-        return f"{self.uuid} | {self.content_type} | {self.content_uuid} | {self.action} | {self.actor_email}"
+        return f"{self.uuid} | {self.content_type} | {self.content_uuid} | {self.action} | {self.actor_id}"

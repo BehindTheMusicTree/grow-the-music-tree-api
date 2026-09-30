@@ -35,11 +35,40 @@ single-tenant service — this is the canonical reference dataset, not scoped pe
 
 #### Tree
 
-`GET {base}tree/`
+`GET {base}tree/?treeName=canonical|regional`
+
+`treeName` is required; a missing or unknown value returns 400.
+
+#### History
+
+`GET {base}{id}/history/`
+
+Public. The genre's modification log, newest first:
+
+```json
+[
+  {
+    "uuid": "…",
+    "action": "parent_changed",
+    "actorPseudo": "Gardener",
+    "oldValue": null,
+    "newValue": "Electronic",
+    "createdOn": "2026-09-30T12:00:00Z"
+  }
+]
+```
+
+`action` is one of `created`, `parent_changed`, `renamed`, `excluded`, `deleted`,
+`name_conflict_resolved`, `root_accepted`. `actorPseudo` is the admin's public pseudo, or `null`
+when the pipeline import made the change. No email is ever exposed. Pseudos are set server-side
+with `manage.py set_user_pseudo <email> <pseudo>`.
 
 #### Import Tree
 
 `POST {base}tree/import/`
+
+Body: `{"treeName": "canonical"|"regional", "tree": [...]}`. `treeName` is required. Only
+`regional` nodes may carry several `primaryParents`.
 
 Each node may carry an optional `id` (a Wikidata QID, e.g. `"Q9778"`). Nodes with an `id` are
 matched against existing genres by `id` and updated in place; nodes without one are always

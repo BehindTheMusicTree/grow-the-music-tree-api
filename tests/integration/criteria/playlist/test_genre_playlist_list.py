@@ -28,17 +28,25 @@ class TestCase(AppTestCase):
         edm_result = next(result for result in results if result["criteria"] and result["criteria"]["name"] == "EDM")
         assert edm_result["criteria"]["summary"] == "Electronic dance music"
 
-    def test_list_genre_playlists_filters_by_tree_scope(self):
+    def _list_names_by_tree_name(self, tree_name):
         self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_genre("Italian progressive rock", allows_multiple_primary_parents=True)
+        self.model_fixture_factory.create_genre("Italian progressive rock", tree_name="regional")
 
-        response = self.api_client.get(
-            path=reverse("genre-playlist-list"), data={"allows_multiple_primary_parents": "false"}
-        )
+        response = self.api_client.get(path=reverse("genre-playlist-list"), data={"tree_name": tree_name})
 
         assert response.status_code == status.HTTP_200_OK
-        names = [result["criteria"]["name"] for result in response.json()["results"] if result["criteria"]]
-        assert names == ["Rock"]
+        return [result["criteria"] and result["criteria"]["name"] for result in response.json()["results"]]
+
+    def test_list_genre_playlists_filtered_by_canonical_tree_includes_genreless(self):
+        assert sorted(self._list_names_by_tree_name("canonical"), key=str) == [None, "Rock"]
+
+    def test_list_genre_playlists_filtered_by_regional_tree_excludes_genreless(self):
+        assert self._list_names_by_tree_name("regional") == ["Italian progressive rock"]
+
+    def test_list_genre_playlists_with_bogus_tree_name_then_400(self):
+        response = self.api_client.get(path=reverse("genre-playlist-list"), data={"tree_name": "bogus"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_list_genre_playlists_returns_304_when_etag_matches(self):
         self.model_fixture_factory.create_genre("Electronic")

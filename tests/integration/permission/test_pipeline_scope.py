@@ -9,7 +9,7 @@ from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWE
 from tests.utils.AppTestCase import AppTestCase
 
 TREE_PAYLOAD = {
-    Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False,
+    Fields.TREE_NAME: "canonical",
     Fields.TREE: [
         {Fields.ID: qid, Fields.NAME_PUBLIC: n, Fields.CHILDREN: []}
         for qid, n in (("Q11399", "Rock"), ("Q373342", "Mainstream Pop"))

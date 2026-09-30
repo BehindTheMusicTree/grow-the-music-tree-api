@@ -12,15 +12,13 @@ from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 class TestNodeCount(GenreTestCase):
     def test_no_data_then_400_bad_request(self):
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: None}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: None})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.REQUIRED
 
     def test_empty_then_400_bad_request(self):
-        response = self._post_genres_tree_import(data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: []})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: []})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.REQUIRED
@@ -34,9 +32,7 @@ class TestNodeCount(GenreTestCase):
             )
 
         data = [root, {Fields.ID: "Q102", Fields.NAME_PUBLIC: "Root2", Fields.CHILDREN: []}]
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.TREE_TOO_LARGE
@@ -56,9 +52,7 @@ class TestNodeCount(GenreTestCase):
 
         data[0][Fields.CHILDREN].append({Fields.ID: "Q103", Fields.NAME_PUBLIC: "Extra Child", Fields.CHILDREN: []})
 
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["field"] == Fields.TREE
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.TREE_TOO_LARGE
@@ -72,9 +66,7 @@ class TestNodeCount(GenreTestCase):
             )
 
         data = [root]
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: data}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
         genres_count = Genre.objects.filter(user=None).count()
         assert genres_count == 3001
@@ -108,9 +100,7 @@ class TestNodeCount(GenreTestCase):
         node_count += 1
 
         start = time.monotonic()
-        response = self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: False, Fields.TREE: [root]}
-        )
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: [root]})
         elapsed = time.monotonic() - start
 
         assert response.status_code == status.HTTP_201_CREATED

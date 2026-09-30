@@ -103,8 +103,12 @@ class TestCase(GenreTestCase):
         assert blues is not None
         assert blues.parent.pk == jazz.pk
 
-    def test_without_allows_multiple_primary_parents_then_400_bad_request(self):
-        response = self._get_genres_tree(allows_multiple_primary_parents=None)
+    def test_without_tree_name_then_400_bad_request(self):
+        response = self._get_genres_tree(tree_name=None)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_with_bogus_tree_name_then_400_bad_request(self):
+        response = self._get_genres_tree(tree_name="bogus")
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_with_query_param_not_related_to_pagination_then_400_bad_request(self):

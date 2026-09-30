@@ -11,9 +11,13 @@ class HistoryActionMixin:
     @action(detail=True, methods=["get"])
     def history(self, request: Request, *args, **kwargs) -> Response:
         instance = self.get_object()
-        queryset = HistoryEntry.objects.filter(
-            content_type=ContentType.objects.get_for_model(self.model_class),
-            content_uuid=instance.uuid,
-        ).order_by("created_on")
+        queryset = (
+            HistoryEntry.objects.filter(
+                content_type=ContentType.objects.get_for_model(self.model_class),
+                content_uuid=instance.uuid,
+            )
+            .select_related("actor__profile")
+            .order_by("-created_on")
+        )
         serializer = HistoryEntryDetailedSerializer(queryset, many=True)
         return Response(data=serializer.data)

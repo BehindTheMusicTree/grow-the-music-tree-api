@@ -19,7 +19,7 @@ class CriteriaOutputFieldKey(StrEnum):
     CRITERIA_PLAYLIST = "criteria_playlist"
     SIDE = "side"
     SUMMARY = "summary"
-    ALLOWS_MULTIPLE_PRIMARY_PARENTS = "allows_multiple_primary_parents"
+    TREE_NAME = "tree_name"
     PRIMARY_PARENTS = "primary_parents"
     SECONDARY_PARENTS = "secondary_parents"
     ESSENTIAL_TRACKS = "essential_tracks"

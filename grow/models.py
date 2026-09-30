@@ -14,6 +14,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
+from grow.model.user.UserProfile import UserProfile
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     "TagPlaylist",
     "Track",
     "TrackPlaylistRel",
+    "UserProfile",
     "YoutubeTrack",
 ]

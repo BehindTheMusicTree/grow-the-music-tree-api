@@ -77,8 +77,9 @@ SCENARIOS: dict[str, tuple[Callable[[int, int], None], Callable[[], str]]] = {
 
 
 def _count_queries(path: str) -> int:
+    client = AppApiClient()
     with CaptureQueriesContext(connection) as queries:
-        response = AppApiClient().get(path, LIST_PATH)
+        response = client.get(path, LIST_PATH)
     assert response.status_code == status.HTTP_200_OK
     return len(queries.captured_queries)
 

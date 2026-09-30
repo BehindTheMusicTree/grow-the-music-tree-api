@@ -20,14 +20,12 @@ REGIONAL_TREE = [
 
 
 class TestNameConflict(GenreTestCase):
-    def _import(self, allows_multiple_primary_parents, tree):
-        return self._post_genres_tree_import(
-            data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: allows_multiple_primary_parents, Fields.TREE: tree}
-        )
+    def _import(self, tree_name, tree):
+        return self._post_genres_tree_import(data={Fields.TREE_NAME: tree_name, Fields.TREE: tree})
 
     def test_regional_namesake_of_canonical_genre_is_imported_flagged_and_renamable(self):
-        assert self._import(False, CANONICAL_TREE).status_code == status.HTTP_201_CREATED
-        assert self._import(True, REGIONAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import("canonical", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import("regional", REGIONAL_TREE).status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
         assert genres.get(wikidata_id="Q1431327").name == "Pub rock"
@@ -45,7 +43,7 @@ class TestNameConflict(GenreTestCase):
 
         flagged = genres.get(wikidata_id="Q16250593")
         assert self._put_genre(flagged.uuid, data={"name": "Pub rock (Australia)"}).status_code == status.HTTP_200_OK
-        assert self._import(True, REGIONAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import("regional", REGIONAL_TREE).status_code == status.HTTP_201_CREATED
 
         renamed = Genre.objects.get(pk=flagged.pk)
         assert (renamed.name, renamed.has_name_conflict, renamed.is_manually_edited) == (
@@ -64,10 +62,8 @@ class TestNameConflict(GenreTestCase):
 class TestNameConflictGroups(GenreTestCase):
     def setUp(self):
         super().setUp()
-        for allows_multiple_primary_parents, tree in ((False, CANONICAL_TREE), (True, REGIONAL_TREE)):
-            self._post_genres_tree_import(
-                data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: allows_multiple_primary_parents, Fields.TREE: tree}
-            )
+        for tree_name, tree in (("canonical", CANONICAL_TREE), ("regional", REGIONAL_TREE)):
+            self._post_genres_tree_import(data={Fields.TREE_NAME: tree_name, Fields.TREE: tree})
         self.genres = Genre.objects.filter(user=None)
         self.canonical = self.genres.get(wikidata_id="Q1431327")
         self.flagged = self.genres.get(wikidata_id="Q16250593")
@@ -103,7 +99,7 @@ class TestNameConflictGroups(GenreTestCase):
         response = self._validate([(self.canonical, "Pub rock (UK)"), (self.flagged, "Pub rock (Australia)")])
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        self._post_genres_tree_import(data={Fields.ALLOWS_MULTIPLE_PRIMARY_PARENTS: True, Fields.TREE: REGIONAL_TREE})
+        self._post_genres_tree_import(data={Fields.TREE_NAME: "regional", Fields.TREE: REGIONAL_TREE})
         assert Genre.objects.get(pk=self.canonical.pk).name == "Pub rock (UK)"
         flagged = Genre.objects.get(pk=self.flagged.pk)
         assert (flagged.name, flagged.has_name_conflict) == ("Pub rock (Australia)", False)
