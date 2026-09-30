@@ -9,8 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     APP_NAME=$APP_NAME \
     PATH="/home/app/.venv/bin:$PATH"
 
+# curl: Coolify's own healthcheck runs curl/wget inside the container.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client && \
+    apt-get install -y --no-install-recommends postgresql-client curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
