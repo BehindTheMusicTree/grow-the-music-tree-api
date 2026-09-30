@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking**: history responses (`GET {genres|youtube-tracks}/{uuid}/history/`) drop `actorEmail` for `actorPseudo` (the admin's public pseudo, `null` for pipeline changes) and are now ordered newest first. `HistoryEntry.actor_email` becomes an `actor` FK to `User`; migration `0032` maps existing emails to their `User` and fails if any email has no match. Tests cover the payload, ordering, the migration mapping and the new command.
+
+### Added
+
+- `UserProfile` model (`pseudo`, unique) and the `set_user_pseudo <email> <pseudo>` management command.
+
+**Deploy note**: after migrating, run `manage.py set_user_pseudo <admin-email> <pseudo>` for every admin with history entries. Until then, history endpoints listing their entries return 500.
+
 ## [9.0.0] - 2026-09-30
 
 ### Changed

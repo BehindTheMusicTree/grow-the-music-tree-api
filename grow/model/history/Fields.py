@@ -5,6 +5,6 @@ from grow.model.ContentObjectFields import ContentObjectFields
 
 class Fields(PrivateUniqueResourceFields, ContentObjectFields):
     ACTION = "action"
-    ACTOR_EMAIL = "actor_email"
+    ACTOR = "actor"
     OLD_VALUE = "old_value"
     NEW_VALUE = "new_value"
