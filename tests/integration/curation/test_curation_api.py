@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
@@ -7,6 +9,7 @@ from grow.curation.lists import CURATION_LISTS
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
+from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
 ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
@@ -142,3 +145,33 @@ class TestCase(AppTestCase):
         row = next(r for r in export["main_parent"] if r["item_id"] == ITEM["item_id"])
         assert list(row) == list(CURATION_LISTS["main_parent"].columns)
         assert row["exclude_other_parents"] == ""
+
+    def test_local_item_id_then_accepted(self):
+        assert self._create({**ITEM, "item_id": "LOCAL:my-genre"}).status_code == status.HTTP_201_CREATED
+
+    def test_tab_in_key_column_then_400(self):
+        row = {"root_genre_name": "rock\tx", "pop_child_genre_name": "pop", "reason": "r"}
+
+        assert self._create(row, "canonical_genre_pop_side").status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_patch_key_to_existing_then_400(self):
+        self._create(ITEM)
+        other = self._create({**ITEM, "item_id": "Q999999992"}).json()["uuid"]
+
+        response = self.api_client.patch(self._entry_url(other), {"row": {"item_id": ITEM["item_id"]}}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_patch_same_key_in_exclusive_list_then_200(self):
+        uuid = self._create(ITEM).json()["uuid"]
+
+        response = self.api_client.patch(self._entry_url(uuid), {"row": {"item_id": ITEM["item_id"]}}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_non_admin_token_then_403(self):
+        self.api_client.credentials(HTTP_AUTHORIZATION="Bearer some-token")
+        with patch(VERIFY, return_value=VIEWER_CLAIMS):
+            response = self.api_client.get(path=reverse("curation-lists"))
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
