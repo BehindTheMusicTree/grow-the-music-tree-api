@@ -1,15 +1,27 @@
 import csv
 import re
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from django.db import models
+from django.utils import timezone
 
-from grow.curation.lists import BOOL_COLUMNS, CURATION_LISTS, EXCLUSIVE_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
+from grow.curation.lists import (
+    BOOL_COLUMNS,
+    CURATION_LISTS,
+    EXCLUSIVE_LISTS,
+    ITEM_ID_COLUMNS,
+    ITEM_ID_PATTERN,
+    KEY_MAX_LENGTH,
+)
 
 KEY_SEPARATOR = "\t"
 SEED_DIR = Path(__file__).parent / "seed"
+
+UpsertResult = Literal["created", "updated", "unchanged"]
 
 
 class InvalidRow(ValueError):
@@ -57,14 +69,17 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in curation_list.key and KEY_SEPARATOR in value:
             errors[column] = "Must not contain a tab"
             continue
-        if column in ITEM_ID_COLUMNS and not re.match(ITEM_ID_PATTERN, value):
+        if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
         parsed[column] = value
     if errors:
         raise InvalidRow(errors)
+    key = KEY_SEPARATOR.join(parsed[c] for c in curation_list.key)
+    if len(key) > KEY_MAX_LENGTH:
+        raise InvalidRow({curation_list.key[-1]: f"Key must be at most {KEY_MAX_LENGTH} characters"})
     return ParsedRow(
-        key=KEY_SEPARATOR.join(parsed[c] for c in curation_list.key),
+        key=key,
         values={c: parsed[c] for c in curation_list.value_columns},
         reason=parsed.get("reason", ""),
     )
@@ -93,9 +108,38 @@ def find_exclusivity_conflict(
     return others.values_list("list_name", flat=True).first()
 
 
-def import_csv_dir(model: type[models.Model], directory: Path) -> tuple[int, int]:
-    """Upserts every list from `manual_<list_name>.csv` in `directory`. Returns (created, updated)."""
-    created = updated = 0
+def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
+    """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any."""
+    parsed = parse_row(list_name, row)
+    conflict = find_exclusivity_conflict(entries, list_name, parsed.key)
+    if conflict:
+        raise InvalidRow(
+            {
+                CURATION_LISTS[list_name].key[
+                    0
+                ]: f"{parsed.key} is already in {conflict}; these lists are mutually exclusive"
+            }
+        )
+    return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
+
+
+def upsert_without_history(model: type[models.Model], list_name: str, row: dict[str, Any]) -> UpsertResult:
+    """`CurationEntryManager.upsert` for migrations, whose historical models have neither the manager nor history."""
+    entries = model.objects.filter(user=None)
+    parsed, entry = check_upsert(entries, list_name, row)
+    fields = {"values": parsed.values, "reason": parsed.reason}
+    if entry is None:
+        model.objects.create(user=None, list_name=list_name, key=parsed.key, **fields)
+        return "created"
+    if all(getattr(entry, k) == v for k, v in fields.items()):
+        return "unchanged"
+    entries.filter(pk=entry.pk).update(updated_on=timezone.now(), **fields)
+    return "updated"
+
+
+def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
+    """Upserts every list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
+    results: Counter[UpsertResult] = Counter()
     for list_name, curation_list in CURATION_LISTS.items():
         path = directory / f"manual_{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
@@ -104,16 +148,7 @@ def import_csv_dir(model: type[models.Model], directory: Path) -> tuple[int, int
                 raise ValueError(f"{path.name}: header {reader.fieldnames} != {list(curation_list.columns)}")
             for line, row in enumerate(reader, start=2):
                 try:
-                    parsed = parse_row(list_name, row)
+                    results[upsert(list_name, row)] += 1
                 except InvalidRow as e:
                     raise ValueError(f"{path.name}:{line}: {e.errors}") from e
-                conflict = find_exclusivity_conflict(model.objects.filter(user=None), list_name, parsed.key)
-                if conflict:
-                    raise ValueError(f"{path.name}:{line}: {parsed.key} is already in {conflict}")
-                fields = {"values": parsed.values, "reason": parsed.reason}
-                if model.objects.filter(user=None, list_name=list_name, key=parsed.key).update(**fields):
-                    updated += 1
-                else:
-                    model.objects.create(user=None, list_name=list_name, key=parsed.key, **fields)
-                    created += 1
-    return created, updated
+    return results

@@ -16,7 +16,9 @@ class Command(BaseCommand):
     def handle(self, *args, directory: Path, **options) -> None:
         try:
             with transaction.atomic():
-                created, updated = import_csv_dir(CurationEntry, directory)
+                results = import_csv_dir(directory, CurationEntry.objects.upsert)
         except (OSError, ValueError) as e:
             raise CommandError(str(e)) from e
-        self.stdout.write(f"{created} created, {updated} updated")
+        self.stdout.write(
+            f"{results['created']} created, {results['updated']} updated, {results['unchanged']} unchanged"
+        )

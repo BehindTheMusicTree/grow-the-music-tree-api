@@ -7,6 +7,7 @@ from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
 from grow.serializer.model.criteria.children.genre.input.name_conflict_validate import (
     GenreNameConflictValidateSerializer,
 )
@@ -48,7 +49,11 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
 
     @action(detail=True, methods=["post"])
     def exclude(self, request: Request, *args, **kwargs) -> Response:
-        instance = Genre.objects.exclude_instance(self.get_object(), **self._get_manager_write_kwargs(request))
+        input_serializer = GenreExcludeSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        instance = Genre.objects.exclude_instance(
+            self.get_object(), input_serializer.validated_data["category"], **self._get_manager_write_kwargs(request)
+        )
         serializer = self._require_serializer(SerializerType.DETAILED)(instance=instance)
         return Response(data=serializer.data)
 

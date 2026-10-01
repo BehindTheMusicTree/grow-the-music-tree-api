@@ -4,7 +4,11 @@ from django.db import transaction
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
+from grow.curation.lists import CURATION_LISTS, EXCLUDED_GENRE_LISTS
+from grow.curation.rows import InvalidRow
+from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 
@@ -30,6 +34,47 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         instance.is_manually_edited = True
         instance.save(update_fields=["is_manually_edited"])
 
+    def _upsert_rule(self, instance: Genre, list_name: str, actor: Any, **row: str) -> None:
+        """Mirrors an admin edit of a wikidata-backed genre into the curation list the pipeline reads, so the
+        next import reproduces it instead of only skipping the locked row. App-created genres (no wikidata_id)
+        are never in the pipeline's output, so the lock alone already keeps them."""
+        if instance.wikidata_id is None:
+            return
+        columns = CURATION_LISTS[list_name].columns
+        row = {"item_id": instance.wikidata_id, **row}
+        if "item_label" in columns:
+            row["item_label"] = instance.name
+        if "reason" in columns:
+            row["reason"] = f"grow admin edit by {actor.profile.pseudo}"
+        try:
+            CurationEntry.objects.upsert(list_name, row, actor=actor)
+        except InvalidRow as e:
+            field_name, message = next(iter(e.errors.items()))
+            raise AppValidationException(
+                field_name=field_name,
+                message=f"Can't record this edit in {list_name}: {message}",
+                field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
+            ) from e
+
+    def _reparent_rule(self, instance: Genre) -> dict[str, str]:
+        """The `main_parent` row for an admin reparent, or a 400 when no curation list can express it."""
+        parent_item_id = self.filter(pk=instance.parent_id).values_list("wikidata_id", flat=True).first()
+        if instance.tree_name != CriteriaTreeName.CANONICAL:
+            # The new parent may be a regional overview (`regional_overrides`) or a genre (`main_parent`),
+            # which grow can't tell apart, and `regional_secondary_parents` adds an edge rather than moving one.
+            message = "Regional genres can't be reparented here; edit the regional curation lists instead"
+        elif instance.parent_id is None:
+            message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
+        elif parent_item_id is None:
+            message = "A wikidata-backed genre's new parent must be wikidata-backed too"
+        else:
+            return {"parent_item_id": parent_item_id, "exclude_other_parents": "true"}
+        raise AppValidationException(
+            field_name="parent",
+            message=message,
+            field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
+        )
+
     def _on_created(self, instance: Genre, *, actor: Any = None) -> None:
         super()._on_created(instance, actor=actor)
         if actor is not None:
@@ -48,6 +93,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance, old_parent=old_parent, old_root=old_root, root_changed=root_changed, actor=actor
         )
         if actor is not None:
+            if instance.wikidata_id is not None:
+                self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
             if instance.parent_id is not None:
                 instance.is_unaccepted_root = False
                 instance.save(update_fields=["is_unaccepted_root"])
@@ -65,6 +112,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance.has_name_conflict = False
             instance.save(update_fields=["has_name_conflict"])
             self._lock(instance)
+            self._upsert_rule(instance, "label_overrides", actor, display_label=instance.name)
         HistoryEntry.objects.record(
             instance, action=HistoryAction.RENAMED, actor=actor, old_value=old_name, new_value=instance.name
         )
@@ -100,13 +148,15 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             self.assert_required_roots_present(user)
 
     @transaction.atomic
-    def exclude_instance(self, instance: Genre, actor: Any = None) -> Genre:
+    def exclude_instance(self, instance: Genre, category: str, actor: Any = None) -> Genre:
         """Soft-remove a wikidata-backed genre: excluded from the visible tree, protected from
         re-creation/deletion by the next pipeline import, unlike a real DELETE (see
         `AbstractGenreCriteria.is_excluded`)."""
         was_required_root = self._is_required_root(instance)
         instance.is_excluded = True
         instance.save(update_fields=["is_excluded"])
+        if actor is not None:
+            self._upsert_rule(instance, EXCLUDED_GENRE_LISTS[category], actor)
         if was_required_root:
             self.assert_required_roots_present(instance.user)
         HistoryEntry.objects.record(instance, action=HistoryAction.EXCLUDED, actor=actor)
@@ -188,6 +238,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             genre.is_unaccepted_root = False
             genre.save(update_fields=["is_unaccepted_root"])
             self._lock(genre)
+            if actor is not None:
+                self._upsert_rule(genre, "accepted_canonical_roots", actor)
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
 
     @transaction.atomic

@@ -119,7 +119,7 @@ class TestCase(AppTestCase):
     def test_exclude_instance_sets_flag_and_logs_history(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
 
-        excluded = Genre.objects.exclude_instance(genre, actor=self.admin)
+        excluded = Genre.objects.exclude_instance(genre, "theme", actor=self.admin)
 
         assert excluded.is_excluded is True
         entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.EXCLUDED)
@@ -129,7 +129,7 @@ class TestCase(AppTestCase):
         root = self.model_fixture_factory.create_genre("Mainstream Pop")
 
         with pytest.raises(AppValidationException):
-            Genre.objects.exclude_instance(root, actor=self.admin)
+            Genre.objects.exclude_instance(root, "theme", actor=self.admin)
 
         root.refresh_from_db()
         assert root.is_excluded is False

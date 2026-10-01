@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 from django.db import transaction
 from the_music_tree_api_kit.public_standard_resource.StandardResourceManager import StandardResourceManager
 
+from grow.curation.rows import UpsertResult, check_upsert
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 
@@ -48,3 +49,16 @@ class CurationEntryManager(StandardResourceManager):
             instance, action=HistoryAction.DELETED, actor=actor, old_value=self._snapshot(instance)
         )
         instance.delete()
+
+    @transaction.atomic
+    def upsert(self, list_name: str, row: dict[str, Any], actor: Any = None) -> UpsertResult:
+        """Creates or updates the canonical entry with `row`'s key, recording history. Raises `InvalidRow`."""
+        parsed, entry = check_upsert(self.filter(user=None), list_name, row)
+        fields = {"values": parsed.values, "reason": parsed.reason}
+        if entry is None:
+            self.create(actor=actor, user=None, list_name=list_name, key=parsed.key, **fields)
+            return "created"
+        if all(getattr(entry, k) == v for k, v in fields.items()):
+            return "unchanged"
+        self.update_instance(entry, actor=actor, **fields)
+        return "updated"

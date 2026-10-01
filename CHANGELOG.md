@@ -15,6 +15,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Curation domain: the pipelines' 18 hand-edited `manual_*.csv` lists now live in the API as `CurationEntry` rows (registry in `grow/curation/lists.py`). Admin CRUD on `curation/{list}/entries/`, `curation/lists/`, and `curation/export/` (pipeline key or admin) returning every list as CSV-ready rows. Rows are validated (columns, QIDs, booleans, unique key, mutual exclusivity of theme/technique/out-of-scope/duplicate lists) and every write records a `HistoryEntry` (new `updated` action). Migration `0035` seeds from the vendored CSVs when the table is empty; `manage.py import_curation_csvs <dir>` upserts from a directory. Tests cover auth, CRUD, validation, history, export shape and the seed round trip.
+- Admin edits of wikidata-backed genres now also upsert a curation rule keyed by the genre's `wikidataId`, so the pipeline reproduces them instead of only skipping the locked row: rename → `label_overrides`, canonical reparent → `main_parent` (`exclude_other_parents`), root acceptance → `accepted_canonical_roots`, exclusion → `<category>_genres`, each with reason `grow admin edit by <pseudo>` and through the same validation as the curation API. Reparents no list expresses (to a root, under an app-created genre, or in the regional tree) return 400. App-created genres (no `wikidataId`) keep lock-only edits. Migration `0036` converts existing locked or excluded genres into rules from their admin history trail (exclusions, whose category was never recorded, go to `out_of_scope_genres`); locks stay. Tests cover each mapping, the 400s, and the migration's idempotence.
+
+### Changed
+
+- **Breaking**: `POST genres/{uuid}/exclude/` requires `{"category": "theme"|"technique"|"out_of_scope"|"duplicate"}`; a missing or unknown category returns 400.
+
+### Fixed
+
+- `curation/` `POST`/`PATCH` with a non-object JSON body return 400 instead of 500.
+- Curation item ids are matched in full (`re.fullmatch`, ASCII `[0-9]`): a trailing newline or non-ASCII digits are rejected.
+- A curation key longer than 512 characters returns 400 instead of a database error.
+- `import_curation_csvs` updates now record an `updated` history entry and touch `updated_on`; unchanged rows are skipped and counted (`N created, N updated, N unchanged`).
 
 ## [10.0.0] - 2026-09-30
 
