@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Docker builds pin `ghcr.io/astral-sh/uv` to `0.11` instead of `latest`: the 2026-09-29 amd64 `latest` image ships a non-executable `/uv`, so `uv sync` failed with `Exec format error`.
 - `curation/` `POST`/`PATCH` with a non-object JSON body return 400 instead of 500.
 - Curation item ids are matched in full (`re.fullmatch`, ASCII `[0-9]`): a trailing newline or non-ASCII digits are rejected.
 - A curation key longer than 512 characters returns 400 instead of a database error.
