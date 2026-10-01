@@ -8,3 +8,6 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
     "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
 }
+
+# `row` holds a curation list's CSV columns, which stay snake_case on the wire.
+JSON_CAMEL_CASE = {"JSON_UNDERSCOREIZE": {"ignore_fields": ("row",)}}

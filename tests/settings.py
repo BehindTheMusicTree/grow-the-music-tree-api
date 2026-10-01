@@ -2,7 +2,7 @@ import os
 import tomllib
 from pathlib import Path
 
-from grow.rest_framework_settings import REST_FRAMEWORK
+from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
