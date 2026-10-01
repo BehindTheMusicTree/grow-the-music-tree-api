@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework import routers
 
 from grow.view.auth_me import AuthMeView
+from grow.view.curation import CurationEntriesView, CurationEntryView, CurationExportView, CurationListsView
 from grow.view.health import HealthCheckView
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
@@ -34,5 +35,17 @@ urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}auth/me/", AuthMeView.as_view(), name="auth-me"),
+    path(f"{settings.API_ROOT_BASE}curation/lists/", CurationListsView.as_view(), name="curation-lists"),
+    path(f"{settings.API_ROOT_BASE}curation/export/", CurationExportView.as_view(), name="curation-export"),
+    path(
+        f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/",
+        CurationEntriesView.as_view(),
+        name="curation-entries",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/<uuid:uuid>/",
+        CurationEntryView.as_view(),
+        name="curation-entry",
+    ),
     path(settings.API_ROOT_BASE, include(router.urls)),
 ]

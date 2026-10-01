@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Curation domain: the pipelines' 18 hand-edited `manual_*.csv` lists now live in the API as `CurationEntry` rows (registry in `grow/curation/lists.py`). Admin CRUD on `curation/{list}/entries/`, `curation/lists/`, and `curation/export/` (pipeline key or admin) returning every list as CSV-ready rows. Rows are validated (columns, QIDs, booleans, unique key, mutual exclusivity of theme/technique/out-of-scope/duplicate lists) and every write records a `HistoryEntry` (new `updated` action). Migration `0035` seeds from the vendored CSVs when the table is empty; `manage.py import_curation_csvs <dir>` upserts from a directory. Tests cover auth, CRUD, validation, history, export shape and the seed round trip.
+
 ## [10.0.0] - 2026-09-30
 
 ### Changed
