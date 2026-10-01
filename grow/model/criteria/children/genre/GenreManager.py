@@ -7,7 +7,7 @@ from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager impor
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.curation.lists import CURATION_LISTS, EXCLUDED_GENRE_LISTS
-from grow.curation.rows import InvalidRow
+from grow.curation.rows import InvalidRow, find_parent_rule
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -34,11 +34,24 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         instance.is_manually_edited = True
         instance.save(update_fields=["is_manually_edited"])
 
+    @staticmethod
+    def _is_wikidata_item(instance: Genre) -> bool:
+        """App-created genres (no wikidata_id) and the pipeline's synthetic `LOCAL:` items aren't in the Wikidata
+        tree the curation lists apply to, so the lock alone keeps their edits."""
+        return instance.wikidata_id is not None and instance.wikidata_id.startswith("Q")
+
+    @staticmethod
+    def _invalid(field_name: str, message: str) -> AppValidationException:
+        return AppValidationException(
+            field_name=field_name,
+            message=message,
+            field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
+        )
+
     def _upsert_rule(self, instance: Genre, list_name: str, actor: Any, **row: str) -> None:
-        """Mirrors an admin edit of a wikidata-backed genre into the curation list the pipeline reads, so the
-        next import reproduces it instead of only skipping the locked row. App-created genres (no wikidata_id)
-        are never in the pipeline's output, so the lock alone already keeps them."""
-        if instance.wikidata_id is None:
+        """Mirrors an admin edit of a wikidata item into the curation list the pipeline reads, so the next import
+        reproduces it instead of only skipping the locked row."""
+        if not self._is_wikidata_item(instance):
             return
         columns = CURATION_LISTS[list_name].columns
         row = {"item_id": instance.wikidata_id, **row}
@@ -50,15 +63,13 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             CurationEntry.objects.upsert(list_name, row, actor=actor)
         except InvalidRow as e:
             field_name, message = next(iter(e.errors.items()))
-            raise AppValidationException(
-                field_name=field_name,
-                message=f"Can't record this edit in {list_name}: {message}",
-                field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
-            ) from e
+            raise self._invalid(field_name, f"Can't record this edit in {list_name}: {message}") from e
 
     def _reparent_rule(self, instance: Genre) -> dict[str, str]:
         """The `main_parent` row for an admin reparent, or a 400 when no curation list can express it."""
-        parent_item_id = self.filter(pk=instance.parent_id).values_list("wikidata_id", flat=True).first()
+        parent_item_id, parent_excluded = self.filter(pk=instance.parent_id).values_list(
+            "wikidata_id", "is_excluded"
+        ).first() or (None, False)
         if instance.tree_name != CriteriaTreeName.CANONICAL:
             # The new parent may be a regional overview (`regional_overrides`) or a genre (`main_parent`),
             # which grow can't tell apart, and `regional_secondary_parents` adds an edge rather than moving one.
@@ -67,13 +78,11 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
         elif parent_item_id is None:
             message = "A wikidata-backed genre's new parent must be wikidata-backed too"
+        elif instance.is_excluded or parent_excluded:
+            message = "An excluded genre can't be reparented or be a new parent; the pipeline prunes it"
         else:
             return {"parent_item_id": parent_item_id, "exclude_other_parents": "true"}
-        raise AppValidationException(
-            field_name="parent",
-            message=message,
-            field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
-        )
+        raise self._invalid("parent", message)
 
     def _on_created(self, instance: Genre, *, actor: Any = None) -> None:
         super()._on_created(instance, actor=actor)
@@ -93,7 +102,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance, old_parent=old_parent, old_root=old_root, root_changed=root_changed, actor=actor
         )
         if actor is not None:
-            if instance.wikidata_id is not None:
+            if self._is_wikidata_item(instance):
                 self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
             if instance.parent_id is not None:
                 instance.is_unaccepted_root = False
@@ -155,7 +164,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         was_required_root = self._is_required_root(instance)
         instance.is_excluded = True
         instance.save(update_fields=["is_excluded"])
-        if actor is not None:
+        if actor is not None and self._is_wikidata_item(instance):
+            rule = find_parent_rule(CurationEntry.objects.filter(user=None), instance.wikidata_id)
+            if rule is not None:
+                raise self._invalid(
+                    "category", f"Remove the {rule.list_name} rule for {rule.key} first; it references this genre"
+                )
             self._upsert_rule(instance, EXCLUDED_GENRE_LISTS[category], actor)
         if was_required_root:
             self.assert_required_roots_present(instance.user)

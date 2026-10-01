@@ -110,3 +110,34 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "theme_genres" in str(response.json())
         assert not Genre.objects.get(pk=self.punk.pk).is_excluded
+
+    def test_synthetic_local_genre_rename_then_locked_without_rule(self):
+        grouping = self.model_fixture_factory.create_genre("Dub grouping", wikidata_id="LOCAL:dub-888")
+
+        assert self._put_genre(grouping.uuid, data={"name": "Dub"}).status_code == status.HTTP_200_OK
+
+        assert Genre.objects.get(pk=grouping.pk).is_manually_edited
+        assert not CurationEntry.objects.filter(key="LOCAL:dub-888").exists()
+
+    def test_reparent_under_excluded_genre_then_400(self):
+        Genre.objects.filter(pk=self.rock.pk).update(is_excluded=True)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert _rows("main_parent") == []
+
+    def test_exclude_genre_referenced_by_parent_rule_then_400(self):
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        for genre in (self.rock, self.punk):
+            response = self._post_genre_exclude(genre.uuid, "theme")
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "main_parent" in str(response.json())
+            assert not Genre.objects.get(pk=genre.pk).is_excluded
+
+    def test_exclude_unknown_genre_then_404(self):
+        response = self._post_genre_exclude("00000000-0000-0000-0000-000000000000", None)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND

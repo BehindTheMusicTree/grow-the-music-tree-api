@@ -106,3 +106,6 @@ EXCLUDED_GENRE_LISTS = {
 
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
+
+PARENT_RULE_COLUMNS = {"main_parent": "parent_item_id", "regional_overrides": "overview_item_id"}
+"""Lists moving an item under another: the pipeline fails on such a rule once either item is pruned."""

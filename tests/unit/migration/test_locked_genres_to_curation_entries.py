@@ -67,6 +67,40 @@ class TestCase(AppTestCase):
 
         assert not CurationEntry.objects.filter(key__startswith="Q888").exists()
 
+    def test_synthetic_local_genre_then_no_rule(self):
+        self._locked("Dub grouping", "LOCAL:dub-888", HistoryAction.RENAMED)
+
+        self._migrate()
+
+        assert not CurationEntry.objects.filter(key="LOCAL:dub-888").exists()
+
+    def test_excluded_genre_then_no_parent_rule_through_it(self):
+        excluded_parent = self._locked("Nenia", "Q8880004", HistoryAction.EXCLUDED, is_excluded=True)
+        self._locked("Child", "Q8880008", HistoryAction.PARENT_CHANGED, parent=excluded_parent)
+        self._locked("Both", "Q8880009", HistoryAction.PARENT_CHANGED, HistoryAction.EXCLUDED, is_excluded=True)
+
+        self._migrate()
+
+        assert self._rows("main_parent") == []
+        assert {r["item_id"] for r in self._rows("out_of_scope_genres")} == {"Q8880004", "Q8880009"}
+
+    def test_excluded_genre_referenced_by_parent_rule_then_no_exclusion_rule(self):
+        CurationEntry.objects.upsert(
+            "main_parent",
+            {
+                "item_id": "Q8880010",
+                "item_label": "x",
+                "reason": "x",
+                "parent_item_id": "Q8880004",
+                "exclude_other_parents": "",
+            },
+        )
+        self._locked("Nenia", "Q8880004", HistoryAction.EXCLUDED, is_excluded=True)
+
+        self._migrate()
+
+        assert self._rows("out_of_scope_genres") == []
+
     def test_already_in_an_exclusive_list_then_left_alone(self):
         CurationEntry.objects.upsert("theme_genres", {"item_id": "Q8880004", "item_label": "Nenia", "reason": "x"})
         self._locked("Nenia", "Q8880004", HistoryAction.EXCLUDED, is_excluded=True)

@@ -49,10 +49,11 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
 
     @action(detail=True, methods=["post"])
     def exclude(self, request: Request, *args, **kwargs) -> Response:
+        genre = self.get_object()
         input_serializer = GenreExcludeSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
         instance = Genre.objects.exclude_instance(
-            self.get_object(), input_serializer.validated_data["category"], **self._get_manager_write_kwargs(request)
+            genre, input_serializer.validated_data["category"], **self._get_manager_write_kwargs(request)
         )
         serializer = self._require_serializer(SerializerType.DETAILED)(instance=instance)
         return Response(data=serializer.data)

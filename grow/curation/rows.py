@@ -16,6 +16,7 @@ from grow.curation.lists import (
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
+    PARENT_RULE_COLUMNS,
 )
 
 KEY_SEPARATOR = "\t"
@@ -106,6 +107,14 @@ def find_exclusivity_conflict(
         return None
     others = queryset.filter(list_name__in=EXCLUSIVE_LISTS - {list_name}, key=key).exclude(pk=exclude_pk)
     return others.values_list("list_name", flat=True).first()
+
+
+def find_parent_rule(queryset: models.QuerySet, item_id: str) -> Any:
+    """A `PARENT_RULE_COLUMNS` entry moving `item_id`, or moving another item under it, if any."""
+    query = models.Q(list_name__in=PARENT_RULE_COLUMNS, key=item_id)
+    for list_name, column in PARENT_RULE_COLUMNS.items():
+        query |= models.Q(list_name=list_name, **{f"values__{column}": item_id})
+    return queryset.filter(query).first()
 
 
 def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
