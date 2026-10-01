@@ -47,9 +47,10 @@ class GenreTestCase(AppTestCase):
             handle_response=self._set_error_response_result_if_failure,
         )
 
-    def _post_genre_exclude(self, uuid):
+    def _post_genre_exclude(self, uuid, category: str | None = "theme"):
         return self.api_client.post(
             path=reverse("genre-detail", kwargs={"pk": uuid}) + "exclude/",
+            data={} if category is None else {"category": category},
             handle_response=self._set_error_response_result_if_failure,
         )
 

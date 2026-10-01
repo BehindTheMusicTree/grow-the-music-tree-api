@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 import dj_database_url
 from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
 
-from grow.rest_framework_settings import REST_FRAMEWORK
+from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 

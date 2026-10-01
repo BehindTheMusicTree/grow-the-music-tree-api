@@ -1,0 +1,18 @@
+from functools import partial
+
+from django.db import migrations
+
+from grow.curation.rows import SEED_DIR, import_csv_dir, upsert_without_history
+
+
+def seed(apps, schema_editor):
+    CurationEntry = apps.get_model("grow", "CurationEntry")
+    if CurationEntry.objects.exists():
+        return
+    import_csv_dir(SEED_DIR, partial(upsert_without_history, CurationEntry))
+
+
+class Migration(migrations.Migration):
+    dependencies = [("grow", "0034_curation_entry")]
+
+    operations = [migrations.RunPython(seed, migrations.RunPython.noop)]
