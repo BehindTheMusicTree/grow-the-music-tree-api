@@ -4,6 +4,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.urls import reverse
@@ -11,6 +12,8 @@ from django.urls import reverse
 from grow.curation.lists import CURATION_LISTS
 from grow.curation.rows import SEED_DIR
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -43,8 +46,25 @@ class TestCase(AppTestCase):
 
         call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
 
-        assert out.getvalue().strip() == f"0 created, {total} updated"
+        assert out.getvalue().strip() == f"0 created, 0 updated, {total} unchanged"
         assert CurationEntry.objects.count() == total
+
+    def test_import_command_changed_row_then_updated_with_history(self):
+        entry = CurationEntry.objects.filter(list_name="theme_genres").first()
+        old_updated_on = entry.updated_on
+        CurationEntry.objects.filter(pk=entry.pk).update(reason="stale reason")
+        out = StringIO()
+
+        call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
+
+        assert out.getvalue().strip().startswith("0 created, 1 updated, ")
+        entry.refresh_from_db()
+        assert entry.reason != "stale reason"
+        assert entry.updated_on is not None and entry.updated_on != old_updated_on
+        history = HistoryEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(CurationEntry), content_uuid=entry.uuid
+        )
+        assert [h.action for h in history] == [HistoryAction.UPDATED]
 
     def test_import_command_bad_row_then_error_and_rollback(self):
         with tempfile.TemporaryDirectory() as d:

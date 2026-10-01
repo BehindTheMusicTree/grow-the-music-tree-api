@@ -175,3 +175,21 @@ class TestCase(AppTestCase):
             response = self.api_client.get(path=reverse("curation-lists"))
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_non_dict_body_then_400(self):
+        uuid = self._create(ITEM).json()["uuid"]
+
+        post = self.api_client.post(path=self._entries_url(), data=[ITEM], format="json")
+        patch_ = self.api_client.patch(self._entry_url(uuid), [ITEM], format="json")
+
+        assert (post.status_code, patch_.status_code) == (status.HTTP_400_BAD_REQUEST, status.HTTP_400_BAD_REQUEST)
+
+    def test_item_id_with_trailing_newline_or_non_ascii_digit_then_400(self):
+        for item_id in ("Q123\n", "Q\u0661\u0662\u0663"):
+            assert self._create({**ITEM, "item_id": item_id}).status_code == status.HTTP_400_BAD_REQUEST, item_id
+
+    def test_key_longer_than_column_then_400(self):
+        response = self._create({**ITEM, "item_id": "LOCAL:" + "a" * 600})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "512" in str(response.json())

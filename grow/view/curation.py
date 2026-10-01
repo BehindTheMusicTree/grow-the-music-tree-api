@@ -33,9 +33,14 @@ def _check_list(list_name: str) -> None:
         raise Http404
 
 
-def _validate(list_name: str, row: Any, exclude_pk: Any = None) -> ParsedRow:
+def _row(request: Request) -> dict[str, Any]:
+    row = request.data.get("row") if isinstance(request.data, dict) else None
     if not isinstance(row, dict):
         raise ValidationError({"row": "Must be an object keyed by the list's columns"})
+    return row
+
+
+def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> ParsedRow:
     try:
         parsed = parse_row(list_name, row)
     except InvalidRow as e:
@@ -73,7 +78,7 @@ class CurationEntriesView(CurationView):
     @transaction.atomic
     def post(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
-        parsed = _validate(list_name, request.data.get("row"))
+        parsed = _validate(list_name, _row(request))
         entry = CurationEntry.objects.create(
             actor=request.user,
             user=None,
@@ -93,10 +98,7 @@ class CurationEntryView(CurationView):
     @transaction.atomic
     def patch(self, request: Request, list_name: str, uuid: str) -> Response:
         entry = self._get(list_name, uuid)
-        row = request.data.get("row")
-        if not isinstance(row, dict):
-            raise ValidationError({"row": "Must be an object keyed by the list's columns"})
-        parsed = _validate(list_name, {**entry.row, **row}, exclude_pk=entry.pk)
+        parsed = _validate(list_name, {**entry.row, **_row(request)}, exclude_pk=entry.pk)
         entry = CurationEntry.objects.update_instance(
             entry, actor=request.user, key=parsed.key, values=parsed.values, reason=parsed.reason
         )

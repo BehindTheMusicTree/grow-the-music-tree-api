@@ -1,12 +1,14 @@
 from dataclasses import dataclass
 from typing import Literal
 
-ITEM_ID_PATTERN = r"^(Q\d+|LOCAL:[a-z0-9-]+)$"
+ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
 ITEM_ID_COLUMNS = frozenset({"item_id", "parent_item_id", "overview_item_id", "parent_id"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
 REASON_COLUMN = "reason"
+KEY_MAX_LENGTH = 512
+"""`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
 
 
 @dataclass(frozen=True)
@@ -94,5 +96,16 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
 }
 
-EXCLUSIVE_LISTS = frozenset({"theme_genres", "technique_genres", "out_of_scope_genres", "duplicate_genres"})
+EXCLUDED_GENRE_LISTS = {
+    "theme": "theme_genres",
+    "technique": "technique_genres",
+    "out_of_scope": "out_of_scope_genres",
+    "duplicate": "duplicate_genres",
+}
+"""Admin genre-exclusion category -> the pruning list recording it."""
+
+EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
+
+PARENT_RULE_COLUMNS = {"main_parent": "parent_item_id", "regional_overrides": "overview_item_id"}
+"""Lists moving an item under another: the pipeline fails on such a rule once either item is pruned."""
