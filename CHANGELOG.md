@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Stable pagination order for list endpoints: rows sharing `created_on` no longer repeat or vanish across pages (genre-kit 0.35.2 → api-kit 0.9.1 adds a `pk` tie-breaker to the default ordering; the playlist name/type filter does the same).
+
 ## [11.0.0] - 2026-10-01
 
 ### Added
