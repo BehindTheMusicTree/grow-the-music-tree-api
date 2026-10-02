@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `GET curation/status/` (admin): `appliedExportOn` (the pipeline export the canonical tree was last built from) and `pendingCount` (canonical curation entries created, edited or deleted since). The pipeline's `curation/export/` records its time and its canonical `genres/tree/import/` marks that export applied (new `CurationSyncState` singleton, migration `0038`). Covered by integration tests.
 - `GET curation/history/` (admin): canonical curation edits newest first, filterable by `list`, `entry` uuid or `item_id`, each with its entry uuid and the editor pseudo (`null` for the pipeline). Curation history snapshots now carry `list_name`; migration `0037` backfills it for entries still alive. Covered by integration tests.
 - Curation API, for the admin editor: `GET curation/lists/` returns each list's entry `count`; `GET curation/<list>/entries/` accepts `?q=` (case-insensitive match on key, values, reason, or the name of the canonical genre whose QID is the key) and `?ordering=key|-updated_on` (most recently edited or created first), and returns a `labels` map (QID → canonical genre name) for every item-id column on the page. Covered by integration tests.
 - `GET curation/rules/?item_id=`: every canonical curation entry referencing an item, across lists (as the key, as part of a composite key, or as an item-id value), with the same `labels` map. Genres now expose `wikidataId` and accept a `?wikidata_id=` filter. Covered by integration tests.

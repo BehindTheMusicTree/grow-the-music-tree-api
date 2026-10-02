@@ -7,6 +7,7 @@ from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
 from grow.serializer.model.criteria.children.genre.input.name_conflict_validate import (
     GenreNameConflictValidateSerializer,
@@ -41,6 +42,10 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         with transaction.atomic():
             response = super().import_tree(request)
             Genre.objects.assert_required_roots_present(get_request_owner(request))
+            if request.auth.role == "pipeline":
+                state = CurationSyncState.load()
+                state.applied_export_on = state.exported_on
+                state.save(update_fields=["applied_export_on"])
 
         return response
 
