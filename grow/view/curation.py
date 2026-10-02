@@ -1,6 +1,8 @@
 import re
+import uuid
 from typing import Any
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Count, Q, TextField
 from django.db.models.functions import Cast, Coalesce
@@ -20,6 +22,8 @@ from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
 from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, find_item_rules, parse_row
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.history.HistoryEntry import HistoryEntry
+from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -76,6 +80,18 @@ def _labels(entries: list[CurationEntry]) -> dict[str, str]:
     """Canonical genre name of every item id on the page, keyed by QID."""
     ids = {str(v) for e in entries for c, v in e.row.items() if c in ITEM_ID_COLUMNS and v}
     return dict(_canonical_genres().filter(wikidata_id__in=ids).values_list("wikidata_id", "_name"))
+
+
+def _item_id(request: Request) -> str:
+    item_id = request.query_params.get("item_id", "")
+    if not re.fullmatch(ITEM_ID_PATTERN, item_id):
+        raise ValidationError({"item_id": "Must be a Wikidata QID or a LOCAL:<slug> id"})
+    return item_id
+
+
+def _snapshot_has(column: str, value: str) -> Q:
+    fragment = CurationEntry.objects.snapshot_fragment(column, value)
+    return Q(old_value__contains=fragment) | Q(new_value__contains=fragment)
 
 
 class CurationView(APIView):
@@ -157,16 +173,41 @@ class CurationRulesView(CurationView):
     """Every canonical entry referencing an item, across lists."""
 
     def get(self, request: Request) -> Response:
-        item_id = request.query_params.get("item_id", "")
-        if not re.fullmatch(ITEM_ID_PATTERN, item_id):
-            raise ValidationError({"item_id": "Must be a Wikidata QID or a LOCAL:<slug> id"})
-        entries = list(find_item_rules(_entries(), item_id).order_by("list_name", "key"))
+        entries = list(find_item_rules(_entries(), _item_id(request)).order_by("list_name", "key"))
         return Response(
             {
                 "results": [{"list_name": e.list_name, **_serialize(e)} for e in entries],
                 "labels": _labels(entries),
             }
         )
+
+
+class CurationHistoryView(CurationView):
+    """Edits to canonical entries, newest first, optionally narrowed to a `list`, an `entry` uuid or an `item_id`."""
+
+    def get(self, request: Request) -> Response:
+        params = request.query_params
+        queryset = HistoryEntry.objects.filter(user=None, content_type=ContentType.objects.get_for_model(CurationEntry))
+        if "list" in params:
+            if params["list"] not in CURATION_LISTS:
+                raise ValidationError({"list": "Unknown curation list"})
+            queryset = queryset.filter(_snapshot_has("list_name", params["list"]))
+        if "entry" in params:
+            try:
+                queryset = queryset.filter(content_uuid=uuid.UUID(params["entry"]))
+            except ValueError as e:
+                raise ValidationError({"entry": "Must be a uuid"}) from e
+        if "item_id" in params:
+            item_id = _item_id(request)
+            query = Q()
+            for column in ITEM_ID_COLUMNS:
+                query |= _snapshot_has(column, item_id)
+            queryset = queryset.filter(query)
+        paginator = AppPagination()
+        page = paginator.paginate_queryset(
+            queryset.select_related("actor__profile").order_by("-created_on"), request, view=self
+        )
+        return paginator.get_paginated_response(CurationHistoryEntrySerializer(page, many=True).data)
 
 
 class CurationExportView(CurationView):
