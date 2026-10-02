@@ -20,7 +20,12 @@ class CurationEntryManager(StandardResourceManager):
 
     @staticmethod
     def _snapshot(instance: CurationEntry) -> str:
-        return json.dumps(instance.row)
+        return json.dumps({"list_name": instance.list_name, **instance.row})
+
+    @staticmethod
+    def snapshot_fragment(column: str, value: str) -> str:
+        """Text of a history snapshot holding `column: value`, to filter history without parsing JSON."""
+        return json.dumps({column: value})[1:-1]
 
     @transaction.atomic
     def create(self, actor: Any = None, **kwargs) -> CurationEntry:
