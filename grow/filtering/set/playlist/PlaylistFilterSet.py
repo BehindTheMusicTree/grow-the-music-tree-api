@@ -27,7 +27,7 @@ class PlaylistFilterSet(PrivateUniqueResourceFilterSet):
         name_value = self.data.get(Fields.NAME)
         type_label = self.data.get(Fields.TYPE_LABEL_PUBLIC)
 
-        base_queryset = queryset.order_by(ModelFields.CREATED_ON)
+        base_queryset = queryset.order_by(ModelFields.CREATED_ON, "pk")
 
         result_querysets = []
 
