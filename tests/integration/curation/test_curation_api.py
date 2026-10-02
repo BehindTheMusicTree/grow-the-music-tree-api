@@ -59,6 +59,53 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert ITEM in [e["row"] for e in response.json()["results"]]
 
+    def test_lists_then_entry_counts(self):
+        self._create(ITEM)
+
+        lists = {lst["name"]: lst for lst in self.api_client.get(path=reverse("curation-lists")).json()}
+
+        assert lists["theme_genres"]["count"] == CurationEntry.objects.filter(list_name="theme_genres").count()
+        assert lists["theme_genres"]["count"] > 0
+
+    def test_search_then_matches_key_values_reason_and_genre_name(self):
+        self.model_fixture_factory.create_genre("Shoegaze", wikidata_id="Q999999993")
+        self._create(ITEM)
+        self._create({**ITEM, "item_id": "Q999999992", "item_label": "drone", "reason": "noise wall"})
+        self._create({**ITEM, "item_id": "Q999999993", "item_label": "x"})
+
+        def keys(q: str) -> list[str]:
+            response = self.api_client.get(path=self._entries_url(), data={"q": q})
+            return sorted(e["row"]["item_id"] for e in response.json()["results"])
+
+        assert keys("Q999999991") == ["Q999999991"]
+        assert keys("DRONE") == ["Q999999992"]
+        assert keys("wall") == ["Q999999992"]
+        assert keys("shoegaze") == ["Q999999993"]
+
+    def test_ordering_then_most_recent_first(self):
+        self._create({**ITEM, "item_id": "Q999999992"})
+        self._create(ITEM)
+
+        response = self.api_client.get(path=self._entries_url(), data={"ordering": "-updated_on"})
+
+        assert [e["row"]["item_id"] for e in response.json()["results"][:2]] == ["Q999999991", "Q999999992"]
+
+    def test_unknown_ordering_then_400(self):
+        response = self.api_client.get(path=self._entries_url(), data={"ordering": "reason"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_entries_then_labels_for_every_item_id_column(self):
+        self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
+        self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
+        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "main_parent")
+
+        response = self.api_client.get(path=self._entries_url("main_parent"), data={"q": "Q99999999"})
+
+        labels = response.json()["labels"]
+
+        assert labels == {"Q999999991": "Rock", "Q999999992": "Blues"}
+
     def test_patch_then_merged_and_history(self):
         uuid = self._create(ITEM).json()["uuid"]
 
