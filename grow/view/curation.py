@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from django.db import transaction
@@ -15,8 +16,8 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
-from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS
-from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, parse_row
+from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
+from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, find_item_rules, parse_row
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.view.permission.IsAdmin import IsAdmin
@@ -150,6 +151,22 @@ class CurationEntryView(CurationView):
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
         CurationEntry.objects.delete_instance(self._get(list_name, uuid), actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CurationRulesView(CurationView):
+    """Every canonical entry referencing an item, across lists."""
+
+    def get(self, request: Request) -> Response:
+        item_id = request.query_params.get("item_id", "")
+        if not re.fullmatch(ITEM_ID_PATTERN, item_id):
+            raise ValidationError({"item_id": "Must be a Wikidata QID or a LOCAL:<slug> id"})
+        entries = list(find_item_rules(_entries(), item_id).order_by("list_name", "key"))
+        return Response(
+            {
+                "results": [{"list_name": e.list_name, **_serialize(e)} for e in entries],
+                "labels": _labels(entries),
+            }
+        )
 
 
 class CurationExportView(CurationView):

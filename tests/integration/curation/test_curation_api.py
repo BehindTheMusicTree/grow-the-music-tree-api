@@ -106,6 +106,32 @@ class TestCase(AppTestCase):
 
         assert labels == {"Q999999991": "Rock", "Q999999992": "Blues"}
 
+    def test_rules_then_entries_referencing_item_by_key_value_and_composite_key(self):
+        self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
+        self._create(ITEM)
+        self._create(
+            {**ITEM, "item_id": "Q999999992", "parent_item_id": "Q999999991", "exclude_other_parents": False},
+            "main_parent",
+        )
+        row = {"item_id": "Q999999993", "item_label": "x", "parent_id": "Q999999991", "parent_label": "Rock"}
+        self._create({**row, "reason": "r"}, "regional_secondary_parents")
+        self._create({**ITEM, "item_id": "Q9999999910"})
+
+        response = self.api_client.get(path=reverse("curation-rules"), data={"item_id": "Q999999991"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert [(r["listName"], r["row"]["item_id"]) for r in response.json()["results"]] == [
+            ("main_parent", "Q999999992"),
+            ("regional_secondary_parents", "Q999999993"),
+            ("theme_genres", "Q999999991"),
+        ]
+        assert response.json()["labels"] == {"Q999999991": "Rock"}
+
+    def test_rules_with_invalid_item_id_then_400(self):
+        response = self.api_client.get(path=reverse("curation-rules"), data={"item_id": "rock"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_patch_then_merged_and_history(self):
         uuid = self._create(ITEM).json()["uuid"]
 

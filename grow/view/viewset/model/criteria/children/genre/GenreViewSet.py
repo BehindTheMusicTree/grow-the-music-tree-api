@@ -16,10 +16,7 @@ from grow.serializer.model.criteria.children.genre.input.put import GenrePutSeri
 from grow.serializer.model.criteria.children.genre.input.unaccepted_root_accept import (
     GenreUnacceptedRootAcceptSerializer,
 )
-from grow.serializer.model.criteria.children.genre.output.name_conflict_group import (
-    GenreNameConflictGroupSerializer,
-    GenreNameConflictMemberSerializer,
-)
+from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
@@ -77,7 +74,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     @action(detail=False, methods=["get"], url_path="unaccepted-roots")
     def unaccepted_roots(self, request: Request) -> Response:
         genres = Genre.objects.get_unaccepted_roots(get_request_owner(request))
-        return Response(data=GenreNameConflictMemberSerializer(genres, many=True).data)
+        return Response(data=GenreSimpleSerializer(genres, many=True).data)
 
     @action(detail=False, methods=["post"], url_path="unaccepted-roots/accept")
     def accept_unaccepted_roots(self, request: Request) -> Response:
