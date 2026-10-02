@@ -8,6 +8,7 @@ from django.db.models import Count, Q, TextField
 from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer
@@ -22,6 +23,7 @@ from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
 from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, find_item_rules, parse_row
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.view.permission.IsAdmin import IsAdmin
@@ -210,6 +212,18 @@ class CurationHistoryView(CurationView):
         return paginator.get_paginated_response(CurationHistoryEntrySerializer(page, many=True).data)
 
 
+class CurationStatusView(CurationView):
+    """Which pipeline export the canonical tree was last built from, and how many entries were edited since."""
+
+    def get(self, request: Request) -> Response:
+        applied_export_on = CurationSyncState.load().applied_export_on
+        history = HistoryEntry.objects.filter(user=None, content_type=ContentType.objects.get_for_model(CurationEntry))
+        if applied_export_on is not None:
+            history = history.filter(created_on__gt=applied_export_on)
+        pending_count = history.values("content_uuid").distinct().count()
+        return Response({"applied_export_on": applied_export_on, "pending_count": pending_count})
+
+
 class CurationExportView(CurationView):
     """Every list as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input."""
 
@@ -217,6 +231,8 @@ class CurationExportView(CurationView):
     renderer_classes = [JSONRenderer]
 
     def get(self, request: Request) -> Response:
+        if request.auth.role == "pipeline":
+            CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": timezone.now()})
         export: dict[str, list[dict[str, str]]] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)

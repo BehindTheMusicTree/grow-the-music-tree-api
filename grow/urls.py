@@ -10,6 +10,7 @@ from grow.view.curation import (
     CurationHistoryView,
     CurationListsView,
     CurationRulesView,
+    CurationStatusView,
 )
 from grow.view.health import HealthCheckView
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
@@ -44,6 +45,7 @@ urlpatterns += [
     path(f"{settings.API_ROOT_BASE}auth/me/", AuthMeView.as_view(), name="auth-me"),
     path(f"{settings.API_ROOT_BASE}curation/lists/", CurationListsView.as_view(), name="curation-lists"),
     path(f"{settings.API_ROOT_BASE}curation/history/", CurationHistoryView.as_view(), name="curation-history"),
+    path(f"{settings.API_ROOT_BASE}curation/status/", CurationStatusView.as_view(), name="curation-status"),
     path(f"{settings.API_ROOT_BASE}curation/rules/", CurationRulesView.as_view(), name="curation-rules"),
     path(f"{settings.API_ROOT_BASE}curation/export/", CurationExportView.as_view(), name="curation-export"),
     path(
