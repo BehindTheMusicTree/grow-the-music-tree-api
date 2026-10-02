@@ -109,12 +109,18 @@ def find_exclusivity_conflict(
     return others.values_list("list_name", flat=True).first()
 
 
+def find_item_rules(queryset: models.QuerySet, item_id: str) -> models.QuerySet:
+    """Entries referencing `item_id`: as their key, as part of a composite key, or as an item-id value."""
+    query = models.Q(key=item_id) | models.Q(key__startswith=item_id + KEY_SEPARATOR)
+    query |= models.Q(key__endswith=KEY_SEPARATOR + item_id)
+    for column in ITEM_ID_COLUMNS:
+        query |= models.Q(**{f"values__{column}": item_id})
+    return queryset.filter(query)
+
+
 def find_parent_rule(queryset: models.QuerySet, item_id: str) -> Any:
     """A `PARENT_RULE_COLUMNS` entry moving `item_id`, or moving another item under it, if any."""
-    query = models.Q(list_name__in=PARENT_RULE_COLUMNS, key=item_id)
-    for list_name, column in PARENT_RULE_COLUMNS.items():
-        query |= models.Q(list_name=list_name, **{f"values__{column}": item_id})
-    return queryset.filter(query).first()
+    return find_item_rules(queryset.filter(list_name__in=PARENT_RULE_COLUMNS), item_id).first()
 
 
 def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
