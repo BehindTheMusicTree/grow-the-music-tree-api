@@ -1,6 +1,8 @@
 from typing import Any
 
 from django.db import transaction
+from django.db.models import Count, Q, TextField
+from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -13,8 +15,9 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
-from grow.curation.lists import CURATION_LISTS
+from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS
 from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, parse_row
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
@@ -53,6 +56,27 @@ def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> Pa
     return parsed
 
 
+ORDERINGS = {"key": "key", "-updated_on": "-last_edited_on"}
+
+
+def _canonical_genres():
+    return Genre.objects.filter(user=None)
+
+
+def _search(queryset, q: str):
+    """Matches `q` against the key, values, reason, or the name of a genre whose QID is the key."""
+    qids = _canonical_genres().filter(_name__icontains=q).exclude(wikidata_id=None).values("wikidata_id")
+    return queryset.annotate(values_text=Cast("values", TextField())).filter(
+        Q(key__icontains=q) | Q(values_text__icontains=q) | Q(reason__icontains=q) | Q(key__in=qids)
+    )
+
+
+def _labels(entries: list[CurationEntry]) -> dict[str, str]:
+    """Canonical genre name of every item id on the page, keyed by QID."""
+    ids = {str(v) for e in entries for c, v in e.row.items() if c in ITEM_ID_COLUMNS and v}
+    return dict(_canonical_genres().filter(wikidata_id__in=ids).values_list("wikidata_id", "_name"))
+
+
 class CurationView(APIView):
     authentication_classes = [GoogleIdTokenAuthentication, ApiKeyAuthentication]
     permission_classes = [IsAdmin]
@@ -60,9 +84,16 @@ class CurationView(APIView):
 
 class CurationListsView(CurationView):
     def get(self, request: Request) -> Response:
+        counts = dict(_entries().values("list_name").annotate(count=Count("pk")).values_list("list_name", "count"))
         return Response(
             [
-                {"name": name, "key_columns": c.key, "columns": c.columns, "description": c.description}
+                {
+                    "name": name,
+                    "key_columns": c.key,
+                    "columns": c.columns,
+                    "description": c.description,
+                    "count": counts.get(name, 0),
+                }
                 for name, c in CURATION_LISTS.items()
             ]
         )
@@ -71,9 +102,20 @@ class CurationListsView(CurationView):
 class CurationEntriesView(CurationView):
     def get(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
+        ordering = request.query_params.get("ordering", "key")
+        if ordering not in ORDERINGS:
+            raise ValidationError({"ordering": f"Must be one of {', '.join(ORDERINGS)}"})
+        # `updated_on` stays null until an entry's first edit.
+        queryset = _entries().filter(list_name=list_name).annotate(last_edited_on=Coalesce("updated_on", "created_on"))
+        q = request.query_params.get("q", "").strip()
+        if q:
+            queryset = _search(queryset, q)
         paginator = AppPagination()
-        page = paginator.paginate_queryset(_entries().filter(list_name=list_name).order_by("key"), request, view=self)
-        return paginator.get_paginated_response([_serialize(e) for e in page or []])
+        page = paginator.paginate_queryset(queryset.order_by(ORDERINGS[ordering], "key"), request, view=self)
+        entries = list(page or [])
+        response = paginator.get_paginated_response([_serialize(e) for e in entries])
+        response.data["labels"] = _labels(entries)
+        return response
 
     @transaction.atomic
     def post(self, request: Request, list_name: str) -> Response:

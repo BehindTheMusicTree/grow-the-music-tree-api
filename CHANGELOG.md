@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Curation API, for the admin editor: `GET curation/lists/` returns each list's entry `count`; `GET curation/<list>/entries/` accepts `?q=` (case-insensitive match on key, values, reason, or the name of the canonical genre whose QID is the key) and `?ordering=key|-updated_on` (most recently edited or created first), and returns a `labels` map (QID → canonical genre name) for every item-id column on the page. Covered by integration tests.
+
 ### Fixed
 
 - Stable pagination order for list endpoints: rows sharing `created_on` no longer repeat or vanish across pages (genre-kit 0.35.2 → api-kit 0.9.1 adds a `pk` tie-breaker to the default ordering; the playlist name/type filter does the same).
