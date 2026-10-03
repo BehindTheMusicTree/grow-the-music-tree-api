@@ -5,6 +5,7 @@ from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import PrivateOneToOneField
 from the_music_tree_genre_kit.track.Fields import Fields as TrackFields
 from the_music_tree_genre_kit.track.Track import Track as KitTrack
+from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
 
 from grow.model.artist.Artist import Artist
 from grow.model.track.Fields import Fields
@@ -16,6 +17,9 @@ class YoutubeTrack(KitTrack):
         KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.YOUTUBE_TRACK_RELATED_NAME
     )
     youtube_video_id = AppCharField(max_length=settings.YOUTUBE_TRACK_VIDEO_ID_LEN_MAX)
+    youtube_unplayable_reason = models.CharField(
+        max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
+    )
     is_manually_edited = models.BooleanField(default=False)
 
     objects: TrackManager[YoutubeTrack] = TrackManager()

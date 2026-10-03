@@ -40,3 +40,21 @@ class TestCase(AppTestCase):
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_import_sets_then_clears_youtube_unplayable_reason(self):
+        self.model_fixture_factory.create_genre("Rock")
+        entry = {
+            "title": "Comfortably Numb",
+            "artist": "Pink Floyd",
+            "youtubeVideoId": "abc123defgh",
+            "genreName": "Rock",
+        }
+        path = reverse("youtube-track-list") + "songs/import/"
+
+        response = self.api_client.post(path=path, data=[{**entry, "youtubeUnplayableReason": "not_embeddable"}])
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert YoutubeTrack.objects.get(youtube_video_id="abc123defgh").youtube_unplayable_reason == "not_embeddable"
+
+        response = self.api_client.post(path=path, data=[entry])
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert YoutubeTrack.objects.get(youtube_video_id="abc123defgh").youtube_unplayable_reason is None
