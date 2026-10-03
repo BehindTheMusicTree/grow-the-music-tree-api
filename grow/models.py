@@ -10,6 +10,7 @@ from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
@@ -29,6 +30,7 @@ __all__ = [
     "CurationSyncState",
     "Genre",
     "GenrePlaylist",
+    "GenreTreeVersion",
     "HistoryEntry",
     "ManualPlaylist",
     "Play",

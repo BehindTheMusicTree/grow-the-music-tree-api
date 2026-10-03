@@ -2,6 +2,7 @@ import statistics
 import time
 
 import pytest
+from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -65,3 +66,29 @@ def test_median_latency_within_slo(scenario):
     p95 = statistics.quantiles(timings, n=20)[-1]
     print(f"\n{scenario:<38} queries={len(queries.captured_queries):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
     assert p50 <= SLO_MS[scenario]
+
+
+# Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.
+TREE_SLO_MS = {"cold": 3000, "warm": 20, "not-modified": 20}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("mode", TREE_SLO_MS)
+def test_genre_tree_median_latency_within_slo(mode):
+    client = AppApiClient()
+    path, params = reverse("genre-playlist-tree"), {"tree_name": "canonical"}
+    etag = client.get(path, params)["ETag"]
+    headers = {"HTTP_IF_NONE_MATCH": etag} if mode == "not-modified" else {}
+
+    timings = []
+    for _ in range(RUNS):
+        if mode == "cold":
+            cache.clear()
+        start = time.perf_counter()
+        response = client.get(path, params, **headers)
+        timings.append((time.perf_counter() - start) * 1000)
+        assert response.status_code in (status.HTTP_200_OK, status.HTTP_304_NOT_MODIFIED)
+
+    p50 = statistics.median(timings)
+    print(f"\ngenre-playlist-tree ({mode})".ljust(39) + f"p50={p50:8.1f}ms")
+    assert p50 <= TREE_SLO_MS[mode]
