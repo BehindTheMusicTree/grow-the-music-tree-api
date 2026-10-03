@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [11.2.0] - 2026-10-04
+
 ### Added
 
 - `YoutubeTrack.youtube_unplayable_reason` (nullable; `not_found`, `not_embeddable`, `private`, `not_processed`, `region_whitelisted`; migration `0040`), set by the pipeline songs import from each entry's `youtubeUnplayableReason` (an omitted key clears the flag) and returned as `youtubeUnplayableReason` on every YouTube track output (`null` = playable), so the frontend can grey out videos YouTube won't play. Genre-kit 0.35.2 → 0.36.0. Covered by integration tests.
