@@ -28,6 +28,9 @@ rclone copyto "r2:${R2_BACKUP_BUCKET_NAME}/${latest_object}" "$dump_file"
 
 docker compose stop api worker
 docker compose up -d --wait db
+# pg_restore --clean only drops objects in the dump: tables from local migrations prod hasn't run yet would survive
+# and make migrate fail with "already exists", so start from an empty schema.
+docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
 docker compose exec -T db sh -c 'pg_restore --clean --if-exists --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <"$dump_file"
 # start-server.sh applies this branch's migrations on top of prod's schema.
 docker compose up -d --wait api worker
