@@ -38,7 +38,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         version = f"{tree_name}-{settings.GIT_COMMIT}-{token}"
         etag = f'"{version}"'
         headers = {"ETag": etag, "Cache-Control": "no-cache"}
-        if etag in parse_etags(request.headers.get("If-None-Match", "")):
+        if etag in (e.removeprefix("W/") for e in parse_etags(request.headers.get("If-None-Match", ""))):
             return HttpResponseNotModified(headers=headers)
 
         cache_key = f"genre-tree:{version}"

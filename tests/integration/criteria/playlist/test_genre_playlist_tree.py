@@ -87,6 +87,12 @@ class TestCase(AppTestCase):
         assert second.status_code == status.HTTP_304_NOT_MODIFIED
         assert second["ETag"] == first["ETag"]
 
+    def test_tree_returns_304_when_weak_etag_matches(self):
+        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=f"W/{first['ETag']}")
+
+        assert second.status_code == status.HTTP_304_NOT_MODIFIED
+
     def test_tree_reflects_writes_after_cache_fill(self):
         first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
         self.model_fixture_factory.create_genre("Jazz")
