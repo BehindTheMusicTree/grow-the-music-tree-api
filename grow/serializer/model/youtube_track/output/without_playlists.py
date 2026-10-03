@@ -33,6 +33,7 @@ class YoutubeTrackWithoutPlaylistsSerializer(EagerLoadingMixin, AppInputSerializ
             YoutubeTrackOutputFieldKey.LANGUAGE.value,
             YoutubeTrackOutputFieldKey.PLAY_COUNT.value,
             YoutubeTrackOutputFieldKey.YOUTUBE_VIDEO_ID.value,
+            YoutubeTrackOutputFieldKey.YOUTUBE_UNPLAYABLE_REASON.value,
             YoutubeTrackOutputFieldKey.CREATED_ON.value,
             YoutubeTrackOutputFieldKey.UPDATED_ON.value,
         ]

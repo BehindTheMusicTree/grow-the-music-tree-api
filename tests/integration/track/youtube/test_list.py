@@ -41,3 +41,11 @@ class TestCase(AppTestCase):
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.data["results"][0]["youtube_video_id"] == "abc123defgh"
+
+    def test_list_includes_null_youtube_unplayable_reason_for_playable_track(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_youtube_track(title="Track Title", genre=genre)
+
+        response = self.api_client.get(path=reverse(self.list_endpoint))
+
+        assert response.json()["results"][0]["youtubeUnplayableReason"] is None
