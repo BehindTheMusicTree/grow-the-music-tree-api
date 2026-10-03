@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- `scripts/restore-prod-db.sh` drops and recreates the local `public` schema before `pg_restore`. Tables created by local migrations that prod hasn't run yet were surviving the restore, so `migrate` then failed with `relation … already exists`.
+- `scripts/restore-prod-db.sh` drops and recreates the local `public` schema before `pg_restore`. It reads the whole dump first, so a corrupt download fails before the local database is wiped. Tables created by local migrations that prod hasn't run yet were surviving the restore, so `migrate` then failed with `relation … already exists`.
 - Stable pagination order for list endpoints: rows sharing `created_on` no longer repeat or vanish across pages (genre-kit 0.35.2 → api-kit 0.9.1 adds a `pk` tie-breaker to the default ordering; the playlist name/type filter does the same).
 
 ## [11.0.0] - 2026-10-01
