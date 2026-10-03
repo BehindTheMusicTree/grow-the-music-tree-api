@@ -1,18 +1,24 @@
 import re
 from importlib import import_module
+from unittest.mock import patch
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection
-from django.test.utils import CaptureQueriesContext
+from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import reverse
+from redis.exceptions import ConnectionError as RedisConnectionError
 from rest_framework import status
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
+from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.utils.AppTestCase import AppTestCase
 
 TRACKED_TABLES = set(import_module("grow.migrations.0039_genre_tree_version").TRACKED_TABLES)
 TREE_PATH = reverse("genre-playlist-list") + "tree/"
+# Read by the tree but deliberately untriggered, with the reason.
+UNTRACKED_READS = {"grow_genre_tree_version": "holds the token the triggers bump"}
 
 
 class TestCase(AppTestCase):
@@ -26,6 +32,41 @@ class TestCase(AppTestCase):
         before = GenreTreeVersion.current_token()
         write()
         assert GenreTreeVersion.current_token() != before
+
+    def test_play_leaves_token_unchanged(self):
+        # Content types created inside this rolled-back test would otherwise stay cached for later tests.
+        self.addCleanup(ContentType.objects.clear_cache)
+        playlist = GenrePlaylist.objects.get(criteria=self.rock).playlist
+        track = self.model_fixture_factory.create_youtube_track(title="Song", genre=self.rock)
+        before = GenreTreeVersion.current_token()
+
+        Play.objects.create(content=playlist)
+        Play.objects.create(content=track)
+
+        assert GenreTreeVersion.current_token() == before
+        playlist.refresh_from_db()
+        assert playlist.play_count == 1
+
+    def test_etag_changes_with_git_commit(self):
+        with override_settings(GIT_COMMIT="aaa"):
+            first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        with override_settings(GIT_COMMIT="bbb"):
+            second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+
+        assert second.status_code == status.HTTP_200_OK
+        assert second["ETag"] != first["ETag"]
+
+    def test_tree_served_uncached_when_redis_down(self):
+        down = RedisConnectionError("down")
+        with (
+            patch("django.core.cache.cache.get", side_effect=down),
+            patch("django.core.cache.cache.set", side_effect=down),
+            self.assertLogs(level="WARNING"),
+        ):
+            response = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "Rock" in [row["criteria"] and row["criteria"]["name"] for row in response.json()]
 
     def test_tree_equals_unpaginated_list(self):
         for tree_name in ("canonical", "regional"):
@@ -84,7 +125,7 @@ class TestCase(AppTestCase):
             self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
         read = {t for q in queries.captured_queries for t in re.findall(r'(?:FROM|JOIN) "(\w+)"', q["sql"])}
 
-        assert read - {"grow_genre_tree_version"} <= TRACKED_TABLES
+        assert read - UNTRACKED_READS.keys() <= TRACKED_TABLES
         with connection.cursor() as cursor:
             cursor.execute("SELECT tbl_name FROM sqlite_master WHERE type = 'trigger'")
             triggered = {row[0] for row in cursor.fetchall()}

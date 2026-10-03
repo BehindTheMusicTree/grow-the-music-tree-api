@@ -1,8 +1,11 @@
+import logging
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseNotModified
 from django.utils.http import parse_etags
+from redis.exceptions import RedisError
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
@@ -17,6 +20,8 @@ from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet 
 
 TREE_CACHE_TTL = timedelta(days=7).total_seconds()
 
+logger = logging.getLogger(__name__)
+
 
 class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
     def __init__(self, **kwargs):
@@ -30,13 +35,18 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             raise ValidationError({FilterFields.TREE_NAME: f"Required, one of {CriteriaTreeName.values}"})
 
         token = GenreTreeVersion.current_token()
-        etag = f'"{tree_name}-{token}"'
+        version = f"{tree_name}-{settings.GIT_COMMIT}-{token}"
+        etag = f'"{version}"'
         headers = {"ETag": etag, "Cache-Control": "no-cache"}
         if etag in parse_etags(request.headers.get("If-None-Match", "")):
             return HttpResponseNotModified(headers=headers)
 
-        cache_key = f"genre-tree:{tree_name}:{token}"
-        body = cache.get(cache_key)
+        cache_key = f"genre-tree:{version}"
+        try:
+            body = cache.get(cache_key)
+        except RedisError:
+            logger.warning("Genre tree cache unavailable, serving uncached", exc_info=True)
+            body = None
         if body is None:
             queryset = CriteriaPlaylistFilterSet().filter_tree_name(
                 self.get_queryset(), FilterFields.TREE_NAME, tree_name
@@ -45,5 +55,8 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
                 CriteriaPlaylistSimpleSerializer.setup_queryset(queryset), many=True
             ).data
             body = self.get_renderers()[0].render(data)
-            cache.set(cache_key, body, TREE_CACHE_TTL)
+            try:
+                cache.set(cache_key, body, TREE_CACHE_TTL)
+            except RedisError:
+                logger.warning("Genre tree cache unavailable, response not cached", exc_info=True)
         return HttpResponse(body, content_type="application/json", headers=headers)

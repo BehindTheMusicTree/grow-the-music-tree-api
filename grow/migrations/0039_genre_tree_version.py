@@ -9,15 +9,27 @@ TRACKED_TABLES = [
     "grow_criteria_secondary_parents",
     "grow_criteria_playlist",
     "grow_genre",
-    "grow_user_profile",
     "the_music_tree_genre_kit_criteriatype",
     "the_music_tree_genre_kit_playlist",
     "the_music_tree_genre_kit_track_playlist_rel",
 ]
 
+# Columns the tree reads, so play_count increments (UPDATE ... SET play_count only) don't bump the token.
+UPDATE_COLUMNS = {
+    "the_music_tree_genre_kit_playlist": ["uuid", "created_on", "updated_on", "user_id"],
+}
+
+
+def _update_event(table: str) -> str:
+    columns = UPDATE_COLUMNS.get(table)
+    return f"UPDATE OF {', '.join(columns)}" if columns else "UPDATE"
+
+
 POSTGRES_FUNCTION = """
 CREATE OR REPLACE FUNCTION bump_genre_tree_version() RETURNS trigger AS $$
 BEGIN
+    -- ponytail: single-row lock serializes every tracked write until its transaction commits, so a long
+    -- import blocks other tree writers for its whole duration; move to per-tree rows or a sequence if that bites.
     UPDATE grow_genre_tree_version SET token = gen_random_uuid() WHERE id = 1;
     RETURN NULL;
 END;
@@ -27,7 +39,8 @@ $$ LANGUAGE plpgsql;
 
 def _postgres_trigger(table: str) -> str:
     return (
-        f"CREATE TRIGGER bump_genre_tree_version AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON {table} "
+        f"CREATE TRIGGER bump_genre_tree_version AFTER INSERT OR {_update_event(table)} OR DELETE OR TRUNCATE "
+        f"ON {table} "
         "FOR EACH STATEMENT EXECUTE FUNCTION bump_genre_tree_version();"
     )
 
@@ -35,9 +48,9 @@ def _postgres_trigger(table: str) -> str:
 def _sqlite_triggers(table: str) -> list[str]:
     # SQLite has no statement-level triggers nor TRUNCATE; row-level keeps the test suite honest.
     return [
-        f"CREATE TRIGGER bump_genre_tree_version_{table}_{op.lower()} AFTER {op} ON {table} BEGIN "
+        f"CREATE TRIGGER bump_genre_tree_version_{table}_{name} AFTER {event} ON {table} BEGIN "
         "UPDATE grow_genre_tree_version SET token = lower(hex(randomblob(16))) WHERE id = 1; END;"
-        for op in ("INSERT", "UPDATE", "DELETE")
+        for name, event in (("insert", "INSERT"), ("update", _update_event(table)), ("delete", "DELETE"))
     ]
 
 
