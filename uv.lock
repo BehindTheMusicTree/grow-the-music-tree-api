@@ -488,7 +488,7 @@ requests = [
 
 [[package]]
 name = "grow-the-music-tree-api"
-version = "11.1.0"
+version = "11.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cachecontrol" },
@@ -536,7 +536,7 @@ requires-dist = [
     { name = "pytest-django", marker = "extra == 'dev'", specifier = "==4.8.0" },
     { name = "redis", specifier = "==8.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.9" },
-    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.35.2" },
+    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.36.0" },
 ]
 provides-extras = ["dev"]
 
@@ -853,8 +853,8 @@ dependencies = [
 
 [[package]]
 name = "the-music-tree-genre-kit"
-version = "0.35.2"
-source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.35.2#e6edefb615882e0c29bb2e12c203604f46fe4e7e" }
+version = "0.36.0"
+source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.36.0#5a78c5ff6dd894d29fff493ce285b31415ad45b0" }
 dependencies = [
     { name = "django" },
     { name = "djangorestframework" },
