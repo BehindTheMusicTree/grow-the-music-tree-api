@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import pytest
+from django.core.cache import cache
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -95,3 +96,32 @@ def test_query_count_is_constant_and_within_budget(endpoint):
 
     assert (few_rows, many_rows) == (many_rows, many_rows), f"{endpoint} issues queries per row"
     assert many_rows <= BUDGETS[endpoint]
+
+
+TREE_BUDGETS = {"cold": 4, "warm": 1, "not-modified": 1}
+
+
+def _count_tree_queries(**headers) -> int:
+    client = AppApiClient()
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(reverse("genre-playlist-tree"), {"tree_name": "canonical"}, **headers)
+    assert response.status_code in (status.HTTP_200_OK, status.HTTP_304_NOT_MODIFIED)
+    return len(queries.captured_queries)
+
+
+@pytest.mark.django_db
+def test_genre_tree_query_count_is_constant_and_within_budget():
+    cache.clear()
+    _seed_genres(0, 2)
+    few_rows = _count_tree_queries()
+    _seed_genres(2, 12)
+    many_rows = _count_tree_queries()
+    etag = AppApiClient().get(reverse("genre-playlist-tree"), {"tree_name": "canonical"})["ETag"]
+    counts = {
+        "cold": many_rows,
+        "warm": _count_tree_queries(),
+        "not-modified": _count_tree_queries(HTTP_IF_NONE_MATCH=etag),
+    }
+
+    assert few_rows == many_rows, "genre-playlist-tree issues queries per row"
+    assert counts == TREE_BUDGETS
