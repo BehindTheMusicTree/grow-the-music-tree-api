@@ -18,6 +18,11 @@ class TestCase(GenreTestCase):
         self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q888001")
         self.punk = self.model_fixture_factory.create_genre("Punk", wikidata_id="Q888002")
 
+    def test_list_by_wikidata_id_then_genre_with_its_qid(self):
+        self._list_genres(wikidata_id="Q888002")
+
+        assert [(g["name"], g["wikidataId"]) for g in self.results] == [("Punk", "Q888002")]
+
     def test_rename_then_label_override_and_still_locked(self):
         assert self._put_genre(self.punk.uuid, data={"name": "Punk rock"}).status_code == status.HTTP_200_OK
 

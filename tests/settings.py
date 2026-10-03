@@ -22,6 +22,13 @@ Q_CLUSTER = {
     "sync": True,
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "KEY_PREFIX": "grow",
+    }
+}
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.middleware.http.ConditionalGetMiddleware",

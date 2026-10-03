@@ -58,6 +58,14 @@ DATABASES = {
 
 _redis_url = urlparse(os.environ["REDIS_URL"])
 
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ["REDIS_URL"],
+        "KEY_PREFIX": "grow",
+    }
+}
+
 Q_CLUSTER = {
     "name": "gtmt_api",
     # Default workers = CPU count, which forks one Django process per core on a shared, mem-capped VPS.

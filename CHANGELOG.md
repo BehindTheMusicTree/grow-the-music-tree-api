@@ -12,6 +12,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [11.1.0] - 2026-10-03
+
+### Added
+
+- `GET genre-playlists/tree/?treeName=`: the whole canonical or regional genre tree in one unpaginated response, cached in Redis for 7 days (new `CACHES` setting, needs `REDIS_URL`) and keyed on a version token that Postgres statement-level triggers regenerate on every write to a table the tree serializes (`GenreTreeVersion` singleton, migration `0039`). Recording a play no longer bumps `updated_on` (it increments `play_count` with a queryset update) so plays don't invalidate the tree; the playlist table's trigger only fires on updates to columns the tree reads. The cache key and `ETag` include `GIT_COMMIT`, and an unreachable Redis is logged and bypassed rather than failing the request. Responses carry an `ETag`, and `If-None-Match` returns 304. Covered by integration tests, query budgets (cold 4, warm 1, not-modified 1) and latency SLOs.
+- `GET curation/status/` (admin): `appliedExportOn` (the pipeline export the canonical tree was last built from) and `pendingCount` (canonical curation entries created, edited or deleted since). The pipeline's `curation/export/` records its time and its canonical `genres/tree/import/` marks that export applied (new `CurationSyncState` singleton, migration `0038`). Covered by integration tests.
+- `GET curation/history/` (admin): canonical curation edits newest first, filterable by `list`, `entry` uuid or `item_id`, each with its entry uuid and the editor pseudo (`null` for the pipeline). Curation history snapshots now carry `list_name`; migration `0037` backfills it for entries still alive. Covered by integration tests.
+- Curation API, for the admin editor: `GET curation/lists/` returns each list's entry `count`; `GET curation/<list>/entries/` accepts `?q=` (case-insensitive match on key, values, reason, or the name of the canonical genre whose QID is the key) and `?ordering=key|-updated_on` (most recently edited or created first), and returns a `labels` map (QID → canonical genre name) for every item-id column on the page. Covered by integration tests.
+- `GET curation/rules/?item_id=`: every canonical curation entry referencing an item, across lists (as the key, as part of a composite key, or as an item-id value), with the same `labels` map. Genres now expose `wikidataId` and accept a `?wikidata_id=` filter. Covered by integration tests.
+
+### Fixed
+
+- `scripts/restore-prod-db.sh` drops and recreates the local `public` schema before `pg_restore`. It reads the whole dump first, so a corrupt download fails before the local database is wiped. Tables created by local migrations that prod hasn't run yet were surviving the restore, so `migrate` then failed with `relation … already exists`.
+- Stable pagination order for list endpoints: rows sharing `created_on` no longer repeat or vanish across pages (genre-kit 0.35.2 → api-kit 0.9.1 adds a `pk` tie-breaker to the default ordering; the playlist name/type filter does the same).
+
 ## [11.0.0] - 2026-10-01
 
 ### Added
@@ -27,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Docker builds pin `ghcr.io/astral-sh/uv` to `0.11` instead of `latest`: the 2026-09-29 amd64 `latest` image ships a non-executable `/uv`, so `uv sync` failed with `Exec format error`.
 - `curation/` `POST`/`PATCH` with a non-object JSON body return 400 instead of 500.
 - Curation item ids are matched in full (`re.fullmatch`, ASCII `[0-9]`): a trailing newline or non-ASCII digits are rejected.
 - A curation key longer than 512 characters returns 400 instead of a database error.
