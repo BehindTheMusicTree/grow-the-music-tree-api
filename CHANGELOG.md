@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [11.1.0] - 2026-10-03
+
 ### Added
 
 - `GET genre-playlists/tree/?treeName=`: the whole canonical or regional genre tree in one unpaginated response, cached in Redis for 7 days (new `CACHES` setting, needs `REDIS_URL`) and keyed on a version token that Postgres statement-level triggers regenerate on every write to a table the tree serializes (`GenreTreeVersion` singleton, migration `0039`). Recording a play no longer bumps `updated_on` (it increments `play_count` with a queryset update) so plays don't invalidate the tree; the playlist table's trigger only fires on updates to columns the tree reads. The cache key and `ETag` include `GIT_COMMIT`, and an unreachable Redis is logged and bypassed rather than failing the request. Responses carry an `ETag`, and `If-None-Match` returns 304. Covered by integration tests, query budgets (cold 4, warm 1, not-modified 1) and latency SLOs.
