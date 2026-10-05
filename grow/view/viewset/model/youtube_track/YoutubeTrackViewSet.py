@@ -40,7 +40,9 @@ class YoutubeTrackViewSet(HistoryActionMixin, GrowModelViewSet[YoutubeTrack]):
         serializer = SongSeedEntrySerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         owner = get_request_owner(request)
-        task_id = async_task(run_import_seed_songs, owner and owner.pk, serializer.validated_data)
+        task_id = async_task(
+            run_import_seed_songs, owner and owner.pk, serializer.validated_data, request.auth.role == "pipeline"
+        )
         return Response({"task_id": task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=["get"], url_path=r"songs/import/(?P<task_id>[^/.]+)/status")
