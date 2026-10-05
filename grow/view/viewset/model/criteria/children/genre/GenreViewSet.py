@@ -5,9 +5,12 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.import_run.ImportRun import ImportRun
 from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
 from grow.serializer.model.criteria.children.genre.input.name_conflict_validate import (
     GenreNameConflictValidateSerializer,
@@ -22,6 +25,15 @@ from grow.serializer.model.criteria.children.genre.output.simple import GenreSim
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
+
+TREE_IMPORT_RUN_KINDS = {
+    CriteriaTreeName.CANONICAL: ImportRun.Kind.CANONICAL_TREE,
+    CriteriaTreeName.REGIONAL: ImportRun.Kind.REGIONAL_TREE,
+}
+
+
+def _node_count(nodes: list[dict]) -> int:
+    return sum(1 + _node_count(node.get(Fields.CHILDREN) or []) for node in nodes)
 
 
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
@@ -46,6 +58,10 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
                 state = CurationSyncState.load()
                 state.applied_export_on = state.exported_on
                 state.save(update_fields=["applied_export_on"])
+                ImportRun.objects.create(
+                    kind=TREE_IMPORT_RUN_KINDS[request.data[Fields.TREE_NAME]],
+                    count=_node_count(request.data[Fields.TREE]),
+                )
 
         return response
 

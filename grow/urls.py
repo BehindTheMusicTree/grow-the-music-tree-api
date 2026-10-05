@@ -13,6 +13,7 @@ from grow.view.curation import (
     CurationStatusView,
 )
 from grow.view.health import HealthCheckView
+from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import GenreViewSet
@@ -57,6 +58,13 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/<uuid:uuid>/",
         CurationEntryView.as_view(),
         name="curation-entry",
+    ),
+    path(f"{settings.API_ROOT_BASE}pipeline/imports/", ImportRunListView.as_view(), name="import-runs"),
+    path(f"{settings.API_ROOT_BASE}pipeline/imports/latest/", ImportRunLatestView.as_view(), name="import-runs-latest"),
+    path(
+        f"{settings.API_ROOT_BASE}pipeline/imports/unresolved-genre-tags/",
+        ImportRunUnresolvedGenreTagsView.as_view(),
+        name="import-runs-unresolved-genre-tags",
     ),
     path(settings.API_ROOT_BASE, include(router.urls)),
 ]
