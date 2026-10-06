@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Pipeline import history for the admin freshness page (`ImportRun`, migration `0041`): every `X-API-Key` canonical/regional `genres/tree/import/` (node count, written in the import's transaction so a failed import records nothing) and `library/youtube/songs/import/` (imported and skipped counts, written by the async task) records a run; admin imports don't. `POST pipeline/imports/unresolved-genre-tags/` (pipeline key or admin) records the pipeline's unresolved genre tag count. `GET pipeline/imports/latest/` (newest run per kind) and `GET pipeline/imports/?kind=` (paginated, newest first) are admin only. Covered by integration tests.
-- `isUnacceptedRoot` on every criteria playlist output (`genre-playlists/tree/`, genre/tag/criteria playlist lists and details): `true` only for a genre playlist whose genre is an import-created root still awaiting admin acceptance, `false` for everything else (accepted genres, tags, Genreless/Tagless), so the frontend can hide unaccepted roots from the wheel and outline views. Accepting a root already bumps the tree cache token. Covered by integration tests.
+- `isUnacceptedRoot` on every criteria playlist output (`genre-playlists/tree/` and the genre/tag/criteria playlist lists): `true` only for a genre playlist whose genre is an import-created root still awaiting admin acceptance, `false` for everything else (accepted genres, tags, Genreless/Tagless); only the root itself is flagged, so consumers hide its subtree via each row's `root`. Accepting a root already bumps the tree cache token. Covered by integration tests.
 
 ## [11.2.0] - 2026-10-04
 

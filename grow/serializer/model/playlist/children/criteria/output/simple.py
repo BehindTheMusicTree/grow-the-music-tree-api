@@ -34,7 +34,6 @@ class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSeria
     def setup_queryset(cls, queryset, prefix=""):
         queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(queryset, prefix)
         queryset = CriteriaSimpleSerializer.setup_queryset(queryset, prefix=f"{prefix}{Fields.CRITERIA}__")
-        queryset = queryset.select_related(f"{prefix}{Fields.CRITERIA}__genre")
         for nested in (Fields.PARENT, Fields.ROOT):
             queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(queryset, prefix=f"{prefix}{nested}__")
         return queryset.annotate(**{PlaylistOutputFields.TRACKS_COUNT_ANNOTATED: tracks_count_annotation()})
