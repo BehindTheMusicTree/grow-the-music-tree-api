@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [11.3.0] - 2026-10-06
+
 ### Added
 
 - Pipeline import history for the admin freshness page (`ImportRun`, migration `0041`): every `X-API-Key` canonical/regional `genres/tree/import/` (node count, written in the import's transaction so a failed import records nothing) and `library/youtube/songs/import/` (imported and skipped counts, written by the async task) records a run; admin imports don't. `POST pipeline/imports/unresolved-genre-tags/` (pipeline key or admin) records the pipeline's unresolved genre tag count. `GET pipeline/imports/latest/` (newest run per kind) and `GET pipeline/imports/?kind=` (paginated, newest first) are admin only. Covered by integration tests.
