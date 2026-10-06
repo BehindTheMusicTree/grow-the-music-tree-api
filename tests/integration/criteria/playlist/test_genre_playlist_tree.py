@@ -76,6 +76,23 @@ class TestCase(AppTestCase):
             assert tree.status_code == status.HTTP_200_OK
             assert tree.json() == listed.json()["results"]
 
+    def test_tree_flags_unaccepted_roots(self):
+        Genre.objects.filter(pk=self.rock.pk).update(is_unaccepted_root=True)
+        self.model_fixture_factory.create_genre("Jazz")
+
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        flags = {row["criteria"]["name"] if row["criteria"] else None: row["isUnacceptedRoot"] for row in rows}
+
+        assert flags == {"Rock": True, "Punk": False, "Jazz": False, None: False}
+
+    def test_non_genre_playlists_are_not_unaccepted_roots(self):
+        self.model_fixture_factory.create_tag("Live")
+
+        rows = self.api_client.get(reverse("tag-playlist-list"), {"page_size": 1000}).json()["results"]
+
+        assert rows
+        assert {row["isUnacceptedRoot"] for row in rows} == {False}
+
     def test_tree_without_valid_tree_name_then_400(self):
         assert self.api_client.get(TREE_PATH).status_code == status.HTTP_400_BAD_REQUEST
         assert self.api_client.get(TREE_PATH, {"tree_name": "bogus"}).status_code == status.HTTP_400_BAD_REQUEST
