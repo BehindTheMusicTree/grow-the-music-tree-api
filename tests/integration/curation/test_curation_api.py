@@ -266,3 +266,17 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "512" in str(response.json())
+
+    def test_genre_precedence_then_created(self):
+        row = {"musicbrainz_genre_name": "test ska", "over_musicbrainz_genre_name": "test reggae", "reason": "r"}
+
+        response = self._create(row, "genre_precedence")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["row"] == row
+
+    def test_genre_precedence_invalid_names_then_400(self):
+        for winner, over in (("Ska", "reggae"), ("ska", "Reggae"), ("ska", "ska"), ("", "reggae")):
+            row = {"musicbrainz_genre_name": winner, "over_musicbrainz_genre_name": over, "reason": "r"}
+
+            assert self._create(row, "genre_precedence").status_code == status.HTTP_400_BAD_REQUEST, row

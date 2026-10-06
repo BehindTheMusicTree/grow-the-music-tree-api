@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `genre_precedence` curation list (source `musicbrainz`, consumed by the pipeline's musicbrainz Silver `5_songs`): `(musicbrainz_genre_name, over_musicbrainz_genre_name, reason)`, the first, more precise MusicBrainz genre winning over the second on a recording carrying both. Both names must be lowercase and differ. Migration `0042` seeds 50 rules (e.g. ska over reggae, pop rock over pop) on existing databases too. Covered by integration tests.
+
 ## [11.3.0] - 2026-10-06
 
 ### Added

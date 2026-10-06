@@ -1,7 +1,7 @@
 import csv
 import re
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +13,7 @@ from grow.curation.lists import (
     BOOL_COLUMNS,
     CURATION_LISTS,
     EXCLUSIVE_LISTS,
+    GENRE_PAIR_LISTS,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
@@ -73,7 +74,12 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
+        if list_name in GENRE_PAIR_LISTS and column in curation_list.key and value != value.lower():
+            errors[column] = "Must be lowercase"
+            continue
         parsed[column] = value
+    if not errors and list_name in GENRE_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
+        errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if errors:
         raise InvalidRow(errors)
     key = KEY_SEPARATOR.join(parsed[c] for c in curation_list.key)
@@ -152,10 +158,13 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
     return "updated"
 
 
-def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
-    """Upserts every list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
+def import_csv_dir(
+    directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult], list_names: Iterable[str] = CURATION_LISTS
+) -> Counter[UpsertResult]:
+    """Upserts each list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
-    for list_name, curation_list in CURATION_LISTS.items():
+    for list_name in list_names:
+        curation_list = CURATION_LISTS[list_name]
         path = directory / f"manual_{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
