@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Curation writes are serialized with a Postgres advisory lock. Before, two concurrent rules (e.g. `a over b` and `b over a`) could each pass the cycle or list-exclusivity check without seeing the other and save an invalid state.
+- Migration `0035` seeds from a frozen JSON snapshot instead of the current registry and seed CSVs, so later list changes can no longer break migrating a fresh database.
+
 ## [11.4.0] - 2026-10-07
 
 ### Added
