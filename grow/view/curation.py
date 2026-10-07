@@ -167,6 +167,7 @@ class CurationEntriesView(CurationView):
 class CurationEntryView(CurationView):
     def _get(self, list_name: str, uuid: str) -> CurationEntry:
         _check_list(list_name)
+        lock_writes(_entries())
         return get_object_or_404(_entries(), list_name=list_name, uuid=uuid)
 
     @transaction.atomic
