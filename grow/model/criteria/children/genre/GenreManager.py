@@ -7,7 +7,7 @@ from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager impor
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.curation.lists import CURATION_LISTS, EXCLUDED_GENRE_LISTS
-from grow.curation.rows import InvalidRow, find_parent_rule
+from grow.curation.rows import InvalidRow, find_parent_rule, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -39,6 +39,13 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         """App-created genres (no wikidata_id) and the pipeline's synthetic `LOCAL:` items aren't in the Wikidata
         tree the curation lists apply to, so the lock alone keeps their edits."""
         return instance.wikidata_id is not None and instance.wikidata_id.startswith("Q")
+
+    @staticmethod
+    def _lock_curation_writes(actor: Any) -> None:
+        """Admin edits upsert curation rules after locking genre rows; taking the curation write lock first keeps
+        that order the same in every transaction, so two concurrent edits can't deadlock on it."""
+        if actor is not None:
+            lock_writes(CurationEntry.objects.all())
 
     @staticmethod
     def _invalid(field_name: str, message: str) -> AppValidationException:
@@ -161,6 +168,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         """Soft-remove a wikidata-backed genre: excluded from the visible tree, protected from
         re-creation/deletion by the next pipeline import, unlike a real DELETE (see
         `AbstractGenreCriteria.is_excluded`)."""
+        self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
         instance.is_excluded = True
         instance.save(update_fields=["is_excluded"])
@@ -196,6 +204,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def validate_name_conflict_group(self, user: Any, names: dict[Any, str], actor: Any = None) -> None:
         """Applies the admin's final `names` (uuid -> name) to a conflict group and marks each of its
         flagged genres as reviewed: renamed ones via `_on_renamed`, unchanged ones here."""
+        self._lock_curation_writes(actor)
         genres = {genre.uuid: genre for genre in self.filter(user=user, uuid__in=names)}
         missing = [str(uuid) for uuid in names if uuid not in genres]
         if missing:
@@ -240,6 +249,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def accept_roots(self, user: Any, uuids: list[Any], actor: Any = None) -> None:
+        self._lock_curation_writes(actor)
         genres = {genre.uuid: genre for genre in self.filter(user=user, uuid__in=uuids, is_unaccepted_root=True)}
         missing = [str(uuid) for uuid in uuids if uuid not in genres]
         if missing:
@@ -258,6 +268,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
+        self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
         updated = super().update_instance(instance, actor=actor, **kwargs)
         if was_required_root:

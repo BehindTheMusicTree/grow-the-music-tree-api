@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from django.db import models
+from django.db import connections, models
 from django.utils import timezone
 
 from grow.curation.lists import (
@@ -22,6 +22,7 @@ from grow.curation.lists import (
 
 KEY_SEPARATOR = "\t"
 SEED_DIR = Path(__file__).parent / "seed"
+WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
 UpsertResult = Literal["created", "updated", "unchanged"]
 
@@ -108,6 +109,17 @@ def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) ->
     }
 
 
+def lock_writes(queryset: models.QuerySet) -> None:
+    """Serializes curation writes until the current transaction ends, so concurrent writes can't each pass the
+    cross-row exclusivity and cycle checks against a state missing the other's row."""
+    # ponytail: one lock for every list, per-list keys if curation writes ever contend.
+    connection = connections[queryset.db]
+    if connection.vendor != "postgresql":  # the tests' in-memory SQLite has no advisory locks
+        return
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_advisory_xact_lock(%s)", [WRITE_LOCK_ID])
+
+
 def find_exclusivity_conflict(
     queryset: models.QuerySet, list_name: str, key: str, exclude_pk: Any = None
 ) -> str | None:
@@ -163,6 +175,7 @@ def find_parent_rule(queryset: models.QuerySet, item_id: str) -> Any:
 def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
     """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any."""
     parsed = parse_row(list_name, row)
+    lock_writes(entries)
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key)
     if conflict:
         raise InvalidRow(

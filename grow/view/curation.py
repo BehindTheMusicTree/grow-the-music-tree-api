@@ -26,6 +26,7 @@ from grow.curation.rows import (
     find_exclusivity_conflict,
     find_item_rules,
     find_precedence_cycle,
+    lock_writes,
     parse_row,
     precedence_cycle_error,
 )
@@ -63,6 +64,7 @@ def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> Pa
         parsed = parse_row(list_name, row)
     except InvalidRow as e:
         raise ValidationError({"row": e.errors}) from e
+    lock_writes(_entries())
     if _entries().filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
         raise ValidationError({"row": f"An entry with this key already exists in {list_name}"})
     conflict = find_exclusivity_conflict(_entries(), list_name, parsed.key, exclude_pk)
@@ -165,6 +167,7 @@ class CurationEntriesView(CurationView):
 class CurationEntryView(CurationView):
     def _get(self, list_name: str, uuid: str) -> CurationEntry:
         _check_list(list_name)
+        lock_writes(_entries())
         return get_object_or_404(_entries(), list_name=list_name, uuid=uuid)
 
     @transaction.atomic
