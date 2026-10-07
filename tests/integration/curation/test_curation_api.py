@@ -6,6 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from grow.curation.lists import CURATION_LISTS
+from grow.curation.rows import InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -276,7 +277,64 @@ class TestCase(AppTestCase):
         assert response.json()["row"] == row
 
     def test_genre_precedence_invalid_names_then_400(self):
-        for winner, over in (("Ska", "reggae"), ("ska", "Reggae"), ("ska", "ska"), ("", "reggae")):
+        invalid = (
+            ("Ska", "reggae"),
+            ("ska", "Reggae"),
+            ("ska", "ska"),
+            ("", "reggae"),
+            ("ska ", "reggae"),
+            ("ska", " x"),
+        )
+        for winner, over in invalid:
             row = {"musicbrainz_genre_name": winner, "over_musicbrainz_genre_name": over, "reason": "r"}
 
             assert self._create(row, "genre_precedence").status_code == status.HTTP_400_BAD_REQUEST, row
+
+    def _precedence(self, winner: str, over: str):
+        row = {"musicbrainz_genre_name": winner, "over_musicbrainz_genre_name": over, "reason": "r"}
+        return self._create(row, "genre_precedence")
+
+    def test_genre_precedence_reversing_rule_then_400_naming_cycle(self):
+        self._precedence("test ska", "test reggae")
+
+        response = self._precedence("test reggae", "test ska")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "test reggae over test ska over test reggae" in str(response.json())
+
+    def test_genre_precedence_longer_cycle_then_400_naming_cycle(self):
+        self._precedence("test a", "test b")
+        self._precedence("test b", "test c")
+
+        response = self._precedence("test c", "test a")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "test c over test a over test b over test c" in str(response.json())
+
+    def test_genre_precedence_shared_loser_then_no_cycle(self):
+        self._precedence("test a", "test c")
+        self._precedence("test b", "test c")
+
+        assert self._precedence("test a", "test b").status_code == status.HTTP_201_CREATED
+
+    def test_genre_precedence_patch_into_cycle_then_400(self):
+        self._precedence("test a", "test b")
+        uuid = self._precedence("test c", "test d").json()["uuid"]
+        url = self._entry_url(uuid, "genre_precedence")
+
+        same = self.api_client.patch(url, {"row": {"reason": "r2"}}, format="json")
+        cycle = self.api_client.patch(
+            url, {"row": {"musicbrainz_genre_name": "test b", "over_musicbrainz_genre_name": "test a"}}, format="json"
+        )
+
+        assert same.status_code == status.HTTP_200_OK
+        assert cycle.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_genre_precedence_upsert_into_cycle_then_invalid_row(self):
+        with self.assertRaises(InvalidRow) as raised:
+            CurationEntry.objects.upsert(
+                "genre_precedence",
+                {"musicbrainz_genre_name": "reggae", "over_musicbrainz_genre_name": "ska", "reason": "r"},
+            )
+
+        assert "reggae over ska over reggae" in str(raised.exception.errors)

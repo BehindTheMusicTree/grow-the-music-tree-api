@@ -1,7 +1,7 @@
 import csv
 import re
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -74,6 +74,9 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
+        if list_name in GENRE_PAIR_LISTS and column in curation_list.key and value != value.strip():
+            errors[column] = "Must not have leading or trailing whitespace"
+            continue
         if list_name in GENRE_PAIR_LISTS and column in curation_list.key and value != value.lower():
             errors[column] = "Must be lowercase"
             continue
@@ -115,6 +118,34 @@ def find_exclusivity_conflict(
     return others.values_list("list_name", flat=True).first()
 
 
+def find_precedence_cycle(
+    queryset: models.QuerySet, list_name: str, key: str, exclude_pk: Any = None
+) -> list[str] | None:
+    """The genres, from winner back to winner, of the cycle the `key` rule would close with the list's others."""
+    if list_name not in GENRE_PAIR_LISTS:
+        return None
+    winner, loser = key.split(KEY_SEPARATOR)
+    beats: dict[str, list[str]] = {}
+    for other in queryset.filter(list_name=list_name).exclude(pk=exclude_pk).values_list("key", flat=True):
+        a, b = other.split(KEY_SEPARATOR)
+        beats.setdefault(a, []).append(b)
+    paths = {loser: [winner, loser]}
+    stack = [loser]
+    while stack:
+        genre = stack.pop()
+        if genre == winner:
+            return paths[genre]
+        for beaten in beats.get(genre, []):
+            if beaten not in paths:
+                paths[beaten] = [*paths[genre], beaten]
+                stack.append(beaten)
+    return None
+
+
+def precedence_cycle_error(cycle: list[str]) -> str:
+    return "Would form the precedence cycle " + " over ".join(cycle)
+
+
 def find_item_rules(queryset: models.QuerySet, item_id: str) -> models.QuerySet:
     """Entries referencing `item_id`: as their key, as part of a composite key, or as an item-id value."""
     query = models.Q(key=item_id) | models.Q(key__startswith=item_id + KEY_SEPARATOR)
@@ -141,6 +172,9 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
                 ]: f"{parsed.key} is already in {conflict}; these lists are mutually exclusive"
             }
         )
+    cycle = find_precedence_cycle(entries, list_name, parsed.key)
+    if cycle:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: precedence_cycle_error(cycle)})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
 
 
@@ -158,13 +192,10 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
     return "updated"
 
 
-def import_csv_dir(
-    directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult], list_names: Iterable[str] = CURATION_LISTS
-) -> Counter[UpsertResult]:
+def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
     """Upserts each list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
-    for list_name in list_names:
-        curation_list = CURATION_LISTS[list_name]
+    for list_name, curation_list in CURATION_LISTS.items():
         path = directory / f"manual_{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)

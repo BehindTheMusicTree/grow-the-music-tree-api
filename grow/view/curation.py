@@ -20,7 +20,15 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
 from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
-from grow.curation.rows import InvalidRow, ParsedRow, find_exclusivity_conflict, find_item_rules, parse_row
+from grow.curation.rows import (
+    InvalidRow,
+    ParsedRow,
+    find_exclusivity_conflict,
+    find_item_rules,
+    find_precedence_cycle,
+    parse_row,
+    precedence_cycle_error,
+)
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
@@ -60,6 +68,9 @@ def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> Pa
     conflict = find_exclusivity_conflict(_entries(), list_name, parsed.key, exclude_pk)
     if conflict:
         raise ValidationError({"row": f"{parsed.key} is already in {conflict}; these lists are mutually exclusive"})
+    cycle = find_precedence_cycle(_entries(), list_name, parsed.key, exclude_pk)
+    if cycle:
+        raise ValidationError({"row": precedence_cycle_error(cycle)})
     return parsed
 
 
