@@ -11,9 +11,13 @@ KEY_MAX_LENGTH = 512
 """`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
 
 
+Source = Literal["wikidata", "musicbrainz", "gold"]
+"""The pipeline consuming the list."""
+
+
 @dataclass(frozen=True)
 class CurationList:
-    source: Literal["wikidata", "gold"]
+    source: Source
     key: tuple[str, ...]
     columns: tuple[str, ...]
     """Exact CSV header order."""
@@ -28,7 +32,7 @@ class CurationList:
         return REASON_COLUMN in self.columns
 
 
-def _item_list(description: str, *extra: str, source: Literal["wikidata", "gold"] = "wikidata") -> CurationList:
+def _item_list(description: str, *extra: str, source: Source = "wikidata") -> CurationList:
     return CurationList(source, ("item_id",), ("item_id", "item_label", "reason", *extra), description)
 
 
@@ -94,7 +98,16 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "item_label", "parent_id", "parent_label", "reason"),
         "Extra parent edges of a regional item exported as secondary rather than primary parents.",
     ),
+    "genre_precedence": CurationList(
+        "musicbrainz",
+        ("musicbrainz_genre_name", "over_musicbrainz_genre_name"),
+        ("musicbrainz_genre_name", "over_musicbrainz_genre_name", "reason"),
+        "On a recording carrying both MusicBrainz genres, the more precise first one wins over the second.",
+    ),
 }
+
+GENRE_PAIR_LISTS = frozenset({"genre_precedence"})
+"""Lists keyed by two distinct MusicBrainz `genre.name`s, which MusicBrainz stores lowercase."""
 
 EXCLUDED_GENRE_LISTS = {
     "theme": "theme_genres",

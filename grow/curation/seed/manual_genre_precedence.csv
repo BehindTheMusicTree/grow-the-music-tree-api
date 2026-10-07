@@ -1,0 +1,51 @@
+musicbrainz_genre_name,over_musicbrainz_genre_name,reason
+ska,reggae,more precise genre wins over the broader tag
+rocksteady,reggae,more precise genre wins over the broader tag
+ska punk,ska,more precise genre wins over the broader tag
+ska punk,punk,more precise genre wins over the broader tag
+pop rock,pop,more precise genre wins over the broader tag
+pop rock,rock,more precise genre wins over the broader tag
+soft rock,rock,more precise genre wins over the broader tag
+soft rock,pop,more precise genre wins over the broader tag
+classic rock,rock,more precise genre wins over the broader tag
+alternative rock,rock,more precise genre wins over the broader tag
+indie rock,rock,more precise genre wins over the broader tag
+indie rock,alternative rock,more precise genre wins over the broader tag
+folk rock,rock,more precise genre wins over the broader tag
+folk rock,folk,more precise genre wins over the broader tag
+hard rock,rock,more precise genre wins over the broader tag
+heartland rock,rock,more precise genre wins over the broader tag
+art rock,rock,more precise genre wins over the broader tag
+blues rock,blues,more precise genre wins over the broader tag
+blues rock,rock,more precise genre wins over the broader tag
+grunge,alternative rock,more precise genre wins over the broader tag
+grunge,rock,more precise genre wins over the broader tag
+britpop,alternative rock,more precise genre wins over the broader tag
+britpop,rock,more precise genre wins over the broader tag
+punk,rock,more precise genre wins over the broader tag
+dance-pop,pop,more precise genre wins over the broader tag
+dance-pop,dance,more precise genre wins over the broader tag
+synth-pop,pop,more precise genre wins over the broader tag
+synth-pop,electronic,more precise genre wins over the broader tag
+electropop,pop,more precise genre wins over the broader tag
+electropop,electronic,more precise genre wins over the broader tag
+teen pop,pop,more precise genre wins over the broader tag
+europop,pop,more precise genre wins over the broader tag
+alternative pop,pop,more precise genre wins over the broader tag
+j-pop,pop,more precise genre wins over the broader tag
+k-pop,pop,more precise genre wins over the broader tag
+country pop,country,more precise genre wins over the broader tag
+country pop,pop,more precise genre wins over the broader tag
+house,electronic,more precise genre wins over the broader tag
+downtempo,electronic,more precise genre wins over the broader tag
+electro,electronic,more precise genre wins over the broader tag
+ambient,electronic,more precise genre wins over the broader tag
+trap,hip hop,more precise genre wins over the broader tag
+pop rap,hip hop,more precise genre wins over the broader tag
+alternative hip hop,hip hop,more precise genre wins over the broader tag
+contemporary r&b,r&b,more precise genre wins over the broader tag
+heavy metal,metal,more precise genre wins over the broader tag
+black metal,metal,more precise genre wins over the broader tag
+alternative metal,metal,more precise genre wins over the broader tag
+alternative metal,alternative rock,more precise genre wins over the broader tag
+banda sinaloense,regional mexicano,more precise genre wins over the broader tag
