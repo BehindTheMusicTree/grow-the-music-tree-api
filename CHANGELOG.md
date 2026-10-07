@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [11.4.0] - 2026-10-07
+
+### Added
+
+- `genre_precedence` curation list (source `musicbrainz`, consumed by the pipeline's musicbrainz Silver `5_songs`): `(musicbrainz_genre_name, over_musicbrainz_genre_name, reason)`, the first, more precise MusicBrainz genre winning over the second on a recording carrying both. Both names must be lowercase, free of leading or trailing whitespace, and differ, and a rule closing a precedence cycle (reversing an existing rule, or a longer chain such as a over b, b over c, c over a) is rejected with a 400 naming the cycle, on create, patch and CSV import alike, since either fails the pipeline's daily run. Migration `0042` seeds 50 rules (e.g. ska over reggae, pop rock over pop) on existing databases too, inlined so it doesn't break if the list is later renamed or its seed CSV removed. Covered by integration tests.
+
 ## [11.3.0] - 2026-10-06
 
 ### Added

@@ -1,9 +1,11 @@
 import csv
+import importlib
 import shutil
 import tempfile
 from io import StringIO
 from pathlib import Path
 
+from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -39,6 +41,17 @@ class TestCase(AppTestCase):
             expected = sorted(_read_csv(list_name), key=lambda r: _key(list_name, r))
             actual = sorted(export[list_name], key=lambda r: _key(list_name, r))
             assert actual == expected, list_name
+
+    def test_genre_precedence_migration_on_seeded_db_then_rows_added(self):
+        CurationEntry.objects.filter(list_name="genre_precedence").delete()
+        migration = importlib.import_module("grow.migrations.0042_genre_precedence_curation_list")
+
+        migration.seed(apps, None)
+
+        seeded = CurationEntry.objects.filter(list_name="genre_precedence")
+        assert sorted(tuple(e.csv_row.values()) for e in seeded) == sorted(
+            tuple(r.values()) for r in _read_csv("genre_precedence")
+        )
 
     def test_import_command_then_idempotent_upsert(self):
         total = CurationEntry.objects.count()
