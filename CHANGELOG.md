@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `YoutubeTrack.musicbrainz_recording_id` (migration `0043`): the MusicBrainz recording MBID, unique and nullable (hand-made tracks have none), returned as `musicbrainzRecordingId` on youtube track list and detail responses. Covered by integration tests.
+
+### Changed
+
+- `library/youtube/songs/import/` now requires `musicbrainzRecordingId` on every entry and upserts tracks by it (genre-kit `v0.37.0`), so two recordings sharing a video stay two tracks and a video id change upstream updates the track instead of recreating it. Existing tracks without an MBID are adopted by `youtubeVideoId` on the first import and stamped. Must deploy together with the pipelines change adding `musicbrainz_recording_id` to `2_songs.json`, or the daily songs import fails with 400. The pinned perf fixture `2_songs.json.gz` carries deterministic placeholder MBIDs. Covered by integration tests.
+
 ### Fixed
 
 - Curation writes are serialized with a Postgres advisory lock. Before, two concurrent rules (e.g. `a over b` and `b over a`) could each pass the cycle or list-exclusivity check without seeing the other and save an invalid state.
