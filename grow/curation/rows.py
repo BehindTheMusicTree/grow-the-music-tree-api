@@ -1,7 +1,7 @@
 import csv
 import re
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -192,13 +192,10 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
     return "updated"
 
 
-def import_csv_dir(
-    directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult], list_names: Iterable[str] = CURATION_LISTS
-) -> Counter[UpsertResult]:
+def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
     """Upserts each list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
-    for list_name in list_names:
-        curation_list = CURATION_LISTS[list_name]
+    for list_name, curation_list in CURATION_LISTS.items():
         path = directory / f"manual_{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)

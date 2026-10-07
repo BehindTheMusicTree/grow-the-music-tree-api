@@ -48,7 +48,10 @@ class TestCase(AppTestCase):
 
         migration.seed(apps, None)
 
-        assert CurationEntry.objects.filter(list_name="genre_precedence").count() == len(_read_csv("genre_precedence"))
+        seeded = CurationEntry.objects.filter(list_name="genre_precedence")
+        assert sorted(tuple(e.csv_row.values()) for e in seeded) == sorted(
+            tuple(r.values()) for r in _read_csv("genre_precedence")
+        )
 
     def test_import_command_then_idempotent_upsert(self):
         total = CurationEntry.objects.count()
