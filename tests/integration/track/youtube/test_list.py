@@ -42,6 +42,16 @@ class TestCase(AppTestCase):
 
         assert response.data["results"][0]["youtube_video_id"] == "abc123defgh"
 
+    def test_list_includes_musicbrainz_recording_id(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_youtube_track(
+            title="Track Title", genre=genre, musicbrainz_recording_id="b1a9c0e9-d987-4042-ae91-78d6a3267d69"
+        )
+
+        response = self.api_client.get(path=reverse(self.list_endpoint))
+
+        assert response.data["results"][0]["musicbrainz_recording_id"] == "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
+
     def test_list_includes_null_youtube_unplayable_reason_for_playable_track(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_youtube_track(title="Track Title", genre=genre)

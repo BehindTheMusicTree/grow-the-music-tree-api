@@ -17,6 +17,7 @@ class TestCase(AppTestCase):
             artists=[artist],
             album=album,
             youtube_video_id="abc123defgh",
+            musicbrainz_recording_id="b1a9c0e9-d987-4042-ae91-78d6a3267d69",
         )
 
         response = self.api_client.get(path=reverse("youtube-track-detail", kwargs={"pk": youtube_track.uuid}))
@@ -25,6 +26,7 @@ class TestCase(AppTestCase):
         assert response.data["uuid"] == str(youtube_track.uuid)
         assert response.data["title"] == "Track Title"
         assert response.data["youtube_video_id"] == "abc123defgh"
+        assert response.data["musicbrainz_recording_id"] == "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
         assert response.data["relative_url"] == youtube_track.relative_url
         assert response.data["artists"][0]["name"] == "Pink Floyd"
         assert response.data["album"]["name"] == "The Wall"
