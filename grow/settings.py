@@ -92,6 +92,9 @@ USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# The pipeline's songs import body outgrew Django's 2.5 MiB default (~2.8 MB at 11k songs).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
 
 with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
     APP_VERSION = tomllib.load(_pyproject)["project"]["version"]
