@@ -15,7 +15,13 @@ TREE_PAYLOAD = {
         for qid, n in (("Q11399", "Rock"), ("Q373342", "Mainstream Pop"))
     ],
 }
-SONG = {"title": "Comfortably Numb", "artist": "Pink Floyd", "youtubeVideoId": "abc123defgh", "genreName": "Rock"}
+SONG = {
+    "title": "Comfortably Numb",
+    "artist": "Pink Floyd",
+    "youtubeVideoId": "abc123defgh",
+    "musicbrainzRecordingId": "b1a9c0e9-d987-4042-ae91-78d6a3267d69",
+    "genreName": "Rock",
+}
 
 
 class TestCase(AppTestCase):

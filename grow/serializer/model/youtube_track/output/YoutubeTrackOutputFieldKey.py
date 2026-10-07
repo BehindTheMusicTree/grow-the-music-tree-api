@@ -16,4 +16,5 @@ class YoutubeTrackOutputFieldKey(StrEnum):
     PLAYLISTS_PUBLIC = "playlists"
     PLAY_COUNT = "play_count"
     YOUTUBE_VIDEO_ID = "youtube_video_id"
+    MUSICBRAINZ_RECORDING_ID = "musicbrainz_recording_id"
     YOUTUBE_UNPLAYABLE_REASON = "youtube_unplayable_reason"

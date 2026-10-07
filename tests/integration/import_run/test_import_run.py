@@ -15,8 +15,20 @@ REGIONAL_TREE = [
     {Fields.ID: "Q1060", Fields.NAME_PUBLIC: "Music of France", Fields.CHILDREN: []},
 ]
 SONGS = [
-    {"title": "Comfortably Numb", "artist": "Pink Floyd", "youtubeVideoId": "abc123defgh", "genreName": "Rock"},
-    {"title": "Unmatched", "artist": "Nobody", "youtubeVideoId": "zzz123defgh", "genreName": "Unknown"},
+    {
+        "title": "Comfortably Numb",
+        "artist": "Pink Floyd",
+        "youtubeVideoId": "abc123defgh",
+        "musicbrainzRecordingId": "b1a9c0e9-d987-4042-ae91-78d6a3267d69",
+        "genreName": "Rock",
+    },
+    {
+        "title": "Unmatched",
+        "artist": "Nobody",
+        "youtubeVideoId": "zzz123defgh",
+        "musicbrainzRecordingId": "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11",
+        "genreName": "Unknown",
+    },
 ]
 
 
