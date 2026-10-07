@@ -1,5 +1,7 @@
 import uuid
 
+from django.conf import settings
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -46,6 +48,29 @@ class TestCase(AppTestCase):
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    # Prod's CamelToSnakeMiddleware reads request.body, which is where Django enforces the upload limit.
+    @override_settings(
+        MIDDLEWARE=[
+            *settings.MIDDLEWARE,
+            "the_music_tree_api_kit.view.middleware.CamelToSnakeMiddleware.CamelToSnakeMiddleware",
+        ]
+    )
+    def test_import_reads_body_above_django_default_upload_limit(self):
+        payload = [
+            {
+                "title": "x" * 3 * 1024 * 1024,
+                "artist": "Pink Floyd",
+                "youtubeVideoId": "abc123defgh",
+                "musicbrainzRecordingId": MBID,
+                "genreName": "Rock",
+            }
+        ]
+
+        response = self.api_client.post(path=reverse("youtube-track-list") + "songs/import/", data=payload)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "title" in response.json()["details"]["fieldErrors"]
 
     def test_import_sets_then_clears_youtube_unplayable_reason(self):
         self.model_fixture_factory.create_genre("Rock")
