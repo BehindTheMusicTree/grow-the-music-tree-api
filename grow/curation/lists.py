@@ -107,7 +107,8 @@ CURATION_LISTS: dict[str, CurationList] = {
 }
 
 GENRE_PAIR_LISTS = frozenset({"genre_precedence"})
-"""Lists keyed by two distinct MusicBrainz `genre.name`s, which MusicBrainz stores lowercase."""
+"""Lists keyed by two distinct MusicBrainz `genre.name`s, which MusicBrainz stores lowercase and trimmed. The first
+wins over the second, so the pipeline fails on a cycle of such rules."""
 
 EXCLUDED_GENRE_LISTS = {
     "theme": "theme_genres",
