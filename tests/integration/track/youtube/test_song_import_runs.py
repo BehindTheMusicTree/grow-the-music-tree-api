@@ -44,10 +44,15 @@ class TestImportRunProtocol(AppTestCase):
             run_id=first, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
         )
 
+        committed = SongImportRun.objects.create(committed_on="2026-01-01T00:00:00Z")
+        SongImportStaging.objects.create(
+            run_id=committed.pk, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
+        )
+
         second = self._create_run()
 
-        assert list(SongImportRun.objects.values_list("pk", flat=True)) == [second]
-        assert not SongImportStaging.objects.exists()
+        assert sorted(SongImportRun.objects.values_list("pk", flat=True)) == [committed.pk, second]
+        assert list(SongImportStaging.objects.values_list("run_id", flat=True)) == [committed.pk]
 
     def test_commit_unknown_run_then_404(self):
         assert self.api_client.post(path=f"{RUNS}999/commit/").status_code == status.HTTP_404_NOT_FOUND
@@ -227,6 +232,23 @@ class TestImportRunMerge(AppTestCase):
 
         assert codes == [status.HTTP_400_BAD_REQUEST] * len(invalid)
         assert not SongImportStaging.objects.exists()
+
+    def test_empty_run_fails_and_keeps_tracks(self):
+        self.model_fixture_factory.create_youtube_track(title="Kept", genre=None)
+        run_id = self.api_client.post(path=RUNS).data["run_id"]
+
+        response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
+
+        # Sync django-q re-raises the task's error into the request; the cluster records it as a failed task.
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert list(YoutubeTrack.objects.values_list("title", flat=True)) == ["Kept"]
+        assert not SongImportRun.objects.exists()
+
+    def test_tag_name_is_not_a_genre(self):
+        self.model_fixture_factory.create_tag("Rock")
+
+        assert self._sync([SONG]) == {"imported": 1, "skipped": 1}
+        assert YoutubeTrack.objects.get().genre is None
 
     def test_pipeline_commit_recorded_and_admin_not(self):
         self.model_fixture_factory.create_genre("Rock")

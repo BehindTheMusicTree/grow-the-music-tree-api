@@ -47,10 +47,10 @@ class YoutubeTrackViewSet(HistoryActionMixin, GrowModelViewSet[YoutubeTrack]):
     @action(detail=False, methods=["post"], url_path=IMPORT_RUNS, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
         with transaction.atomic():
-            # One sync at a time: a new run abandons every earlier one. A merge already running has copied its
-            # staged rows into its own temp table, and a failed merge's rows would otherwise never be cleaned up.
-            SongImportStaging.objects.all().delete()
-            SongImportRun.objects.all().delete()
+            # A new run abandons every uncommitted one; a committed run's rows stay until its queued merge drops them.
+            abandoned = SongImportRun.objects.filter(committed_on__isnull=True)
+            SongImportStaging.objects.filter(run_id__in=abandoned.values("pk")).delete()
+            abandoned.delete()
             run = SongImportRun.objects.create()
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 

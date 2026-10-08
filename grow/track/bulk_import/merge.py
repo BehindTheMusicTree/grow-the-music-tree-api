@@ -5,6 +5,7 @@ from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.track.bulk_import.SongImportRun import SongImportRun
+from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 TEMP_TABLES = (
     "song_import, genre_playlist, track_genre_change, desired_rel, new_rel, touched_playlist, stale, stale_artist"
@@ -41,7 +42,8 @@ SELECT m.mbid, m.title, m.artist, m.youtube_video_id, m.youtube_unplayable_reaso
     COALESCE(m.is_manually_edited, a.is_manually_edited, false) AS is_locked
 FROM matched m
 LEFT JOIN adopted a USING (mbid)
-LEFT JOIN grow_criteria c ON lower(c.name) = lower(m.genre_name) AND c.user_id IS NOT DISTINCT FROM %(user)s
+LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
+    ON lower(c.name) = lower(m.genre_name) AND c.user_id IS NOT DISTINCT FROM %(user)s
 """
 
 STEPS = [
@@ -154,9 +156,22 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         "genre_changed": HistoryAction.GENRE_CHANGED.value,
         "content_type": ContentType.objects.get_for_model(YoutubeTrack).pk,
     }
+    try:
+        return _merge(run_id, params, record)
+    finally:
+        # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
+        SongImportStaging.objects.filter(run_id=run_id).delete()
+        SongImportRun.objects.filter(pk=run_id).delete()
+
+
+def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute(SONG_IMPORT, params)
+        cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
+        if not cursor.fetchone()[0]:
+            # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
+            raise ValueError(f"import run {run_id} has no staged songs")
         for step in STEPS:
             cursor.execute(step, params)
         cursor.execute(
@@ -164,8 +179,6 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         )
         imported, skipped = cursor.fetchone()
         cursor.execute(f"DROP TABLE {TEMP_TABLES}")
-        cursor.execute("DELETE FROM grow_song_import_staging WHERE run_id = %s", [run_id])
-        SongImportRun.objects.filter(pk=run_id).delete()
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped)
     return {"imported": imported, "skipped": skipped}
