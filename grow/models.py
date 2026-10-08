@@ -20,6 +20,8 @@ from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.model.user.UserProfile import UserProfile
 from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
+from grow.track.bulk_import.SongImportRun import SongImportRun
+from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 __all__ = [
     "Album",
@@ -37,6 +39,8 @@ __all__ = [
     "ManualPlaylist",
     "Play",
     "Playlist",
+    "SongImportRun",
+    "SongImportStaging",
     "Tag",
     "TagPlaylist",
     "Track",

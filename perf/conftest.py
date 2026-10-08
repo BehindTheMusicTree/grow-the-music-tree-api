@@ -17,26 +17,43 @@ from tests.utils.AppApiClient import AppApiClient
 
 # Prod Gold exports from the-music-tree-pipelines, pinned so SLOs are measured against fixed data. Refresh: README.
 FIXTURES = Path(__file__).parent / "fixtures"
-IMPORTS = [
-    ("1_canonical_genre_tree.json.gz", lambda: reverse("genre-list") + "tree/import/"),
-    ("1_regional_genre_tree.json.gz", lambda: reverse("genre-list") + "tree/import/"),
-    ("2_songs.json.gz", lambda: reverse("youtube-track-list") + "songs/import/"),
-]
+TREES = ["1_canonical_genre_tree.json.gz", "1_regional_genre_tree.json.gz"]
+SONGS = "2_songs.json.gz"
+
+
+def _timed(label: str, request):
+    start = time.perf_counter()
+    response = request()
+    assert response.status_code in (status.HTTP_200_OK, status.HTTP_201_CREATED, status.HTTP_202_ACCEPTED), (
+        response.content[:500]
+    )
+    print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
+    return response
 
 
 def _seed() -> None:
-    # Same order and auth as the nightly sync: songs resolve their genre against the imported trees.
+    # Same order, auth and protocol as the nightly sync: songs resolve their genre against the imported trees.
     client = AppApiClient()
     client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
-    for fixture, path in IMPORTS:
+    for fixture in TREES:
         with gzip.open(FIXTURES / fixture) as file:
             payload = json.load(file)
-        start = time.perf_counter()
-        response = client.post(path(), payload)
-        assert response.status_code in (status.HTTP_200_OK, status.HTTP_201_CREATED, status.HTTP_202_ACCEPTED), (
-            response.content[:500]
-        )
-        print(f"\nimport {fixture:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
+        _timed(fixture, lambda payload=payload: client.post(reverse("genre-list") + "tree/import/", payload))
+    with gzip.open(FIXTURES / SONGS) as file:
+        part = gzip.compress("".join(json.dumps(song) + "\n" for song in json.load(file)).encode())
+    runs = reverse("youtube-track-list") + "songs/import-runs/"
+    run_id = client.post(runs).data["run_id"]
+    _timed(
+        f"{SONGS} (part)",
+        lambda: client.put(
+            f"{runs}{run_id}/parts/0/",
+            part,
+            format=None,
+            content_type="application/x-ndjson",
+            HTTP_CONTENT_ENCODING="gzip",
+        ),
+    )
+    _timed(f"{SONGS} (commit)", lambda: client.post(f"{runs}{run_id}/commit/"))
 
 
 def largest_genre_playlist() -> GenrePlaylist:

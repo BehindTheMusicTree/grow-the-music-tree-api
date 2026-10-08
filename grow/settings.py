@@ -70,10 +70,10 @@ Q_CLUSTER = {
     "name": "gtmt_api",
     # Default workers = CPU count, which forks one Django process per core on a shared, mem-capped VPS.
     "workers": 1,
-    # Songs import runs well past django-q2's 60s default timeout; retry must exceed timeout, and
-    # max_attempts=1 stops a timed-out import from being re-run (default 0 = retry forever).
-    "timeout": 1800,
-    "retry": 2100,
+    # The songs import merge takes ~10 min per 1M songs on Postgres, ~10M songs per full sync; retry must
+    # exceed timeout, and max_attempts=1 stops a timed-out import from being re-run (default 0 = retry forever).
+    "timeout": 14400,
+    "retry": 15000,
     "max_attempts": 1,
     "redis": {
         "host": _redis_url.hostname,
