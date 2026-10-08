@@ -14,22 +14,6 @@ REGIONAL_TREE = [
     {Fields.ID: "Q1059", Fields.NAME_PUBLIC: "Music of Brittany", Fields.CHILDREN: [FOLK]},
     {Fields.ID: "Q1060", Fields.NAME_PUBLIC: "Music of France", Fields.CHILDREN: []},
 ]
-SONGS = [
-    {
-        "title": "Comfortably Numb",
-        "artist": "Pink Floyd",
-        "youtubeVideoId": "abc123defgh",
-        "musicbrainzRecordingId": "b1a9c0e9-d987-4042-ae91-78d6a3267d69",
-        "genreName": "Rock",
-    },
-    {
-        "title": "Unmatched",
-        "artist": "Nobody",
-        "youtubeVideoId": "zzz123defgh",
-        "musicbrainzRecordingId": "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11",
-        "genreName": "Unknown",
-    },
-]
 
 
 class TestImportRun(AppTestCase):
@@ -44,9 +28,6 @@ class TestImportRun(AppTestCase):
             data={Fields.TREE_NAME: tree_name, Fields.TREE: tree},
             format="json",
         )
-
-    def _import_songs(self, client):
-        return client.post(path=reverse("youtube-track-list") + "songs/import/", data=SONGS, format="json")
 
     def _runs(self) -> list[tuple[str, int, int | None]]:
         return list(ImportRun.objects.order_by("pk").values_list("kind", "count", "skipped_count"))
@@ -66,20 +47,6 @@ class TestImportRun(AppTestCase):
         response = self._import_tree(self.pipeline, "canonical", CANONICAL_TREE[1:])
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert self._runs() == []
-
-    def test_pipeline_songs_import_then_recorded_with_skipped(self):
-        self.model_fixture_factory.create_genre("Rock")
-
-        assert self._import_songs(self.pipeline).status_code == status.HTTP_202_ACCEPTED
-
-        assert self._runs() == [("songs", 1, 1)]
-
-    def test_admin_songs_import_then_not_recorded(self):
-        self.model_fixture_factory.create_genre("Rock")
-
-        assert self._import_songs(self.api_client).status_code == status.HTTP_202_ACCEPTED
-
         assert self._runs() == []
 
     def test_report_unresolved_genre_tags_then_201(self):

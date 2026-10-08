@@ -12,16 +12,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Breaking
+
+- `library/youtube/songs/import/` is removed. Songs now load through a staged import run: `POST library/youtube/songs/import-runs/` returns `{"runId"}` (and abandons any earlier uncommitted run), `PUT …/import-runs/<runId>/parts/<n>/` takes a gzip NDJSON body (`Content-Encoding: gzip`, `Content-Type: application/x-ndjson`, one snake_case song per line) and returns `{"count"}`, and `POST …/import-runs/<runId>/commit/` returns 202 `{"taskId"}`, polled at the unchanged `songs/import/<taskId>/status/`. Pipeline API key or admin only.
+
 ### CI
+
+- The Pytest job runs a Postgres 16 service and the `postgres`-marked tests (`pytest -m postgres --ds=tests.postgres_settings --no-cov`) next to the default SQLite run.
+
 
 - Deploys: bumped `trigger-coolify-deploy` to v4.4.0 — a Coolify deployment stuck past an hour is cancelled (its build container force-stopped over SSH) instead of blocking every later deploy, and a failed or cancelled deploy posts an alert to the env's Discord status-alerts channel
 
 ### Added
 
+- Staged bulk song import (`grow/track/bulk_import/`, migration `0044`): parts are streamed, gunzipped and loaded with Postgres `COPY` into the unlogged `grow_song_import_staging` table, and the commit task merges them in one transaction with set-based SQL: upserts artists, upserts tracks by `musicbrainz_recording_id` (adopting legacy rows by video id), keeps the genre of manually edited tracks, deletes stale unlocked tracks, rebuilds genre playlist rels for tracks whose genre changed, and records an `ImportRun` for pipeline commits. Scales to millions of songs instead of one `save()` per row inside a request. Covered by Postgres-marked integration tests; the perf seed uses the new protocol.
 - `YoutubeTrack.musicbrainz_recording_id` (migration `0043`): the MusicBrainz recording MBID, unique and nullable (hand-made tracks have none), returned as `musicbrainzRecordingId` on youtube track list and detail responses. Covered by integration tests.
 
 ### Changed
 
+- `YoutubeTrack.youtube_video_id` is nullable (migration `0044`) so songs with no video are stored; songs with no genre are stored with a null genre and no playlist rels. `library/youtube/` lists only tracks with both a video and a genre.
+- genre-kit bumped to `v0.38.0`, which drops the seed-song import now owned by grow.
+- django-q2 task timeout raised to 4h (retry 15000s): a 1M-song merge commits in about 10 minutes on local Postgres, and a full sync carries about 10M songs.
 - `library/youtube/songs/import/` now requires `musicbrainzRecordingId` on every entry and upserts tracks by it (genre-kit `v0.37.0`), so two recordings sharing a video stay two tracks and a video id change upstream updates the track instead of recreating it. Existing tracks without an MBID are adopted by `youtubeVideoId` on the first import and stamped. Must deploy together with the pipelines change adding `musicbrainz_recording_id` to `2_songs.json`, or the daily songs import fails with 400. The pinned perf fixture `2_songs.json.gz` carries deterministic placeholder MBIDs. Covered by integration tests.
 
 ### Fixed
