@@ -142,6 +142,16 @@ class TestImportRunMerge(AppTestCase):
         assert sorted(self._playlist_tracks(rock)) == ["Comfortably Numb", "No video"]
         assert not SongImportStaging.objects.exists() and not SongImportRun.objects.exists()
 
+    def test_import_accepts_musicbrainz_length_title_and_artist(self):
+        self.model_fixture_factory.create_genre("Rock")
+        song = {**SONG, "title": "t" * 1059, "artist": "a" * 1018}
+
+        assert self._sync([song]) == {"imported": 1, "skipped": 0}
+
+        track = YoutubeTrack.objects.get(musicbrainz_recording_id=MBID)
+        assert track.title == song["title"]
+        assert [a.name for a in track.artists.all()] == [song["artist"]]
+
     def test_import_resolves_genre_case_insensitively_into_ascendant_playlists(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         prog = self.model_fixture_factory.create_genre("Progressive Rock", parent=rock)
