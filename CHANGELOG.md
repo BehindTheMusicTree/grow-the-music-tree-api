@@ -23,6 +23,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The Pytest job runs a Postgres 16 service and the `postgres`-marked tests (`pytest -m postgres --ds=tests.postgres_settings --no-cov`) next to the default SQLite run.
 - Deploys: bumped `trigger-coolify-deploy` to v4.4.0 — a Coolify deployment stuck past an hour is cancelled (its build container force-stopped over SSH) instead of blocking every later deploy, and a failed or cancelled deploy posts an alert to the env's Discord status-alerts channel
 
+### Changed
+
+- Track titles and artist names accept up to 2048 characters (were 256), so real MusicBrainz songs (titles up to 1059, artist names up to 1018 characters) import instead of failing part validation. Bumps `the-music-tree-genre-kit` to v0.39.0 (widens the kit `Track.title`) and widens `Artist.name` (migration `0045`).
+
 ### Added
 
 - Staged bulk song import (`grow/track/bulk_import/`, migration `0044`): parts are streamed, gunzipped and loaded with Postgres `COPY` into the unlogged `grow_song_import_staging` table, and the commit task merges them in one transaction with set-based SQL: upserts artists, upserts tracks by `musicbrainz_recording_id` (adopting legacy rows by video id), keeps the genre of manually edited tracks, deletes stale unlocked tracks, rebuilds genre playlist rels for tracks whose genre changed, and records an `ImportRun` for pipeline commits. A commit with no staged songs fails instead of deleting the library, and a new run only abandons uncommitted runs, never one whose merge is still queued. Scales to millions of songs instead of one `save()` per row inside a request. Covered by Postgres-marked integration tests; the perf seed uses the new protocol.
