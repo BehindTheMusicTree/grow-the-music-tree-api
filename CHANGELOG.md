@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### CI
+
+- Deploys: bumped `trigger-coolify-deploy` to v4.4.0 — a Coolify deployment stuck past an hour is cancelled (its build container force-stopped over SSH) instead of blocking every later deploy, and a failed or cancelled deploy posts an alert to the env's Discord status-alerts channel
+
 ### Added
 
 - `YoutubeTrack.musicbrainz_recording_id` (migration `0043`): the MusicBrainz recording MBID, unique and nullable (hand-made tracks have none), returned as `musicbrainzRecordingId` on youtube track list and detail responses. Covered by integration tests.
