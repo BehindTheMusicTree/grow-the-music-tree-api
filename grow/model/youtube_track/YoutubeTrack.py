@@ -16,7 +16,8 @@ class YoutubeTrack(KitTrack):
     track = PrivateOneToOneField(
         KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.YOUTUBE_TRACK_RELATED_NAME
     )
-    youtube_video_id = AppCharField(max_length=settings.YOUTUBE_TRACK_VIDEO_ID_LEN_MAX)
+    youtube_video_id = AppCharField(max_length=settings.YOUTUBE_TRACK_VIDEO_ID_LEN_MAX, null=True, blank=True)
+    musicbrainz_recording_id = models.UUIDField(null=True, blank=True, unique=True)
     youtube_unplayable_reason = models.CharField(
         max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
     )

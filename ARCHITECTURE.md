@@ -10,7 +10,7 @@ This is a from-scratch walkthrough of how the pieces fit together — the domain
 
 Two internal git-pulled packages sit underneath `grow`, and they're pinned differently — worth knowing before you go looking for one in `pyproject.toml` and can't find it:
 
-- **`the-music-tree-genre-kit`** (currently `v0.27.0`) — the **direct** dependency, listed in `pyproject.toml`. Provides the shared `Track`/`Playlist` MTI parent models, `AbstractCriteria`/`AbstractCriteriaManager`, `TrackMixin`, and the songs-import mixin (`SongsImportMixin`).
+- **`the-music-tree-genre-kit`** (currently `v0.27.0`) — the **direct** dependency, listed in `pyproject.toml`. Provides the shared `Track`/`Playlist` MTI parent models, `AbstractCriteria`/`AbstractCriteriaManager`, and `TrackMixin`. Song import lives in `grow/track/bulk_import/`, not in the kit.
 - **`the-music-tree-api-kit`** (currently `v0.4.0`) — **transitive only**. It's a dependency of genre-kit, not of `grow` — pinned in `uv.lock`, not in `pyproject.toml`. Provides `BaseModel`/`BaseManager` (the `.save()` pipeline every model ultimately runs through), `AppModelViewSet` (the real CRUD/pagination/filtering scaffolding `GrowModelViewSet` sits on), the FK/serializer field types (`PrivateForeignKey`, `PrivateOneToOneField`, `PrivateUuidField`, `AppCharField`), the exception handler, and middleware (`CamelToSnakeMiddleware`, `HostValidationMiddleware`).
 
 Sibling app `hear-the-music-tree-api` consumes both kits too — a kit-facing change here may need the equivalent change there (see `CLAUDE.md`).

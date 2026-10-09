@@ -1,12 +1,15 @@
+from concurrent.futures import ThreadPoolExecutor
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.db import connection
 from django.urls import reverse
 from rest_framework import status
 
 from grow.curation.lists import CURATION_LISTS
-from grow.curation.rows import InvalidRow
+from grow.curation.rows import WRITE_LOCK_ID, InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -338,3 +341,18 @@ class TestCase(AppTestCase):
             )
 
         assert "reggae over ska over reggae" in str(raised.exception.errors)
+
+    @skipUnless(connection.vendor == "postgresql", "advisory locks are Postgres-only")
+    def test_genre_precedence_create_then_write_lock_held_until_commit(self):
+        def try_lock_from_other_connection() -> bool:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_try_advisory_xact_lock(%s)", [WRITE_LOCK_ID])
+                    return cursor.fetchone()[0]
+            finally:
+                connection.close()
+
+        self._precedence("test a", "test b")
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            assert executor.submit(try_lock_from_other_connection).result() is False

@@ -43,4 +43,5 @@ class ModelFixtureFactory:
         return Album.objects.create(user=user or self.default_user, name=name, **kwargs)
 
     def create_youtube_track(self, title: str, genre: Genre, user: User | None = None, **kwargs) -> YoutubeTrack:
+        kwargs.setdefault("youtube_video_id", "dQw4w9WgXcQ")
         return YoutubeTrack.objects.create(user=user or self.default_user, title=title, genre=genre, **kwargs)

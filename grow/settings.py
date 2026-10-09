@@ -70,10 +70,10 @@ Q_CLUSTER = {
     "name": "gtmt_api",
     # Default workers = CPU count, which forks one Django process per core on a shared, mem-capped VPS.
     "workers": 1,
-    # Songs import runs well past django-q2's 60s default timeout; retry must exceed timeout, and
-    # max_attempts=1 stops a timed-out import from being re-run (default 0 = retry forever).
-    "timeout": 1800,
-    "retry": 2100,
+    # The songs import merge takes ~10 min per 1M songs on Postgres, ~10M songs per full sync; retry must
+    # exceed timeout, and max_attempts=1 stops a timed-out import from being re-run (default 0 = retry forever).
+    "timeout": 14400,
+    "retry": 15000,
     "max_attempts": 1,
     "redis": {
         "host": _redis_url.hostname,
@@ -91,6 +91,9 @@ USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# The pipeline's songs import body outgrew Django's 2.5 MiB default (~2.8 MB at 11k songs).
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 
 with open(BASE_DIR / "pyproject.toml", "rb") as _pyproject:
@@ -116,10 +119,10 @@ CRITERIA_TREE_IMPORT_MAX_ROOT_COUNT = 1000
 CRITERIA_TREE_IMPORT_MAX_TOTAL_COUNT = 30000
 CRITERIA_TREE_IMPORT_STALE_DELETE_MAX_FRACTION = 0.5
 
-ARTIST_NAME_LEN_MAX = 256
+ARTIST_NAME_LEN_MAX = 2048
 ALBUM_NAME_LEN_MAX = 256
 MANUAL_PLAYLIST_NAME_LEN_MAX = 256
-TRACK_TITLE_LEN_MAX = 256
+TRACK_TITLE_LEN_MAX = 2048
 TRACK_TRACK_NUMBER_MAX = 1000
 TRACK_RATING_VALUE_MAX = 10
 LANGUAGE_LEN_MAX = 3

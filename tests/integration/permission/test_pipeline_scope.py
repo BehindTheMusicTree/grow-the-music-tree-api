@@ -15,7 +15,6 @@ TREE_PAYLOAD = {
         for qid, n in (("Q11399", "Rock"), ("Q373342", "Mainstream Pop"))
     ],
 }
-SONG = {"title": "Comfortably Numb", "artist": "Pink Floyd", "youtubeVideoId": "abc123defgh", "genreName": "Rock"}
 
 
 class TestCase(AppTestCase):
@@ -23,7 +22,7 @@ class TestCase(AppTestCase):
         return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=TREE_PAYLOAD)
 
     def _songs_import(self):
-        return self.api_client.post(path=reverse("youtube-track-list") + "songs/import/", data=[SONG])
+        return self.api_client.post(path=reverse("youtube-track-list") + "songs/import-runs/")
 
     def _use_api_key(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
@@ -33,11 +32,10 @@ class TestCase(AppTestCase):
 
         assert self._tree_import().status_code == status.HTTP_201_CREATED
 
-    def test_api_key_songs_import_then_202(self):
-        self.model_fixture_factory.create_genre("Rock")
+    def test_api_key_songs_import_run_then_201(self):
         self._use_api_key()
 
-        assert self._songs_import().status_code == status.HTTP_202_ACCEPTED
+        assert self._songs_import().status_code == status.HTTP_201_CREATED
 
     def test_api_key_other_write_then_403(self):
         self._use_api_key()

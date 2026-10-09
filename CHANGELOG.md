@@ -12,6 +12,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.0.0] - 2026-10-09
+
+### Breaking
+
+- `library/youtube/songs/import/` is removed. Songs now load through a staged import run: `POST library/youtube/songs/import-runs/` returns `{"runId"}` (and abandons any earlier uncommitted run), `PUT …/import-runs/<runId>/parts/<n>/` takes a gzip NDJSON body (`Content-Encoding: gzip`, `Content-Type: application/x-ndjson`, one snake_case song per line) and returns `{"count"}`, and `POST …/import-runs/<runId>/commit/` returns 202 `{"taskId"}`, polled at the unchanged `songs/import/<taskId>/status/`. Pipeline API key or admin only.
+
+**Deploy note**: release together with the infrastructure songs sync switch to import runs and the-music-tree-pipelines chunked Gold song export: the nightly songs sync 404s against this release until it does.
+
+### CI
+
+- The Pytest job runs a Postgres 16 service and the `postgres`-marked tests (`pytest -m postgres --ds=tests.postgres_settings --no-cov`) next to the default SQLite run.
+- Deploys: bumped `trigger-coolify-deploy` to v4.4.0 — a Coolify deployment stuck past an hour is cancelled (its build container force-stopped over SSH) instead of blocking every later deploy, and a failed or cancelled deploy posts an alert to the env's Discord status-alerts channel
+
+### Changed
+
+- Track titles and artist names accept up to 2048 characters (were 256), so real MusicBrainz songs (titles up to 1059, artist names up to 1018 characters) import instead of failing part validation. Bumps `the-music-tree-genre-kit` to v0.39.0 (widens the kit `Track.title`) and widens `Artist.name` (migration `0045`).
+- `YoutubeTrack.youtube_video_id` is nullable (migration `0044`) so songs with no video are stored; songs with no genre are stored with a null genre and no playlist rels. `library/youtube/` lists only tracks with both a video and a genre.
+- genre-kit bumped to `v0.38.0`, which drops the seed-song import now owned by grow.
+- django-q2 task timeout raised to 4h (retry 15000s): a 1M-song merge commits in about 10 minutes on local Postgres, and a full sync carries about 10M songs.
+
+### Added
+
+- Staged bulk song import (`grow/track/bulk_import/`, migration `0044`): parts are streamed, gunzipped and loaded with Postgres `COPY` into the unlogged `grow_song_import_staging` table, and the commit task merges them in one transaction with set-based SQL: upserts artists, upserts tracks by `musicbrainz_recording_id` (adopting legacy rows by video id), keeps the genre of manually edited tracks, deletes stale unlocked tracks, rebuilds genre playlist rels for tracks whose genre changed, and records an `ImportRun` for pipeline commits. A commit with no staged songs fails instead of deleting the library, and a new run only abandons uncommitted runs, never one whose merge is still queued. Scales to millions of songs instead of one `save()` per row inside a request. Covered by Postgres-marked integration tests; the perf seed uses the new protocol.
+- `YoutubeTrack.musicbrainz_recording_id` (migration `0043`): the MusicBrainz recording MBID, unique and nullable (hand-made tracks have none), returned as `musicbrainzRecordingId` on youtube track list and detail responses. Covered by integration tests.
+
+### Fixed
+
+- The songs merge inserts new tracks, YouTube tracks and track-artist rows in `track_id` order, so their primary key and `track_id` indexes fill sequentially instead of evicting a random index page per row. Profiling a 30.9M-song staging merge showed most of its time went to that eviction and WAL flushing.
+- Request bodies up to 20 MiB are accepted (`DATA_UPLOAD_MAX_MEMORY_SIZE`). The pipeline's `library/youtube/songs/import/` payload grew past Django's 2.5 MiB default once it carried `musicbrainz_recording_id` (2.8 MB at 11,160 songs), and Django rejected it with a bare 400 before reaching the view, failing the daily staging sync.
+- Curation writes are serialized with a Postgres advisory lock. Before, two concurrent rules (e.g. `a over b` and `b over a`) could each pass the cycle or list-exclusivity check without seeing the other and save an invalid state.
+- Migration `0035` seeds from a frozen JSON snapshot instead of the current registry and seed CSVs, so later list changes can no longer break migrating a fresh database.
+
 ## [11.4.0] - 2026-10-07
 
 ### Added
