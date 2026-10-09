@@ -63,11 +63,14 @@ STEPS = [
     FROM song_import s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason)""",
+    # Key order fills the pkey/track_id btrees sequentially instead of evicting a random index page per row.
     """INSERT INTO the_music_tree_genre_kit_track (uuid, created_on, play_count, title, genre_id, user_id)
-    SELECT track_id, now(), 0, title, genre_id, %(user)s FROM song_import WHERE is_new""",
+    SELECT track_id, now(), 0, title, genre_id, %(user)s FROM song_import WHERE is_new
+    ORDER BY track_id""",
     """INSERT INTO grow_youtube_track
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, musicbrainz_recording_id)
-    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, mbid FROM song_import WHERE is_new""",
+    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, mbid FROM song_import WHERE is_new
+    ORDER BY track_id""",
     # ponytail: artists are only set on insert, like the old per-row import; re-sync them on matched tracks if
     # upstream artist-name corrections need to propagate.
     """INSERT INTO grow_artist (uuid, created_on, name, user_id)
@@ -78,7 +81,8 @@ STEPS = [
         SELECT DISTINCT ON (name) uuid, name FROM grow_artist WHERE user_id IS NOT DISTINCT FROM %(user)s
         ORDER BY name, created_on
     ) a ON a.name = s.artist
-    WHERE s.is_new""",
+    WHERE s.is_new
+    ORDER BY s.track_id""",
     """CREATE TEMP TABLE stale AS
     SELECT y.track_id FROM grow_youtube_track y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
     WHERE t.user_id IS NOT DISTINCT FROM %(user)s AND NOT y.is_manually_edited
