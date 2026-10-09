@@ -121,22 +121,27 @@ STEPS = [
     )
     INSERT INTO touched_playlist SELECT DISTINCT playlist_id FROM removed""",
     """CREATE TEMP TABLE new_rel (id bigint, playlist_id uuid)""",
+    # LIFO like a single-row insert: new rels take positions 1..n (last inserted first), kept rels follow in order.
+    # Positions are set at insert time: updating a row inserted in the same transaction re-runs its FK checks.
     """WITH inserted AS (
-        INSERT INTO the_music_tree_genre_kit_track_playlist_rel (created_on, playlist_id, track_id, user_id)
-        SELECT now(), d.playlist_id, d.track_id, %(user)s FROM desired_rel d
+        INSERT INTO the_music_tree_genre_kit_track_playlist_rel (created_on, playlist_id, track_id, user_id, position)
+        SELECT now(), d.playlist_id, d.track_id, %(user)s,
+            row_number() OVER (PARTITION BY d.playlist_id ORDER BY d.track_id DESC)
+        FROM desired_rel d
         WHERE NOT EXISTS (
             SELECT 1 FROM the_music_tree_genre_kit_track_playlist_rel r
             WHERE r.track_id = d.track_id AND r.playlist_id = d.playlist_id
         )
+        ORDER BY d.playlist_id, d.track_id
         RETURNING id, playlist_id
     )
     INSERT INTO new_rel SELECT id, playlist_id FROM inserted""",
-    # LIFO like a single-row insert: new rels take positions 1..n (last inserted first), kept rels follow in order.
     """UPDATE the_music_tree_genre_kit_track_playlist_rel r SET position = o.position FROM (
-        SELECT r.id, row_number() OVER (PARTITION BY r.playlist_id ORDER BY n.id IS NULL, n.id DESC, r.position) AS position
-        FROM the_music_tree_genre_kit_track_playlist_rel r LEFT JOIN new_rel n ON n.id = r.id
+        SELECT r.id, coalesce(n.added, 0) + row_number() OVER (PARTITION BY r.playlist_id ORDER BY r.position) AS position
+        FROM the_music_tree_genre_kit_track_playlist_rel r
+        LEFT JOIN (SELECT playlist_id, count(*) AS added FROM new_rel GROUP BY playlist_id) n USING (playlist_id)
         WHERE r.playlist_id IN (SELECT playlist_id FROM touched_playlist UNION SELECT playlist_id FROM new_rel)
-            AND (r.position IS NOT NULL OR n.id IS NOT NULL)
+            AND r.position IS NOT NULL AND NOT EXISTS (SELECT 1 FROM new_rel x WHERE x.id = r.id)
     ) o WHERE r.id = o.id AND r.position IS DISTINCT FROM o.position""",
     """INSERT INTO grow_history_entry
         (uuid, created_on, object_pk, action, old_value, new_value, content_type_id, user_id, actor_id)
