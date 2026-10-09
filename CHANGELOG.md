@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Improved
+
+- The song import merge sets genre-playlist positions when it inserts rels instead of updating every new rel afterwards, so it no longer rewrites each new rel row or re-runs its foreign-key checks (about 25% faster on a re-import in a 100k-song benchmark).
+
 ## [12.0.0] - 2026-10-09
 
 ### Breaking
