@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.1.0] - 2026-10-09
+
 ### Changed
 
 - Bumped `the-music-tree-genre-kit` to v0.40.0: drops the unused `(user, title)` index on tracks (`DROP INDEX CONCURRENTLY`, runs at container start). The longest stored title sat 3 bytes under the btree row limit, so a longer one would have failed the whole nightly songs merge. Deploy outside the nightly merge window, or the migration waits for the merge to finish.
