@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- The songs merge inserts new tracks, YouTube tracks and track-artist rows in `track_id` order, so their primary key and `track_id` indexes fill sequentially instead of evicting a random index page per row. Profiling a 30.9M-song staging merge showed most of its time went to that eviction and WAL flushing.
 - Request bodies up to 20 MiB are accepted (`DATA_UPLOAD_MAX_MEMORY_SIZE`). The pipeline's `library/youtube/songs/import/` payload grew past Django's 2.5 MiB default once it carried `musicbrainz_recording_id` (2.8 MB at 11,160 songs), and Django rejected it with a bare 400 before reaching the view, failing the daily staging sync.
 - Curation writes are serialized with a Postgres advisory lock. Before, two concurrent rules (e.g. `a over b` and `b over a`) could each pass the cycle or list-exclusivity check without seeing the other and save an invalid state.
 - Migration `0035` seeds from a frozen JSON snapshot instead of the current registry and seed CSVs, so later list changes can no longer break migrating a fresh database.
