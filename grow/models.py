@@ -8,6 +8,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
+from grow.model.curation.CurationApplyRequest import CurationApplyRequest
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -29,6 +30,7 @@ __all__ = [
     "Criteria",
     "CriteriaLineageRel",
     "CriteriaPlaylist",
+    "CurationApplyRequest",
     "CurationEntry",
     "CurationSyncState",
     "Genre",

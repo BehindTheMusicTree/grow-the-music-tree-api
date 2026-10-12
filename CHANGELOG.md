@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Curation runs on demand: `POST curation/apply/` (admin) queues a request to rebuild the canonical tree and songs from current curation, returning 409 while another is queued or running and 400 when no edit is pending. The pipeline's poller claims the oldest queued one with `POST curation/apply/claim/` (`running`, or `superseded` when a nightly run already applied every edit; 204 when none), reports its `stage`, `stageCurrent`/`stageTotal` and final `status` (`succeeded`/`failed`, with `error`) on `PATCH curation/apply/<uuid>/`, and `GET curation/apply/latest/` returns the newest request (204 when none) for progress polling. New `CurationApplyRequest` model whose partial unique constraint allows one active request (migration `0046`). `curation/status/`'s `pendingCount` now comes from `CurationSyncState.pending_count`, shared with these endpoints. Covered by integration tests.
+
 ## [12.1.0] - 2026-10-09
 
 ### Changed

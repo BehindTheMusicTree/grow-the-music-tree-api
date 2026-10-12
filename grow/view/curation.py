@@ -3,18 +3,20 @@ import uuid
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, TextField
 from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
+from the_music_tree_api_kit.view.error.ErrorResponse import ErrorResponse
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
@@ -31,6 +33,7 @@ from grow.curation.rows import (
     precedence_cycle_error,
 )
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.curation.CurationApplyRequest import CurationApplyRequest
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -230,12 +233,8 @@ class CurationStatusView(CurationView):
     """Which pipeline export the canonical tree was last built from, and how many entries were edited since."""
 
     def get(self, request: Request) -> Response:
-        applied_export_on = CurationSyncState.load().applied_export_on
-        history = HistoryEntry.objects.filter(user=None, content_type=ContentType.objects.get_for_model(CurationEntry))
-        if applied_export_on is not None:
-            history = history.filter(created_on__gt=applied_export_on)
-        pending_count = history.values("content_uuid").distinct().count()
-        return Response({"applied_export_on": applied_export_on, "pending_count": pending_count})
+        state = CurationSyncState.load()
+        return Response({"applied_export_on": state.applied_export_on, "pending_count": state.pending_count})
 
 
 class CurationExportView(CurationView):
@@ -251,3 +250,110 @@ class CurationExportView(CurationView):
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
         return Response(export)
+
+
+def _serialize_apply_request(apply_request: CurationApplyRequest) -> dict[str, Any]:
+    return {
+        field: getattr(apply_request, field)
+        for field in (
+            "uuid",
+            "status",
+            "stage",
+            "stage_current",
+            "stage_total",
+            "error",
+            "requested_on",
+            "started_on",
+            "finished_on",
+        )
+    }
+
+
+def _conflict(message: str, api_error_code: ApiErrorCodeNumeric):
+    return ErrorResponse.create_error_response(
+        error_detail={"message": message, "code": "conflict"}, api_error_code=api_error_code
+    )
+
+
+class CurationApplyView(CurationView):
+    """Queues a curation run: the pipeline's poller claims it, rebuilds from current curation and imports."""
+
+    def post(self, request: Request) -> Response:
+        if CurationSyncState.load().pending_count == 0:
+            raise ValidationError({"pending_count": "No curation edit to apply"})
+        try:
+            with transaction.atomic():
+                apply_request = CurationApplyRequest.objects.create()
+        except IntegrityError:
+            return _conflict("A curation run is already queued or running", ApiErrorCodeNumeric.RESOURCE_ALREADY_EXISTS)
+        return Response(_serialize_apply_request(apply_request), status=status.HTTP_201_CREATED)
+
+
+class CurationApplyLatestView(CurationView):
+    permission_classes = [IsPipelineOrAdmin]
+
+    def get(self, request: Request) -> Response:
+        apply_request = CurationApplyRequest.objects.order_by("-requested_on", "-pk").first()
+        if apply_request is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(_serialize_apply_request(apply_request))
+
+
+class CurationApplyClaimView(CurationView):
+    """Starts the oldest queued request, or supersedes it when a nightly run already applied every edit."""
+
+    permission_classes = [IsPipelineOrAdmin]
+
+    @transaction.atomic
+    def post(self, request: Request) -> Response:
+        apply_request = (
+            CurationApplyRequest.objects.filter(status=CurationApplyRequest.Status.QUEUED)
+            .order_by("requested_on", "pk")
+            .select_for_update(skip_locked=True)
+            .first()
+        )
+        if apply_request is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        now = timezone.now()
+        if CurationSyncState.load().pending_count == 0:
+            apply_request.status = CurationApplyRequest.Status.SUPERSEDED
+            apply_request.finished_on = now
+        else:
+            apply_request.status = CurationApplyRequest.Status.RUNNING
+            apply_request.started_on = now
+        apply_request.save()
+        return Response(_serialize_apply_request(apply_request))
+
+
+class CurationApplyProgressSerializer(serializers.Serializer):
+    stage = serializers.ChoiceField(choices=CurationApplyRequest.Stage.choices, required=False)
+    stage_current = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    stage_total = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    status = serializers.ChoiceField(
+        choices=[CurationApplyRequest.Status.SUCCEEDED, CurationApplyRequest.Status.FAILED], required=False
+    )
+    error = serializers.CharField(allow_null=True, allow_blank=True, required=False)
+
+
+class CurationApplyRequestView(CurationView):
+    """The pipeline's progress report on the request it claimed, then its outcome."""
+
+    permission_classes = [IsPipelineOrAdmin]
+
+    @transaction.atomic
+    def patch(self, request: Request, uuid: str) -> Response:
+        apply_request = get_object_or_404(CurationApplyRequest.objects.select_for_update(), uuid=uuid)
+        if apply_request.status != CurationApplyRequest.Status.RUNNING:
+            return _conflict(f"The curation run is {apply_request.status}", ApiErrorCodeNumeric.RESOURCE_INVALID_STATE)
+        serializer = CurationApplyProgressSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        if "stage" in data:
+            # A new stage starts with no progress unless the report carries it.
+            apply_request.stage_current = apply_request.stage_total = None
+        for field, value in data.items():
+            setattr(apply_request, field, value)
+        if "status" in data:
+            apply_request.finished_on = timezone.now()
+        apply_request.save()
+        return Response(_serialize_apply_request(apply_request))
