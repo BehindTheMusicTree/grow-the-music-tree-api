@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Genre playlist responses now include `criteria.wikidataId` (the root's QID or `LOCAL:` key) via genre-kit v0.41.0, so tree clients can key per-root colors on a stable id.
+
 ## [12.2.0] - 2026-10-12
 
 ### Added

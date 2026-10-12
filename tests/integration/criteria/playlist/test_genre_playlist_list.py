@@ -17,6 +17,16 @@ class TestCase(AppTestCase):
         edm_result = next(result for result in results if result["criteria"] and result["criteria"]["name"] == "EDM")
         assert edm_result["criteria"]["side"] == CriteriaSide.POP
 
+    def test_list_genre_playlists_returns_criteria_wikidata_id(self):
+        self.model_fixture_factory.create_genre("Electronic", wikidata_id="Q9778")
+
+        response = self.api_client.get(path=reverse("genre-playlist-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.json()["results"]
+        root_result = next(r for r in results if r["criteria"] and r["criteria"]["name"] == "Electronic")
+        assert root_result["criteria"]["wikidataId"] == "Q9778"
+
     def test_list_genre_playlists_returns_criteria_summary(self):
         root = self.model_fixture_factory.create_genre("Electronic")
         self.model_fixture_factory.create_genre("EDM", parent=root, summary="Electronic dance music")

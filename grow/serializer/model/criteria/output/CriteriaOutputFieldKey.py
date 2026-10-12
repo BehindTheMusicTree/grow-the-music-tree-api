@@ -18,6 +18,7 @@ class CriteriaOutputFieldKey(StrEnum):
     CHILDREN = "children"
     CRITERIA_PLAYLIST = "criteria_playlist"
     SIDE = "side"
+    WIKIDATA_ID = "wikidata_id"
     SUMMARY = "summary"
     TREE_NAME = "tree_name"
     PRIMARY_PARENTS = "primary_parents"
