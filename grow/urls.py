@@ -14,6 +14,13 @@ from grow.view.curation import (
 )
 from grow.view.health import HealthCheckView
 from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
+from grow.view.pipeline_run import (
+    PipelineRunCancelView,
+    PipelineRunClaimView,
+    PipelineRunLatestView,
+    PipelineRunsView,
+    PipelineRunView,
+)
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import GenreViewSet
@@ -58,6 +65,17 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/<uuid:uuid>/",
         CurationEntryView.as_view(),
         name="curation-entry",
+    ),
+    path(f"{settings.API_ROOT_BASE}pipeline/runs/", PipelineRunsView.as_view(), name="pipeline-runs"),
+    path(
+        f"{settings.API_ROOT_BASE}pipeline/runs/latest/", PipelineRunLatestView.as_view(), name="pipeline-runs-latest"
+    ),
+    path(f"{settings.API_ROOT_BASE}pipeline/runs/claim/", PipelineRunClaimView.as_view(), name="pipeline-runs-claim"),
+    path(f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/", PipelineRunView.as_view(), name="pipeline-run"),
+    path(
+        f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/cancel/",
+        PipelineRunCancelView.as_view(),
+        name="pipeline-run-cancel",
     ),
     path(f"{settings.API_ROOT_BASE}pipeline/imports/", ImportRunListView.as_view(), name="import-runs"),
     path(f"{settings.API_ROOT_BASE}pipeline/imports/latest/", ImportRunLatestView.as_view(), name="import-runs-latest"),

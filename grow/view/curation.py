@@ -230,12 +230,8 @@ class CurationStatusView(CurationView):
     """Which pipeline export the canonical tree was last built from, and how many entries were edited since."""
 
     def get(self, request: Request) -> Response:
-        applied_export_on = CurationSyncState.load().applied_export_on
-        history = HistoryEntry.objects.filter(user=None, content_type=ContentType.objects.get_for_model(CurationEntry))
-        if applied_export_on is not None:
-            history = history.filter(created_on__gt=applied_export_on)
-        pending_count = history.values("content_uuid").distinct().count()
-        return Response({"applied_export_on": applied_export_on, "pending_count": pending_count})
+        state = CurationSyncState.load()
+        return Response({"applied_export_on": state.applied_export_on, "pending_count": state.pending_count})
 
 
 class CurationExportView(CurationView):
