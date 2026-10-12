@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Improved
+
+- The cold (uncached) genre-tree response no longer spends ~3–4 s on Postgres JIT compilation: JIT is now off for the app's database connections.
+
 ### Added
 
 - Genre playlist responses now include `criteria.wikidataId` (the root's QID or `LOCAL:` key) via genre-kit v0.41.0, so tree clients can key per-root colors on a stable id.
