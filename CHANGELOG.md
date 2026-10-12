@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.2.0] - 2026-10-12
+
 ### Added
 
 - Pipeline runs on demand: `POST pipeline/runs/` with `{"kind": "curation"|"full"}` (admin) queues a request, either a rebuild of the canonical tree and songs from current curation or a full ingestion (the nightly run), returning 409 while any request is queued or running (one heavy run at a time) and 400 for a `curation` run with no edit pending. The pipeline's poller claims the oldest queued one with `POST pipeline/runs/claim/` (`running`, or for `curation` `superseded` when a nightly run already applied every edit; 204 when none), reports `stage`, `stageCurrent`/`stageTotal` and final `status` (`succeeded`/`failed`/`cancelled`, with `error`) on `PATCH pipeline/runs/<uuid>/`, where every call (an empty body included) is a heartbeat and the response's `cancelRequested` tells the poller to stop. `POST pipeline/runs/<uuid>/cancel/` (admin) cancels a queued request outright or flags a running one. A running request with no heartbeat for 30 minutes (`PIPELINE_RUN_HEARTBEAT_TIMEOUT_MINUTES`) becomes `expired`, checked on create, latest, claim, PATCH and cancel, so a dead run no longer blocks the queue. `GET pipeline/runs/latest/` returns the newest request (204 when none). New `PipelineRunRequest` model whose partial unique constraint allows one active request (migrations `0046`, `0047`). `curation/status/`'s `pendingCount` now comes from `CurationSyncState.pending_count`, shared with these endpoints. Covered by integration tests.
