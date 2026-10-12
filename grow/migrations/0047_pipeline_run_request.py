@@ -44,7 +44,7 @@ class Migration(migrations.Migration):
         ),
         # A request already running has no heartbeat yet: start its clock so it can expire.
         migrations.RunSQL(
-            "UPDATE grow_pipeline_run_request SET heartbeat_on = NOW() "
+            "UPDATE grow_pipeline_run_request SET heartbeat_on = CURRENT_TIMESTAMP "
             "WHERE status = 'running'",
             reverse_sql=migrations.RunSQL.noop,
         ),
