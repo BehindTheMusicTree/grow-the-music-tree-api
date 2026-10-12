@@ -35,7 +35,9 @@ class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSeria
         queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(queryset, prefix)
         queryset = CriteriaSimpleSerializer.setup_queryset(queryset, prefix=f"{prefix}{Fields.CRITERIA}__")
         for nested in (Fields.PARENT, Fields.ROOT):
-            queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(queryset, prefix=f"{prefix}{nested}__")
+            queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(
+                queryset, prefix=f"{prefix}{Fields.CRITERIA}__{nested}__criteria_playlist__"
+            )
         return queryset.annotate(**{PlaylistOutputFields.TRACKS_COUNT_ANNOTATED: tracks_count_annotation()})
 
     def get_is_unaccepted_root(self, instance: CriteriaPlaylist) -> bool:
