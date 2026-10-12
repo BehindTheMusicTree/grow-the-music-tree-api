@@ -118,6 +118,18 @@ class TestCase(AppTestCase):
         assert second.status_code == status.HTTP_200_OK
         assert "Jazz" in [row["criteria"] and row["criteria"]["name"] for row in second.json()]
 
+    def test_tree_follows_genre_moved_without_save_hooks(self):
+        jazz = self.model_fixture_factory.create_genre("Jazz")
+        punk = Genre.objects.get(name="Punk")
+        Genre.objects.filter(pk=punk.pk).update(parent=jazz, root=jazz)
+
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        punk_row = next(row for row in rows if row["criteria"] and row["criteria"]["name"] == "Punk")
+        jazz_playlist_uuid = str(GenrePlaylist.objects.get(criteria=jazz).uuid)
+
+        assert punk_row["parent"]["uuid"] == jazz_playlist_uuid
+        assert punk_row["root"]["uuid"] == jazz_playlist_uuid
+
     def test_token_bumps_on_queryset_update(self):
         self._assert_bumps(lambda: Genre.objects.filter(pk=self.rock.pk).update(summary="Loud"))
 

@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Genre playlist responses now include `criteria.wikidataId` (the root's QID or `LOCAL:` key) via genre-kit v0.41.0, so tree clients can key per-root colors on a stable id.
 
+### Fixed
+
+- The genre tree now follows genre moves made by the curation import. A playlist's `parent` and `root` are derived from its genre (genre-kit v0.42.0) instead of being stored in a second copy that the import's bulk writes skipped. Migration `0048` drops `grow_criteria_playlist.parent_id` and `root_id`. The response shape is unchanged.
+
 ## [12.2.0] - 2026-10-12
 
 ### Added
