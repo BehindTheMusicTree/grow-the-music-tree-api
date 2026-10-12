@@ -25,7 +25,7 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
     ):
         if filterset_class is None:
             # Filtersets must be imported after Django is loaded
-            from grow.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
+            from the_music_tree_genre_kit.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
 
             filterset_class = CriteriaFilterSet
 

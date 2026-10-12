@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The cold (uncached) genre-tree response no longer spends ~3–4 s on Postgres JIT compilation: JIT is now off for the app's database connections.
 
+### Changed
+
+- The shared filters and the criteria/playlist filtersets now come from api-kit v0.10.0 and genre-kit v0.43.0 instead of a local copy under `grow/filtering/`. Query params are unchanged.
+
 ### Added
 
 - Genre playlist responses now include `criteria.wikidataId` (the root's QID or `LOCAL:` key) via genre-kit v0.41.0, so tree clients can key per-root colors on a stable id.
@@ -23,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - The genre tree now follows genre moves made by the curation import. A playlist's `parent` and `root` are derived from its genre (genre-kit v0.42.0) instead of being stored in a second copy that the import's bulk writes skipped. Migration `0048` drops `grow_criteria_playlist.parent_id` and `root_id`. The response shape is unchanged.
+- The manual-playlist and playlist `name` filters now match on the stored `_name` column (fixed in genre-kit v0.43.0).
 
 ## [12.2.0] - 2026-10-12
 

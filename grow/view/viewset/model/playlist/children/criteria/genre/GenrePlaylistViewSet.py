@@ -10,9 +10,9 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.criteria.Fields import Fields as FilterFields
+from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
 
-from grow.filtering.set.playlist.children.criteria.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
-from grow.filtering.set.playlist.children.criteria.Fields import Fields as FilterFields
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
@@ -48,7 +48,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             logger.warning("Genre tree cache unavailable, serving uncached", exc_info=True)
             body = None
         if body is None:
-            queryset = CriteriaPlaylistFilterSet().filter_tree_name(
+            queryset = CriteriaPlaylistFilterSet(queryset=self.get_queryset()).filter_tree_name(
                 self.get_queryset(), FilterFields.TREE_NAME, tree_name
             )
             data = CriteriaPlaylistSimpleSerializer(
