@@ -4,6 +4,10 @@ from rest_framework import routers
 
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
+    CurationApplyClaimView,
+    CurationApplyLatestView,
+    CurationApplyRequestView,
+    CurationApplyView,
     CurationEntriesView,
     CurationEntryView,
     CurationExportView,
@@ -49,6 +53,22 @@ urlpatterns += [
     path(f"{settings.API_ROOT_BASE}curation/status/", CurationStatusView.as_view(), name="curation-status"),
     path(f"{settings.API_ROOT_BASE}curation/rules/", CurationRulesView.as_view(), name="curation-rules"),
     path(f"{settings.API_ROOT_BASE}curation/export/", CurationExportView.as_view(), name="curation-export"),
+    path(f"{settings.API_ROOT_BASE}curation/apply/", CurationApplyView.as_view(), name="curation-apply"),
+    path(
+        f"{settings.API_ROOT_BASE}curation/apply/latest/",
+        CurationApplyLatestView.as_view(),
+        name="curation-apply-latest",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}curation/apply/claim/",
+        CurationApplyClaimView.as_view(),
+        name="curation-apply-claim",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}curation/apply/<uuid:uuid>/",
+        CurationApplyRequestView.as_view(),
+        name="curation-apply-request",
+    ),
     path(
         f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/",
         CurationEntriesView.as_view(),
