@@ -1,8 +1,10 @@
 from django_filters import CharFilter
+from the_music_tree_api_kit.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
+from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
+from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
+    PrivateUniqueResourceFilterSet,
+)
 
-from grow.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
-from grow.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
-from grow.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import PrivateUniqueResourceFilterSet
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields

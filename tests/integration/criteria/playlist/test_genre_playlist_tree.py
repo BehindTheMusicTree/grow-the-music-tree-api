@@ -69,6 +69,15 @@ class TestCase(AppTestCase):
         assert "Rock" in [row["criteria"] and row["criteria"]["name"] for row in response.json()]
 
     def test_tree_equals_unpaginated_list(self):
+        metal = self.model_fixture_factory.create_genre("Metal", summary="Heavy", wikidata_id="Q38848")
+        punk = Genre.objects.get(name="Punk")
+        punk.secondary_parents.add(metal, self.rock)
+        regional = Genre.objects.get(name="Italian progressive rock")
+        regional.additional_primary_parents.add(self.rock, metal)
+        self.model_fixture_factory.create_genre("Zeuhl", parent=regional, tree_name="regional")
+        self.model_fixture_factory.create_youtube_track(title="Song", genre=punk)
+        self.model_fixture_factory.create_tag("Live")
+
         for tree_name in ("canonical", "regional"):
             tree = self.api_client.get(TREE_PATH, {"tree_name": tree_name})
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})
@@ -117,6 +126,18 @@ class TestCase(AppTestCase):
 
         assert second.status_code == status.HTTP_200_OK
         assert "Jazz" in [row["criteria"] and row["criteria"]["name"] for row in second.json()]
+
+    def test_tree_follows_genre_moved_without_save_hooks(self):
+        jazz = self.model_fixture_factory.create_genre("Jazz")
+        punk = Genre.objects.get(name="Punk")
+        Genre.objects.filter(pk=punk.pk).update(parent=jazz, root=jazz)
+
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        punk_row = next(row for row in rows if row["criteria"] and row["criteria"]["name"] == "Punk")
+        jazz_playlist_uuid = str(GenrePlaylist.objects.get(criteria=jazz).uuid)
+
+        assert punk_row["parent"]["uuid"] == jazz_playlist_uuid
+        assert punk_row["root"]["uuid"] == jazz_playlist_uuid
 
     def test_token_bumps_on_queryset_update(self):
         self._assert_bumps(lambda: Genre.objects.filter(pk=self.rock.pk).update(summary="Loud"))

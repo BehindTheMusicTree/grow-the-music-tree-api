@@ -25,7 +25,7 @@ def snapshot_kit_seeded_data():
         "users": list(User.objects.values()),
         "criteria_types": list(CriteriaType.objects.values("pk", "label")),
         "criterialess_playlists": list(
-            CriteriaPlaylist.objects.filter(criteria=None).values("pk", "uuid", "root_id", "user_id", "type_id")
+            CriteriaPlaylist.objects.filter(criteria=None).values("pk", "uuid", "user_id", "type_id")
         ),
     }
 
@@ -43,5 +43,4 @@ def restore_kit_seeded_data(snapshot):
         playlist = CriteriaPlaylist(user_id=row["user_id"], type_id=row["type_id"], criteria=None)
         playlist.pk = row["pk"]
         playlist.uuid = row["uuid"]
-        playlist.root_id = row["root_id"]
         playlist.save()

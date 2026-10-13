@@ -1,6 +1,6 @@
+from the_music_tree_genre_kit.filtering.set.manual_playlist.ManualPlaylistFilterSet import ManualPlaylistFilterSet
 from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
-from grow.filtering.set.playlist.children.manual.ManualPlaylistFilterSet import ManualPlaylistFilterSet
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.serializer.model.playlist.children.manual.input.post import ManualPlaylistPostSerializer
 from grow.serializer.model.playlist.children.manual.input.put import ManualPlaylistPutSerializer

@@ -30,16 +30,15 @@ def repoint_playlist_parent_links(apps, schema_editor):
     """
     Repoints `CriteriaPlaylist.playlist`/`ManualPlaylist.playlist` from `grow_playlist` to the
     kit's `the_music_tree_genre_kit_playlist` at the database level, driving
-    `schema_editor.alter_field` directly with the live model classes instead of a declarative
-    `AlterField` operation. See `0006_move_track_to_genre_kit.py`'s
-    `repoint_track_parent_link` for why a plain `AlterField` can't express this MTI base change.
+    `schema_editor.alter_field` directly instead of a declarative `AlterField` operation. See
+    `0006_move_track_to_genre_kit.py`'s `repoint_track_parent_link` for why a plain `AlterField`
+    can't express this MTI base change. Runs after the state operations so it gets the historical
+    post-move models: the live classes would make SQLite's table remake drop columns that only a
+    later migration removes.
     """
-    from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
-    from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
-
     GrowPlaylist = apps.get_model("grow", "Playlist")
 
-    for model_class in (CriteriaPlaylist, ManualPlaylist):
+    for model_class in (apps.get_model("grow", "CriteriaPlaylist"), apps.get_model("grow", "ManualPlaylist")):
         new_field = model_class._meta.get_field("playlist")
         related_name = new_field.remote_field.related_name
 
@@ -88,9 +87,6 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.SeparateDatabaseAndState(
-            database_operations=[
-                migrations.RunPython(repoint_playlist_parent_links, noop_reverse_schema),
-            ],
             state_operations=[
                 migrations.DeleteModel(name="GenrePlaylist"),
                 migrations.DeleteModel(name="TagPlaylist"),
@@ -208,4 +204,5 @@ class Migration(migrations.Migration):
                 ),
             ],
         ),
+        migrations.RunPython(repoint_playlist_parent_links, noop_reverse_schema),
     ]

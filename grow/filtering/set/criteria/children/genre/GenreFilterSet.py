@@ -1,7 +1,6 @@
 from django_filters import CharFilter
 from the_music_tree_api_kit.filtering.filter.StrictBooleanFilter import StrictBooleanFilter
-
-from grow.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
+from the_music_tree_genre_kit.filtering.set.criteria.CriteriaFilterSet import CriteriaFilterSet
 
 
 class GenreFilterSet(CriteriaFilterSet):

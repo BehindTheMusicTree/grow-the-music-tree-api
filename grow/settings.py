@@ -55,6 +55,9 @@ WSGI_APPLICATION = "grow.wsgi.application"
 DATABASES = {
     "default": dj_database_url.parse(os.environ["DATABASE_URL"], conn_max_age=600),
 }
+# The tracks-count subquery's inflated cost estimate makes Postgres JIT-compile the tree query (~3-4 s, ~0.6 s real work).
+if DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql":
+    DATABASES["default"]["OPTIONS"] = {"options": "-c jit=off"}
 
 _redis_url = urlparse(os.environ["REDIS_URL"])
 
