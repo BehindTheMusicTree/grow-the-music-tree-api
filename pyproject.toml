@@ -47,6 +47,7 @@ extend-exclude = ["**/migrations"]
 # Deferred imports are used deliberately across Django models, serializers, and tests.
 "grow/**" = ["PLC0415"]
 "manage.py" = ["PLC0415"]
+"scripts/*.py" = ["INP001"]
 
 [tool.mypy]
 python_version = "3.14"

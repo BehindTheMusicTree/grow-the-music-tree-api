@@ -45,6 +45,8 @@ docker compose up
 
 Starts Postgres (`db`) and the API (`api`) with dev-friendly defaults already set in `docker-compose.yml` — no env file needed. The API is served on `http://localhost:8001` (via `manage.py runserver` with the repo mounted for live reload) and exposes a health check at `GET /health/`.
 
+On an empty DB, `api` seeds it in the background with the pinned prod Gold snapshot in `perf/fixtures/` (`scripts/seed_dev_db.py`: genre trees, then about 9k songs, through the same import endpoints as the nightly sync), so the genre tree works out of the box. It lacks admin curation: restore prod data (below) when you need it. To reseed: `docker compose down -v && docker compose up`.
+
 ### Local (uv + external Postgres)
 
 ```bash
