@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Dev seed**: `docker compose up` on an empty DB now seeds it with the pinned `perf/fixtures/` Gold snapshot (genre trees and songs, through the nightly sync's import endpoints), so a fresh dev setup has a working genre tree without the multi-GB prod restore.
 
+### Changed
+
+- A root genre may have at most one `side="pop"` direct child. Genre-kit v0.44.0 rejects a second one on save and on tree import (400, `REFERENCE_INVALID`), and the curation `canonical_genre_pop_side` list rejects a second pop child for the same root (400).
+
 ## [12.4.0] - 2026-10-13
 
 ### Added

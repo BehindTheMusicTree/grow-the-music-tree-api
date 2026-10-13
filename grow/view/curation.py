@@ -25,6 +25,7 @@ from grow.curation.rows import (
     ParsedRow,
     find_exclusivity_conflict,
     find_item_rules,
+    find_other_pop_child_error,
     find_precedence_cycle,
     lock_writes,
     parse_row,
@@ -73,6 +74,9 @@ def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> Pa
     cycle = find_precedence_cycle(_entries(), list_name, parsed.key, exclude_pk)
     if cycle:
         raise ValidationError({"row": precedence_cycle_error(cycle)})
+    pop_child_error = find_other_pop_child_error(_entries(), list_name, parsed.key, exclude_pk)
+    if pop_child_error:
+        raise ValidationError({"row": pop_child_error})
     return parsed
 
 

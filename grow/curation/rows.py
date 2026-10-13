@@ -21,6 +21,7 @@ from grow.curation.lists import (
 )
 
 KEY_SEPARATOR = "\t"
+POP_SIDE_LIST = "canonical_genre_pop_side"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
@@ -154,6 +155,20 @@ def find_precedence_cycle(
     return None
 
 
+def find_other_pop_child_error(
+    queryset: models.QuerySet, list_name: str, key: str, exclude_pk: Any = None
+) -> str | None:
+    """Why `key` would give its root a second pop child, if it would: a root has at most one."""
+    if list_name != POP_SIDE_LIST:
+        return None
+    root = key.split(KEY_SEPARATOR, 1)[0]
+    others = queryset.filter(list_name=list_name, key__startswith=root + KEY_SEPARATOR).exclude(key=key)
+    other_key = others.exclude(pk=exclude_pk).values_list("key", flat=True).first()
+    if other_key is None:
+        return None
+    return f"{root} already has the pop child {other_key.split(KEY_SEPARATOR, 1)[1]}; a root has at most one"
+
+
 def precedence_cycle_error(cycle: list[str]) -> str:
     return "Would form the precedence cycle " + " over ".join(cycle)
 
@@ -188,6 +203,9 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     cycle = find_precedence_cycle(entries, list_name, parsed.key)
     if cycle:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: precedence_cycle_error(cycle)})
+    pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key)
+    if pop_child_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[-1]: pop_child_error})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
 
 
