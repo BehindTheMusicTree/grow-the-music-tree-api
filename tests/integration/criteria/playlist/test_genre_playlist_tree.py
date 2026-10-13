@@ -69,6 +69,15 @@ class TestCase(AppTestCase):
         assert "Rock" in [row["criteria"] and row["criteria"]["name"] for row in response.json()]
 
     def test_tree_equals_unpaginated_list(self):
+        metal = self.model_fixture_factory.create_genre("Metal", summary="Heavy", wikidata_id="Q38848")
+        punk = Genre.objects.get(name="Punk")
+        punk.secondary_parents.add(metal, self.rock)
+        regional = Genre.objects.get(name="Italian progressive rock")
+        regional.additional_primary_parents.add(self.rock, metal)
+        self.model_fixture_factory.create_genre("Zeuhl", parent=regional, tree_name="regional")
+        self.model_fixture_factory.create_youtube_track(title="Song", genre=punk)
+        self.model_fixture_factory.create_tag("Live")
+
         for tree_name in ("canonical", "regional"):
             tree = self.api_client.get(TREE_PATH, {"tree_name": tree_name})
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})

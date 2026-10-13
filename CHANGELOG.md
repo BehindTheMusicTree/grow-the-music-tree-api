@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Improved
 
 - The cold (uncached) genre-tree response no longer spends ~3–4 s on Postgres JIT compilation: JIT is now off for the app's database connections.
+- The cold genre tree is now built from plain `.values()` rows instead of hydrating ~1.7k model graphs through `CriteriaPlaylistSimpleSerializer`, with byte-identical JSON. Its track count uses genre-kit v0.43.2's index-only `Count("*")`. Local cold p50 went from ~3.1 s to ~1.2 s, so the perf SLO is tightened from 3000 ms to 2400 ms.
 
 ### Changed
 
