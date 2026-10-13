@@ -62,7 +62,7 @@ class TestCase(AppTestCase):
 
     def test_serializes_essential_tracks(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
-        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=genre)
+        track = self.model_fixture_factory.create_recording("Strobe", genre=genre)
         genre.essential_tracks.add(track)
 
         data = CriteriaDetailedSerializer(genre).data

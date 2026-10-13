@@ -9,23 +9,23 @@ class TestCase(TagTestCase):
     def test_delete_root_criteria_with_children_then_direct_tracks_in_criterialess_playlist_in_first_positions(self):
         tagless_playlist = TagPlaylist.objects.get(user=None, criteria=None)
 
-        tagless_track_added_first = self.model_fixture_factory.create_youtube_track(title="tagless first", genre=None)
+        tagless_track_added_first = self.model_fixture_factory.create_recording(title="tagless first", genre=None)
         TrackPlaylistRel.objects.create(user=None, playlist=tagless_playlist, track=tagless_track_added_first)
-        tagless_track_added_second = self.model_fixture_factory.create_youtube_track(title="tagless second", genre=None)
+        tagless_track_added_second = self.model_fixture_factory.create_recording(title="tagless second", genre=None)
         TrackPlaylistRel.objects.create(user=None, playlist=tagless_playlist, track=tagless_track_added_second)
 
         party_criteria = self.model_fixture_factory.create_tag(name="party")
         fiesta_criteria = self.model_fixture_factory.create_tag(name="fiesta", parent=party_criteria)
 
-        party_track_added_third = self.model_fixture_factory.create_youtube_track(title="party third", genre=None)
+        party_track_added_third = self.model_fixture_factory.create_recording(title="party third", genre=None)
         TrackPlaylistRel.objects.create(
             user=None, playlist=party_criteria.criteria_playlist, track=party_track_added_third
         )
-        fiesta_track_added_fourth = self.model_fixture_factory.create_youtube_track(title="fiesta fourth", genre=None)
+        fiesta_track_added_fourth = self.model_fixture_factory.create_recording(title="fiesta fourth", genre=None)
         TrackPlaylistRel.objects.create(
             user=None, playlist=fiesta_criteria.criteria_playlist, track=fiesta_track_added_fourth
         )
-        party_track_added_fifth = self.model_fixture_factory.create_youtube_track(title="party fifth", genre=None)
+        party_track_added_fifth = self.model_fixture_factory.create_recording(title="party fifth", genre=None)
         TrackPlaylistRel.objects.create(
             user=None, playlist=party_criteria.criteria_playlist, track=party_track_added_fifth
         )

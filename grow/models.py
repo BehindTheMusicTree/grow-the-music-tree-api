@@ -19,8 +19,8 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
+from grow.model.recording.Recording import Recording
 from grow.model.user.UserProfile import UserProfile
-from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
 from grow.track.bulk_import.SongImportRun import SongImportRun
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
@@ -41,6 +41,7 @@ __all__ = [
     "PipelineRunRequest",
     "Play",
     "Playlist",
+    "Recording",
     "SongImportRun",
     "SongImportStaging",
     "Tag",
@@ -48,5 +49,4 @@ __all__ = [
     "Track",
     "TrackPlaylistRel",
     "UserProfile",
-    "YoutubeTrack",
 ]

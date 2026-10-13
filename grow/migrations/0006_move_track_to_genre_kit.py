@@ -50,7 +50,7 @@ def repoint_track_parent_link(apps, schema_editor):
     `UploadedTrack` never needs this treatment: it's dead code with no live data, so its table is
     dropped outright (see this migration's `database_operations`) instead of repointed.
     """
-    from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
+    from grow.model.recording.Recording import Recording as YoutubeTrack
 
     GrowTrack = apps.get_model("grow", "Track")
 
@@ -67,7 +67,13 @@ def repoint_track_parent_link(apps, schema_editor):
     old_field.set_attributes_from_name("track")
     old_field.model = YoutubeTrack
 
-    schema_editor.alter_field(YoutubeTrack, old_field, new_field)
+    # The live model was later renamed (0050); point it at the table name it had at this migration.
+    live_db_table = YoutubeTrack._meta.db_table
+    YoutubeTrack._meta.db_table = "grow_youtube_track"
+    try:
+        schema_editor.alter_field(YoutubeTrack, old_field, new_field)
+    finally:
+        YoutubeTrack._meta.db_table = live_db_table
 
 
 def noop_reverse_schema(apps, schema_editor):

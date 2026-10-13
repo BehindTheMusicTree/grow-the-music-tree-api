@@ -57,9 +57,9 @@ It is deliberately **never** enforced on `create()`. A tree is legitimately inco
 
 ## Track model
 
-Single concrete track type: `YoutubeTrack(KitTrack)` (`grow/model/youtube_track/YoutubeTrack.py`), MTI onto the kit's `Track` via `track = PrivateOneToOneField(KitTrack, on_delete=models.CASCADE, parent_link=True, ...)`. `settings.TRACK_MODEL = "grow.YoutubeTrack"` points directly at the concrete child — see `CLAUDE.md`'s Architecture section for why (no downcasting/`resolve_concrete` needed since there's only one child).
+Single concrete track type: `Recording(KitTrack)` (`grow/model/recording/Recording.py`, table `grow_recording`; formerly `YoutubeTrack`), MTI onto the kit's `Track` via `track = PrivateOneToOneField(KitTrack, on_delete=models.CASCADE, parent_link=True, ...)`. `settings.TRACK_MODEL = "grow.Recording"` points directly at the concrete child — see `CLAUDE.md`'s Architecture section for why (no downcasting/`resolve_concrete` needed since there's only one child).
 
-The kit's `Track` deliberately has no `playlists` M2M field. `YoutubeTrack.playlists_with_positions` reconstructs membership at query time via `TrackPlaylistRel.objects.filter(user=self.user, track=self)`.
+The kit's `Track` deliberately has no `playlists` M2M field. `Recording.playlists_with_positions` reconstructs membership at query time via `TrackPlaylistRel.objects.filter(user=self.user, track=self)`.
 
 ## Auth & permission layering
 
@@ -87,7 +87,7 @@ Swappable-model settings — exactly these four, identical in `grow/settings.py`
 
 ```python
 CRITERIA_MODEL = "grow.Criteria"
-TRACK_MODEL = "grow.YoutubeTrack"
+TRACK_MODEL = "grow.Recording"
 ARTIST_MODEL = "grow.Artist"
 ALBUM_MODEL = "grow.Album"
 ```

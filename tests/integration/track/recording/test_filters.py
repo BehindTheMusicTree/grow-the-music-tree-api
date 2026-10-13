@@ -5,7 +5,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 class TestCase(AppTestCase):
-    list_endpoint = "youtube-track-list"
+    list_endpoint = "recording-list"
 
     def setUp(self):
         super().setUp()
@@ -13,14 +13,14 @@ class TestCase(AppTestCase):
         self.jazz = self.model_fixture_factory.create_genre("Jazz")
         self.pink_floyd = self.model_fixture_factory.create_artist("Pink Floyd")
         self.album = self.model_fixture_factory.create_album("The Wall")
-        self.matching_track = self.model_fixture_factory.create_youtube_track(
+        self.matching_track = self.model_fixture_factory.create_recording(
             title="Comfortably Numb",
             genre=self.rock,
             artists=[self.pink_floyd],
             album=self.album,
             language="en",
         )
-        self.other_track = self.model_fixture_factory.create_youtube_track(
+        self.other_track = self.model_fixture_factory.create_recording(
             title="So What",
             genre=self.jazz,
             language="fr",

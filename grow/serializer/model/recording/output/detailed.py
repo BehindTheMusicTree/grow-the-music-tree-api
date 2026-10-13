@@ -3,11 +3,11 @@ from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.serializer.model.playlist.base.output.minimum import PlaylistMinimumSerializer
 
-from .without_playlists import YoutubeTrackWithoutPlaylistsSerializer
-from .YoutubeTrackOutputFieldKey import YoutubeTrackOutputFieldKey
+from .RecordingOutputFieldKey import RecordingOutputFieldKey
+from .without_playlists import RecordingWithoutPlaylistsSerializer
 
 
-class YoutubeTrackDetailedSerializer(YoutubeTrackWithoutPlaylistsSerializer):
+class RecordingDetailedSerializer(RecordingWithoutPlaylistsSerializer):
     playlists = PlaylistMinimumSerializer(many=True)
 
     @classmethod
@@ -19,9 +19,9 @@ class YoutubeTrackDetailedSerializer(YoutubeTrackWithoutPlaylistsSerializer):
             .prefetch_related(Prefetch(f"{prefix}playlists", queryset=playlists))
         )
 
-    class Meta(YoutubeTrackWithoutPlaylistsSerializer.Meta):
+    class Meta(RecordingWithoutPlaylistsSerializer.Meta):
         fields = [
-            *YoutubeTrackWithoutPlaylistsSerializer.Meta.fields[:9],
-            YoutubeTrackOutputFieldKey.PLAYLISTS_PUBLIC.value,
-            *YoutubeTrackWithoutPlaylistsSerializer.Meta.fields[9:],
+            *RecordingWithoutPlaylistsSerializer.Meta.fields[:9],
+            RecordingOutputFieldKey.PLAYLISTS_PUBLIC.value,
+            *RecordingWithoutPlaylistsSerializer.Meta.fields[9:],
         ]

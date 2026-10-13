@@ -1,7 +1,7 @@
 from enum import StrEnum
 
 
-class YoutubeTrackOutputFieldKey(StrEnum):
+class RecordingOutputFieldKey(StrEnum):
     CREATED_ON = "created_on"
     UPDATED_ON = "updated_on"
     UUID = "uuid"
@@ -15,6 +15,7 @@ class YoutubeTrackOutputFieldKey(StrEnum):
     LANGUAGE = "language"
     PLAYLISTS_PUBLIC = "playlists"
     PLAY_COUNT = "play_count"
-    YOUTUBE_VIDEO_ID = "youtube_video_id"
+    YOUTUBE_VIDEO = "youtube_video"
+    YOUTUBE_VIDEO_ID = "youtube_video_id"  # legacy, superseded by YOUTUBE_VIDEO
     MUSICBRAINZ_RECORDING_ID = "musicbrainz_recording_id"
-    YOUTUBE_UNPLAYABLE_REASON = "youtube_unplayable_reason"
+    YOUTUBE_UNPLAYABLE_REASON = "youtube_unplayable_reason"  # legacy, superseded by YOUTUBE_VIDEO

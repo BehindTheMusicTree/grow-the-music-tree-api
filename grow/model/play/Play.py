@@ -15,7 +15,7 @@ class Play(PrivateUniqueResource):
     """Tracks plays of any model that inherits from TrackablePlayCount.
 
     Uses Django's generic foreign key mechanism to reference the played content,
-    which can be either a Track (e.g. YoutubeTrack) or a Playlist.
+    which can be either a Track (e.g. Recording) or a Playlist.
     """
 
     user = models.ForeignKey(

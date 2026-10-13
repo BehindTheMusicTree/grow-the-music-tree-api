@@ -7,7 +7,7 @@ from tests.integration.criteria.GenreTestCase import GenreTestCase
 class TestCase(GenreTestCase):
     def test_creates_genre_with_essential_tracks(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
-        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=genre)
+        track = self.model_fixture_factory.create_recording("Strobe", genre=genre)
 
         response = self._post_genre(data={"name": "EDM", "essentialTracks": [str(track.uuid)]})
 

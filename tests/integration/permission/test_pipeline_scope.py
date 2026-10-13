@@ -22,7 +22,7 @@ class TestCase(AppTestCase):
         return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=TREE_PAYLOAD)
 
     def _songs_import(self):
-        return self.api_client.post(path=reverse("youtube-track-list") + "songs/import-runs/")
+        return self.api_client.post(path=reverse("recording-list") + "songs/import-runs/")
 
     def _use_api_key(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
