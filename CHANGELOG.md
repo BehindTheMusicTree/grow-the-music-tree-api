@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Deprecated
 
-- `library/youtube/` (alias of `library/recordings/`) and the flat `youtubeVideoId` / `youtubeUnplayableReason` track fields, superseded by `youtubeVideo`. Kept until consumers migrate.
+- `library/youtube/` (alias of `library/recordings/` whose list still hides recordings without a video) and the flat `youtubeVideoId` / `youtubeUnplayableReason` track fields, superseded by `youtubeVideo`. Kept until consumers migrate.
 
 ## [12.4.0] - 2026-10-13
 

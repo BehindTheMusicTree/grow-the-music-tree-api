@@ -75,9 +75,10 @@ class TestCase(AppTestCase):
 
         assert response.json()["results"][0]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
 
-    def test_legacy_youtube_route_still_lists_recordings(self):
+    def test_legacy_youtube_route_lists_only_recordings_with_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         recording = self.model_fixture_factory.create_recording(title="Mine", genre=genre)
+        self.model_fixture_factory.create_recording(title="No video", genre=genre, youtube_video_id=None)
 
         response = self.api_client.get(path=reverse("youtube-track-list"))
 

@@ -92,3 +92,10 @@ class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
         if task.success:
             return Response({"status": "success", "result": task.result})
         return Response({"status": "failed", "error": str(task.result)})
+
+
+class LegacyYoutubeViewSet(RecordingViewSet):
+    def list(self, *args, **kwargs):
+        # Legacy consumers require a non-null youtubeVideoId.
+        queryset = self.get_queryset().filter(genre__isnull=False, youtube_video_id__isnull=False)
+        return self._get_paginated_list_response(queryset)

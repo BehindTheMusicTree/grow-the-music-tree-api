@@ -30,7 +30,7 @@ from grow.view.viewset.model.playlist.children.criteria.genre.GenrePlaylistViewS
 from grow.view.viewset.model.playlist.children.criteria.tag.TagPlaylistViewSet import TagPlaylistViewSet
 from grow.view.viewset.model.playlist.children.manual.ManualPlaylistViewSet import ManualPlaylistViewSet
 from grow.view.viewset.model.playlist.PlaylistViewSet import PlaylistViewSet
-from grow.view.viewset.model.recording.RecordingViewSet import RecordingViewSet
+from grow.view.viewset.model.recording.RecordingViewSet import LegacyYoutubeViewSet, RecordingViewSet
 
 router = routers.DefaultRouter()
 
@@ -47,7 +47,7 @@ router.register(r"tag-playlists", TagPlaylistViewSet, basename="tag-playlist")
 router.register(r"plays", PlayViewSet, basename="play")
 router.register(r"library/recordings", RecordingViewSet, basename="recording")
 # Legacy route, kept until consumers migrate to library/recordings.
-router.register(r"library/youtube", RecordingViewSet, basename="youtube-track")
+router.register(r"library/youtube", LegacyYoutubeViewSet, basename="youtube-track")
 
 urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
 
