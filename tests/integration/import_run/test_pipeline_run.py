@@ -8,7 +8,9 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
+from grow.authentication.Principal import Principal
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
+from tests.utils.AppApiClient import ADMIN_EMAIL
 from tests.utils.AppTestCase import AppTestCase
 
 ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
@@ -63,9 +65,12 @@ class TestPipelineRun(AppTestCase):
     def test_request_claim_progress_succeed(self):
         requested = self._request()
         assert (requested["kind"], requested["status"]) == ("curation", "queued")
+        assert (requested["trigger"], requested["requestedBy"]) == ("manual", ADMIN_EMAIL)
         assert set(requested) == {
             "uuid",
             "kind",
+            "trigger",
+            "requestedBy",
             "status",
             "stage",
             "stageCurrent",
@@ -80,6 +85,7 @@ class TestPipelineRun(AppTestCase):
 
         claimed = self._claim().json()
         assert claimed["uuid"] == requested["uuid"]
+        assert (claimed["trigger"], claimed["requestedBy"]) == ("manual", ADMIN_EMAIL)
         assert claimed["status"] == "running"
         assert claimed["startedOn"] is not None
         assert claimed["heartbeatOn"] == claimed["startedOn"]
@@ -97,7 +103,7 @@ class TestPipelineRun(AppTestCase):
         )
 
         done = self._patch(requested["uuid"], {"status": "succeeded"}).json()
-        assert done["status"] == "succeeded"
+        assert (done["status"], done["trigger"], done["requestedBy"]) == ("succeeded", "manual", ADMIN_EMAIL)
         assert done["finishedOn"] is not None
         assert self._patch(requested["uuid"], {"stage": "merging_songs"}).status_code == status.HTTP_409_CONFLICT
 
@@ -257,5 +263,61 @@ class TestPipelineRun(AppTestCase):
         assert self._cancel(uuid, anonymous).status_code == status.HTTP_401_UNAUTHORIZED
         run_url = reverse("pipeline-run", kwargs={"uuid": uuid})
         assert anonymous.patch(path=run_url, data={}, format="json").status_code == status.HTTP_401_UNAUTHORIZED
-        assert self.pipeline.post(path=reverse("pipeline-runs"), data={"kind": "full"}).status_code == 403
+        assert anonymous.get(path=reverse("pipeline-runs")).status_code == status.HTTP_401_UNAUTHORIZED
+        assert self.pipeline.get(path=reverse("pipeline-runs")).status_code == status.HTTP_403_FORBIDDEN
+        viewer = APIClient()
+        viewer.force_authenticate(user=self.admin, token=Principal(role="viewer", email=None, sub=None))
+        assert viewer.get(path=reverse("pipeline-runs")).status_code == status.HTTP_403_FORBIDDEN
+        assert viewer.post(path=reverse("pipeline-runs"), data={"kind": "full"}).status_code == 403
         assert self._cancel(uuid, self.pipeline).status_code == status.HTTP_403_FORBIDDEN
+
+    def test_pipeline_key_requests_scheduled_full_run(self):
+        response = self.pipeline.post(path=reverse("pipeline-runs"), data={"kind": "full"}, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        assert (response.json()["trigger"], response.json()["requestedBy"]) == ("scheduled", None)
+        run = PipelineRunRequest.objects.get()
+        assert (run.trigger, run.requested_by) == ("scheduled", None)
+        claimed = self._claim().json()
+        assert (claimed["trigger"], claimed["requestedBy"]) == ("scheduled", None)
+        done = self._patch(claimed["uuid"], {"status": "succeeded"}).json()
+        assert (done["trigger"], done["requestedBy"]) == ("scheduled", None)
+        assert self._latest().json() == done
+
+    def test_pipeline_key_curation_rejected(self):
+        self._edit()
+
+        response = self.pipeline.post(path=reverse("pipeline-runs"), data={"kind": "curation"}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not PipelineRunRequest.objects.exists()
+
+    def test_admin_request_records_requester(self):
+        self._request("full")
+
+        run = PipelineRunRequest.objects.get()
+        assert (run.trigger, run.requested_by) == ("manual", self.admin)
+
+    def test_list_newest_first_and_paginated(self):
+        uuids = []
+        for _ in range(3):
+            uuid = self._request("full")["uuid"]
+            self._cancel(uuid)
+            uuids.append(uuid)
+
+        first = self.api_client.get(path=reverse("pipeline-runs"), data={"page_size": 2}).json()
+        second = self.api_client.get(path=reverse("pipeline-runs"), data={"page_size": 2, "page": 2}).json()
+
+        assert [r["uuid"] for r in first["results"]] == uuids[:0:-1]
+        assert [r["uuid"] for r in second["results"]] == uuids[:1]
+        assert (first["overallTotal"], first["totalPages"], first["pageSize"]) == (3, 2, 2)
+        assert first["results"][0]["requestedBy"] == ADMIN_EMAIL
+
+    def test_list_expires_dead_run(self):
+        uuid = self._request("full")["uuid"]
+        self._claim()
+        self._go_silent(uuid, settings.PIPELINE_RUN_HEARTBEAT_TIMEOUT_MINUTES + 1)
+
+        listed = self.api_client.get(path=reverse("pipeline-runs")).json()
+
+        assert listed["results"][0]["status"] == "expired"

@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 from django.db.models import Q
 
@@ -7,14 +8,19 @@ from grow.model.pipeline_run.PipelineRunRequestManager import PipelineRunRequest
 
 
 class PipelineRunRequest(models.Model):
-    """An admin request for a pipeline run, claimed and executed by the pipeline's poller one at a time.
+    """A pipeline run request, claimed and executed by the pipeline's poller one at a time.
 
-    `curation` rebuilds the canonical tree and songs from current curation; `full` is the nightly run.
+    `curation` rebuilds the canonical tree and songs from current curation; `full` is the nightly run or an
+    admin-requested full ingestion. `trigger` records the origin: `manual` (by `requested_by`) or `scheduled`.
     """
 
     class Kind(models.TextChoices):
         CURATION = "curation"
         FULL = "full"
+
+    class Trigger(models.TextChoices):
+        MANUAL = "manual"
+        SCHEDULED = "scheduled"
 
     class Status(models.TextChoices):
         QUEUED = "queued"
@@ -38,6 +44,8 @@ class PipelineRunRequest(models.Model):
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     kind = models.TextField(choices=Kind.choices)
+    trigger = models.TextField(choices=Trigger.choices)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     status = models.TextField(choices=Status.choices, default=Status.QUEUED)
     stage = models.TextField(choices=Stage.choices, null=True)
     stage_current = models.PositiveIntegerField(null=True)
