@@ -69,7 +69,7 @@ def test_median_latency_within_slo(scenario):
 
 
 # Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.
-TREE_SLO_MS = {"cold": 3000, "warm": 20, "not-modified": 20}
+TREE_SLO_MS = {"cold": 2400, "warm": 20, "not-modified": 20}
 
 
 @pytest.mark.django_db
