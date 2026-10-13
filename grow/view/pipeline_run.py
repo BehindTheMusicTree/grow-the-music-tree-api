@@ -9,13 +9,17 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
 from the_music_tree_api_kit.view.error.ErrorResponse import ErrorResponse
+from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 from grow.view.curation import CurationView
+from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 Status = PipelineRunRequest.Status
+Kind = PipelineRunRequest.Kind
+Trigger = PipelineRunRequest.Trigger
 
 
 def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
@@ -25,6 +29,7 @@ def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
             for field in (
                 "uuid",
                 "kind",
+                "trigger",
                 "status",
                 "stage",
                 "stage_current",
@@ -36,8 +41,13 @@ def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
                 "finished_on",
             )
         },
+        "requested_by": run.requested_by.email if run.requested_by else None,
         "cancel_requested": run.cancel_requested_on is not None,
     }
+
+
+def _newest_first():
+    return PipelineRunRequest.objects.select_related("requested_by").order_by("-requested_on", "-pk")
 
 
 def _conflict(message: str, api_error_code: ApiErrorCodeNumeric):
@@ -55,18 +65,36 @@ class PipelineRunCreateSerializer(serializers.Serializer):
 
 
 class PipelineRunsView(CurationView):
-    """Queues a pipeline run: the pipeline's poller claims it and runs it."""
+    """Lists past runs (admin), or queues one for the pipeline's poller to claim.
+
+    The origin comes from auth: an admin's request is `manual`, the pipeline key's is the `scheduled` nightly `full`.
+    """
+
+    def get_permissions(self):
+        return [IsPipelineOrAdmin()] if self.request.method == "POST" else [IsAdmin()]
+
+    def get(self, request: Request) -> Response:
+        PipelineRunRequest.objects.expire_stale()
+        paginator = AppPagination()
+        page = paginator.paginate_queryset(_newest_first(), request, view=self)
+        return paginator.get_paginated_response([_serialize(run) for run in page or []])
 
     def post(self, request: Request) -> Response:
         serializer = PipelineRunCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         kind = serializer.validated_data["kind"]
-        if kind == PipelineRunRequest.Kind.CURATION and CurationSyncState.load().pending_count == 0:
+        if request.auth.role == "pipeline":
+            if kind != Kind.FULL:
+                raise ValidationError({"kind": "The pipeline key may only request a full run"})
+            origin = {"trigger": Trigger.SCHEDULED, "requested_by": None}
+        else:
+            origin = {"trigger": Trigger.MANUAL, "requested_by": request.user}
+        if kind == Kind.CURATION and CurationSyncState.load().pending_count == 0:
             raise ValidationError({"pending_count": "No curation edit to apply"})
         PipelineRunRequest.objects.expire_stale()
         try:
             with transaction.atomic():
-                run = PipelineRunRequest.objects.create(kind=kind)
+                run = PipelineRunRequest.objects.create(kind=kind, **origin)
         except IntegrityError:
             return _conflict("A pipeline run is already queued or running", ApiErrorCodeNumeric.RESOURCE_ALREADY_EXISTS)
         return Response(_serialize(run), status=status.HTTP_201_CREATED)
@@ -77,7 +105,7 @@ class PipelineRunLatestView(CurationView):
 
     def get(self, request: Request) -> Response:
         PipelineRunRequest.objects.expire_stale()
-        run = PipelineRunRequest.objects.order_by("-requested_on", "-pk").first()
+        run = _newest_first().first()
         if run is None:
             return Response(status=status.HTTP_204_NO_CONTENT)
         return Response(_serialize(run))
