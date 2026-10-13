@@ -163,6 +163,41 @@ class TestCase(AppTestCase):
         assert response.json()["row"] == row
         assert CurationEntry.objects.get(uuid=response.json()["uuid"]).key == "rock\ttest pop child"
 
+    def test_second_pop_child_for_root_then_400(self):
+        self._create(
+            {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}, "canonical_genre_pop_side"
+        )
+
+        response = self._create(
+            {"root_genre_name": "rock", "pop_child_genre_name": "soft rock", "reason": "r"}, "canonical_genre_pop_side"
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "pop rock" in str(response.json())
+
+    def test_patch_pop_child_of_same_root_then_200(self):
+        row = {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}
+        uuid = self._create(row, "canonical_genre_pop_side").json()["uuid"]
+
+        response = self.api_client.patch(
+            self._entry_url(uuid, "canonical_genre_pop_side"),
+            {"row": {**row, "pop_child_genre_name": "soft rock"}},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_upsert_second_pop_child_for_root_then_invalid(self):
+        CurationEntry.objects.upsert(
+            "canonical_genre_pop_side", {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}
+        )
+
+        with self.assertRaises(InvalidRow):
+            CurationEntry.objects.upsert(
+                "canonical_genre_pop_side",
+                {"root_genre_name": "rock", "pop_child_genre_name": "soft rock", "reason": "r"},
+            )
+
     def test_bool_column_then_coerced(self):
         row = {**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": "true"}
 
