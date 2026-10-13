@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.4.0] - 2026-10-13
+
 ### Added
 
 - Pipeline run requests now record their origin: `trigger` (`manual` or `scheduled`) and `requestedBy` (the requesting admin's email, or `null`). The pipeline API key can `POST pipeline/runs/` to queue the nightly `full` run as `scheduled` (`curation` returns 400); an admin's request is `manual`. Migration `0049` adds both fields, marking existing rows `manual` with no requester.
