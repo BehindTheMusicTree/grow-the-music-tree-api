@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.3.0] - 2026-10-13
+
 ### Improved
 
 - The cold (uncached) genre-tree response no longer spends ~3–4 s on Postgres JIT compilation: JIT is now off for the app's database connections.
