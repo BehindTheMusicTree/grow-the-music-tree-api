@@ -28,7 +28,7 @@ class TestCase(GenreTestCase):
 
     def test_update_unrelated_field_on_mainstream_pop_root_then_200_ok(self):
         root = self.model_fixture_factory.create_genre("Mainstream Pop")
-        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=root)
+        track = self.model_fixture_factory.create_recording("Strobe", genre=root)
 
         response = self._put_genre(root.uuid, data={"essentialTracks": [str(track.uuid)]})
 

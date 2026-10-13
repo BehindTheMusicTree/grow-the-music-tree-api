@@ -3,19 +3,19 @@ from the_music_tree_api_kit.serializer.AppInputSerializer import AppInputSeriali
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
-from grow.serializer.model.youtube_track.output.without_playlists import YoutubeTrackWithoutPlaylistsSerializer
+from grow.serializer.model.recording.output.without_playlists import RecordingWithoutPlaylistsSerializer
 
 from .Fields import Fields
 
 
 class TrackPlaylistRelInPageSerializer(EagerLoadingMixin, AppInputSerializer, serializers.ModelSerializer):
-    track = YoutubeTrackWithoutPlaylistsSerializer(source=f"{Fields.TRACK_INTERNAL}.youtubetrack")
+    track = RecordingWithoutPlaylistsSerializer(source=f"{Fields.TRACK_INTERNAL}.recording")
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
-        youtube_track = f"{prefix}track__youtubetrack"
-        return YoutubeTrackWithoutPlaylistsSerializer.setup_queryset(
-            queryset.select_related(youtube_track), prefix=f"{youtube_track}__"
+        recording = f"{prefix}track__recording"
+        return RecordingWithoutPlaylistsSerializer.setup_queryset(
+            queryset.select_related(recording), prefix=f"{recording}__"
         )
 
     class Meta:

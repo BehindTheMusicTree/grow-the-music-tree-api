@@ -78,7 +78,7 @@ class TestOverwrite(GenreTestCase):
             name="Disco", wikidata_id="Q182985", source=CriteriaSource.PIPELINE
         )
         self.model_fixture_factory.create_genre(name="Rock", wikidata_id="Q11399", source=CriteriaSource.PIPELINE)
-        track = self.model_fixture_factory.create_youtube_track(title="Le Freak", genre=disco)
+        track = self.model_fixture_factory.create_recording(title="Le Freak", genre=disco)
 
         tree_data = [
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},

@@ -59,7 +59,7 @@ def seed() -> None:
     log(f"importing {SONGS}")
     with gzip.open(FIXTURES / SONGS) as file:
         part = gzip.compress("".join(json.dumps(song) + "\n" for song in json.load(file)).encode())
-    runs = "library/youtube/songs/import-runs/"
+    runs = "library/recordings/songs/import-runs/"
     run_id = call("POST", runs)["runId"]
     call(
         "PUT",

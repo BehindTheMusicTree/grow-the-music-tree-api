@@ -8,9 +8,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 
-from grow.filtering.set.youtube_track.YoutubeTrackFilterSet import YoutubeTrackFilterSet
-from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
-from grow.serializer.model.youtube_track.output.detailed import YoutubeTrackDetailedSerializer
+from grow.filtering.set.recording.RecordingFilterSet import RecordingFilterSet
+from grow.model.recording.Recording import Recording
+from grow.serializer.model.recording.output.detailed import RecordingDetailedSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongImportRun import SongImportRun
@@ -22,21 +22,19 @@ from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 IMPORT_RUNS = "songs/import-runs"
 
 
-class YoutubeTrackViewSet(HistoryActionMixin, GrowModelViewSet[YoutubeTrack]):
+class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
     def __init__(self, **kwargs):
         super().__init__(
-            model_class=YoutubeTrack,
-            filterset_class=YoutubeTrackFilterSet,
-            simple_serializer_class=YoutubeTrackDetailedSerializer,
-            detailed_serializer_class=YoutubeTrackDetailedSerializer,
+            model_class=Recording,
+            filterset_class=RecordingFilterSet,
+            simple_serializer_class=RecordingDetailedSerializer,
+            detailed_serializer_class=RecordingDetailedSerializer,
             **kwargs,
         )
 
     def list(self, *args, **kwargs):
-        # Songs without a video or a genre are stored for later linking, but aren't playable in the tree.
-        return self._get_paginated_list_response(
-            self.get_queryset().filter(youtube_video_id__isnull=False, genre__isnull=False)
-        )
+        # Genreless songs are stored for later linking but have no place in the tree.
+        return self._get_paginated_list_response(self.get_queryset().filter(genre__isnull=False))
 
     def retrieve(self, *args, **kwargs):
         return self._handle_retrieve()

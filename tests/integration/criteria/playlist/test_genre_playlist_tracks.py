@@ -8,8 +8,8 @@ from tests.utils.AppTestCase import AppTestCase
 class TestCase(AppTestCase):
     def test_tracks_page_is_position_ordered_without_nested_playlists(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")
-        self.model_fixture_factory.create_youtube_track(title="First", genre=rock_criteria)
-        second = self.model_fixture_factory.create_youtube_track(title="Second", genre=rock_criteria)
+        self.model_fixture_factory.create_recording(title="First", genre=rock_criteria)
+        second = self.model_fixture_factory.create_recording(title="Second", genre=rock_criteria)
         playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
 
         response = self.api_client.get(
@@ -26,7 +26,7 @@ class TestCase(AppTestCase):
 
     def test_tracks_page_returns_track_youtube_video_id(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")
-        self.model_fixture_factory.create_youtube_track(
+        self.model_fixture_factory.create_recording(
             title="Track Title", genre=rock_criteria, youtube_video_id="abc123defgh"
         )
         playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
@@ -38,7 +38,7 @@ class TestCase(AppTestCase):
 
     def test_tracks_page_returns_track_youtube_unplayable_reason(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")
-        self.model_fixture_factory.create_youtube_track(
+        self.model_fixture_factory.create_recording(
             title="Track Title", genre=rock_criteria, youtube_unplayable_reason="not_embeddable"
         )
         playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
@@ -47,3 +47,31 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["results"][0]["track"]["youtubeUnplayableReason"] == "not_embeddable"
+
+    def test_tracks_page_nests_youtube_video(self):
+        rock_criteria = self.model_fixture_factory.create_genre(name="rock")
+        self.model_fixture_factory.create_recording(
+            title="Track Title",
+            genre=rock_criteria,
+            youtube_video_id="abc123defgh",
+            youtube_unplayable_reason="private",
+        )
+        playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
+
+        response = self.api_client.get(path=reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid}))
+
+        assert response.json()["results"][0]["track"]["youtubeVideo"] == {
+            "id": "abc123defgh",
+            "unplayableReason": "private",
+        }
+
+    def test_tracks_page_returns_null_youtube_video_without_video(self):
+        rock_criteria = self.model_fixture_factory.create_genre(name="rock")
+        self.model_fixture_factory.create_recording(title="Track Title", genre=rock_criteria, youtube_video_id=None)
+        playlist = GenrePlaylist.objects.get(criteria=rock_criteria)
+
+        response = self.api_client.get(path=reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid}))
+
+        track = response.json()["results"][0]["track"]
+        assert track["youtubeVideo"] is None
+        assert track["youtubeVideoId"] is None

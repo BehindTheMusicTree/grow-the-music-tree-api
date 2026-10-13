@@ -15,7 +15,7 @@ class TestCase(GenreTestCase):
 
     def _add_essential_tracks(self, genre, count):
         for index in range(count):
-            track = self.model_fixture_factory.create_youtube_track(f"Track {index}", genre=genre)
+            track = self.model_fixture_factory.create_recording(f"Track {index}", genre=genre)
             track.artists.add(
                 self.model_fixture_factory.create_artist(f"Artist {index}a"),
                 self.model_fixture_factory.create_artist(f"Artist {index}b"),

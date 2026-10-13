@@ -8,13 +8,13 @@ from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueR
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields
-from grow.model.youtube_track.Fields import Fields as ModelFields
-from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
+from grow.model.recording.Fields import Fields as ModelFields
+from grow.model.recording.Recording import Recording
 
 from .Fields import Fields
 
 
-class YoutubeTrackFilterSet(PrivateUniqueResourceFilterSet):
+class RecordingFilterSet(PrivateUniqueResourceFilterSet):
     title = CharFilter(field_name=ModelFields.TITLE, lookup_expr="icontains")
     artists_name = RelatedObjectCharFilter(
         primary_field=ArtistFields.NAME_INTERNAL,
@@ -39,5 +39,5 @@ class YoutubeTrackFilterSet(PrivateUniqueResourceFilterSet):
     )
 
     class Meta:
-        model = YoutubeTrack
+        model = Recording
         fields = [Fields.TITLE, Fields.LANGUAGE, *PrivateUniqueResourceFilterSet.get_date_fields()]
