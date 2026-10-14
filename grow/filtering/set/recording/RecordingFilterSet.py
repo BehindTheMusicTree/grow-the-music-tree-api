@@ -66,8 +66,9 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
 
     def filter_genre(self, queryset: QuerySet[Recording], name: str, value) -> QuerySet[Recording]:
         """The genre's recordings and its primary descendants', the same subtree its playlists cover."""
-        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values("descendant")
-        return queryset.filter(Q(genre=value) | Q(genre__in=descendants))
+        # Ids are materialized: an OR with a subquery keeps Postgres off the genre index (seq scan over all recordings).
+        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values_list("descendant", flat=True)
+        return queryset.filter(genre__in=[value, *descendants])
 
     def filter_playable(self, queryset: QuerySet[Recording], name: str, value: bool) -> QuerySet[Recording]:
         # Same predicate as TrackManager._is_playable.

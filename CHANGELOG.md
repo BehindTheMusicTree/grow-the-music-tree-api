@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Recordings**: `library/recordings/?genre=<uuid>` 500'd on large genres (gunicorn worker timeout): the genre-or-descendants `OR` with a subquery forced a seq scan over all recordings. Descendant ids are now materialized into a single `IN` list so the genre index is used. Test: `tests/integration/track/recording/test_list.py`.
+
 ## [12.8.0] - 2026-10-14
 
 ### Added
