@@ -5,7 +5,7 @@ class TestCase(AppTestCase):
     def test_essential_tracks_is_curated_independently_per_genre(self):
         root = self.model_fixture_factory.create_genre("Electronic")
         child = self.model_fixture_factory.create_genre("EDM", parent=root)
-        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=child)
+        track = self.model_fixture_factory.create_recording("Strobe", genre=child)
 
         child.essential_tracks.add(track)
 
@@ -15,7 +15,7 @@ class TestCase(AppTestCase):
     def test_essential_tracks_not_restricted_to_tracks_tagged_with_this_genre(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
         other_genre = self.model_fixture_factory.create_genre("Rock")
-        track = self.model_fixture_factory.create_youtube_track("Strobe", genre=other_genre)
+        track = self.model_fixture_factory.create_recording("Strobe", genre=other_genre)
 
         genre.essential_tracks.add(track)
 

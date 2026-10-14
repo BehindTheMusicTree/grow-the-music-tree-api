@@ -5,11 +5,13 @@ from django.utils import timezone
 
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
+from grow.model.artist_link.ArtistLink import ArtistLink
+from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as CriteriaFields
-from grow.model.youtube_track.YoutubeTrack import YoutubeTrack
+from grow.model.recording.Recording import Recording
 
 
 class ModelFixtureFactory:
@@ -39,9 +41,15 @@ class ModelFixtureFactory:
     def create_artist(self, name: str, user: User | None = None, **kwargs) -> Artist:
         return Artist.objects.create(user=user or self.default_user, name=name, **kwargs)
 
+    def create_artist_membership(self, group: Artist, member: Artist, **kwargs) -> ArtistMembership:
+        return ArtistMembership.objects.create(group=group, member=member, **kwargs)
+
+    def create_artist_link(self, artist: Artist, kind: str, url: str) -> ArtistLink:
+        return ArtistLink.objects.create(artist=artist, kind=kind, url=url)
+
     def create_album(self, name: str, user: User | None = None, **kwargs) -> Album:
         return Album.objects.create(user=user or self.default_user, name=name, **kwargs)
 
-    def create_youtube_track(self, title: str, genre: Genre, user: User | None = None, **kwargs) -> YoutubeTrack:
+    def create_recording(self, title: str, genre: Genre, user: User | None = None, **kwargs) -> Recording:
         kwargs.setdefault("youtube_video_id", "dQw4w9WgXcQ")
-        return YoutubeTrack.objects.create(user=user or self.default_user, title=title, genre=genre, **kwargs)
+        return Recording.objects.create(user=user or self.default_user, title=title, genre=genre, **kwargs)

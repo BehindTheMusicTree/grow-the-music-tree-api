@@ -1,0 +1,7 @@
+class Fields:
+    TITLE = "title"
+    ARTISTS_NAME = "artists_name"
+    ALBUM_NAME = "album_name"
+    GENRE_NAME = "genre_name"
+    GENRE = "genre"
+    LANGUAGE = "language"

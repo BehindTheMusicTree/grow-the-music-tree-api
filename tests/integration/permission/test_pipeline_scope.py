@@ -22,7 +22,7 @@ class TestCase(AppTestCase):
         return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=TREE_PAYLOAD)
 
     def _songs_import(self):
-        return self.api_client.post(path=reverse("youtube-track-list") + "songs/import-runs/")
+        return self.api_client.post(path=reverse("recording-list") + "songs/import-runs/")
 
     def _use_api_key(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
@@ -59,3 +59,8 @@ class TestCase(AppTestCase):
 
         assert [r.status_code for r in responses] == [status.HTTP_401_UNAUTHORIZED] * 2
         assert {r.json()["details"]["code"] for r in responses} == {"authentication_required"}
+
+    def test_api_key_artists_import_run_then_201(self):
+        self._use_api_key()
+
+        assert self.api_client.post(path=reverse("artist-list") + "import-runs/").status_code == status.HTTP_201_CREATED

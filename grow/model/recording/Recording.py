@@ -1,0 +1,70 @@
+from django.conf import settings
+from django.db import models
+from django.db.models import QuerySet
+from the_music_tree_api_kit.field.AppCharField import AppCharField
+from the_music_tree_api_kit.field.foreign_key.PrivateOneToOneField import PrivateOneToOneField
+from the_music_tree_genre_kit.track.Fields import Fields as TrackFields
+from the_music_tree_genre_kit.track.Track import Track as KitTrack
+from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
+
+from grow.model.artist.Artist import Artist
+from grow.model.track.Fields import Fields
+from grow.model.track.TrackManager import TrackManager
+
+
+class Recording(KitTrack):
+    track = PrivateOneToOneField(
+        KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.RECORDING_RELATED_NAME
+    )
+    youtube_video_id = AppCharField(max_length=settings.RECORDING_YOUTUBE_VIDEO_ID_LEN_MAX, null=True, blank=True)
+    musicbrainz_recording_id = models.UUIDField(null=True, blank=True, unique=True)
+    youtube_unplayable_reason = models.CharField(
+        max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
+    )
+    is_manually_edited = models.BooleanField(default=False)
+
+    objects: TrackManager[Recording] = TrackManager()
+
+    class Meta:
+        db_table = "grow_recording"
+        verbose_name = "Recording"
+        verbose_name_plural = "Recordings"
+
+    @property
+    def relative_url(self) -> str:
+        return f"library/recordings/{self.uuid}/"
+
+    def __str__(self):
+        position_str = f"#{self.track_number}" if self.track_number else "#--"
+
+        artists: QuerySet[Artist] = self.artists.all()
+        artists_str = (
+            ", ".join(artist.name for artist in artists) if self.artists.exists() else f"[no {TrackFields.ARTISTS}]"
+        )
+        album_str = str(self.album) if self.album else f"[no {TrackFields.ALBUM}]"
+
+        genre_str = f"{TrackFields.GENRE}: {self.genre}" if self.genre else f"{TrackFields.GENRE}: --"
+        rating_str = f"{TrackFields.RATING}: {self.rating}" if self.rating else f"{TrackFields.RATING}: --"
+        language_str = f"{TrackFields.LANGUAGE}: {self.language}" if self.language else f"{TrackFields.LANGUAGE}: --"
+
+        return (
+            f"{self.uuid} | {position_str} | '{self.title}' by {artists_str} | {album_str} | "
+            f"{genre_str} | {rating_str} | {language_str} | " + f"{TrackFields.CREATED_ON}: {self.created_on}"
+        )
+
+    def simple_str(self) -> str:
+        artists: QuerySet[Artist] = self.artists.all()
+        artists_str = (
+            ", ".join(artist.name for artist in artists) if self.artists.exists() else f"no {TrackFields.ARTISTS}"
+        )
+        return f"{self.uuid} | '{self.title}' by {artists_str}"
+
+    @property
+    def playlists_with_positions(self) -> list[tuple[str, int]]:
+        from the_music_tree_genre_kit.criteria.track_playlist_rel.Fields import Fields as TrackPlaylistRelFields
+        from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
+
+        track_playlist_rels = TrackPlaylistRel.objects.filter(user=self.user, track=self)
+        return list(
+            track_playlist_rels.values_list(TrackPlaylistRelFields.PLAYLIST + "__uuid", TrackPlaylistRelFields.POSITION)
+        )

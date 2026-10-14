@@ -42,7 +42,7 @@ class TestCase(AppTestCase):
         artist = self.model_fixture_factory.create_artist("Linked Artist")
         album = self.model_fixture_factory.create_album(name="Linked Album")
         album.album_artists.set([artist])
-        track = self.model_fixture_factory.create_youtube_track(title="Linked Track", genre=genre)
+        track = self.model_fixture_factory.create_recording(title="Linked Track", genre=genre)
         track.artists.set([artist])
 
         Artist.objects.delete_instance_with_albums_and_tracks(artist)
@@ -70,7 +70,7 @@ class TestCase(AppTestCase):
     def test_delete_instance_if_nothing_linked_keeps_artist_with_track(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         artist = self.model_fixture_factory.create_artist("Linked Artist")
-        track = self.model_fixture_factory.create_youtube_track(title="Linked Track", genre=genre)
+        track = self.model_fixture_factory.create_recording(title="Linked Track", genre=genre)
         track.artists.set([artist])
 
         Artist.objects.delete_instance_if_nothing_linked(artist)
