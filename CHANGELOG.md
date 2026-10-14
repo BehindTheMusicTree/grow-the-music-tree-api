@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.8.0] - 2026-10-14
+
 ### Added
 
 - **Recordings**: `library/recordings/?playable=true|false` (video set and not marked unplayable) and `?from=<recording uuid>` (start the list at that recording in the current ordering; 404 if not in the list, 400 if not a UUID).
