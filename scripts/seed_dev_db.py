@@ -58,7 +58,9 @@ def seed() -> None:
             call("POST", "genres/tree/import/", file.read(), {"Content-Type": "application/json"})
     log(f"importing {SONGS}")
     with gzip.open(FIXTURES / SONGS) as file:
-        part = gzip.compress("".join(json.dumps(song) + "\n" for song in json.load(file)).encode())
+        part = gzip.compress(
+            "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
+        )
     runs = "library/recordings/songs/import-runs/"
     run_id = call("POST", runs)["runId"]
     call(
