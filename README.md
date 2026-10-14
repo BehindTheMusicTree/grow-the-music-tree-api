@@ -95,7 +95,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/albums`                  | Albums                                               |
 | `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `{uuid}/exclude/` (body `{"category": "theme"\|"technique"\|"out_of_scope"\|"duplicate"}`), `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |
-| `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`)                  |
+| `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`; on every playlist route, `tracks/?from=<track uuid>` starts the list at that track in play order, 404 if it is not in the playlist, 400 if not a UUID) |
 | `/v1/manual-playlists`        | Manual playlists (CRUD + `{uuid}/tracks/`)           |
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |

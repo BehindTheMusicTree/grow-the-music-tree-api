@@ -52,7 +52,7 @@ class TestCase(AppTestCase):
         [rel] = response.json()["results"]
         assert rel["track"]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
 
-    def test_tracks_from_starts_at_given_track_and_404s_on_absent_track(self):
+    def test_tracks_from_starts_at_given_track_404s_on_absent_and_400s_on_non_uuid(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")
         for title in ("A", "B", "C"):
             self.model_fixture_factory.create_recording(title=title, genre=rock_criteria)
@@ -70,3 +70,4 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=path, data={"from": str(jazz_track.uuid)}).status_code == (
             status.HTTP_404_NOT_FOUND
         )
+        assert self.api_client.get(path=path, data={"from": "nope"}).status_code == status.HTTP_400_BAD_REQUEST
