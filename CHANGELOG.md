@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.9.1] - 2026-10-15
+
 ### Changed
 
 - **Songs import**: each NDJSON line must carry `first_release_year` (integer 0..32767, or `null` when unknown); a line without the key is rejected (400, nothing staged) instead of silently nulling the stored year. Pipelines Gold v6.2.0+ always writes it. Test: `tests/integration/track/recording/test_song_import_runs.py`.
