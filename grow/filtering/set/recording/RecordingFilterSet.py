@@ -1,5 +1,5 @@
-from django.db.models import Q, QuerySet
-from django_filters import CharFilter, UUIDFilter
+from django.db.models import F, Q, QuerySet
+from django_filters import CharFilter, ChoiceFilter, UUIDFilter
 from the_music_tree_api_kit.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
 from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
@@ -14,6 +14,8 @@ from grow.model.recording.Fields import Fields as ModelFields
 from grow.model.recording.Recording import Recording
 
 from .Fields import Fields
+
+ORDERINGS = {"title": ModelFields.TITLE, "albumYear": f"{ModelFields.ALBUM}__{AlbumFields.YEAR}"}
 
 
 class RecordingFilterSet(PrivateUniqueResourceFilterSet):
@@ -37,6 +39,10 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
         lookup_expr="icontains",
     )
     genre = UUIDFilter(method="filter_genre")
+    artist = UUIDFilter(field_name=ModelFields.ARTISTS)
+    ordering = ChoiceFilter(
+        choices=[(f"{sign}{key}", f"{sign}{key}") for key in ORDERINGS for sign in ("", "-")], method="filter_ordering"
+    )
     language = EmptiableCharFilter(
         field_name_public=ModelFields.LANGUAGE, field_name=ModelFields.LANGUAGE, lookup_expr="icontains"
     )
@@ -49,3 +55,12 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
         """The genre's recordings and its primary descendants', the same subtree its playlists cover."""
         descendants = CriteriaLineageRel.objects.filter(ascendant=value).values("descendant")
         return queryset.filter(Q(genre=value) | Q(genre__in=descendants))
+
+    def filter_ordering(self, queryset: QuerySet[Recording], name: str, value: str) -> QuerySet[Recording]:
+        field = F(ORDERINGS[value.lstrip("-")])
+        descending = value.startswith("-")
+        # Album-less recordings last either way; pk tie-breaker so OFFSET pages over tied rows neither repeat nor skip.
+        return queryset.order_by(
+            field.desc(nulls_last=True) if descending else field.asc(nulls_last=True),
+            "-pk" if descending else "pk",
+        )

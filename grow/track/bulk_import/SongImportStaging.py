@@ -9,6 +9,7 @@ class SongImportStaging(models.Model):
     musicbrainz_recording_id = models.UUIDField()
     title = models.TextField()
     artist = models.TextField()
+    artist_musicbrainz_id = models.UUIDField(null=True)
     youtube_video_id = models.TextField(null=True)
     youtube_unplayable_reason = models.TextField(null=True)
     genre_name = models.TextField(null=True)

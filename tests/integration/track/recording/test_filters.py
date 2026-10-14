@@ -55,3 +55,26 @@ class TestCase(AppTestCase):
 
     def test_filter_with_no_match_then_empty(self):
         assert self._list_uuids(title="nonexistent") == set()
+
+    def test_filter_by_artist_uuid(self):
+        assert self._list_uuids(artist=str(self.pink_floyd.uuid)) == {str(self.matching_track.uuid)}
+
+    def test_ordering_by_title_and_album_year(self):
+        type(self.album).objects.filter(pk=self.album.pk).update(year="1979")
+        self.model_fixture_factory.create_recording(
+            title="Echoes", genre=self.rock, album=self.model_fixture_factory.create_album("Meddle", year="1971")
+        )
+
+        def titles(ordering):
+            response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": ordering})
+            return [track["title"] for track in response.data["results"]]
+
+        assert titles("title") == ["Comfortably Numb", "Echoes", "So What"]
+        assert titles("-title") == ["So What", "Echoes", "Comfortably Numb"]
+        assert titles("albumYear") == ["Echoes", "Comfortably Numb", "So What"]
+        assert titles("-albumYear") == ["Comfortably Numb", "Echoes", "So What"]
+
+    def test_unknown_ordering_then_400(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": "genre"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
