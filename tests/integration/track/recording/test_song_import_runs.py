@@ -26,6 +26,7 @@ SONG = {
     "youtube_video_id": "abc123defgh",
     "youtube_unplayable_reason": None,
     "genre_name": "Rock",
+    "first_release_year": None,
 }
 ARTIST_MBID = "83d91898-7763-47d7-b03b-b92132375c47"
 RUNS = reverse("recording-list") + "songs/import-runs/"
@@ -143,18 +144,18 @@ class TestImportRunMerge(AppTestCase):
         assert self._playlist_tracks(rock) == ["Comfortably Numb"]
         assert not SongImportStaging.objects.exists() and not BulkImportRun.objects.exists()
 
-    def test_first_release_year_imported_updated_and_optional(self):
+    def test_first_release_year_imported_updated_and_nullable(self):
         self.model_fixture_factory.create_genre("Rock")
-        older_export = {**SONG, "musicbrainz_recording_id": OTHER_MBID}  # no first_release_year key
+        unknown_year = {**SONG, "musicbrainz_recording_id": OTHER_MBID}
 
-        self._sync([{**SONG, "first_release_year": 1979}, older_export])
+        self._sync([{**SONG, "first_release_year": 1979}, unknown_year])
 
         def years():
             return dict(Recording.objects.values_list("musicbrainz_recording_id", "first_release_year"))
 
         assert years() == {uuid.UUID(MBID): 1979, uuid.UUID(OTHER_MBID): None}
 
-        self._sync([{**SONG, "first_release_year": 1980}, {**older_export, "first_release_year": 1975}])
+        self._sync([{**SONG, "first_release_year": 1980}, {**unknown_year, "first_release_year": 1975}])
 
         assert years() == {uuid.UUID(MBID): 1980, uuid.UUID(OTHER_MBID): 1975}
 
@@ -315,6 +316,7 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "first_release_year": "1979"}]),
             _gzip_ndjson([{**SONG, "first_release_year": True}]),
             _gzip_ndjson([{**SONG, "first_release_year": -1}]),
+            _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
             gzip.compress(b"{not json\n"),
         ]
 
