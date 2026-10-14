@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
+from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
@@ -7,7 +8,7 @@ from grow.model.recording.Recording import Recording
 from grow.track.bulk_import.SongImportRun import SongImportRun
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, genre_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, stale_artist"
+TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, stale_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -108,7 +109,7 @@ STEPS = [
     """DELETE FROM grow_artist a WHERE a.uuid IN (SELECT artist_id FROM stale_artist)
         AND NOT EXISTS (SELECT 1 FROM the_music_tree_genre_kit_track_artists ta WHERE ta.artist_id = a.uuid)
         AND NOT EXISTS (SELECT 1 FROM grow_album_album_artists aa WHERE aa.artist_id = a.uuid)""",
-    # Each genre's playlists: its own and every primary ascendant's. Genreless songs get none.
+    # Each genre's playlists: its own and every primary ascendant's; genreless songs get the genreless playlist.
     """CREATE TEMP TABLE genre_playlist AS
     WITH RECURSIVE primary_parent AS (
         SELECT uuid AS child, parent_id AS parent FROM grow_criteria WHERE parent_id IS NOT NULL
@@ -119,15 +120,25 @@ STEPS = [
         UNION SELECT a.genre_id, p.parent FROM ascendant a JOIN primary_parent p ON p.child = a.ascendant_id
     )
     SELECT a.genre_id, cp.playlist_id FROM ascendant a JOIN grow_criteria_playlist cp ON cp.criteria_id = a.ascendant_id""",
+    """CREATE TEMP TABLE genreless_playlist AS
+    SELECT cp.playlist_id FROM grow_criteria_playlist cp JOIN the_music_tree_genre_kit_playlist p ON p.uuid = cp.playlist_id
+    WHERE cp.criteria_id IS NULL AND cp.type_id = %(genre_type)s AND p.user_id IS NOT DISTINCT FROM %(user)s""",
     f"""CREATE TEMP TABLE desired_rel AS
     SELECT s.track_id, gp.playlist_id FROM song_import s JOIN genre_playlist gp USING (genre_id)
     WHERE s.is_new AND {PLAYABLE.format("s")}
     UNION ALL
+    SELECT s.track_id, g.playlist_id FROM song_import s CROSS JOIN genreless_playlist g
+    WHERE s.is_new AND s.genre_id IS NULL AND {PLAYABLE.format("s")}
+    UNION ALL
     SELECT c.track_id, gp.playlist_id FROM track_change c JOIN genre_playlist gp ON gp.genre_id = c.new_genre_id
-    WHERE c.is_playable""",
+    WHERE c.is_playable
+    UNION ALL
+    SELECT c.track_id, g.playlist_id FROM track_change c CROSS JOIN genreless_playlist g
+    WHERE c.is_playable AND c.new_genre_id IS NULL""",
     """WITH removed AS (
         DELETE FROM the_music_tree_genre_kit_track_playlist_rel r USING track_change c
-        WHERE r.track_id = c.track_id AND r.playlist_id IN (SELECT playlist_id FROM grow_criteria_playlist)
+        WHERE r.track_id = c.track_id
+            AND r.playlist_id IN (SELECT playlist_id FROM grow_criteria_playlist WHERE type_id = %(genre_type)s)
             AND NOT EXISTS (SELECT 1 FROM desired_rel d WHERE d.track_id = r.track_id AND d.playlist_id = r.playlist_id)
         RETURNING r.playlist_id
     )
@@ -177,6 +188,7 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         "run": run_id,
         "user": user_id,
         "genre_changed": HistoryAction.GENRE_CHANGED.value,
+        "genre_type": CriteriaTypePks.GENRE.value,
         "content_type": ContentType.objects.get_for_model(Recording).pk,
     }
     try:
