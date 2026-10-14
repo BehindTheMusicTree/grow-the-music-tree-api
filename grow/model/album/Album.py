@@ -27,6 +27,9 @@ class Album(TrackMixin):
 
     _name = AppCharField(max_length=settings.ALBUM_NAME_LEN_MAX, default=None, db_column=Fields.NAME_PUBLIC)
     year = AppCharField(max_length=4, default=None, null=True)
+    musicbrainz_release_group_id = models.UUIDField(null=True, blank=True, unique=True)
+    primary_type = models.TextField(null=True, blank=True)
+    secondary_types = models.JSONField(default=list, blank=True)
     album_artists: QuerySet[Artist] = PrivateManyToManyField(Artist, related_name=ArtistFields.ALBUMS)  # type: ignore
 
     objects: AlbumManager = AlbumManager()

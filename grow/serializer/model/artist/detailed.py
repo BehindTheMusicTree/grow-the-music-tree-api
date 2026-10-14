@@ -1,27 +1,99 @@
+from django.db.models import Count, Prefetch
 from rest_framework import serializers
+from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 
+from grow.model.album.Album import Album
+from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Artist import Artist
-from grow.serializer.model.album.minimum import AlbumMinimumSerializer
-from grow.serializer.model.track.output.simple.simple_without_artist import (
-    TrackSimpleWithoutPlaylistAndArtistSerializer,
-)
+from grow.model.artist_link.ArtistLink import ArtistLink
+from grow.model.artist_link.Fields import Fields as LinkFields
+from grow.model.artist_membership.ArtistMembership import ArtistMembership
+from grow.model.artist_membership.Fields import Fields as MembershipFields
+from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
 
 from .Fields import Fields
 
+ARTIST = "artist"
 
-class ArtistDetailedSerializer(serializers.ModelSerializer):
-    albums = AlbumMinimumSerializer(many=True)
-    tracks = TrackSimpleWithoutPlaylistAndArtistSerializer(many=True)
-    tracks_count = serializers.IntegerField()
+
+class _MembershipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArtistMembership
+        fields = [
+            ARTIST,
+            MembershipFields.BEGIN_YEAR,
+            MembershipFields.END_YEAR,
+            MembershipFields.ENDED,
+            MembershipFields.ROLES,
+        ]
+
+
+class _MemberSerializer(_MembershipSerializer):
+    artist = ArtistMinimumSerializer(source=MembershipFields.MEMBER)
+
+
+class _GroupSerializer(_MembershipSerializer):
+    artist = ArtistMinimumSerializer(source=MembershipFields.GROUP)
+
+
+class _LinkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ArtistLink
+        fields = [LinkFields.KIND, LinkFields.URL]
+
+
+class _AlbumSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Album
+        fields = [
+            AlbumFields.UUID,
+            AlbumFields.NAME_PUBLIC,
+            AlbumFields.YEAR,
+            AlbumFields.PRIMARY_TYPE,
+            AlbumFields.SECONDARY_TYPES,
+        ]
+
+
+class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
+    links = _LinkSerializer(many=True)
+    members = _MemberSerializer(many=True)
+    member_of = _GroupSerializer(many=True)
+    albums = _AlbumSerializer(many=True)
+    tracks_count = serializers.IntegerField(source=Fields.TRACKS_COUNT_ANNOTATED)
+
+    @classmethod
+    def setup_queryset(cls, queryset, prefix=""):
+        def ordered(model, *order_by):
+            return model._default_manager.order_by(*order_by, "pk")
+
+        tracks_count = Count(f"{prefix}{Fields.TRACKS_RELATED_NAME}", distinct=True)
+        return queryset.annotate(**{Fields.TRACKS_COUNT_ANNOTATED: tracks_count}).prefetch_related(
+            Prefetch(f"{prefix}{Fields.LINKS}", ordered(ArtistLink, LinkFields.KIND, LinkFields.URL)),
+            Prefetch(
+                f"{prefix}{Fields.MEMBERS}",
+                ordered(ArtistMembership, MembershipFields.BEGIN_YEAR).select_related(MembershipFields.MEMBER),
+            ),
+            Prefetch(
+                f"{prefix}{Fields.MEMBER_OF}",
+                ordered(ArtistMembership, MembershipFields.BEGIN_YEAR).select_related(MembershipFields.GROUP),
+            ),
+            Prefetch(f"{prefix}{Fields.ALBUMS}", ordered(Album, AlbumFields.YEAR, AlbumFields.NAME_INTERNAL)),
+        )
 
     class Meta:
         model = Artist
         fields = [
             Fields.UUID,
             Fields.NAME_PUBLIC,
+            Fields.MUSICBRAINZ_ARTIST_ID,
+            Fields.TYPE,
+            Fields.COUNTRY,
+            Fields.BEGIN_YEAR,
+            Fields.END_YEAR,
+            Fields.ENDED,
+            Fields.LINKS,
+            Fields.MEMBERS,
+            Fields.MEMBER_OF,
             Fields.ALBUMS,
-            Fields.TRACKS_PUBLIC,
             Fields.TRACKS_COUNT_PUBLIC,
-            Fields.CREATED_ON,
-            Fields.UPDATED_ON,
         ]

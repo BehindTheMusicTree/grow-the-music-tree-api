@@ -5,3 +5,6 @@ class Fields(TrackMixinFields):
     TRACKS_RELATED_NAME = "tracks_of_album"
     YEAR = "year"
     ALBUM_ARTISTS = "album_artists"
+    MUSICBRAINZ_RELEASE_GROUP_ID = "musicbrainz_release_group_id"
+    PRIMARY_TYPE = "primary_type"
+    SECONDARY_TYPES = "secondary_types"

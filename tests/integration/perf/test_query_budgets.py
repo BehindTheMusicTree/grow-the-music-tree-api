@@ -8,6 +8,7 @@ from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
+from grow.model.artist.Artist import Artist
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
@@ -28,6 +29,8 @@ BUDGETS = {
     "genre-playlist-tracks": 4,
     "playlist-tracks": 4,
     "plays-list": 4,
+    "artist-list": 4,
+    "artist-detail": 6,
 }
 
 factory = ModelFixtureFactory(default_user=None)
@@ -54,6 +57,20 @@ def _seed_plays(start: int, stop: int) -> None:
         Play.objects.create(content=Playlist.objects.get(pk=track.genre.criteria_playlist.pk))
 
 
+def _seed_artists(start: int, stop: int) -> None:
+    band = Artist.objects.filter(_name="Band").first() or factory.create_artist("Band")
+    genre = GenrePlaylist.objects.get(criteria__name="Root").criteria if start else factory.create_genre("Root")
+    for index in range(start, stop):
+        member = factory.create_artist(f"Member {index}")
+        factory.create_artist_membership(band, member, roles=["guitar"])
+        factory.create_artist_membership(member, band)
+        factory.create_artist_link(member, "official", f"https://member{index}.example")
+        factory.create_artist_link(band, "official", f"https://band{index}.example")
+        album = factory.create_album(f"Album {index}")
+        album.album_artists.set([band, member])
+        factory.create_recording(title=f"Track {index}", genre=genre, artists=[band, member])
+
+
 def _root_playlist_path(name: str) -> str:
     return reverse(name, kwargs={"pk": GenrePlaylist.objects.get(criteria__name="Root").uuid})
 
@@ -74,6 +91,11 @@ SCENARIOS: dict[str, tuple[Callable[[int, int], None], Callable[[], str]]] = {
     "genre-playlist-tracks": (_seed_tracks, lambda: _root_playlist_path("genre-playlist-tracks")),
     "playlist-tracks": (_seed_tracks, lambda: _root_playlist_path("playlist-tracks")),
     "plays-list": (_seed_plays, lambda: reverse("play-list")),
+    "artist-list": (_seed_artists, lambda: reverse("artist-list")),
+    "artist-detail": (
+        _seed_artists,
+        lambda: reverse("artist-detail", kwargs={"pk": Artist.objects.get(_name="Band").uuid}),
+    ),
 }
 
 
