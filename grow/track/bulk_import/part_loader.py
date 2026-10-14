@@ -9,7 +9,7 @@ from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplay
 from grow.bulk_import.copy_part import copy_part
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-COLUMNS = (
+TEXT_COLUMNS = (
     "musicbrainz_recording_id",
     "title",
     "artist",
@@ -18,6 +18,8 @@ COLUMNS = (
     "youtube_unplayable_reason",
     "genre_name",
 )
+# Absent from exports older than the column: those still import, with a null year.
+COLUMNS = (*TEXT_COLUMNS, "first_release_year")
 REQUIRED = {"musicbrainz_recording_id", "title", "artist"}
 MAX_LENGTHS = {
     "title": settings.TRACK_TITLE_LEN_MAX,
@@ -36,7 +38,7 @@ def _row(line_number: int, line: bytes) -> tuple:
             uuid.UUID(song["artist_musicbrainz_id"])
     except (ValueError, KeyError, TypeError, AttributeError) as e:
         raise ValidationError(f"line {line_number}: invalid song ({e})") from e
-    for column in COLUMNS:
+    for column in TEXT_COLUMNS:
         value = song.get(column)
         if value is None:
             if column in REQUIRED:
@@ -48,6 +50,9 @@ def _row(line_number: int, line: bytes) -> tuple:
             raise ValidationError(f"line {line_number}: {column} is longer than {MAX_LENGTHS[column]}")
     if song.get("youtube_unplayable_reason") not in REASONS | {None}:
         raise ValidationError(f"line {line_number}: unknown youtube_unplayable_reason")
+    year = song.get("first_release_year")
+    if year is not None and (not isinstance(year, int) or isinstance(year, bool) or not 0 <= year <= 32767):
+        raise ValidationError(f"line {line_number}: first_release_year must be a year")
     return (*(song.get(column) for column in COLUMNS),)
 
 

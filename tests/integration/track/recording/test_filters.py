@@ -1,5 +1,6 @@
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
 
 from tests.utils.AppTestCase import AppTestCase
 
@@ -59,20 +60,88 @@ class TestCase(AppTestCase):
     def test_filter_by_artist_uuid(self):
         assert self._list_uuids(artist=str(self.pink_floyd.uuid)) == {str(self.matching_track.uuid)}
 
-    def test_ordering_by_title_and_album_year(self):
+    def _titles(self, **params):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data=params)
+        assert response.status_code == status.HTTP_200_OK, response.data
+        return [track["title"] for track in response.data["results"]]
+
+    def _with_years(self):
+        """Echoes 1971 (album), Wish You Were Here 1975 (first release over its album's 2001), Comfortably Numb and
+        Money tied on 1979; So What (no album) and Bootleg (non-numeric album year) have none."""
+        factory = self.model_fixture_factory
         type(self.album).objects.filter(pk=self.album.pk).update(year="1979")
-        self.model_fixture_factory.create_recording(
-            title="Echoes", genre=self.rock, album=self.model_fixture_factory.create_album("Meddle", year="1971")
+        factory.create_recording(title="Echoes", genre=self.rock, album=factory.create_album("Meddle", year="1971"))
+        factory.create_recording(
+            title="Wish You Were Here",
+            genre=self.rock,
+            album=factory.create_album("Best Of", year="2001"),
+            first_release_year=1975,
+        )
+        factory.create_recording(title="Bootleg", genre=self.rock, album=factory.create_album("Live", year="c.70"))
+        factory.create_recording(title="Money", genre=self.rock, album=self.album, first_release_year=1979)
+
+    def test_ordering_by_title_and_album_year(self):
+        self._with_years()
+        Recording = type(self.matching_track)
+
+        def by_pk(*titles):  # pk tie-breaker
+            return sorted(titles, key=lambda title: Recording.objects.get(title=title).pk)
+
+        tied_titles = by_pk("Comfortably Numb", "Money")
+        no_year = by_pk("So What", "Bootleg")
+
+        assert self._titles(ordering="title") == [
+            "Bootleg",
+            "Comfortably Numb",
+            "Echoes",
+            "Money",
+            "So What",
+            "Wish You Were Here",
+        ]
+        assert self._titles(ordering="-title")[0] == "Wish You Were Here"
+        assert self._titles(ordering="albumYear") == ["Echoes", "Wish You Were Here", *tied_titles, *no_year]
+        assert self._titles(ordering="-albumYear") == [
+            *reversed(tied_titles),
+            "Wish You Were Here",
+            "Echoes",
+            *reversed(no_year),
+        ]
+
+    def test_from_starts_at_the_anchor_in_the_active_ordering(self):
+        self._with_years()
+        Recording = type(self.matching_track)
+
+        for ordering in ("title", "-title", "albumYear", "-albumYear", None):
+            params = {"ordering": ordering} if ordering else {}
+            full = self._titles(**params)
+            for index, title in enumerate(full):
+                anchor = str(Recording.objects.get(title=title).pk)
+                assert self._titles(**params, **{"from": anchor}) == full[index:], (ordering, title)
+
+    def test_from_anchor_filtered_out_then_404(self):
+        unplayable = self.model_fixture_factory.create_recording(title="Gone", genre=self.rock, youtube_video_id=None)
+
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint), data={"playable": "true", "from": str(unplayable.pk)}
         )
 
-        def titles(ordering):
-            response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": ordering})
-            return [track["title"] for track in response.data["results"]]
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
-        assert titles("title") == ["Comfortably Numb", "Echoes", "So What"]
-        assert titles("-title") == ["So What", "Echoes", "Comfortably Numb"]
-        assert titles("albumYear") == ["Echoes", "Comfortably Numb", "So What"]
-        assert titles("-albumYear") == ["Comfortably Numb", "Echoes", "So What"]
+    def test_from_not_a_uuid_then_400(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"from": "nope"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_filter_playable(self):
+        factory = self.model_fixture_factory
+        no_video = factory.create_recording(title="No Video", genre=self.rock, youtube_video_id=None)
+        unplayable = factory.create_recording(
+            title="Private", genre=self.rock, youtube_unplayable_reason=YoutubeUnplayableReason.values[0]
+        )
+        playable = {str(self.matching_track.uuid), str(self.other_track.uuid)}
+
+        assert self._list_uuids(playable="true") == playable
+        assert self._list_uuids(playable="false") == {str(no_video.uuid), str(unplayable.uuid)}
 
     def test_unknown_ordering_then_400(self):
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": "genre"})
