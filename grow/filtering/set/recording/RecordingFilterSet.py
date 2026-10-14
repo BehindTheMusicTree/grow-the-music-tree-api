@@ -21,10 +21,10 @@ from .Fields import Fields
 ALBUM_YEAR = f"{ModelFields.ALBUM}__{AlbumFields.YEAR}"
 ORDERINGS = {
     "title": F(ModelFields.TITLE),
-    # The recording's MusicBrainz first-release year, else its album's (a free-text column, so only digits cast).
+    # The recording's MusicBrainz first-release year, else its album's (a free-text column, so only four-digit years cast).
     "albumYear": Coalesce(
         F(ModelFields.FIRST_RELEASE_YEAR),
-        Case(When(**{f"{ALBUM_YEAR}__regex": r"^[0-9]{1,4}$"}, then=Cast(ALBUM_YEAR, IntegerField()))),
+        Case(When(**{f"{ALBUM_YEAR}__regex": r"^[0-9]{4}$"}, then=Cast(ALBUM_YEAR, IntegerField()))),
     ),
 }
 DEFAULT_ORDERING = F(ModelFields.CREATED_ON)  # the viewset's default, see AppModelViewSet.queryset
@@ -106,10 +106,11 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
     def _at_or_after(queryset: QuerySet[Recording], anchor_uuid, descending: bool) -> QuerySet[Recording]:
         """`from`: the rows at or after the anchor in the active ordering (sort key nulls last, then pk), anchor
         included; 404 if the anchor isn't among the filtered rows."""
-        anchor = queryset.filter(pk=anchor_uuid).values_list(SORT_KEY, flat=True)
-        if not anchor.exists():
+        # One query: an exists() check then a fetch could 500 if the anchor vanished in between.
+        values = list(queryset.filter(pk=anchor_uuid).values_list(SORT_KEY, flat=True)[:1])
+        if not values:
             raise NotFound(f"Recording {anchor_uuid} is not in this list.")
-        value = anchor[0]
+        value = values[0]
         after, pk_from = ("lt", "lte") if descending else ("gt", "gte")
         null_tail = Q(**{f"{SORT_KEY}__isnull": True})
         if value is None:

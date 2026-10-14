@@ -40,7 +40,9 @@ def _seed() -> None:
             payload = json.load(file)
         _timed(fixture, lambda payload=payload: client.post(reverse("genre-list") + "tree/import/", payload))
     with gzip.open(FIXTURES / SONGS) as file:
-        part = gzip.compress("".join(json.dumps(song) + "\n" for song in json.load(file)).encode())
+        part = gzip.compress(
+            "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
+        )
     runs = reverse("recording-list") + "songs/import-runs/"
     run_id = client.post(runs).data["run_id"]
     _timed(
