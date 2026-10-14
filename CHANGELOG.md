@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.6.0] - 2026-10-14
+
 ### Fixed
 
 - **Artists**: `tracksCount` counts only recordings with a genre, matching `library/recordings/?artist=`; the detail keeps `createdOn` and `updatedOn`; imported release-group years must be four digits so album years sort chronologically. Covered by serializer and part-loader tests.
