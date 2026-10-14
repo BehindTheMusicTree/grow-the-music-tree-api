@@ -84,3 +84,16 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert [r["uuid"] for r in response.json()["results"]] == [str(recording.uuid)]
+
+    def test_genre_filter_covers_descendants_and_excludes_siblings(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        punk = self.model_fixture_factory.create_genre("Punk", parent=rock)
+        jazz = self.model_fixture_factory.create_genre("Jazz")
+        own = self.model_fixture_factory.create_recording(title="Own", genre=rock)
+        child = self.model_fixture_factory.create_recording(title="Child", genre=punk)
+        self.model_fixture_factory.create_recording(title="Sibling", genre=jazz)
+
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"genre": str(rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert {r["uuid"] for r in response.data["results"]} == {str(own.uuid), str(child.uuid)}
