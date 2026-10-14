@@ -1,4 +1,5 @@
-from django_filters import CharFilter
+from django.db.models import Q, QuerySet
+from django_filters import CharFilter, UUIDFilter
 from the_music_tree_api_kit.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
 from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
@@ -8,6 +9,7 @@ from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueR
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields
+from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.recording.Fields import Fields as ModelFields
 from grow.model.recording.Recording import Recording
 
@@ -34,6 +36,7 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
         field_name_public=Fields.GENRE_NAME,
         lookup_expr="icontains",
     )
+    genre = UUIDFilter(method="filter_genre")
     language = EmptiableCharFilter(
         field_name_public=ModelFields.LANGUAGE, field_name=ModelFields.LANGUAGE, lookup_expr="icontains"
     )
@@ -41,3 +44,8 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
     class Meta:
         model = Recording
         fields = [Fields.TITLE, Fields.LANGUAGE, *PrivateUniqueResourceFilterSet.get_date_fields()]
+
+    def filter_genre(self, queryset: QuerySet[Recording], name: str, value) -> QuerySet[Recording]:
+        """The genre's recordings and its primary descendants', the same subtree its playlists cover."""
+        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values("descendant")
+        return queryset.filter(Q(genre=value) | Q(genre__in=descendants))

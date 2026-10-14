@@ -137,7 +137,7 @@ class TestImportRunMerge(AppTestCase):
         assert Recording.objects.get(title="No video").youtube_video_id is None
         assert Recording.objects.get(title="No genre").genre is None
         assert Recording.objects.get(title="Unknown").genre is None
-        assert sorted(self._playlist_tracks(rock)) == ["Comfortably Numb", "No video"]
+        assert self._playlist_tracks(rock) == ["Comfortably Numb"]
         assert not SongImportStaging.objects.exists() and not SongImportRun.objects.exists()
 
     def test_import_accepts_musicbrainz_length_title_and_artist(self):
@@ -175,10 +175,35 @@ class TestImportRunMerge(AppTestCase):
         moved = Recording.objects.get(musicbrainz_recording_id=MBID)
         assert (moved.uuid, moved.genre_id, moved.youtube_unplayable_reason) == (track.uuid, pop.pk, "not_embeddable")
         assert self._playlist_tracks(rock) == ["Other"]
-        assert self._playlist_tracks(pop) == ["Comfortably Numb"]
+        assert self._playlist_tracks(pop) == []
         assert list(
             TrackPlaylistRel.objects.filter(playlist=rock.criteria_playlist).values_list("position", flat=True)
         ) == [1]
+
+    def test_playability_change_adds_or_drops_rels_and_closes_gaps(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        prog = self.model_fixture_factory.create_genre("Progressive Rock", parent=rock)
+        third = {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Third", "genre_name": "Rock"}
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": None}
+        self._sync([{**SONG, "genre_name": "Progressive Rock"}, other, third])
+        assert self._playlist_tracks(rock) == ["Comfortably Numb", "Third"]
+
+        self._sync([{**SONG, "genre_name": "Progressive Rock", "youtube_video_id": None}, other, third])
+        assert self._playlist_tracks(rock) == ["Third"]
+        assert self._playlist_tracks(prog) == []
+        assert list(
+            TrackPlaylistRel.objects.filter(playlist=rock.criteria_playlist).values_list("position", flat=True)
+        ) == [1]
+
+        self._sync(
+            [
+                SONG,
+                {**other, "youtube_video_id": "zzz123defgh"},
+                {**third, "youtube_unplayable_reason": "not_embeddable"},
+            ]
+        )
+        assert self._playlist_tracks(rock) == ["Comfortably Numb", "Other"]
+        assert self._playlist_tracks(prog) == []
 
     def test_new_tracks_take_first_positions(self):
         rock = self.model_fixture_factory.create_genre("Rock")
