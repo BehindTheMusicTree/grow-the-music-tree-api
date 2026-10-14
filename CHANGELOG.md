@@ -16,9 +16,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Dev seed**: `docker compose up` on an empty DB now seeds it with the pinned `perf/fixtures/` Gold snapshot (genre trees and songs, through the nightly sync's import endpoints), so a fresh dev setup has a working genre tree without the multi-GB prod restore.
 - **Recordings**: `library/recordings/` serves the track library (CRUD, `songs/import-runs/`, `songs/import/<taskId>/status/`). Track payloads gain a nested `youtubeVideo: {id, unplayableReason} | null`. Covered by list, playlist-page and legacy-route tests, plus a Postgres merge test for essential tracks.
+- **Genre filter**: `library/recordings/?genre=<uuid>` lists a genre's recordings and those of its primary descendants, with or without a video. Covered by a filter test.
 
 ### Changed
 
+- **Playable-only playlists**: genre playlists hold only playable recordings (YouTube video and no unplayable reason), via genre-kit v0.45.0's `_is_playable` hook and the bulk-import merge, which now adds or drops rels when playability changes and closes the position gaps. Migration `0051` drops existing unplayable rels and renumbers. Covered by manager, Postgres merge, migration and playlist-page tests.
 - **Recording rename**: the `YoutubeTrack` model is now `Recording` (table `grow_recording`, migration `0050`; the essential-tracks join column becomes `recording_id`). The library list now includes recordings without a YouTube video; genreless ones stay hidden.
 - A root genre may have at most one `side="pop"` direct child. Genre-kit v0.44.0 rejects a second one on save and on tree import (400, `REFERENCE_INVALID`), and the curation `canonical_genre_pop_side` list rejects a second pop child for the same root (400).
 

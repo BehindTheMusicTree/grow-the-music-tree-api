@@ -43,6 +43,13 @@ class TestCase(AppTestCase):
     def test_filter_by_genre_name(self):
         assert self._list_uuids(genre_name="rock") == {str(self.matching_track.uuid)}
 
+    def test_filter_by_genre_covers_primary_descendants_regardless_of_video(self):
+        prog = self.model_fixture_factory.create_genre("Progressive Rock", parent=self.rock)
+        prog_track = self.model_fixture_factory.create_recording(title="Echoes", genre=prog, youtube_video_id=None)
+
+        assert self._list_uuids(genre=str(self.rock.uuid)) == {str(self.matching_track.uuid), str(prog_track.uuid)}
+        assert self._list_uuids(genre=str(prog.uuid)) == {str(prog_track.uuid)}
+
     def test_filter_by_language(self):
         assert self._list_uuids(language="en") == {str(self.matching_track.uuid)}
 
