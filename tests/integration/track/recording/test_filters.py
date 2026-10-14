@@ -67,7 +67,7 @@ class TestCase(AppTestCase):
 
     def _with_years(self):
         """Echoes 1971 (album), Wish You Were Here 1975 (first release over its album's 2001), Comfortably Numb and
-        Money tied on 1979; So What (no album) and Bootleg (non-numeric album year) have none."""
+        Money tied on 1979; So What (no album), Bootleg (non-numeric album year) and Demo (non-four-digit "70") have none."""
         factory = self.model_fixture_factory
         type(self.album).objects.filter(pk=self.album.pk).update(year="1979")
         factory.create_recording(title="Echoes", genre=self.rock, album=factory.create_album("Meddle", year="1971"))
@@ -78,6 +78,7 @@ class TestCase(AppTestCase):
             first_release_year=1975,
         )
         factory.create_recording(title="Bootleg", genre=self.rock, album=factory.create_album("Live", year="c.70"))
+        factory.create_recording(title="Demo", genre=self.rock, album=factory.create_album("Demos", year="70"))
         factory.create_recording(title="Money", genre=self.rock, album=self.album, first_release_year=1979)
 
     def test_ordering_by_title_and_album_year(self):
@@ -88,11 +89,12 @@ class TestCase(AppTestCase):
             return sorted(titles, key=lambda title: Recording.objects.get(title=title).pk)
 
         tied_titles = by_pk("Comfortably Numb", "Money")
-        no_year = by_pk("So What", "Bootleg")
+        no_year = by_pk("So What", "Bootleg", "Demo")
 
         assert self._titles(ordering="title") == [
             "Bootleg",
             "Comfortably Numb",
+            "Demo",
             "Echoes",
             "Money",
             "So What",
