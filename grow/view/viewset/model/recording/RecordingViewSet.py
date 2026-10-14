@@ -5,12 +5,15 @@ from grow.serializer.model.recording.output.detailed import RecordingDetailedSer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
+from grow.view.pagination.OptionalTotalPagination import OptionalTotalPagination, wants_no_total
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 
 class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
+    pagination_class = OptionalTotalPagination
+
     def __init__(self, **kwargs):
         super().__init__(
             model_class=Recording,
@@ -22,7 +25,11 @@ class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
 
     def list(self, *args, **kwargs):
         # Genreless songs are stored for later linking but have no place in the tree.
-        return self._get_paginated_list_response(self.get_queryset().filter(genre__isnull=False))
+        queryset = self.get_queryset().filter(genre__isnull=False)
+        if wants_no_total(self.request):
+            # pk order lets Postgres stop at the first page instead of sorting the whole genre subtree.
+            queryset = queryset.order_by("pk")
+        return self._get_paginated_list_response(queryset)
 
     def retrieve(self, *args, **kwargs):
         return self._handle_retrieve()

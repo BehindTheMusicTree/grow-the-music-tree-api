@@ -14,6 +14,7 @@ from grow.model.criteria.Criteria import Fields as CriteriaFields
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.recording.Fields import Fields as ModelFields
 from grow.model.recording.Recording import Recording
+from grow.view.pagination.OptionalTotalPagination import NO_TOTAL_PARAM
 
 from .Fields import Fields
 
@@ -31,6 +32,8 @@ SORT_KEY = "sort_key"
 
 
 class RecordingFilterSet(PrivateUniqueResourceFilterSet):
+    allowed_non_filter_params = PrivateUniqueResourceFilterSet.allowed_non_filter_params | {NO_TOTAL_PARAM}
+
     title = CharFilter(field_name=ModelFields.TITLE, lookup_expr="icontains")
     artists_name = RelatedObjectCharFilter(
         primary_field=ArtistFields.NAME_INTERNAL,
@@ -66,8 +69,9 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
 
     def filter_genre(self, queryset: QuerySet[Recording], name: str, value) -> QuerySet[Recording]:
         """The genre's recordings and its primary descendants', the same subtree its playlists cover."""
-        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values("descendant")
-        return queryset.filter(Q(genre=value) | Q(genre__in=descendants))
+        # Ids are materialized: an OR with a subquery keeps Postgres off the genre index (seq scan over all recordings).
+        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values_list("descendant", flat=True)
+        return queryset.filter(genre__in=[value, *descendants])
 
     def filter_playable(self, queryset: QuerySet[Recording], name: str, value: bool) -> QuerySet[Recording]:
         # Same predicate as TrackManager._is_playable.
