@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.5.0] - 2026-10-14
+
 ### Added
 
 - **Dev seed**: `docker compose up` on an empty DB now seeds it with the pinned `perf/fixtures/` Gold snapshot (genre trees and songs, through the nightly sync's import endpoints), so a fresh dev setup has a working genre tree without the multi-GB prod restore.
