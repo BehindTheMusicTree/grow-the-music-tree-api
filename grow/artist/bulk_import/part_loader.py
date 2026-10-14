@@ -81,7 +81,8 @@ def _row(line_number: int, line: bytes) -> tuple:
         _require(primary_type is None or _is_text(primary_type), line_number, "invalid release group primary_type")
         _require(_is_text_list(release_group.get("secondary_types")), line_number, "invalid secondary_types")
         year = release_group.get("first_release_year")
-        _require(year is None or (_is_year(year) and 0 <= year <= 9999), line_number, "invalid first_release_year")
+        # Four digits, so the text `Album.year` sorts chronologically.
+        _require(year is None or (_is_year(year) and 1000 <= year <= 9999), line_number, "invalid first_release_year")
     return artist["musicbrainz_artist_id"], json.dumps(artist)
 
 

@@ -54,6 +54,7 @@ def test_valid_artist_then_mbid_and_data():
         _line(release_groups=[{**RELEASE_GROUP, "primary_type": ""}]),
         _line(release_groups=[{**RELEASE_GROUP, "secondary_types": None}]),
         _line(release_groups=[{**RELEASE_GROUP, "first_release_year": -1}]),
+        _line(release_groups=[{**RELEASE_GROUP, "first_release_year": 999}]),
     ],
 )
 def test_invalid_artist_then_validation_error(line):

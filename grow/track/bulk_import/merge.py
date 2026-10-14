@@ -107,14 +107,18 @@ STEPS = [
     """INSERT INTO grow_artist (uuid, created_on, name, user_id, ended)
     SELECT gen_random_uuid(), now(), n.artist, %(user)s, false
     FROM (SELECT DISTINCT artist FROM song_import WHERE artist_mbid IS NULL) n
-    WHERE NOT EXISTS (SELECT 1 FROM grow_artist a WHERE a.name = n.artist AND a.user_id IS NOT DISTINCT FROM %(user)s)""",
+    WHERE NOT EXISTS (
+        SELECT 1 FROM grow_artist a
+        WHERE a.name = n.artist AND a.musicbrainz_artist_id IS NULL AND a.user_id IS NOT DISTINCT FROM %(user)s
+    )""",
     # Every run re-syncs track artists, so upstream artist corrections reach existing tracks.
     """CREATE TEMP TABLE desired_artist AS
     SELECT s.track_id, COALESCE(m.uuid, n.uuid) AS artist_id FROM song_import s
     LEFT JOIN grow_artist m ON m.musicbrainz_artist_id = s.artist_mbid
     LEFT JOIN (
-        SELECT DISTINCT ON (name) uuid, name FROM grow_artist WHERE user_id IS NOT DISTINCT FROM %(user)s
-        ORDER BY name, created_on
+        -- An MBID-less song never borrows an MBID artist's name: a namesake would be credited.
+        SELECT DISTINCT ON (name) uuid, name FROM grow_artist
+        WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
     ) n ON s.artist_mbid IS NULL AND n.name = s.artist""",
     """DELETE FROM the_music_tree_genre_kit_track_artists ta USING song_import s
     WHERE ta.track_id = s.track_id
