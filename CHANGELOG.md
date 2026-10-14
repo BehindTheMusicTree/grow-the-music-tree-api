@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Artists**: `tracksCount` counts only recordings with a genre, matching `library/recordings/?artist=`; the detail keeps `createdOn` and `updatedOn`; imported release-group years must be four digits so album years sort chronologically. Covered by serializer and part-loader tests.
+- **Songs merge**: a song without an artist MBID is no longer credited to a namesake artist that has one. Covered by a Postgres merge test.
+
+### Documentation
+
+- `docs/api/artists.md`: album `year` is a string, and `albumYear` ordering only applies to recordings with an album.
+
 ## [12.5.0] - 2026-10-14
 
 ### Added
