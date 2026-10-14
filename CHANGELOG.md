@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.7.0] - 2026-10-14
+
 ### Added
 
 - **Play from a track**: playlist `tracks/` endpoints (`genre-playlists/<uuid>/tracks/` and the other playlist routes) accept `?from=<track uuid>` and start the list at that track, in play order, so clients get it in one request instead of paging. A track not in the playlist gives a 404 and a non-UUID `from` gives a 400 (genre-kit v0.46.1, api-kit v0.10.2, which also turns any DRF `NotFound` into a 404 instead of a 500). Covered by a genre playlist tracks test.
