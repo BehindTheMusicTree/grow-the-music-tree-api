@@ -353,9 +353,10 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([{**song, "artist": "The Pink Floyd"}, {**SONG, "musicbrainz_recording_id": OTHER_MBID}])
 
-        # Same MBID: the song keeps its artist whatever the credited name; no MBID: matched on name.
+        # Same MBID: the song keeps its artist whatever the credited name; no MBID: matched on name, MBID-less only.
         assert [a.pk for a in Recording.objects.get(pk=track.pk).artists.all()] == [legacy.pk]
-        assert [a.pk for a in Recording.objects.exclude(pk=track.pk).get().artists.all()] == [legacy.pk]
+        namesake = Recording.objects.exclude(pk=track.pk).get().artists.get()
+        assert (namesake.name, namesake.musicbrainz_artist_id) == ("Pink Floyd", None)
         self._sync([{**song, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
         assert [a.name for a in Recording.objects.get().artists.all()] == ["Syd Barrett"]
         assert Artist.objects.filter(pk=legacy.pk).exists()

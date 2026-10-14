@@ -35,17 +35,20 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
   "links": [{"kind": "official", "url": "https://radiohead.com"}],
   "members": [{"artist": {"uuid": "…", "name": "Thom Yorke"}, "beginYear": 1985, "endYear": null, "ended": false, "roles": ["vocals"]}],
   "memberOf": [],
-  "albums": [{"uuid": "…", "name": "OK Computer", "year": 1997, "primaryType": "Album", "secondaryTypes": []}],
-  "tracksCount": 42
+  "albums": [{"uuid": "…", "name": "OK Computer", "year": "1997", "primaryType": "Album", "secondaryTypes": []}],
+  "tracksCount": 42,
+  "createdOn": "…",
+  "updatedOn": "…"
 }
 ```
 
 `type`: `person|group|orchestra|choir|character|other|null`. `links[].kind`:
 `official|wikipedia|wikidata|spotify|youtube|bandcamp|soundcloud|discogs|social`. `memberOf` has the `members` shape,
-`artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` then name.
+`artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
+`tracksCount` counts the recordings with a genre, the ones the library lists.
 
 An artist's recordings: `GET /v1/library/recordings/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
-(nulls last).
+(nulls last). Pipeline recordings have no album, so `albumYear` only orders recordings given one by hand.
 
 #### Import
 

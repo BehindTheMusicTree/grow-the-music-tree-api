@@ -1,4 +1,4 @@
-from django.db.models import Count, Prefetch
+from django.db.models import Prefetch
 from rest_framework import serializers
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 
@@ -10,6 +10,7 @@ from grow.model.artist_link.Fields import Fields as LinkFields
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.artist_membership.Fields import Fields as MembershipFields
 from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
+from grow.serializer.model.artist.simple import tracks_count
 
 from .Fields import Fields
 
@@ -66,8 +67,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
         def ordered(model, *order_by):
             return model._default_manager.order_by(*order_by, "pk")
 
-        tracks_count = Count(f"{prefix}{Fields.TRACKS_RELATED_NAME}", distinct=True)
-        return queryset.annotate(**{Fields.TRACKS_COUNT_ANNOTATED: tracks_count}).prefetch_related(
+        return queryset.annotate(**{Fields.TRACKS_COUNT_ANNOTATED: tracks_count(prefix)}).prefetch_related(
             Prefetch(f"{prefix}{Fields.LINKS}", ordered(ArtistLink, LinkFields.KIND, LinkFields.URL)),
             Prefetch(
                 f"{prefix}{Fields.MEMBERS}",
@@ -96,4 +96,6 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             Fields.MEMBER_OF,
             Fields.ALBUMS,
             Fields.TRACKS_COUNT_PUBLIC,
+            Fields.CREATED_ON,
+            Fields.UPDATED_ON,
         ]
