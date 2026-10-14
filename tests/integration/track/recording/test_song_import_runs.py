@@ -9,10 +9,11 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
+from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.model.artist.Artist import Artist
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.recording.Recording import Recording
-from grow.track.bulk_import.SongImportRun import SongImportRun
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.AppTestCase import AppTestCase
 
@@ -26,6 +27,7 @@ SONG = {
     "youtube_unplayable_reason": None,
     "genre_name": "Rock",
 }
+ARTIST_MBID = "83d91898-7763-47d7-b03b-b92132375c47"
 RUNS = reverse("recording-list") + "songs/import-runs/"
 
 
@@ -45,14 +47,14 @@ class TestImportRunProtocol(AppTestCase):
             run_id=first, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
         )
 
-        committed = SongImportRun.objects.create(committed_on="2026-01-01T00:00:00Z")
+        committed = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, committed_on="2026-01-01T00:00:00Z")
         SongImportStaging.objects.create(
             run_id=committed.pk, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
         )
 
         second = self._create_run()
 
-        assert sorted(SongImportRun.objects.values_list("pk", flat=True)) == [committed.pk, second]
+        assert sorted(BulkImportRun.objects.values_list("pk", flat=True)) == [committed.pk, second]
         assert list(SongImportStaging.objects.values_list("run_id", flat=True)) == [committed.pk]
 
     def test_commit_unknown_run_then_404(self):
@@ -60,7 +62,7 @@ class TestImportRunProtocol(AppTestCase):
 
     def test_part_or_commit_on_committed_run_then_400(self):
         run_id = self._create_run()
-        SongImportRun.objects.filter(pk=run_id).update(committed_on="2026-01-01T00:00:00Z")
+        BulkImportRun.objects.filter(pk=run_id).update(committed_on="2026-01-01T00:00:00Z")
 
         part = self.api_client.put(
             path=f"{RUNS}{run_id}/parts/0/", data=b"", format=None, content_type="application/x-ndjson"
@@ -139,7 +141,7 @@ class TestImportRunMerge(AppTestCase):
         assert Recording.objects.get(title="No genre").genre is None
         assert Recording.objects.get(title="Unknown").genre is None
         assert self._playlist_tracks(rock) == ["Comfortably Numb"]
-        assert not SongImportStaging.objects.exists() and not SongImportRun.objects.exists()
+        assert not SongImportStaging.objects.exists() and not BulkImportRun.objects.exists()
 
     def test_import_accepts_musicbrainz_length_title_and_artist(self):
         self.model_fixture_factory.create_genre("Rock")
@@ -312,7 +314,7 @@ class TestImportRunMerge(AppTestCase):
         # Sync django-q re-raises the task's error into the request; the cluster records it as a failed task.
         assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert list(Recording.objects.values_list("title", flat=True)) == ["Kept"]
-        assert not SongImportRun.objects.exists()
+        assert not BulkImportRun.objects.exists()
 
     def test_tag_name_is_not_a_genre(self):
         self.model_fixture_factory.create_tag("Rock")
@@ -339,3 +341,22 @@ class TestImportRunMerge(AppTestCase):
 
         assert not Recording.objects.filter(pk=stale.pk).exists()
         assert not rock.essential_tracks.exists()
+
+    def test_artist_upserted_on_mbid_adopting_legacy_name_match_and_links_resynced(self):
+        self.model_fixture_factory.create_genre("Rock")
+        legacy = self.model_fixture_factory.create_artist("Pink Floyd")
+        song = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+
+        self._sync([song])
+        track = Recording.objects.get()
+        assert [(a.pk, a.musicbrainz_artist_id) for a in track.artists.all()] == [(legacy.pk, uuid.UUID(ARTIST_MBID))]
+
+        self._sync([{**song, "artist": "The Pink Floyd"}, {**SONG, "musicbrainz_recording_id": OTHER_MBID}])
+
+        # Same MBID: the song keeps its artist whatever the credited name; no MBID: matched on name, MBID-less only.
+        assert [a.pk for a in Recording.objects.get(pk=track.pk).artists.all()] == [legacy.pk]
+        namesake = Recording.objects.exclude(pk=track.pk).get().artists.get()
+        assert (namesake.name, namesake.musicbrainz_artist_id) == ("Pink Floyd", None)
+        self._sync([{**song, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
+        assert [a.name for a in Recording.objects.get().artists.all()] == ["Syd Barrett"]
+        assert Artist.objects.filter(pk=legacy.pk).exists()

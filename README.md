@@ -86,13 +86,13 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/`, `library/recordings/songs/import-runs/` (legacy alias `library/youtube/songs/import-runs/`; create, part upload, commit), `pipeline/imports/unresolved-genre-tags/`, `pipeline/runs/` (`full` only), `pipeline/runs/claim/` and `pipeline/runs/{uuid}/`, and read `curation/export/` and `pipeline/runs/latest/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). Reference data has no owner (`user IS NULL`) and is the same for every caller; a Google sign-in creates a `User` keyed by the account's `sub`, which owns nothing yet.
+Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/`, `library/recordings/songs/import-runs/` (legacy alias `library/youtube/songs/import-runs/`) and `artists/import-runs/` (create, part upload, commit), `pipeline/imports/unresolved-genre-tags/`, `pipeline/runs/` (`full` only), `pipeline/runs/claim/` and `pipeline/runs/{uuid}/`, and read `curation/export/` and `pipeline/runs/latest/`; other writes with it return 403 `permission_denied`. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). Reference data has no owner (`user IS NULL`) and is the same for every caller; a Google sign-in creates a `User` keyed by the account's `sub`, which owns nothing yet.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
-| `/v1/artists`                 | Artists                                              |
 | `/v1/albums`                  | Albums                                               |
+| `/v1/artists`                 | Artists (list, detail with MusicBrainz details, members, links and release-group albums, + `import-runs/`) |
 | `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `{uuid}/exclude/` (body `{"category": "theme"\|"technique"\|"out_of_scope"\|"duplicate"}`), `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |
 | `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`; on every playlist route, `tracks/?from=<track uuid>` starts the list at that track in play order, 404 if it is not in the playlist, 400 if not a UUID) |
@@ -100,7 +100,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/recordings`      | Recordings (CRUD + `songs/import-runs/`); legacy alias `/v1/library/youtube` |
+| `/v1/library/recordings`      | Recordings (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?ordering=title\|-title\|albumYear\|-albumYear`); legacy alias `/v1/library/youtube` |
 | `/v1/curation/lists/`         | The pipeline curation lists: `{name, keyColumns, columns, description}` (admin only) |
 | `/v1/curation/{list}/entries/` | Curation entries of one list (`GET`/`POST`, `{uuid}/` `PATCH`/`DELETE`; admin only). Body `{"row": {<csv column>: value}}`, `row` keys stay snake_case |
 | `/v1/curation/export/`        | Every list as CSV-ready rows keyed by list name, plain snake_case JSON (`X-API-Key` or admin) |

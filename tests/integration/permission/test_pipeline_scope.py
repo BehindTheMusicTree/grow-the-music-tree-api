@@ -59,3 +59,8 @@ class TestCase(AppTestCase):
 
         assert [r.status_code for r in responses] == [status.HTTP_401_UNAUTHORIZED] * 2
         assert {r.json()["details"]["code"] for r in responses} == {"authentication_required"}
+
+    def test_api_key_artists_import_run_then_201(self):
+        self._use_api_key()
+
+        assert self.api_client.post(path=reverse("artist-list") + "import-runs/").status_code == status.HTTP_201_CREATED

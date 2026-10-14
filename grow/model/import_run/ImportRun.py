@@ -8,6 +8,7 @@ class ImportRun(models.Model):
         CANONICAL_TREE = "canonical_tree"
         REGIONAL_TREE = "regional_tree"
         SONGS = "songs"
+        ARTISTS = "artists"
         UNRESOLVED_GENRE_TAGS = "unresolved_genre_tags"
 
     kind = models.TextField(choices=Kind.choices)

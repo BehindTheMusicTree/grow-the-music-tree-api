@@ -2,13 +2,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
+from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.recording.Recording import Recording
-from grow.track.bulk_import.SongImportRun import SongImportRun
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, stale_artist"
+TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -16,7 +16,8 @@ SONG_IMPORT = """
 CREATE TEMP TABLE song_import AS
 WITH staged AS (
     SELECT DISTINCT ON (musicbrainz_recording_id)
-        musicbrainz_recording_id AS mbid, title, artist, youtube_video_id, youtube_unplayable_reason, genre_name
+        musicbrainz_recording_id AS mbid, title, artist, artist_musicbrainz_id AS artist_mbid, youtube_video_id,
+        youtube_unplayable_reason, genre_name
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
 ), owned AS (
@@ -34,7 +35,7 @@ WITH staged AS (
 ), adopted AS (
     SELECT c.mbid, l.track_id, l.is_manually_edited FROM candidate c JOIN legacy l USING (youtube_video_id)
 )
-SELECT m.mbid, m.title, m.artist, m.youtube_video_id, m.youtube_unplayable_reason, m.genre_name, c.uuid AS genre_id,
+SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.genre_name, c.uuid AS genre_id,
     COALESCE(m.track_id, a.track_id, gen_random_uuid()) AS track_id,
     m.track_id IS NULL AND a.track_id IS NULL AS is_new,
     a.track_id IS NOT NULL AS is_adopted,
@@ -81,24 +82,57 @@ STEPS = [
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, musicbrainz_recording_id)
     SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, mbid FROM song_import WHERE is_new
     ORDER BY track_id""",
-    # ponytail: artists are only set on insert, like the old per-row import; re-sync them on matched tracks if
-    # upstream artist-name corrections need to propagate.
-    """INSERT INTO grow_artist (uuid, created_on, name, user_id)
-    SELECT gen_random_uuid(), now(), n.artist, %(user)s FROM (SELECT DISTINCT artist FROM song_import WHERE is_new) n
-    WHERE NOT EXISTS (SELECT 1 FROM grow_artist a WHERE a.name = n.artist AND a.user_id IS NOT DISTINCT FROM %(user)s)""",
+    # A legacy MBID-less artist with the song's artist name takes the MBID instead of a duplicate being created
+    # (one legacy artist per name, one per MBID).
+    """UPDATE grow_artist a SET musicbrainz_artist_id = c.mbid FROM (
+        SELECT DISTINCT ON (s.mbid) l.uuid, s.mbid
+        FROM (
+            SELECT DISTINCT ON (artist) artist, artist_mbid AS mbid FROM song_import
+            WHERE artist_mbid IS NOT NULL ORDER BY artist, artist_mbid
+        ) s
+        JOIN (
+            SELECT DISTINCT ON (name) uuid, name FROM grow_artist
+            WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
+        ) l ON l.name = s.artist
+        WHERE NOT EXISTS (SELECT 1 FROM grow_artist x WHERE x.musicbrainz_artist_id = s.mbid)
+        ORDER BY s.mbid, l.uuid
+    ) c WHERE a.uuid = c.uuid""",
+    # Details come with the artists import; a song only brings its artist's name and MBID.
+    """INSERT INTO grow_artist (uuid, created_on, name, user_id, musicbrainz_artist_id, ended)
+    SELECT gen_random_uuid(), now(), n.artist, %(user)s, n.mbid, false FROM (
+        SELECT DISTINCT ON (artist_mbid) artist_mbid AS mbid, artist FROM song_import
+        WHERE artist_mbid IS NOT NULL ORDER BY artist_mbid, artist
+    ) n
+    ON CONFLICT (musicbrainz_artist_id) DO NOTHING""",
+    """INSERT INTO grow_artist (uuid, created_on, name, user_id, ended)
+    SELECT gen_random_uuid(), now(), n.artist, %(user)s, false
+    FROM (SELECT DISTINCT artist FROM song_import WHERE artist_mbid IS NULL) n
+    WHERE NOT EXISTS (
+        SELECT 1 FROM grow_artist a
+        WHERE a.name = n.artist AND a.musicbrainz_artist_id IS NULL AND a.user_id IS NOT DISTINCT FROM %(user)s
+    )""",
+    # Every run re-syncs track artists, so upstream artist corrections reach existing tracks.
+    """CREATE TEMP TABLE desired_artist AS
+    SELECT s.track_id, COALESCE(m.uuid, n.uuid) AS artist_id FROM song_import s
+    LEFT JOIN grow_artist m ON m.musicbrainz_artist_id = s.artist_mbid
+    LEFT JOIN (
+        -- An MBID-less song never borrows an MBID artist's name: a namesake would be credited.
+        SELECT DISTINCT ON (name) uuid, name FROM grow_artist
+        WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
+    ) n ON s.artist_mbid IS NULL AND n.name = s.artist""",
+    """DELETE FROM the_music_tree_genre_kit_track_artists ta USING song_import s
+    WHERE ta.track_id = s.track_id
+        AND NOT EXISTS (SELECT 1 FROM desired_artist d WHERE d.track_id = ta.track_id AND d.artist_id = ta.artist_id)""",
     """INSERT INTO the_music_tree_genre_kit_track_artists (track_id, artist_id)
-    SELECT s.track_id, a.uuid FROM song_import s JOIN (
-        SELECT DISTINCT ON (name) uuid, name FROM grow_artist WHERE user_id IS NOT DISTINCT FROM %(user)s
-        ORDER BY name, created_on
-    ) a ON a.name = s.artist
-    WHERE s.is_new
-    ORDER BY s.track_id""",
+    SELECT d.track_id, d.artist_id FROM desired_artist d
+    WHERE NOT EXISTS (
+        SELECT 1 FROM the_music_tree_genre_kit_track_artists ta WHERE ta.track_id = d.track_id AND ta.artist_id = d.artist_id
+    )
+    ORDER BY d.track_id""",
     """CREATE TEMP TABLE stale AS
     SELECT y.track_id FROM grow_recording y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
     WHERE t.user_id IS NOT DISTINCT FROM %(user)s AND NOT y.is_manually_edited
         AND NOT EXISTS (SELECT 1 FROM song_import s WHERE s.track_id = y.track_id)""",
-    """CREATE TEMP TABLE stale_artist AS SELECT DISTINCT artist_id FROM the_music_tree_genre_kit_track_artists
-    WHERE track_id IN (SELECT track_id FROM stale)""",
     """CREATE TEMP TABLE touched_playlist AS SELECT DISTINCT playlist_id FROM the_music_tree_genre_kit_track_playlist_rel
     WHERE track_id IN (SELECT track_id FROM stale)""",
     "DELETE FROM the_music_tree_genre_kit_track_playlist_rel WHERE track_id IN (SELECT track_id FROM stale)",
@@ -106,9 +140,6 @@ STEPS = [
     "DELETE FROM the_music_tree_genre_kit_track_artists WHERE track_id IN (SELECT track_id FROM stale)",
     "DELETE FROM grow_recording WHERE track_id IN (SELECT track_id FROM stale)",
     "DELETE FROM the_music_tree_genre_kit_track WHERE uuid IN (SELECT track_id FROM stale)",
-    """DELETE FROM grow_artist a WHERE a.uuid IN (SELECT artist_id FROM stale_artist)
-        AND NOT EXISTS (SELECT 1 FROM the_music_tree_genre_kit_track_artists ta WHERE ta.artist_id = a.uuid)
-        AND NOT EXISTS (SELECT 1 FROM grow_album_album_artists aa WHERE aa.artist_id = a.uuid)""",
     # Each genre's playlists: its own and every primary ascendant's; genreless songs get the genreless playlist.
     """CREATE TEMP TABLE genre_playlist AS
     WITH RECURSIVE primary_parent AS (
@@ -181,7 +212,9 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     Merges a committed run's staged songs into the owner's `Recording`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
     keep their genre and are never deleted, every other track missing from the run is deleted, and genre-playlist
-    rels follow genre and playability changes, holding playable recordings only. A genre name with no criteria match
+    rels follow genre and playability changes, holding playable recordings only. Track artists are re-synced: matched
+    on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
+    artists import, which owns their lifecycle. A genre name with no criteria match
     is stored as a null genre and counted as skipped.
     """
     params = {
@@ -196,7 +229,7 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     finally:
         # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
         SongImportStaging.objects.filter(run_id=run_id).delete()
-        SongImportRun.objects.filter(pk=run_id).delete()
+        BulkImportRun.objects.filter(pk=run_id).delete()
 
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:

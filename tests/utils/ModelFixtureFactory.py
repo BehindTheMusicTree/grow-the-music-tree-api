@@ -5,6 +5,8 @@ from django.utils import timezone
 
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
+from grow.model.artist_link.ArtistLink import ArtistLink
+from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
@@ -38,6 +40,12 @@ class ModelFixtureFactory:
 
     def create_artist(self, name: str, user: User | None = None, **kwargs) -> Artist:
         return Artist.objects.create(user=user or self.default_user, name=name, **kwargs)
+
+    def create_artist_membership(self, group: Artist, member: Artist, **kwargs) -> ArtistMembership:
+        return ArtistMembership.objects.create(group=group, member=member, **kwargs)
+
+    def create_artist_link(self, artist: Artist, kind: str, url: str) -> ArtistLink:
+        return ArtistLink.objects.create(artist=artist, kind=kind, url=url)
 
     def create_album(self, name: str, user: User | None = None, **kwargs) -> Album:
         return Album.objects.create(user=user or self.default_user, name=name, **kwargs)

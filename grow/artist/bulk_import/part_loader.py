@@ -1,0 +1,90 @@
+import json
+import uuid
+from typing import IO, Any
+
+from django.conf import settings
+from rest_framework.exceptions import ValidationError
+
+from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.bulk_import.copy_part import copy_part
+from grow.model.artist.Artist import Artist
+from grow.model.artist_link.ArtistLink import ArtistLink
+
+TYPES = set(Artist.Type.values)
+LINK_KINDS = set(ArtistLink.Kind.values)
+
+
+def _require(condition: bool, line_number: int, message: str) -> None:
+    if not condition:
+        raise ValidationError(f"line {line_number}: {message}")
+
+
+def _is_mbid(value: Any) -> bool:
+    try:
+        uuid.UUID(value)
+    except ValueError, TypeError, AttributeError:
+        return False
+    return True
+
+
+def _is_text(value: Any, max_length: int | None = None) -> bool:
+    return isinstance(value, str) and value != "" and (max_length is None or len(value) <= max_length)
+
+
+def _is_year(value: Any) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool) and -32768 <= value <= 32767)
+
+
+def _is_text_list(value: Any) -> bool:
+    return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _row(line_number: int, line: bytes) -> tuple:
+    try:
+        artist = json.loads(line)
+    except ValueError as e:
+        raise ValidationError(f"line {line_number}: invalid artist ({e})") from e
+    _require(isinstance(artist, dict), line_number, "artist must be an object")
+    _require(_is_mbid(artist.get("musicbrainz_artist_id")), line_number, "musicbrainz_artist_id must be a UUID")
+    _require(
+        _is_text(artist.get("name"), settings.ARTIST_NAME_LEN_MAX),
+        line_number,
+        f"name must be a non-empty string of at most {settings.ARTIST_NAME_LEN_MAX} characters",
+    )
+    _require(artist.get("type") in TYPES | {None}, line_number, "unknown type")
+    country = artist.get("country")
+    _require(country is None or (_is_text(country) and len(country) == 2), line_number, "country must be ISO 3166-1")
+    _require(_is_year(artist.get("begin_year")) and _is_year(artist.get("end_year")), line_number, "invalid year")
+    _require(isinstance(artist.get("ended"), bool), line_number, "ended must be a boolean")
+    for key in ("members", "links", "release_groups"):
+        _require(
+            isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),
+            line_number,
+            f"{key} must be a list of objects",
+        )
+    for member in artist["members"]:
+        _require(_is_mbid(member.get("musicbrainz_artist_id")), line_number, "member MBID must be a UUID")
+        _require(_is_year(member.get("begin_year")) and _is_year(member.get("end_year")), line_number, "invalid year")
+        _require(isinstance(member.get("ended"), bool), line_number, "member ended must be a boolean")
+        _require(_is_text_list(member.get("roles")), line_number, "member roles must be a list of strings")
+    for link in artist["links"]:
+        _require(link.get("kind") in LINK_KINDS, line_number, "unknown link kind")
+        _require(_is_text(link.get("url")), line_number, "link url must be a non-empty string")
+    for release_group in artist["release_groups"]:
+        _require(_is_mbid(release_group.get("musicbrainz_release_group_id")), line_number, "release group MBID invalid")
+        _require(
+            _is_text(release_group.get("title"), settings.ALBUM_NAME_LEN_MAX),
+            line_number,
+            f"release group title must be a non-empty string of at most {settings.ALBUM_NAME_LEN_MAX} characters",
+        )
+        primary_type = release_group.get("primary_type")
+        _require(primary_type is None or _is_text(primary_type), line_number, "invalid release group primary_type")
+        _require(_is_text_list(release_group.get("secondary_types")), line_number, "invalid secondary_types")
+        year = release_group.get("first_release_year")
+        # Four digits, so the text `Album.year` sorts chronologically.
+        _require(year is None or (_is_year(year) and 1000 <= year <= 9999), line_number, "invalid first_release_year")
+    return artist["musicbrainz_artist_id"], json.dumps(artist)
+
+
+def load_part(run_id: int, part: int, body: IO[bytes]) -> int:
+    return copy_part(ArtistImportStaging, ("musicbrainz_artist_id", "data"), _row, run_id, part, body)
