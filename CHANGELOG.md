@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Dev seed**: `docker compose up` on an empty DB now seeds it with the pinned `perf/fixtures/` Gold snapshot (genre trees and songs, through the nightly sync's import endpoints), so a fresh dev setup has a working genre tree without the multi-GB prod restore.
 - **Recordings**: `library/recordings/` serves the track library (CRUD, `songs/import-runs/`, `songs/import/<taskId>/status/`). Track payloads gain a nested `youtubeVideo: {id, unplayableReason} | null`. Covered by list, playlist-page and legacy-route tests, plus a Postgres merge test for essential tracks.
 - **Genre filter**: `library/recordings/?genre=<uuid>` lists a genre's recordings and those of its primary descendants, with or without a video. Covered by a filter test.
+- **Play from a track**: playlist `tracks/` endpoints (`genre-playlists/<uuid>/tracks/` and the other playlist routes) accept `?from=<track uuid>` and start the list at that track, in play order, so clients get it in one request instead of paging. A track not in the playlist gives a 404 and a non-UUID `from` gives a 400 (genre-kit v0.46.1, api-kit v0.10.2, which also turns any DRF `NotFound` into a 404 instead of a 500). Covered by a genre playlist tracks test.
 
 ### Changed
 
