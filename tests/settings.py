@@ -2,6 +2,7 @@ import os
 import tomllib
 from pathlib import Path
 
+from grow.middleware_settings import MIDDLEWARE
 from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,12 +29,6 @@ CACHES = {
         "KEY_PREFIX": "grow",
     }
 }
-
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "django.middleware.http.ConditionalGetMiddleware",
-    "django.middleware.common.CommonMiddleware",
-]
 
 ROOT_URLCONF = "grow.urls"
 

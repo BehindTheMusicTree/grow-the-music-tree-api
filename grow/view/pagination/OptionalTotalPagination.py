@@ -5,7 +5,7 @@ from rest_framework.utils.urls import remove_query_param, replace_query_param
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
-NO_TOTAL_PARAM = "withTotal"
+NO_TOTAL_PARAM = "with_total"
 
 
 def wants_no_total(request: Request) -> bool:
@@ -19,7 +19,7 @@ class _NoLastPage:
 
 
 class OptionalTotalPagination(AppPagination):
-    """`?withTotal=false` skips the COUNT(*): fetches one extra row to know whether a next page exists."""
+    """`?withTotal=false` (seen as `with_total` after CamelToSnakeMiddleware) skips the COUNT(*): fetches one extra row to know whether a next page exists."""
 
     def paginate_queryset(self, queryset, request, view=None):
         self._no_total = wants_no_total(request)
