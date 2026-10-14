@@ -13,7 +13,8 @@ T = TypeVar("T", bound="Track")
 
 class TrackManager(AbstractTrackManager[T]):
     def _is_playable(self, instance: T) -> bool:
-        # Mirrored by PLAYABLE in grow/track/bulk_import/merge.py and migration 0051: keep the three in sync.
+        # Mirrored by PLAYABLE in grow/track/bulk_import/merge.py, migration 0051 and RecordingFilterSet.filter_playable:
+        # keep the four in sync.
         return instance.youtube_video_id is not None and instance.youtube_unplayable_reason is None
 
     def _on_track_genre_changed(self, instance: T, *, old_genre, actor: Any = None) -> None:

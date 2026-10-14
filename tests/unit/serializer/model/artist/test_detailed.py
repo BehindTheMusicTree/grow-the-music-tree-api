@@ -33,7 +33,7 @@ class TestCase(AppTestCase):
         assert data["links"] == [{"kind": "official", "url": "https://pinkfloyd.com"}]
         assert data["members"] == [
             {
-                "artist": {"uuid": str(waters.uuid), "name": "Roger Waters"},
+                "artist": {"uuid": str(waters.uuid), "name": "Roger Waters", "is_special_purpose": False},
                 "begin_year": 1965,
                 "end_year": 1985,
                 "ended": True,

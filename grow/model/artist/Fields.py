@@ -13,3 +13,4 @@ class Fields(TrackMixinFields):
     MEMBERS = "members"
     MEMBER_OF = "member_of"
     LINKS = "links"
+    IS_SPECIAL_PURPOSE = "is_special_purpose"

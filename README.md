@@ -100,7 +100,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/recordings`      | Recordings (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?ordering=title\|-title\|albumYear\|-albumYear`); legacy alias `/v1/library/youtube` |
+| `/v1/library/recordings`      | Recordings (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`); legacy alias `/v1/library/youtube` |
 | `/v1/curation/lists/`         | The pipeline curation lists: `{name, keyColumns, columns, description}` (admin only) |
 | `/v1/curation/{list}/entries/` | Curation entries of one list (`GET`/`POST`, `{uuid}/` `PATCH`/`DELETE`; admin only). Body `{"row": {<csv column>: value}}`, `row` keys stay snake_case |
 | `/v1/curation/export/`        | Every list as CSV-ready rows keyed by list name, plain snake_case JSON (`X-API-Key` or admin) |

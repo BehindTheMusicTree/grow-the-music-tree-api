@@ -48,7 +48,16 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `tracksCount` counts the recordings with a genre, the ones the library lists.
 
 An artist's recordings: `GET /v1/library/recordings/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
-(nulls last). Pipeline recordings have no album, so `albumYear` only orders recordings given one by hand.
+(nulls last). `albumYear` uses the recording's `first_release_year`, falling back to a four-digit album year, so
+recordings without an album are ordered too.
+
+`GET /v1/library/recordings/?playable=true|false`: playable means `youtube_video_id` is set and
+`youtube_unplayable_reason` is empty.
+`?from=<recording uuid>` starts the list at that recording (included) in the current ordering (default `created_on`;
+nulls last, ties by id). 404 if it is not in the filtered list, 400 if not a UUID.
+
+`isSpecialPurpose` (read-only boolean, also on nested artists) is true for the special-purpose MBIDs (Various Artists,
+Unknown, etc.).
 
 #### Import
 

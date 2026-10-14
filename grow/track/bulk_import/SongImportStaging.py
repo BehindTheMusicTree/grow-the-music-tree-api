@@ -13,6 +13,7 @@ class SongImportStaging(models.Model):
     youtube_video_id = models.TextField(null=True)
     youtube_unplayable_reason = models.TextField(null=True)
     genre_name = models.TextField(null=True)
+    first_release_year = models.PositiveSmallIntegerField(null=True)
 
     class Meta:
         db_table = "grow_song_import_staging"

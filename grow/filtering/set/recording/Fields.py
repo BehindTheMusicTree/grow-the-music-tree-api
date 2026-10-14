@@ -5,3 +5,4 @@ class Fields:
     GENRE_NAME = "genre_name"
     GENRE = "genre"
     LANGUAGE = "language"
+    FROM = "from"
