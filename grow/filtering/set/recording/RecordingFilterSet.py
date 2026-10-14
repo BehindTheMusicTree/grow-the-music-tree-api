@@ -14,6 +14,7 @@ from grow.model.criteria.Criteria import Fields as CriteriaFields
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.recording.Fields import Fields as ModelFields
 from grow.model.recording.Recording import Recording
+from grow.view.pagination.OptionalTotalPagination import NO_TOTAL_PARAM
 
 from .Fields import Fields
 
@@ -31,6 +32,8 @@ SORT_KEY = "sort_key"
 
 
 class RecordingFilterSet(PrivateUniqueResourceFilterSet):
+    allowed_non_filter_params = PrivateUniqueResourceFilterSet.allowed_non_filter_params | {NO_TOTAL_PARAM}
+
     title = CharFilter(field_name=ModelFields.TITLE, lookup_expr="icontains")
     artists_name = RelatedObjectCharFilter(
         primary_field=ArtistFields.NAME_INTERNAL,
