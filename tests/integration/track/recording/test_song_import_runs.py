@@ -143,6 +143,21 @@ class TestImportRunMerge(AppTestCase):
         assert self._playlist_tracks(rock) == ["Comfortably Numb"]
         assert not SongImportStaging.objects.exists() and not BulkImportRun.objects.exists()
 
+    def test_first_release_year_imported_updated_and_optional(self):
+        self.model_fixture_factory.create_genre("Rock")
+        older_export = {**SONG, "musicbrainz_recording_id": OTHER_MBID}  # no first_release_year key
+
+        self._sync([{**SONG, "first_release_year": 1979}, older_export])
+
+        def years():
+            return dict(Recording.objects.values_list("musicbrainz_recording_id", "first_release_year"))
+
+        assert years() == {uuid.UUID(MBID): 1979, uuid.UUID(OTHER_MBID): None}
+
+        self._sync([{**SONG, "first_release_year": 1980}, {**older_export, "first_release_year": 1975}])
+
+        assert years() == {uuid.UUID(MBID): 1980, uuid.UUID(OTHER_MBID): 1975}
+
     def test_import_accepts_musicbrainz_length_title_and_artist(self):
         self.model_fixture_factory.create_genre("Rock")
         song = {**SONG, "title": "t" * 1059, "artist": "a" * 1018}
@@ -297,6 +312,9 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "youtube_unplayable_reason": "bogus"}]),
             _gzip_ndjson([{**SONG, "title": "x" * (settings.TRACK_TITLE_LEN_MAX + 1)}]),
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "artist"}]),
+            _gzip_ndjson([{**SONG, "first_release_year": "1979"}]),
+            _gzip_ndjson([{**SONG, "first_release_year": True}]),
+            _gzip_ndjson([{**SONG, "first_release_year": -1}]),
             gzip.compress(b"{not json\n"),
         ]
 

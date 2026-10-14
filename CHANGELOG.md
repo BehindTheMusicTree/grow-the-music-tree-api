@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Recordings**: `library/recordings/?playable=true|false` (video set and not marked unplayable) and `?from=<recording uuid>` (start the list at that recording in the current ordering; 404 if not in the list, 400 if not a UUID).
+- **Artists**: read-only `isSpecialPurpose` on the minimal artist payload, true for the 9 special-purpose MBIDs.
+
+### Changed
+
+- **Recordings**: `albumYear` ordering uses the new `first_release_year` (migration `0053`), falling back to a four-digit album year, so recordings without an album are ordered too. Covered by filter and serializer tests.
+
 ## [12.7.0] - 2026-10-14
 
 ### Added

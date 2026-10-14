@@ -1,5 +1,7 @@
-from django.db.models import F, Q, QuerySet
-from django_filters import CharFilter, ChoiceFilter, UUIDFilter
+from django.db.models import Case, F, IntegerField, Q, QuerySet, When
+from django.db.models.functions import Cast, Coalesce
+from django_filters import BooleanFilter, CharFilter, ChoiceFilter, UUIDFilter
+from rest_framework.exceptions import NotFound
 from the_music_tree_api_kit.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
 from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
@@ -15,7 +17,17 @@ from grow.model.recording.Recording import Recording
 
 from .Fields import Fields
 
-ORDERINGS = {"title": ModelFields.TITLE, "albumYear": f"{ModelFields.ALBUM}__{AlbumFields.YEAR}"}
+ALBUM_YEAR = f"{ModelFields.ALBUM}__{AlbumFields.YEAR}"
+ORDERINGS = {
+    "title": F(ModelFields.TITLE),
+    # The recording's MusicBrainz first-release year, else its album's (a free-text column, so only digits cast).
+    "albumYear": Coalesce(
+        F(ModelFields.FIRST_RELEASE_YEAR),
+        Case(When(**{f"{ALBUM_YEAR}__regex": r"^[0-9]{1,4}$"}, then=Cast(ALBUM_YEAR, IntegerField()))),
+    ),
+}
+DEFAULT_ORDERING = F(ModelFields.CREATED_ON)  # the viewset's default, see AppModelViewSet.queryset
+SORT_KEY = "sort_key"
 
 
 class RecordingFilterSet(PrivateUniqueResourceFilterSet):
@@ -40,6 +52,7 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
     )
     genre = UUIDFilter(method="filter_genre")
     artist = UUIDFilter(field_name=ModelFields.ARTISTS)
+    playable = BooleanFilter(method="filter_playable")
     ordering = ChoiceFilter(
         choices=[(f"{sign}{key}", f"{sign}{key}") for key in ORDERINGS for sign in ("", "-")], method="filter_ordering"
     )
@@ -56,11 +69,51 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
         descendants = CriteriaLineageRel.objects.filter(ascendant=value).values("descendant")
         return queryset.filter(Q(genre=value) | Q(genre__in=descendants))
 
+    def filter_playable(self, queryset: QuerySet[Recording], name: str, value: bool) -> QuerySet[Recording]:
+        # Same predicate as TrackManager._is_playable.
+        playable = Q(**{f"{ModelFields.YOUTUBE_VIDEO_ID}__isnull": False, "youtube_unplayable_reason__isnull": True})
+        return queryset.filter(playable if value else ~playable)
+
+    def filter_from(self, queryset: QuerySet[Recording], name: str, value) -> QuerySet[Recording]:
+        # Applied in filter_queryset, once the other filters and the ordering it pages through are known.
+        return queryset
+
     def filter_ordering(self, queryset: QuerySet[Recording], name: str, value: str) -> QuerySet[Recording]:
-        field = F(ORDERINGS[value.lstrip("-")])
+        field = ORDERINGS[value.lstrip("-")]
         descending = value.startswith("-")
         # Album-less recordings last either way; pk tie-breaker so OFFSET pages over tied rows neither repeat nor skip.
         return queryset.order_by(
             field.desc(nulls_last=True) if descending else field.asc(nulls_last=True),
             "-pk" if descending else "pk",
         )
+
+    def filter_queryset(self, queryset: QuerySet[Recording]) -> QuerySet[Recording]:
+        queryset = super().filter_queryset(queryset)
+        anchor_uuid = self.form.cleaned_data.get(Fields.FROM)
+        if anchor_uuid is None:
+            return queryset
+        ordering = self.form.cleaned_data.get("ordering")
+        key = ORDERINGS[ordering.lstrip("-")] if ordering else DEFAULT_ORDERING
+        return self._at_or_after(
+            queryset.annotate(**{SORT_KEY: key}), anchor_uuid, bool(ordering and ordering[0] == "-")
+        )
+
+    @staticmethod
+    def _at_or_after(queryset: QuerySet[Recording], anchor_uuid, descending: bool) -> QuerySet[Recording]:
+        """`from`: the rows at or after the anchor in the active ordering (sort key nulls last, then pk), anchor
+        included; 404 if the anchor isn't among the filtered rows."""
+        anchor = queryset.filter(pk=anchor_uuid).values_list(SORT_KEY, flat=True)
+        if not anchor.exists():
+            raise NotFound(f"Recording {anchor_uuid} is not in this list.")
+        value = anchor[0]
+        after, pk_from = ("lt", "lte") if descending else ("gt", "gte")
+        null_tail = Q(**{f"{SORT_KEY}__isnull": True})
+        if value is None:
+            return queryset.filter(null_tail, **{f"pk__{pk_from}": anchor_uuid})
+        return queryset.filter(
+            Q(**{f"{SORT_KEY}__{after}": value}) | Q(**{SORT_KEY: value, f"pk__{pk_from}": anchor_uuid}) | null_tail
+        )
+
+
+# `from` is a Python keyword, so it can't be declared as a class attribute.
+RecordingFilterSet.base_filters[Fields.FROM] = UUIDFilter(method="filter_from")
