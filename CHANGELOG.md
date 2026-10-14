@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Recordings**: `library/recordings/?withTotal=false` skips the `COUNT(*)` and the `created_on` sort: pages are ordered by pk and `next` comes from fetching one extra row. `overallTotal` and `totalPages` are `null`. Without the param nothing changes. Lets the genre detail panel page huge subtrees without timing out. Test: `tests/integration/track/recording/test_list.py`.
+
 ### Fixed
 
 - **Recordings**: `library/recordings/?genre=<uuid>` 500'd on large genres (gunicorn worker timeout): the genre-or-descendants `OR` with a subquery forced a seq scan over all recordings. Descendant ids are now materialized into a single `IN` list so the genre index is used. Test: `tests/integration/track/recording/test_list.py`.

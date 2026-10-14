@@ -97,3 +97,24 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert {r["uuid"] for r in response.data["results"]} == {str(own.uuid), str(child.uuid)}
+
+    def test_list_without_total_skips_count_and_pages_by_next_link(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        for index in range(3):
+            self.model_fixture_factory.create_recording(
+                title=f"T{index}", genre=genre, youtube_video_id=f"abc123def{index}x"
+            )
+        path = reverse(self.list_endpoint)
+
+        first = self.api_client.get(path=path, data={"genre": str(genre.uuid), "pageSize": 2, "withTotal": "false"})
+        second = self.api_client.get(
+            path=path, data={"genre": str(genre.uuid), "pageSize": 2, "page": 2, "withTotal": "false"}
+        )
+
+        assert first.status_code == status.HTTP_200_OK, first.content
+        assert first.data["overallTotal"] is None
+        assert len(first.data["results"]) == 2
+        assert first.data["next"] is not None
+        assert len(second.data["results"]) == 1
+        assert second.data["next"] is None
+        assert second.data["previous"] is not None
