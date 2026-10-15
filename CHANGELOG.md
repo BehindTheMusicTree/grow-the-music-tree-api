@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.1] - 2026-10-15
+
 ### Fixed
 
 - **Artists import**: release-group titles longer than 256 characters (real MusicBrainz titles reach 890) failed the whole part with 400. `ALBUM_NAME_LEN_MAX` is now 2048, matching artist names and track titles, so titles are stored verbatim. Migration `0054` widens `Album.name` (metadata-only in Postgres). Tests: `tests/integration/artist/test_artist_import_runs.py`.
