@@ -6,7 +6,7 @@ REST_FRAMEWORK = {
         "djangorestframework_camel_case.parser.CamelCaseFormParser",
     ),
     "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
-    "EXCEPTION_HANDLER": "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler",
+    "EXCEPTION_HANDLER": "grow.view.error.exception_handler.exception_handler",
 }
 
 # `row` holds a curation list's CSV columns, which stay snake_case on the wire.

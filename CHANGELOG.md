@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.0] - 2026-10-15
+
+### Added
+
+- **Reliability**: gunicorn web workers set a Postgres `statement_timeout` from the required `WEB_DB_STATEMENT_TIMEOUT_MS` env var (read in `grow/wsgi.py`, so `migrate` and the import cluster are unaffected). A cancelled query returns 503 `query_timeout` instead of hanging until gunicorn's SIGKILL. Test: `tests/unit/view/test_exception_handler.py`.
+
+### Changed
+
+- **Recordings**: `library/recordings/?withTotal=false` without `page` now paginates by keyset cursor over `(genre, uuid)` (requires `genre`; `ordering` and `from` are rejected with 400), so each page is one index range scan at any depth instead of an OFFSET walk over ~31M rows. `next` carries an opaque `cursor`; `page`, `totalPages` and `overallTotal` are `null`. With `page` the OFFSET path is unchanged. Bumps genre-kit to v0.47.0 (`(genre, uuid)` index, migration `0012` builds it concurrently) and api-kit to v0.10.4. Tests: `tests/integration/track/recording/test_list.py`.
+
 ## [12.9.2] - 2026-10-15
 
 ### Fixed
