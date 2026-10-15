@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import dj_database_url
 from the_music_tree_api_kit.utils.allowed_hosts import add_loopback_hosts
 
+from grow.middleware_settings import MIDDLEWARE
 from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,15 +38,6 @@ INSTALLED_APPS = [
     "django_q",
     "the_music_tree_genre_kit",
     "grow",
-]
-
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    "the_music_tree_api_kit.view.middleware.HostValidationMiddleware.HostValidationMiddleware",
-    "django.middleware.http.ConditionalGetMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "the_music_tree_api_kit.view.middleware.CamelToSnakeMiddleware.CamelToSnakeMiddleware",
 ]
 
 ROOT_URLCONF = "grow.urls"
