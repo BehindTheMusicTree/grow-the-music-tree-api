@@ -139,6 +139,12 @@ class TestImportRunMerge(AppTestCase):
         assert {a.name for a in album.album_artists.all()} == {"Pink Floyd", "Roger Waters"}
         assert not ArtistImportStaging.objects.exists() and not BulkImportRun.objects.exists()
 
+    def test_long_release_group_title_imported_verbatim(self):
+        title = "x" * 890
+        self._sync([{**ARTIST, "release_groups": [{**ARTIST["release_groups"][0], "title": title}]}])
+
+        assert Album.objects.get().name == title
+
     def test_reimport_updates_in_place_and_resyncs_links(self):
         self._sync([ARTIST, PERSON])
         band_uuid = Artist.objects.get(musicbrainz_artist_id=BAND).uuid
@@ -180,6 +186,7 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**ARTIST, "type": "band"}]),
             _gzip_ndjson([{**ARTIST, "links": [{"kind": "myspace", "url": "https://myspace.com"}]}]),
             _gzip_ndjson([{**ARTIST, "release_groups": [{**ARTIST["release_groups"][0], "title": ""}]}]),
+            _gzip_ndjson([{**ARTIST, "release_groups": [{**ARTIST["release_groups"][0], "title": "x" * 2049}]}]),
         ]
 
         codes = [self._upload(run_id, 0, body).status_code for body in invalid]

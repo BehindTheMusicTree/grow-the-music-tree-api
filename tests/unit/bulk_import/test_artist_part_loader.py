@@ -50,7 +50,7 @@ def test_valid_artist_then_mbid_and_data():
         _line(links=[{"kind": "myspace", "url": "https://myspace.com"}]),
         _line(links=[{"kind": "official", "url": ""}]),
         _line(release_groups=[{**RELEASE_GROUP, "musicbrainz_release_group_id": None}]),
-        _line(release_groups=[{**RELEASE_GROUP, "title": "x" * 257}]),
+        _line(release_groups=[{**RELEASE_GROUP, "title": "x" * 2049}]),
         _line(release_groups=[{**RELEASE_GROUP, "primary_type": ""}]),
         _line(release_groups=[{**RELEASE_GROUP, "secondary_types": None}]),
         _line(release_groups=[{**RELEASE_GROUP, "first_release_year": -1}]),
