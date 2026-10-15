@@ -98,6 +98,57 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert {r["uuid"] for r in response.data["results"]} == {str(own.uuid), str(child.uuid)}
 
+    def test_list_cursor_walks_subtree_once_across_genres(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        blues_rock = self.model_fixture_factory.create_genre("Blues rock", parent=rock)
+        expected = set()
+        for genre in (rock, blues_rock):
+            for index in range(3):
+                recording = self.model_fixture_factory.create_recording(title=f"{genre.name}{index}", genre=genre)
+                expected.add(str(recording.uuid))
+        self.model_fixture_factory.create_recording(
+            title="Other", genre=self.model_fixture_factory.create_genre("Jazz")
+        )
+        path = reverse(self.list_endpoint)
+
+        seen = []
+        response = self.api_client.get(path=path, data={"genre": str(rock.uuid), "pageSize": 2, "withTotal": "false"})
+        while True:
+            assert response.status_code == status.HTTP_200_OK, response.content
+            assert response.data["page"] is None
+            seen += [r["uuid"] for r in response.data["results"]]
+            if response.data["next"] is None:
+                break
+            response = self.api_client.get(response.data["next"])
+
+        assert len(seen) == len(expected)
+        assert set(seen) == expected
+
+    def test_list_cursor_requires_genre(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "false"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_list_cursor_rejects_ordering(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint),
+            data={"genre": str(genre.uuid), "withTotal": "false", "ordering": "title"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_list_invalid_cursor_is_rejected(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint),
+            data={"genre": str(genre.uuid), "withTotal": "false", "cursor": "not-a-cursor"},
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_list_without_total_skips_count_and_pages_by_next_link(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         for index in range(3):
