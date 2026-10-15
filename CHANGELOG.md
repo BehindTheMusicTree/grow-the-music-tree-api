@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.0] - 2026-10-15
+
 ### Added
 
 - **Reliability**: gunicorn web workers set a Postgres `statement_timeout` from the required `WEB_DB_STATEMENT_TIMEOUT_MS` env var (read in `grow/wsgi.py`, so `migrate` and the import cluster are unaffected). A cancelled query returns 503 `query_timeout` instead of hanging until gunicorn's SIGKILL. Test: `tests/unit/view/test_exception_handler.py`.
