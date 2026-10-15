@@ -1,8 +1,13 @@
 import gzip
+import io
 import json
+import resource
+import sys
+from unittest import mock
 
 import pytest
 from django.conf import settings
+from django.db import connection
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -164,6 +169,40 @@ class TestImportRunMerge(AppTestCase):
         assert self._upload(run_id, 0, _gzip_ndjson([ARTIST])).data["count"] == 1
 
         assert [row["name"] for row in ArtistImportStaging.objects.values_list("data", flat=True)] == ["Pink Floyd"]
+
+    def test_part_upload_memory_does_not_grow_with_part_size(self):
+        """A server slower than the client must not make the worker buffer the part (prod OOM on 250k-row parts)."""
+
+        def part(rows: int) -> bytes:
+            line = (json.dumps({**ARTIST, "release_groups": ARTIST["release_groups"] * 40}) + "\n").encode()
+            body = io.BytesIO()
+            with gzip.GzipFile(fileobj=body, mode="wb") as gz:
+                for _ in range(rows):
+                    gz.write(line)
+            return body.getvalue()
+
+        def peak_rss_mb() -> float:
+            return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1e6 if sys.platform == "darwin" else 1e3)
+
+        small, large = part(500), part(10_000)  # ~3 MB and ~50 MB uncompressed
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "CREATE FUNCTION slow_staging() RETURNS trigger AS $$ BEGIN PERFORM pg_sleep(0.0002); RETURN NEW; END "
+                "$$ LANGUAGE plpgsql"
+            )
+            cursor.execute(
+                "CREATE TRIGGER slow_staging BEFORE INSERT ON grow_artist_import_staging "
+                "FOR EACH ROW EXECUTE FUNCTION slow_staging()"
+            )
+        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        # psycopg's Linux default, so the check also bites on macOS.
+        with mock.patch("psycopg._copy.PREFER_FLUSH", False):
+            assert self._upload(run_id, 0, small).data["count"] == 500
+            # ponytail: ru_maxrss is a process-wide high-water mark, so an earlier peak can mask growth here.
+            baseline = peak_rss_mb()
+            assert self._upload(run_id, 1, large).data["count"] == 10_000
+
+        assert peak_rss_mb() - baseline < 10
 
     def test_artist_missing_from_run_deleted_unless_credited(self):
         factory = self.model_fixture_factory
