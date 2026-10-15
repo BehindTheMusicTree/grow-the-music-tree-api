@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.9.2] - 2026-10-15
+
+### Fixed
+
+- **Recordings**: `library/recordings/?withTotal=false` returned 400 `invalid_filter` in prod, because `CamelToSnakeMiddleware` rewrites the param to `with_total` before the filterset and pagination see it. `NO_TOTAL_PARAM` is now `with_total`. `tests/settings.py` now shares prod's `MIDDLEWARE` (`grow/middleware_settings.py`), so tests exercise the same query-param rewriting. Test: `tests/integration/track/recording/test_list.py`.
+
 ## [12.9.1] - 2026-10-15
 
 ### Changed
