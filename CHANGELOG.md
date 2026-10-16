@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.3] - 2026-10-16
+
+### Fixed
+
+- **Artists import**: the merge now scales linearly with run size. The old one timed out on 1.87M artists (django-q 14400 s) from `NOT IN` over unindexed temp tables and per-step re-expansion of the JSON arrays. Each array is expanded once into typed, keyed, ANALYZEd temp tables; children are diffed against the desired set (an unchanged re-run deletes and inserts nothing); stale artists are found with `NOT EXISTS`. Test: `tests/integration/artist/test_artist_import_merge_scaling.py` (4x the rows must take under 14x the time, best of two; the old merge took 26x).
+- **Bulk imports**: django-q kills a timed-out merge without running its cleanup, leaking its staging rows and committed run. Creating a run now also sweeps committed runs older than twice the task timeout (a queued run may wait one full merge before it starts). Test: `tests/integration/artist/test_artist_import_runs.py`.
+
+### Changed
+
+- **Bulk imports**: a `LOGGING` config sends the `grow.bulk_import` logger at INFO to the console; every merge step logs its rowcount and duration (`bulk import step <label> rowcount=<n> in <ms> ms`), for songs and artists.
+- **Artists import**: link URLs are capped at 2048 bytes (400 above), so the new `ArtistLink (artist, kind, url)` unique constraint (migration `0055`) stays within a btree key. Identical duplicate memberships collapse to one row only for rows written by the new merge; existing duplicates in the database are not removed.
+
 ## [12.10.2] - 2026-10-15
 
 ### Fixed

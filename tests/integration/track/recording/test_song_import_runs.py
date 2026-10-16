@@ -5,6 +5,7 @@ import uuid
 import pytest
 from django.conf import settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
@@ -48,7 +49,7 @@ class TestImportRunProtocol(AppTestCase):
             run_id=first, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
         )
 
-        committed = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, committed_on="2026-01-01T00:00:00Z")
+        committed = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, committed_on=timezone.now())
         SongImportStaging.objects.create(
             run_id=committed.pk, part=0, musicbrainz_recording_id=MBID, title="t", artist="a", genre_name=None
         )

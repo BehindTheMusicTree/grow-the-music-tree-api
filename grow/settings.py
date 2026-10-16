@@ -61,6 +61,13 @@ CACHES = {
     }
 }
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {"grow.bulk_import": {"handlers": ["console"], "level": "INFO"}},
+}
+
 Q_CLUSTER = {
     "name": "gtmt_api",
     # Default workers = CPU count, which forks one Django process per core on a shared, mem-capped VPS.
