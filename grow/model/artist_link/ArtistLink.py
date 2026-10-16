@@ -24,3 +24,4 @@ class ArtistLink(models.Model):
 
     class Meta:
         db_table = "grow_artist_link"
+        constraints = [models.UniqueConstraint(fields=["artist", "kind", "url"], name="grow_artist_link_unique")]

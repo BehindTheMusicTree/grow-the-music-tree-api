@@ -3,12 +3,14 @@ import io
 import json
 import resource
 import sys
+from datetime import timedelta
 from unittest import mock
 
 import pytest
 from django.conf import settings
 from django.db import connection
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -73,6 +75,21 @@ class TestImportRunProtocol(AppTestCase):
         assert second.status_code == status.HTTP_201_CREATED
         assert sorted(BulkImportRun.objects.values_list("pk", flat=True)) == [songs_run.pk, second.data["run_id"]]
         assert first != second.data["run_id"]
+
+    def test_create_run_sweeps_committed_runs_older_than_task_timeout(self):
+        now = timezone.now()
+        timeout = timedelta(seconds=settings.Q_CLUSTER["timeout"])
+        stale = BulkImportRun.objects.create(
+            kind=ImportRun.Kind.ARTISTS, committed_on=now - timeout - timedelta(hours=1)
+        )
+        young = BulkImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, committed_on=now - timedelta(minutes=1))
+        for run in (stale, young):
+            ArtistImportStaging.objects.create(run_id=run.pk, part=0, musicbrainz_artist_id=BAND, data={})
+
+        new_run = self.api_client.post(path=RUNS).data["run_id"]
+
+        assert sorted(BulkImportRun.objects.values_list("pk", flat=True)) == sorted([young.pk, new_run])
+        assert list(ArtistImportStaging.objects.values_list("run_id", flat=True)) == [young.pk]
 
     def test_commit_other_kind_run_then_404(self):
         songs_run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
@@ -161,6 +178,22 @@ class TestImportRunMerge(AppTestCase):
         assert (band.uuid, band.name) == (band_uuid, "The Pink Floyd")
         assert list(ArtistLink.objects.values_list("kind", flat=True)) == ["wikidata"]
         assert [a.name for a in Album.objects.get().album_artists.all()] == ["The Pink Floyd"]
+
+    def test_unchanged_reimport_keeps_child_rows(self):
+        self._sync([ARTIST, PERSON])
+        before = [
+            sorted(model.objects.values_list("pk", flat=True))
+            for model in (ArtistMembership, ArtistLink, Album.album_artists.through)
+        ]
+
+        self._sync([ARTIST, PERSON])
+
+        after = [
+            sorted(model.objects.values_list("pk", flat=True))
+            for model in (ArtistMembership, ArtistLink, Album.album_artists.through)
+        ]
+        assert after == before
+        assert all(before)
 
     def test_reuploaded_part_replaces_its_rows(self):
         run_id = self.api_client.post(path=RUNS).data["run_id"]

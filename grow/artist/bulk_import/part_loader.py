@@ -12,6 +12,8 @@ from grow.model.artist_link.ArtistLink import ArtistLink
 
 TYPES = set(Artist.Type.values)
 LINK_KINDS = set(ArtistLink.Kind.values)
+# A btree key (artist, kind, url) must stay under ~2.7 kB.
+LINK_URL_LEN_MAX = 2048
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -69,7 +71,11 @@ def _row(line_number: int, line: bytes) -> tuple:
         _require(_is_text_list(member.get("roles")), line_number, "member roles must be a list of strings")
     for link in artist["links"]:
         _require(link.get("kind") in LINK_KINDS, line_number, "unknown link kind")
-        _require(_is_text(link.get("url")), line_number, "link url must be a non-empty string")
+        _require(
+            _is_text(link.get("url"), LINK_URL_LEN_MAX),
+            line_number,
+            f"link url must be a non-empty string of at most {LINK_URL_LEN_MAX} characters",
+        )
     for release_group in artist["release_groups"]:
         _require(_is_mbid(release_group.get("musicbrainz_release_group_id")), line_number, "release group MBID invalid")
         _require(
