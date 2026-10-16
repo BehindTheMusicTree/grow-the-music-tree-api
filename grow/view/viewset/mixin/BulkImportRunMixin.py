@@ -1,6 +1,8 @@
 from collections.abc import Callable
+from datetime import timedelta
 from typing import IO
 
+from django.conf import settings
 from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -38,9 +40,14 @@ def bulk_import_run_actions(
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
         with transaction.atomic():
-            # A new run abandons every uncommitted one of its kind; a committed run's rows stay until its queued
-            # merge drops them.
-            abandoned = BulkImportRun.objects.filter(kind=kind, committed_on__isnull=True)
+            # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
+            # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
+            # because committed_on is the enqueue time and a run can wait one full merge in the single-worker queue
+            # before its own starts; a younger committed run's rows stay until its queued merge drops them.
+            merge_deadline = timezone.now() - timedelta(seconds=2 * settings.Q_CLUSTER["timeout"])
+            abandoned = BulkImportRun.objects.filter(kind=kind).filter(
+                models.Q(committed_on__isnull=True) | models.Q(committed_on__lt=merge_deadline)
+            )
             staging_model._default_manager.filter(run_id__in=abandoned.values("pk")).delete()
             abandoned.delete()
             run = BulkImportRun.objects.create(kind=kind)
