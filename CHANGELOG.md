@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.2] - 2026-10-15
+
+### Fixed
+
+- **Bulk imports**: a large part PUT (a 250k-row, 200 MB artists part) got the gunicorn worker OOM-killed under the 256 MB limit. On Linux psycopg does not flush COPY data, so libpq buffered every row Postgres had not consumed yet, up to the whole part. `copy_part` now waits for each 128 KB chunk to reach the server, so peak memory no longer grows with part size (355 MB part: 388 MB peak RSS before, 110 MB after). Covers songs and artists parts. Test: `tests/integration/artist/test_artist_import_runs.py`.
+
 ## [12.10.1] - 2026-10-15
 
 ### Fixed
