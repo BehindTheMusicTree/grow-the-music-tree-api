@@ -52,10 +52,12 @@ def wait_for_server() -> None:
 
 
 def seed() -> None:
+    exported_on = call("GET", "curation/export/")["exported_on"]
     for fixture in TREES:
         log(f"importing {fixture}")
         with gzip.open(FIXTURES / fixture) as file:
-            call("POST", "genres/tree/import/", file.read(), {"Content-Type": "application/json"})
+            body = json.dumps({**json.load(file), "curationExportedOn": exported_on}).encode()
+        call("POST", "genres/tree/import/", body, {"Content-Type": "application/json"})
     log(f"importing {SONGS}")
     with gzip.open(FIXTURES / SONGS) as file:
         part = gzip.compress(

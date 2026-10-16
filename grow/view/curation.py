@@ -239,15 +239,21 @@ class CurationStatusView(CurationView):
 
 
 class CurationExportView(CurationView):
-    """Every list as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input."""
+    """Every list as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+
+    `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
+    knows which export the imported tree was built from.
+    """
 
     permission_classes = [IsPipelineOrAdmin]
     renderer_classes = [JSONRenderer]
 
     def get(self, request: Request) -> Response:
+        exported_on = timezone.now()
         if request.auth.role == "pipeline":
-            CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": timezone.now()})
-        export: dict[str, list[dict[str, str]]] = {name: [] for name in CURATION_LISTS}
+            CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": exported_on})
+        export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
+        export["exported_on"] = exported_on.isoformat()
         return Response(export)
