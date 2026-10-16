@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from django.db import transaction
+from django.http import QueryDict
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -42,7 +43,8 @@ def _curation_exported_on(request: Request, state: CurationSyncState) -> datetim
 
     A replayed older Gold carries an older export, so edits made since stay pending.
     """
-    value = request.data.pop(CURATION_EXPORTED_ON, None) if isinstance(request.data, dict) else None
+    is_json_object = isinstance(request.data, dict) and not isinstance(request.data, QueryDict)
+    value = request.data.pop(CURATION_EXPORTED_ON, None) if is_json_object else None
     if value is None:
         raise ValidationError({CURATION_EXPORTED_ON: "Required: the curation export this tree was built from"})
     try:

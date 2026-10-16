@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - **Pipeline runs**: kind `sync` (admin-only, never superseded) replays the last complete Gold output into grow, and stages `uploading_artists` and `merging_artists` report the artists import (migration `0056`). Tests: `tests/integration/import_run/test_pipeline_run.py`.
-- **Curation export**: `GET curation/export/` returns `exported_on` (ISO 8601), the instant recorded as the last export.
+- **Curation export**: `GET curation/export/` returns `exported_on` (ISO 8601), the export's instant, recorded as the last export when the pipeline key fetches it.
 
 ### Changed
 
