@@ -78,11 +78,13 @@ class TestImportRunProtocol(AppTestCase):
 
     def test_create_run_sweeps_committed_runs_older_than_task_timeout(self):
         now = timezone.now()
-        timeout = timedelta(seconds=settings.Q_CLUSTER["timeout"])
+        timeout = timedelta(seconds=2 * settings.Q_CLUSTER["timeout"])
         stale = BulkImportRun.objects.create(
             kind=ImportRun.Kind.ARTISTS, committed_on=now - timeout - timedelta(hours=1)
         )
-        young = BulkImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, committed_on=now - timedelta(minutes=1))
+        young = BulkImportRun.objects.create(
+            kind=ImportRun.Kind.ARTISTS, committed_on=now - timedelta(seconds=settings.Q_CLUSTER["timeout"] * 1.5)
+        )
         for run in (stale, young):
             ArtistImportStaging.objects.create(run_id=run.pk, part=0, musicbrainz_artist_id=BAND, data={})
 
