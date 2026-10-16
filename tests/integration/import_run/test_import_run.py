@@ -6,6 +6,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 
 from grow.model.import_run.ImportRun import ImportRun
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.curation_export import export_curation
 
 POP = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
 CANONICAL_TREE = [POP, {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}]
@@ -23,11 +24,10 @@ class TestImportRun(AppTestCase):
         self.pipeline.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
 
     def _import_tree(self, client, tree_name: str, tree: list):
-        return client.post(
-            path=reverse("genre-list") + "tree/import/",
-            data={Fields.TREE_NAME: tree_name, Fields.TREE: tree},
-            format="json",
-        )
+        data = {Fields.TREE_NAME: tree_name, Fields.TREE: tree}
+        if client is self.pipeline:
+            data["curationExportedOn"] = export_curation(client)
+        return client.post(path=reverse("genre-list") + "tree/import/", data=data, format="json")
 
     def _runs(self) -> list[tuple[str, int, int | None]]:
         return list(ImportRun.objects.order_by("pk").values_list("kind", "count", "skipped_count"))

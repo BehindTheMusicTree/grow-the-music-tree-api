@@ -1,6 +1,9 @@
+from datetime import datetime
+
 from django.db import transaction
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
@@ -26,10 +29,29 @@ from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
+CURATION_EXPORTED_ON = "curation_exported_on"
+
 TREE_IMPORT_RUN_KINDS = {
     CriteriaTreeName.CANONICAL: ImportRun.Kind.CANONICAL_TREE,
     CriteriaTreeName.REGIONAL: ImportRun.Kind.REGIONAL_TREE,
 }
+
+
+def _curation_exported_on(request: Request, state: CurationSyncState) -> datetime:
+    """The curation export the imported tree was built from, popped so the tree serializer sees only its own fields.
+
+    A replayed older Gold carries an older export, so edits made since stay pending.
+    """
+    value = request.data.pop(CURATION_EXPORTED_ON, None) if isinstance(request.data, dict) else None
+    if value is None:
+        raise ValidationError({CURATION_EXPORTED_ON: "Required: the curation export this tree was built from"})
+    try:
+        exported_on = serializers.DateTimeField().run_validation(value)
+    except ValidationError as e:
+        raise ValidationError({CURATION_EXPORTED_ON: e.detail}) from e
+    if state.exported_on is None or exported_on > state.exported_on:
+        raise ValidationError({CURATION_EXPORTED_ON: "Later than the last curation export"})
+    return exported_on
 
 
 def _node_count(nodes: list[dict]) -> int:
@@ -51,12 +73,14 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
 
     @action(detail=False, methods=["post"], url_path="tree/import", permission_classes=[IsPipelineOrAdmin])
     def import_tree(self, request):
+        is_pipeline = request.auth.role == "pipeline"
         with transaction.atomic():
+            if is_pipeline:
+                state = CurationSyncState.load()
+                state.applied_export_on = _curation_exported_on(request, state)
             response = super().import_tree(request)
             Genre.objects.assert_required_roots_present(get_request_owner(request))
-            if request.auth.role == "pipeline":
-                state = CurationSyncState.load()
-                state.applied_export_on = state.exported_on
+            if is_pipeline:
                 state.save(update_fields=["applied_export_on"])
                 ImportRun.objects.create(
                     kind=TREE_IMPORT_RUN_KINDS[request.data[Fields.TREE_NAME]],

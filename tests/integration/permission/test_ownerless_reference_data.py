@@ -9,6 +9,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.integration.permission.test_pipeline_scope import TREE_PAYLOAD
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.curation_export import export_curation
 
 
 class TestCase(AppTestCase):
@@ -37,7 +38,8 @@ class TestCase(AppTestCase):
     def test_pipeline_tree_import_then_ownerless_rows(self):
         self.api_client.credentials(HTTP_X_API_KEY="test-api-key")
 
-        response = self.api_client.post(path=reverse("genre-list") + "tree/import/", data=TREE_PAYLOAD)
+        data = {**TREE_PAYLOAD, "curationExportedOn": export_curation(self.api_client)}
+        response = self.api_client.post(path=reverse("genre-list") + "tree/import/", data=data)
 
         assert response.status_code == status.HTTP_201_CREATED
         assert Genre.objects.count() == 2

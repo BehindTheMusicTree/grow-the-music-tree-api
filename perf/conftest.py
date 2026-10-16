@@ -14,6 +14,7 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.utils.AppApiClient import AppApiClient
+from tests.utils.curation_export import export_curation
 
 # Prod Gold exports from the-music-tree-pipelines, pinned so SLOs are measured against fixed data. Refresh: README.
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -35,9 +36,10 @@ def _seed() -> None:
     # Same order, auth and protocol as the nightly sync: songs resolve their genre against the imported trees.
     client = AppApiClient()
     client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
+    exported_on = export_curation(client)
     for fixture in TREES:
         with gzip.open(FIXTURES / fixture) as file:
-            payload = json.load(file)
+            payload = {**json.load(file), "curationExportedOn": exported_on}
         _timed(fixture, lambda payload=payload: client.post(reverse("genre-list") + "tree/import/", payload))
     with gzip.open(FIXTURES / SONGS) as file:
         part = gzip.compress(
