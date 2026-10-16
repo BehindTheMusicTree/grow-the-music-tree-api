@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.10.3] - 2026-10-16
+
 ### Fixed
 
 - **Artists import**: the merge now scales linearly with run size. The old one timed out on 1.87M artists (django-q 14400 s) from `NOT IN` over unindexed temp tables and per-step re-expansion of the JSON arrays. Each array is expanded once into typed, keyed, ANALYZEd temp tables; children are diffed against the desired set (an unchanged re-run deletes and inserts nothing); stale artists are found with `NOT EXISTS`. Test: `tests/integration/artist/test_artist_import_merge_scaling.py` (4x the rows must take under 14x the time, best of two; the old merge took 26x).
