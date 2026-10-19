@@ -1,3 +1,5 @@
+import json
+import uuid
 from collections.abc import Callable
 from datetime import timedelta
 from typing import IO
@@ -13,7 +15,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 
+from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.copy_part import copy_part
 from grow.model.import_run.ImportRun import ImportRun
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -24,12 +28,20 @@ def bulk_import_run_actions(
     staging_model: type[models.Model],
     load_part: Callable[[int, int, IO[bytes]], int],
     merge: Callable[[int, int | None, bool], dict[str, int]],
+    deletion_key: str,
 ) -> tuple[Callable, ...]:
     """
     The bulk import-run protocol actions for one `kind`, to unpack into a viewset body: create a run, upload its
     gzip NDJSON parts, commit it (queues `merge`), poll the merge task. Every path starts with `url_prefix`.
+    A `delta` run also uploads its deleted ids (gzip NDJSON, `{deletion_key: <uuid>}` per line) to `deletions/`.
     """
     runs = f"{url_prefix}import-runs"
+
+    def deletion_row(line_number: int, line: bytes) -> tuple:
+        try:
+            return (str(uuid.UUID(json.loads(line)[deletion_key])),)
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise ValidationError(f"line {line_number}: {deletion_key} must be a UUID ({e})") from e
 
     def uncommitted_run(run_id: str) -> BulkImportRun:
         run = get_object_or_404(BulkImportRun, pk=run_id, kind=kind)
@@ -39,6 +51,9 @@ def bulk_import_run_actions(
 
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
+        mode = request.data.get("mode", BulkImportRun.Mode.FULL)
+        if mode not in BulkImportRun.Mode.values:
+            raise ValidationError(f"mode must be one of {', '.join(BulkImportRun.Mode.values)}")
         with transaction.atomic():
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
@@ -49,8 +64,9 @@ def bulk_import_run_actions(
                 models.Q(committed_on__isnull=True) | models.Q(committed_on__lt=merge_deadline)
             )
             staging_model._default_manager.filter(run_id__in=abandoned.values("pk")).delete()
+            BulkImportDeletion.objects.filter(run_id__in=abandoned.values("pk")).delete()
             abandoned.delete()
-            run = BulkImportRun.objects.create(kind=kind)
+            run = BulkImportRun.objects.create(kind=kind, mode=mode)
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 
     @action(
@@ -63,6 +79,19 @@ def bulk_import_run_actions(
         run = uncommitted_run(run_id)
         # The raw stream, not request.body: a part is far over DATA_UPLOAD_MAX_MEMORY_SIZE.
         count = load_part(run.pk, int(part), request._request)
+        return Response({"count": count})
+
+    @action(
+        detail=False,
+        methods=["put"],
+        url_path=runs + r"/(?P<run_id>\d+)/deletions",
+        permission_classes=[IsPipelineOrAdmin],
+    )
+    def upload_import_run_deletions(self, request, run_id: str):
+        run = uncommitted_run(run_id)
+        if run.mode != BulkImportRun.Mode.DELTA:
+            raise ValidationError("deletions are only accepted by a delta import run")
+        count = copy_part(BulkImportDeletion, ("musicbrainz_id",), deletion_row, run.pk, 0, request._request)
         return Response({"count": count})
 
     @action(
@@ -88,4 +117,4 @@ def bulk_import_run_actions(
             return Response({"status": "success", "result": task.result})
         return Response({"status": "failed", "error": str(task.result)})
 
-    return create_import_run, upload_import_run_part, commit_import_run, import_run_status
+    return create_import_run, upload_import_run_part, upload_import_run_deletions, commit_import_run, import_run_status

@@ -12,10 +12,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-## [12.13.0] - 2026-10-19
+## [12.14.0] - 2026-10-19
 
 ### Added
 
+- Each assign-genre `previous` item carries `undoable` (false when the previous genre has no wikidata id, so no curation list can restore it).
+- Delta mode for the songs and artists import runs: `POST …/import-runs/` accepts `{"mode": "delta"}`, and `PUT …/import-runs/<runId>/deletions/` takes the gzip NDJSON ids to delete. A delta merge upserts only the uploaded rows and deletes only the listed ones (locked tracks and credited artists stay), instead of deleting everything missing from the run, so the nightly sync no longer re-sends the whole catalog. Full mode is unchanged. Postgres integration tests cover both kinds.
+
+### Fixed
+
+- Editing a recording's YouTube video now records the actor and an `UPDATED` history entry.
+- Aliasing a genre to one of its own descendants is rejected with 400 (also in the preview); moved essential tracks are now written as curation rules.
+- `PUT` on a genre only writes summary/essential-tracks rules and locks the genre when those values actually changed. Tests cover each.
+
+## [12.13.0] - 2026-10-19
+
+### Added
 
 - Admin curation endpoints (IsAdmin): `POST library/recordings/assign-genre/` (returns `previous` for Undo), `PATCH library/recordings/{uuid}/` for `youtubeVideoId` / `youtubeUnplayableReason` (YouTube Data API lookup), `GET library/recordings/search/`, `GET genres/{uuid}/link-suggestions/`, `POST`/`DELETE genres/{uuid}/secondary-parents/{parentUuid}/`, `POST genres/{uuid}/alias-of/` with `GET .../alias-of/preview/`, and `summary` / `essentialTracks` on `PUT genres/{uuid}/`. Each edit is recorded as a curation rule so pipeline syncs keep it; integration tests cover each endpoint.
 - Curation lists `recording_genre`, `recording_youtube_video`, `essential_tracks`, `summary_overrides` and `secondary_parents`.

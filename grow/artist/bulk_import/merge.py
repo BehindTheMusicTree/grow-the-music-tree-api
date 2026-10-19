@@ -1,6 +1,7 @@
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.run_steps import run_steps
 from grow.model.import_run.ImportRun import ImportRun
@@ -192,10 +193,15 @@ DIFF_STEPS = [
 ]
 
 
-def _stale_steps(user_id: int | None) -> list[tuple[str, str]]:
+def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
     # `user_id = NULL` never matches and `IS NOT DISTINCT FROM` can't use the user_id index, so the owner filter is
     # picked here.
     owner = "a.user_id IS NULL" if user_id is None else "a.user_id = %(user)s"
+    missing = (
+        "a.musicbrainz_artist_id IN (SELECT musicbrainz_id FROM grow_bulk_import_deletion WHERE run_id = %(run)s)"
+        if delta
+        else "NOT EXISTS (SELECT 1 FROM run_artist r WHERE r.uuid = a.uuid)"
+    )
     return [
         # The artists import owns the reference artists' lifecycle: one missing from the run goes once no track or
         # hand-made (non release-group) album credits it.
@@ -203,7 +209,7 @@ def _stale_steps(user_id: int | None) -> list[tuple[str, str]]:
             "stale_artist",
             f"""CREATE TEMP TABLE stale_artist AS
     SELECT a.uuid FROM grow_artist a
-    WHERE {owner} AND NOT EXISTS (SELECT 1 FROM run_artist r WHERE r.uuid = a.uuid)
+    WHERE {owner} AND {missing}
         AND NOT EXISTS (SELECT 1 FROM the_music_tree_genre_kit_track_artists ta WHERE ta.artist_id = a.uuid)
         AND NOT EXISTS (
             SELECT 1 FROM grow_album_album_artists aa JOIN grow_album al ON al.uuid = aa.album_id
@@ -239,24 +245,27 @@ def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> d
     """
     Merges a committed run's staged artists in one transaction: artists upserted on MBID with their details, their
     memberships, links and release-group albums (with album artists) diffed against the run, and every artist missing
-    from the run deleted once nothing credits it. Run after the songs import so song artists already carry their MBID.
+    from the run (a `delta` run: only the artists it lists) deleted once nothing credits it. Run after the songs import so
+    song artists already carry their MBID.
     """
     try:
         return _merge(run_id, {"run": run_id, "user": user_id}, record)
     finally:
         # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
         ArtistImportStaging.objects.filter(run_id=run_id).delete()
+        BulkImportDeletion.objects.filter(run_id=run_id).delete()
         BulkImportRun.objects.filter(pk=run_id).delete()
 
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
+    delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT EXISTS (SELECT 1 FROM grow_artist_import_staging WHERE run_id = %(run)s)", params)
-        if not cursor.fetchone()[0]:
+        if not delta and not cursor.fetchone()[0]:
             # Artists missing from the run are deleted, so an empty run would wipe every uncredited artist.
             raise ValueError(f"import run {run_id} has no staged artists")
-        run_steps(cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"])], params)
+        run_steps(cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params)
         cursor.execute("SELECT count(*) FROM run_artist")
         (imported,) = cursor.fetchone()
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")

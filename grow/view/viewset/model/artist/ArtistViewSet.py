@@ -29,6 +29,12 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
     def destroy(self, *args, **kwargs):
         return self._handle_destroy()
 
-    create_import_run, upload_import_run_part, commit_import_run, import_run_status = bulk_import_run_actions(
-        "", ImportRun.Kind.ARTISTS, ArtistImportStaging, load_part, merge_artist_import_run
+    (
+        create_import_run,
+        upload_import_run_part,
+        upload_import_run_deletions,
+        commit_import_run,
+        import_run_status,
+    ) = bulk_import_run_actions(
+        "", ImportRun.Kind.ARTISTS, ArtistImportStaging, load_part, merge_artist_import_run, "musicbrainz_artist_id"
     )

@@ -91,8 +91,14 @@ class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
         results = RecordingWithoutPlaylistsSerializer(page, many=True, context=self.get_serializer_context()).data
         return Response({"results": results, "next": str(page[-1].uuid) if has_more else None})
 
-    create_import_run, upload_import_run_part, commit_import_run, import_run_status = bulk_import_run_actions(
-        "songs/", ImportRun.Kind.SONGS, SongImportStaging, load_part, merge_song_import_run
+    (
+        create_import_run,
+        upload_import_run_part,
+        upload_import_run_deletions,
+        commit_import_run,
+        import_run_status,
+    ) = bulk_import_run_actions(
+        "songs/", ImportRun.Kind.SONGS, SongImportStaging, load_part, merge_song_import_run, "musicbrainz_recording_id"
     )
 
 

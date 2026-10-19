@@ -73,3 +73,8 @@ their MBID):
 Creating a run abandons any uncommitted artists run. The merge upserts artists on MBID, replaces their memberships
 (members missing from the database are skipped), links and release-group album credits, and deletes artists missing
 from the run that no track or hand-made album credits. An empty run is rejected.
+
+**Delta runs.** `POST {base}import-runs/` with `{"mode": "delta"}` (default `full`) makes the run carry only changed
+artists. Deleted artists are listed in a gzip NDJSON body of `{musicbrainz_artist_id}` lines sent with
+`PUT {base}import-runs/<runId>/deletions/` before the commit. The merge upserts the run's artists and deletes only the
+listed ones (same credit guards); nothing else is deleted, and a run with no artists is accepted.
