@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.12.0] - 2026-10-19
+
 ### Added
 
 - Admin curation endpoints (IsAdmin): `POST library/recordings/assign-genre/` (returns `previous` for Undo), `PATCH library/recordings/{uuid}/` for `youtubeVideoId` / `youtubeUnplayableReason` (YouTube Data API lookup), `GET library/recordings/search/`, `GET genres/{uuid}/link-suggestions/`, `POST`/`DELETE genres/{uuid}/secondary-parents/{parentUuid}/`, `POST genres/{uuid}/alias-of/` with `GET .../alias-of/preview/`, and `summary` / `essentialTracks` on `PUT genres/{uuid}/`. Each edit is recorded as a curation rule so pipeline syncs keep it; integration tests cover each endpoint.
