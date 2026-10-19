@@ -260,17 +260,26 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
         self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
-        if actor is not None and "essential_tracks" in kwargs:
+        summary_changed = "summary" in kwargs and (kwargs["summary"] or "") != (instance.summary or "")
+        essential_tracks_changed = "essential_tracks" in kwargs and [
+            recording.pk for recording in kwargs["essential_tracks"]
+        ] != self._essential_track_pks(instance)
+        if actor is not None and essential_tracks_changed:
             self._write_essential_tracks_rules(instance, kwargs["essential_tracks"], actor)
         updated = super().update_instance(instance, actor=actor, **kwargs)
         if actor is not None:
-            if "summary" in kwargs:
+            if summary_changed:
                 self._upsert_rule(updated, "summary_overrides", actor, summary=kwargs["summary"] or "")
-            if "summary" in kwargs or "essential_tracks" in kwargs:
+            if summary_changed or essential_tracks_changed:
                 self._lock(updated)
         if was_required_root:
             self.assert_required_roots_present(updated.user)
         return updated
+
+    def _essential_track_pks(self, instance: Genre) -> list[Any]:
+        """In insertion order, the closest the M2M keeps to the order the rules' positions record."""
+        through = self.model.essential_tracks.through
+        return list(through.objects.filter(genre=instance).order_by("pk").values_list("recording_id", flat=True))
 
     def _write_essential_tracks_rules(self, instance: Genre, recordings: list[Any], actor: Any) -> None:
         """The rows are the genre's whole ordered list: a row per recording, and none left for dropped ones."""
@@ -336,6 +345,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             raise self._invalid("genre", "Only a genre without a wikidata id can be an alias")
         if target.wikidata_id is None:
             raise self._invalid("target", "The alias target must have a wikidata id")
+        if source.descendants_rels.filter(descendant=target).exists():
+            raise self._invalid("target", "The alias target can't be a descendant of the alias; it would loop the tree")
         return {
             "recordings": self._recordings_of(source).count(),
             "essential_tracks": source.essential_tracks.count(),
@@ -355,7 +366,10 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         for recording in list(self._recordings_of(source)):
             type(recording).objects.update_instance(recording, actor=actor, genre=target)
-        target.essential_tracks.add(*source.essential_tracks.all())
+        pks = self._essential_track_pks(target)
+        pks += [pk for pk in self._essential_track_pks(source) if pk not in pks]
+        recordings = self.model.essential_tracks.field.related_model.objects.in_bulk(pks)
+        self.update_instance(target, actor=actor, essential_tracks=[recordings[pk] for pk in pks])
         for child in list(self.filter(parent=source)):
             self.update_instance(child, actor=actor, parent=target)
         self.delete_instance(source, actor=actor)
