@@ -10,6 +10,8 @@ from grow.curation.rows import lock_writes
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.recording.Recording import Recording
 from grow.youtube import YoutubeLookupError, fetch_unplayable_reason
 
@@ -35,14 +37,22 @@ class RecordingCurationManager:
 
     @transaction.atomic
     def assign_genre(self, recordings: list[Recording], genre: Genre | None, actor: Any) -> list[dict[str, Any]]:
-        """Links, moves or (genre None) unlinks recordings; returns each one's previous genre uuid for Undo."""
+        """Links, moves or (genre None) unlinks recordings; returns each one's previous genre uuid for Undo, which
+        can't restore a genre without a wikidata id since no curation list names it (`undoable` false)."""
         lock_writes(CurationEntry.objects.all())
         if genre is not None and genre.wikidata_id is None:
             raise invalid("genre", "Only a wikidata-backed genre can be assigned; no curation list names the others")
         keys = [self._stable_key(recording) for recording in recordings]
         previous = []
         for recording, key in zip(recordings, keys, strict=True):
-            previous.append({"uuid": recording.uuid, "genre": recording.genre.uuid if recording.genre else None})
+            old = recording.genre
+            previous.append(
+                {
+                    "uuid": recording.uuid,
+                    "genre": old.uuid if old else None,
+                    "undoable": old is None or old.genre.wikidata_id is not None,
+                }
+            )
             upsert_admin_rule(
                 "recording_genre",
                 {
@@ -81,11 +91,15 @@ class RecordingCurationManager:
         )
         if video_id is None:
             reason = None
-        if (video_id, reason) == (recording.youtube_video_id, recording.youtube_unplayable_reason):
+        old_video_id = recording.youtube_video_id
+        if (video_id, reason) == (old_video_id, recording.youtube_unplayable_reason):
             updated = recording
         else:
             updated = Recording.objects.update_instance(
-                recording, youtube_video_id=video_id, youtube_unplayable_reason=reason
+                recording, actor=actor, youtube_video_id=video_id, youtube_unplayable_reason=reason
+            )
+            HistoryEntry.objects.record(
+                updated, action=HistoryAction.UPDATED, actor=actor, old_value=old_video_id, new_value=video_id
             )
         updated.is_manually_edited = True
         updated.save(update_fields=["is_manually_edited"])

@@ -6,6 +6,8 @@ from rest_framework import status
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.recording.Recording import Recording
 from grow.youtube import YoutubeLookupError
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
@@ -49,7 +51,7 @@ class TestCase(AppTestCase):
         response = self._assign([recording], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(recording.uuid), "genre": None}]
+        assert response.json()["previous"] == [{"uuid": str(recording.uuid), "genre": None, "undoable": True}]
         recording.refresh_from_db()
         assert recording.genre.pk == rock.pk
         assert recording.is_manually_edited
@@ -73,12 +75,20 @@ class TestCase(AppTestCase):
         previous = self._assign([a, b], jazz).json()["previous"]
 
         assert previous == [
-            {"uuid": str(a.uuid), "genre": str(rock.uuid)},
-            {"uuid": str(b.uuid), "genre": None},
+            {"uuid": str(a.uuid), "genre": str(rock.uuid), "undoable": True},
+            {"uuid": str(b.uuid), "genre": None, "undoable": True},
         ]
         self._assign([a], rock)
         a.refresh_from_db()
         assert a.genre.pk == rock.pk
+
+    def test_assign_genre_from_genre_without_wikidata_id_then_not_undoable(self):
+        local = self.model_fixture_factory.create_genre("Local")
+        recording = self._recording("A", local)
+
+        previous = self._assign([recording], self._rock()).json()["previous"]
+
+        assert previous == [{"uuid": str(recording.uuid), "genre": str(local.uuid), "undoable": False}]
 
     def test_assign_genre_without_musicbrainz_id_then_400_and_nothing_written(self):
         rock = self._rock()
@@ -96,6 +106,7 @@ class TestCase(AppTestCase):
 
     def test_patch_video_then_rule_row_and_youtube_called(self):
         recording = self._recording(genre=self._rock())
+        old_video_id = recording.youtube_video_id
 
         with patch(FETCH, return_value="not_embeddable") as fetch:
             response = self.api_client.patch(
@@ -107,6 +118,8 @@ class TestCase(AppTestCase):
         recording.refresh_from_db()
         assert (recording.youtube_video_id, recording.youtube_unplayable_reason) == ("abc", "not_embeddable")
         assert recording.is_manually_edited
+        entry = HistoryEntry.objects.get(action=HistoryAction.UPDATED)
+        assert (entry.actor, entry.old_value, entry.new_value) == (self.admin, old_video_id, "abc")
         [rule] = self._rule("recording_youtube_video")
         assert rule["youtube_video_id"] == "abc"
         assert rule["unplayable_reason"] == ""
@@ -305,6 +318,23 @@ class TestCase(AppTestCase):
         assert list(target.essential_tracks.all()) == [Recording.objects.get(pk=recording.pk)]
         [rule] = self._rule("genre_alias")
         assert (rule["key"], rule["wikidata_genre_name"]) == ("alt rock", "Alternative rock")
+        assert [r["key"] for r in self._rule("essential_tracks")] == [f"Q11366\t{MB_ID}"]
+
+    def test_alias_of_descendant_then_400(self):
+        root = self.model_fixture_factory.create_genre("Music", wikidata_id="Q638")
+        source = self.model_fixture_factory.create_genre("alt rock", parent=root)
+        descendant = self.model_fixture_factory.create_genre("Sub", wikidata_id="Q1", parent=source)
+
+        response = self.api_client.post(
+            reverse("genre-alias-of", kwargs={"pk": source.uuid}), {"target": str(descendant.uuid)}, format="json"
+        )
+        preview = self.api_client.get(
+            reverse("genre-alias-of-preview", kwargs={"pk": source.uuid}), {"target": str(descendant.uuid)}
+        )
+
+        assert response.status_code == preview.status_code == status.HTTP_400_BAD_REQUEST
+        assert Genre.objects.filter(pk=source.pk).exists()
+        assert not CurationEntry.objects.filter(list_name="genre_alias").exists()
 
     def test_alias_of_not_allowed_then_400(self):
         wikidata = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q11399")
@@ -351,6 +381,24 @@ class TestCase(AppTestCase):
         self.api_client.put(url, {"essentialTracks": [str(a.uuid)]}, format="json")
 
         assert [r["key"].split("\t")[1] for r in self._rule("essential_tracks")] == [str(a.musicbrainz_recording_id)]
+
+    def test_put_unchanged_then_no_rule_and_no_lock(self):
+        genre = self._rock()
+        a = self._recording("A", genre)
+        genre.essential_tracks.add(a)
+        genre.summary = "Loud."
+        genre.save(update_fields=["summary"])
+
+        response = self.api_client.put(
+            reverse("genre-detail", kwargs={"pk": genre.uuid}),
+            {"summary": "Loud.", "essentialTracks": [str(a.uuid)]},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        genre.refresh_from_db()
+        assert not genre.is_manually_edited
+        assert not CurationEntry.objects.filter(list_name__in=["summary_overrides", "essential_tracks"]).exists()
 
     def test_put_essential_track_without_musicbrainz_id_then_400(self):
         genre = self._rock()
