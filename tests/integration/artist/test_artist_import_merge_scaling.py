@@ -4,6 +4,8 @@ import pytest
 from django.db import connection
 
 from grow.artist.bulk_import.merge import merge_artist_import_run
+from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.model.import_run.ImportRun import ImportRun
 from tests.utils.AppTestCase import AppTestCase
 
 SIZE = 4000
@@ -45,6 +47,7 @@ FROM generate_series(1, %(count)s) i
 @pytest.mark.postgres
 class TestArtistMergeScaling(AppTestCase):
     def _timed_merge(self, run_id: int, count: int) -> float:
+        BulkImportRun.objects.create(pk=run_id, kind=ImportRun.Kind.ARTISTS)
         with connection.cursor() as cursor:
             cursor.execute(STAGE_RUN, {"run": run_id, "count": count})
             cursor.execute(PRE_EXISTING, {"run": run_id, "count": count // 4})
