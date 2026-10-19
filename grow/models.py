@@ -3,6 +3,7 @@ from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.track.Track import Track
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
@@ -34,6 +35,7 @@ __all__ = [
     "ArtistImportStaging",
     "ArtistLink",
     "ArtistMembership",
+    "BulkImportDeletion",
     "BulkImportRun",
     "Criteria",
     "CriteriaLineageRel",

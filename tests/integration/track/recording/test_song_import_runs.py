@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
+from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.artist.Artist import Artist
 from grow.model.import_run.ImportRun import ImportRun
@@ -59,6 +60,33 @@ class TestImportRunProtocol(AppTestCase):
         assert sorted(BulkImportRun.objects.values_list("pk", flat=True)) == [committed.pk, second]
         assert list(SongImportStaging.objects.values_list("run_id", flat=True)) == [committed.pk]
 
+    def test_create_run_with_unknown_mode_then_400(self):
+        assert self.api_client.post(path=RUNS, data={"mode": "partial"}).status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_deletions_on_full_run_then_400(self):
+        run_id = self._create_run()
+
+        response = self.api_client.put(
+            path=f"{RUNS}{run_id}/deletions/", data=b"", format=None, content_type="application/x-ndjson"
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.postgres
+    def test_invalid_deletion_then_400_and_nothing_staged(self):
+        run_id = self.api_client.post(path=RUNS, data={"mode": "delta"}).data["run_id"]
+
+        for body in (b"not gzip", _gzip_ndjson([{"musicbrainz_recording_id": "nope"}]), _gzip_ndjson([{"id": MBID}])):
+            response = self.api_client.put(
+                path=f"{RUNS}{run_id}/deletions/",
+                data=body,
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not BulkImportDeletion.objects.exists()
+
     def test_commit_unknown_run_then_404(self):
         assert self.api_client.post(path=f"{RUNS}999/commit/").status_code == status.HTTP_404_NOT_FOUND
 
@@ -105,13 +133,26 @@ class TestImportRunMerge(AppTestCase):
             HTTP_CONTENT_ENCODING="gzip",
         )
 
-    def _sync(self, *parts: list[dict], client=None) -> dict:
+    def _upload_deletions(self, run_id: int, deleted: tuple[str, ...], client=None):
+        body = _gzip_ndjson([{"musicbrainz_recording_id": mbid} for mbid in deleted])
+        return (client or self.api_client).put(
+            path=f"{RUNS}{run_id}/deletions/",
+            data=body,
+            format=None,
+            content_type="application/x-ndjson",
+            HTTP_CONTENT_ENCODING="gzip",
+        )
+
+    def _sync(self, *parts: list[dict], client=None, mode: str = "full", deleted: tuple[str, ...] = ()) -> dict:
         client = client or self.api_client
-        run_id = client.post(path=RUNS).data["run_id"]
+        run_id = client.post(path=RUNS, data={"mode": mode}).data["run_id"]
         for part, songs in enumerate(parts):
             response = self._upload(run_id, part, _gzip_ndjson(songs), client)
             assert response.status_code == status.HTTP_200_OK, response.content
             assert response.data["count"] == len(songs)
+        if deleted:
+            response = self._upload_deletions(run_id, deleted, client)
+            assert response.status_code == status.HTTP_200_OK, response.content
         response = client.post(path=f"{RUNS}{run_id}/commit/")
         assert response.status_code == status.HTTP_202_ACCEPTED
         task = self.api_client.get(path=reverse("recording-list") + f"songs/import/{response.data['task_id']}/status/")
@@ -284,6 +325,39 @@ class TestImportRunMerge(AppTestCase):
         assert titles == ["Comfortably Numb", "Locked absent", "Renamed"]
         locked.refresh_from_db()
         assert (locked.title, locked.genre_id) == ("Renamed", pop.pk)
+
+    def test_delta_run_upserts_without_deleting_unlisted_tracks(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_recording(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")
+
+        self._sync([SONG], mode="delta")
+        result = self._sync([{**SONG, "title": "Renamed"}], mode="delta")
+
+        assert result == {"imported": 1, "skipped": 0}
+        assert sorted(Recording.objects.values_list("title", flat=True)) == ["Renamed", "Unlisted"]
+
+    def test_delta_run_deletes_only_listed_unlocked_tracks(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        third = "5d2f8f7e-1f0a-4a3b-8f7e-0a1b2c3d4e5f"
+        self._sync(
+            [
+                SONG,
+                {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": "othervideo1"},
+                {**SONG, "musicbrainz_recording_id": third, "title": "Third", "youtube_video_id": "thirdvideo1"},
+            ]
+        )
+        Recording.objects.filter(musicbrainz_recording_id=OTHER_MBID).update(is_manually_edited=True)
+        self.model_fixture_factory.create_recording(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")
+
+        self._sync([], mode="delta", deleted=(MBID, OTHER_MBID))
+
+        assert sorted(Recording.objects.values_list("title", flat=True)) == ["Other", "Third", "Unlisted"]
+
+    def test_delta_run_with_nothing_to_do_succeeds(self):
+        self.model_fixture_factory.create_recording(title="Kept", genre=None)
+
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert Recording.objects.count() == 1
 
     def test_legacy_track_adopted_by_video_id(self):
         rock = self.model_fixture_factory.create_genre("Rock")

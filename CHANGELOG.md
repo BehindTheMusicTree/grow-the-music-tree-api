@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Delta mode for the songs and artists import runs: `POST …/import-runs/` accepts `{"mode": "delta"}`, and `PUT …/import-runs/<runId>/deletions/` takes the gzip NDJSON ids to delete. A delta merge upserts only the uploaded rows and deletes only the listed ones (locked tracks and credited artists stay), instead of deleting everything missing from the run, so the nightly sync no longer re-sends the whole catalog. Full mode is unchanged. Postgres integration tests cover both kinds.
+
 ## [12.13.0] - 2026-10-19
 
 ### Added
