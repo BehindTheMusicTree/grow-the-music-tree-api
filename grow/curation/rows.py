@@ -34,6 +34,10 @@ class InvalidRow(ValueError):
         self.errors = errors
 
 
+class RowConflict(ValueError):
+    """A valid row clashing with other entries: same key, exclusive lists, a precedence cycle or a second pop child."""
+
+
 @dataclass(frozen=True)
 class ParsedRow:
     key: str
@@ -207,6 +211,26 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     if pop_child_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[-1]: pop_child_error})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
+
+
+def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> ParsedRow:
+    """Validates `row` for creating an entry in `entries`, or replacing the one at `exclude_pk`.
+
+    Raises `InvalidRow` or `RowConflict`."""
+    parsed = parse_row(list_name, row)
+    lock_writes(entries)
+    if entries.filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
+        raise RowConflict(f"An entry with this key already exists in {list_name}")
+    conflict = find_exclusivity_conflict(entries, list_name, parsed.key, exclude_pk)
+    if conflict:
+        raise RowConflict(f"{parsed.key} is already in {conflict}; these lists are mutually exclusive")
+    cycle = find_precedence_cycle(entries, list_name, parsed.key, exclude_pk)
+    if cycle:
+        raise RowConflict(precedence_cycle_error(cycle))
+    pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key, exclude_pk)
+    if pop_child_error:
+        raise RowConflict(pop_child_error)
+    return parsed
 
 
 def upsert_without_history(model: type[models.Model], list_name: str, row: dict[str, Any]) -> UpsertResult:

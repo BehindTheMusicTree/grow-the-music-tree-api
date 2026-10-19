@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Curation Wikidata resolutions**: `POST curation/wikidata-resolutions/` (`X-API-Key` or admin) remaps curation entries whose item id Wikidata redirected, with history (null actor), and stores the ids the pipeline couldn't resolve (redirect conflict, deleted, not in tree) as review items, replaced on each report (model `CurationReviewItem`, migration `0057`). `GET curation/review/` (admin) lists them. Tests: `tests/integration/curation/test_wikidata_resolutions.py`.
+
 ## [12.11.0] - 2026-10-19
 
 ### Added
