@@ -270,8 +270,8 @@ class TestImportRunMerge(AppTestCase):
         factory = self.model_fixture_factory
         credited = factory.create_artist("Credited", musicbrainz_artist_id=OTHER)
         factory.create_recording(title="Song", genre=None, artists=[credited])
-        factory.create_artist("Unlisted")
         self._sync([ARTIST, PERSON])
+        factory.create_artist("Unlisted")
 
         result = self._sync([{**PERSON, "name": "Waters"}], mode="delta", deleted=(BAND, OTHER))
 
