@@ -46,6 +46,7 @@ services:
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-dev-only-youtube-key}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -83,6 +84,7 @@ services:
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-dev-only-youtube-key}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}

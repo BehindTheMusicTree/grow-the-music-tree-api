@@ -75,6 +75,7 @@ Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `p
 | `SECRET_KEY`             | yes      | —         | Django secret key                                                                                          |
 | `PIPELINE_API_KEY`           | yes      | —         | Static API key checked against the `X-API-Key` header                                                      |
 | `GOOGLE_OAUTH_CLIENT_ID` | yes      | —         | Google OAuth client ID; the expected `aud` of Google ID tokens                                             |
+| `YOUTUBE_API_KEY`        | yes      | —         | YouTube Data API key checking a manually set recording video (`PATCH library/recordings/{uuid}/`); startup fails without it |
 | `ADMIN_GOOGLE_SUB`       | yes      | —         | Google account `sub` that gets the `admin` role; any other verified Google account is a read-only `viewer` |
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
 | `DEBUG`                  | no       | `false`   |                                                                                                            |
