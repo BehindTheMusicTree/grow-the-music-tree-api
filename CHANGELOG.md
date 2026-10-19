@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- `regional_secondary_parents` is merged into `secondary_parents` (migration 0057 moves existing rows).
+- `regional_secondary_parents` is merged into `secondary_parents` (migration 0058 moves existing rows).
 
 ## [12.11.0] - 2026-10-19
 

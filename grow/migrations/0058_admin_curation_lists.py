@@ -15,7 +15,7 @@ def move_to_secondary_parents(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("grow", "0056_pipeline_run_sync_kind_artists_stages"),
+        ("grow", "0057_curation_review_item"),
     ]
 
     operations = [
