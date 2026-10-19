@@ -7,6 +7,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.curation_export import export_curation
 
 TREE_PAYLOAD = {
     Fields.TREE_NAME: "canonical",
@@ -18,8 +19,8 @@ TREE_PAYLOAD = {
 
 
 class TestCase(AppTestCase):
-    def _tree_import(self):
-        return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=TREE_PAYLOAD)
+    def _tree_import(self, data=TREE_PAYLOAD):
+        return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=data)
 
     def _songs_import(self):
         return self.api_client.post(path=reverse("recording-list") + "songs/import-runs/")
@@ -30,7 +31,9 @@ class TestCase(AppTestCase):
     def test_api_key_tree_import_then_201(self):
         self._use_api_key()
 
-        assert self._tree_import().status_code == status.HTTP_201_CREATED
+        data = {**TREE_PAYLOAD, "curationExportedOn": export_curation(self.api_client)}
+
+        assert self._tree_import(data).status_code == status.HTTP_201_CREATED
 
     def test_api_key_songs_import_run_then_201(self):
         self._use_api_key()
