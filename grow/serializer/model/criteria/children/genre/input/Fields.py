@@ -3,3 +3,4 @@ from grow.serializer.model.criteria.input.Fields import Fields as CriteriaInputF
 
 class Fields(CriteriaInputFields):
     ESSENTIAL_TRACKS = "essential_tracks"
+    SUMMARY = "summary"

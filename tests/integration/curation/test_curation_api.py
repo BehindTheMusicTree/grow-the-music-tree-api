@@ -117,8 +117,14 @@ class TestCase(AppTestCase):
             {**ITEM, "item_id": "Q999999992", "parent_item_id": "Q999999991", "exclude_other_parents": False},
             "main_parent",
         )
-        row = {"item_id": "Q999999993", "item_label": "x", "parent_id": "Q999999991", "parent_label": "Rock"}
-        self._create({**row, "reason": "r"}, "regional_secondary_parents")
+        row = {
+            "item_id": "Q999999993",
+            "item_label": "x",
+            "parent_id": "Q999999991",
+            "parent_label": "Rock",
+            "action": "add",
+        }
+        self._create({**row, "reason": "r"}, "secondary_parents")
         self._create({**ITEM, "item_id": "Q9999999910"})
 
         response = self.api_client.get(path=reverse("curation-rules"), data={"item_id": "Q999999991"})
@@ -126,7 +132,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert [(r["listName"], r["row"]["item_id"]) for r in response.json()["results"]] == [
             ("main_parent", "Q999999992"),
-            ("regional_secondary_parents", "Q999999993"),
+            ("secondary_parents", "Q999999993"),
             ("theme_genres", "Q999999991"),
         ]
         assert response.json()["labels"] == {"Q999999991": "Rock"}

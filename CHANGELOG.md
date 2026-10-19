@@ -12,10 +12,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+
+- Admin curation endpoints (IsAdmin): `POST library/recordings/assign-genre/` (returns `previous` for Undo), `PATCH library/recordings/{uuid}/` for `youtubeVideoId` / `youtubeUnplayableReason` (YouTube Data API lookup), `GET library/recordings/search/`, `GET genres/{uuid}/link-suggestions/`, `POST`/`DELETE genres/{uuid}/secondary-parents/{parentUuid}/`, `POST genres/{uuid}/alias-of/` with `GET .../alias-of/preview/`, and `summary` / `essentialTracks` on `PUT genres/{uuid}/`. Each edit is recorded as a curation rule so pipeline syncs keep it; integration tests cover each endpoint.
+- Curation lists `recording_genre`, `recording_youtube_video`, `essential_tracks`, `summary_overrides` and `secondary_parents`.
+- Required `YOUTUBE_API_KEY` setting (fails fast when missing).
+
+### Changed
+
+- `regional_secondary_parents` is merged into `secondary_parents` (migration 0058 moves existing rows).
+
 ## [12.12.0] - 2026-10-19
 
 ### Added
-
 - **Curation Wikidata resolutions**: `POST curation/wikidata-resolutions/` (`X-API-Key` or admin) remaps curation entries whose item id Wikidata redirected, with history (null actor), and stores the ids the pipeline couldn't resolve (redirect conflict, deleted, not in tree) as review items, replaced on each report (model `CurationReviewItem`, migration `0057`). `GET curation/review/` (admin) lists them. Tests: `tests/integration/curation/test_wikidata_resolutions.py`.
 
 ## [12.11.0] - 2026-10-19

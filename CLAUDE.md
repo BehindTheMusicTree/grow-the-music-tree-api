@@ -34,9 +34,9 @@ uv run manage.py runserver
 
 - **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
-- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB` all dummy values are fine, e.g.:
+- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB`, `YOUTUBE_API_KEY` all dummy values are fine, e.g.:
   ```bash
-  SECRET_KEY=x PIPELINE_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x uv run mypy grow
+  SECRET_KEY=x PIPELINE_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x YOUTUBE_API_KEY=x uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
 - **Perf:** `PERF_DATABASE_URL=postgres://... uv run pytest perf --no-cov -s --ds=perf.settings --reuse-db`. Latency SLOs on Postgres, seeded from the pinned prod Gold exports in `perf/fixtures/` through the real import endpoints (seed takes about 1 min, `--reuse-db` skips it). Query budgets live in `tests/integration/perf/` and run in plain `pytest`. Prod, tests and perf share `grow/rest_framework_settings.py`: request bodies and `response.json()` keys are camelCase, `response.data` stays snake_case, and query params stay snake_case (tests lack prod's `CamelToSnakeMiddleware`). CI job `Perf`.

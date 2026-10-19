@@ -4,8 +4,9 @@ from typing import Literal
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
-ITEM_ID_COLUMNS = frozenset({"item_id", "parent_item_id", "overview_item_id", "parent_id"})
+ITEM_ID_COLUMNS = frozenset({"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
+OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary"})
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
 """`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
@@ -92,11 +93,35 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_genre_name", "wikidata_genre_name", "reason"),
         "MusicBrainz genre names matched to a differently named Wikidata genre.",
     ),
-    "regional_secondary_parents": CurationList(
+    "secondary_parents": CurationList(
         "gold",
         ("item_id", "parent_id"),
-        ("item_id", "item_label", "parent_id", "parent_label", "reason"),
-        "Extra parent edges of a regional item exported as secondary rather than primary parents.",
+        ("item_id", "item_label", "parent_id", "parent_label", "action", "reason"),
+        "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
+    ),
+    "recording_genre": CurationList(
+        "musicbrainz",
+        ("musicbrainz_recording_id",),
+        ("musicbrainz_recording_id", "recording_label", "genre_item_id", "reason"),
+        "Genre an admin assigned to a recording, overriding its MusicBrainz tags.",
+    ),
+    "recording_youtube_video": CurationList(
+        "musicbrainz",
+        ("musicbrainz_recording_id",),
+        ("musicbrainz_recording_id", "youtube_video_id", "unplayable_reason", "reason"),
+        "YouTube video an admin set on a recording, with the unplayable reason when it can't be played.",
+    ),
+    "essential_tracks": CurationList(
+        "gold",
+        ("item_id", "musicbrainz_recording_id"),
+        ("item_id", "musicbrainz_recording_id", "position", "reason"),
+        "Recordings an admin picked as essential for a genre, in order.",
+    ),
+    "summary_overrides": CurationList(
+        "gold",
+        ("item_id",),
+        ("item_id", "summary", "reason"),
+        "Genre summary an admin wrote, overriding the Wikipedia one.",
     ),
     "genre_precedence": CurationList(
         "musicbrainz",

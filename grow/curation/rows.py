@@ -17,6 +17,7 @@ from grow.curation.lists import (
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
+    OPTIONAL_COLUMNS,
     PARENT_RULE_COLUMNS,
 )
 
@@ -70,6 +71,9 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
                 parsed[column] = _parse_bool(value)
             except ValueError:
                 errors[column] = "Must be a boolean"
+            continue
+        if column in OPTIONAL_COLUMNS and (value is None or value == ""):
+            parsed[column] = ""
             continue
         if not isinstance(value, str) or not value.strip():
             errors[column] = "Required"
