@@ -9,8 +9,10 @@ from grow.view.curation import (
     CurationExportView,
     CurationHistoryView,
     CurationListsView,
+    CurationReviewView,
     CurationRulesView,
     CurationStatusView,
+    CurationWikidataResolutionsView,
 )
 from grow.view.health import HealthCheckView
 from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
@@ -58,6 +60,12 @@ urlpatterns += [
     path(f"{settings.API_ROOT_BASE}curation/status/", CurationStatusView.as_view(), name="curation-status"),
     path(f"{settings.API_ROOT_BASE}curation/rules/", CurationRulesView.as_view(), name="curation-rules"),
     path(f"{settings.API_ROOT_BASE}curation/export/", CurationExportView.as_view(), name="curation-export"),
+    path(f"{settings.API_ROOT_BASE}curation/review/", CurationReviewView.as_view(), name="curation-review"),
+    path(
+        f"{settings.API_ROOT_BASE}curation/wikidata-resolutions/",
+        CurationWikidataResolutionsView.as_view(),
+        name="curation-wikidata-resolutions",
+    ),
     path(
         f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/",
         CurationEntriesView.as_view(),
