@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.14.0] - 2026-10-19
+
 ### Added
 
 - Each assign-genre `previous` item carries `undoable` (false when the previous genre has no wikidata id, so no curation list can restore it).
