@@ -253,7 +253,7 @@ class TestCase(AppTestCase):
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
-        assert set(export) == set(CURATION_LISTS)
+        assert set(export) == {*CURATION_LISTS, "exported_on"}
         row = next(r for r in export["main_parent"] if r["item_id"] == ITEM["item_id"])
         assert list(row) == list(CURATION_LISTS["main_parent"].columns)
         assert row["exclude_other_parents"] == ""

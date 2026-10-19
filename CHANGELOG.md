@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Pipeline runs**: kind `sync` (admin-only, never superseded) replays the last complete Gold output into grow, and stages `uploading_artists` and `merging_artists` report the artists import (migration `0056`). Tests: `tests/integration/import_run/test_pipeline_run.py`.
+- **Curation export**: `GET curation/export/` returns `exported_on` (ISO 8601), the export's instant, recorded as the last export when the pipeline key fetches it.
+
+### Changed
+
+- **Genre tree import**: an `X-API-Key` import requires `curationExportedOn`, the curation export its Gold was built from, and sets `applied_export_on` to it, so replaying an older Gold leaves later edits pending. 400 if missing, unparseable or later than the last export. Admin imports are unchanged. Tests: `tests/integration/curation/test_curation_status.py`.
+
 ## [12.10.3] - 2026-10-16
 
 ### Fixed

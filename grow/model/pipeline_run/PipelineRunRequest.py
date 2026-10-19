@@ -11,12 +11,13 @@ class PipelineRunRequest(models.Model):
     """A pipeline run request, claimed and executed by the pipeline's poller one at a time.
 
     `curation` rebuilds the canonical tree and songs from current curation; `full` is the nightly run or an
-    admin-requested full ingestion. `trigger` records the origin: `manual` (by `requested_by`) or `scheduled`.
+    admin-requested full ingestion; `sync` (admin-only) replays the last complete Gold output into grow. `trigger` records the origin: `manual` (by `requested_by`) or `scheduled`.
     """
 
     class Kind(models.TextChoices):
         CURATION = "curation"
         FULL = "full"
+        SYNC = "sync"
 
     class Trigger(models.TextChoices):
         MANUAL = "manual"
@@ -41,6 +42,8 @@ class PipelineRunRequest(models.Model):
         IMPORTING_TREE = "importing_tree"
         UPLOADING_SONGS = "uploading_songs"
         MERGING_SONGS = "merging_songs"
+        UPLOADING_ARTISTS = "uploading_artists"
+        MERGING_ARTISTS = "merging_artists"
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     kind = models.TextField(choices=Kind.choices)

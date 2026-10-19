@@ -12,6 +12,7 @@ from grow.authentication.Principal import Principal
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 from tests.utils.AppApiClient import ADMIN_EMAIL
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.curation_export import export_curation
 
 ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
 TREE = {
@@ -33,8 +34,8 @@ class TestPipelineRun(AppTestCase):
         assert response.status_code == status.HTTP_201_CREATED, response.content
 
     def _nightly_applies_everything(self) -> None:
-        assert self.pipeline.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
-        response = self.pipeline.post(path=reverse("genre-list") + "tree/import/", data=TREE, format="json")
+        data = {**TREE, "curationExportedOn": export_curation(self.pipeline)}
+        response = self.pipeline.post(path=reverse("genre-list") + "tree/import/", data=data, format="json")
         assert response.status_code == status.HTTP_201_CREATED, response.content
 
     def _post(self, kind: str):
@@ -170,6 +171,23 @@ class TestPipelineRun(AppTestCase):
         claimed = self._claim().json()
 
         assert (claimed["uuid"], claimed["kind"], claimed["status"]) == (uuid, "full", "running")
+
+    def test_sync_requested_with_nothing_pending_and_claimed_normally(self):
+        uuid = self._request("sync")["uuid"]
+
+        claimed = self._claim().json()
+
+        assert (claimed["uuid"], claimed["kind"], claimed["status"]) == (uuid, "sync", "running")
+        for stage in ("uploading_artists", "merging_artists"):
+            response = self._patch(uuid, {"stage": stage})
+            assert response.status_code == status.HTTP_200_OK, response.content
+            assert response.json()["stage"] == stage
+
+    def test_pipeline_key_sync_rejected(self):
+        response = self.pipeline.post(path=reverse("pipeline-runs"), data={"kind": "sync"}, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not PipelineRunRequest.objects.exists()
 
     def test_cancel_queued(self):
         uuid = self._request("full")["uuid"]

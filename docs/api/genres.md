@@ -70,6 +70,11 @@ with `manage.py set_user_pseudo <email> <pseudo>`.
 Body: `{"treeName": "canonical"|"regional", "tree": [...]}`. `treeName` is required. Only
 `regional` nodes may carry several `primaryParents`.
 
+An `X-API-Key` import also requires `curationExportedOn` (ISO 8601): the curation export's
+`exported_on` the tree was built from. It becomes the applied export, so curation edits made after
+it stay pending. 400 if missing, unparseable, or later than the last curation export. Admin imports
+must not send it.
+
 Each node may carry an optional `id` (a Wikidata QID, e.g. `"Q9778"`). Nodes with an `id` are
 matched against existing genres by `id` and updated in place; nodes without one are always
 created as new genres. Existing genres with no `id` are never touched by import. `id` is not
