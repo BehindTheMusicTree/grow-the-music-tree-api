@@ -3,7 +3,7 @@ from typing import Any
 
 from django.db import transaction
 
-from grow.curation.rows import InvalidRow, RowConflict, check_edit
+from grow.curation.rows import InvalidRow, RowConflict, check_edit, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 
@@ -14,6 +14,7 @@ def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[s
     with `review` plus the remaps clashing with another entry. A remap whose entry or `from` id is gone is skipped:
     an admin already fixed it."""
     entries = CurationEntry.objects.filter(user=None)
+    lock_writes(entries)
     review = list(review)
     by_entry: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for remap in remaps:
