@@ -6,8 +6,9 @@ from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
+from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.lists import CURATION_LISTS, EXCLUDED_GENRE_LISTS
-from grow.curation.rows import InvalidRow, find_parent_rule, lock_writes
+from grow.curation.rows import KEY_SEPARATOR, find_parent_rule, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -49,28 +50,17 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @staticmethod
     def _invalid(field_name: str, message: str) -> AppValidationException:
-        return AppValidationException(
-            field_name=field_name,
-            message=message,
-            field_validation_error_code=FieldValidationErrorCode.REFERENCE_INVALID,
-        )
+        return invalid(field_name, message)
 
     def _upsert_rule(self, instance: Genre, list_name: str, actor: Any, **row: str) -> None:
         """Mirrors an admin edit of a wikidata item into the curation list the pipeline reads, so the next import
         reproduces it instead of only skipping the locked row."""
         if not self._is_wikidata_item(instance):
             return
-        columns = CURATION_LISTS[list_name].columns
         row = {"item_id": instance.wikidata_id, **row}
-        if "item_label" in columns:
+        if "item_label" in CURATION_LISTS[list_name].columns:
             row["item_label"] = instance.name
-        if "reason" in columns:
-            row["reason"] = f"grow admin edit by {actor.profile.pseudo}"
-        try:
-            CurationEntry.objects.upsert(list_name, row, actor=actor)
-        except InvalidRow as e:
-            field_name, message = next(iter(e.errors.items()))
-            raise self._invalid(field_name, f"Can't record this edit in {list_name}: {message}") from e
+        upsert_admin_rule(list_name, row, actor)
 
     def _reparent_rule(self, instance: Genre) -> dict[str, str]:
         """The `main_parent` row for an admin reparent, or a 400 when no curation list can express it."""
@@ -79,7 +69,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         ).first() or (None, False)
         if instance.tree_name != CriteriaTreeName.CANONICAL:
             # The new parent may be a regional overview (`regional_overrides`) or a genre (`main_parent`),
-            # which grow can't tell apart, and `regional_secondary_parents` adds an edge rather than moving one.
+            # which grow can't tell apart, and `secondary_parents` adds an edge rather than moving one.
             message = "Regional genres can't be reparented here; edit the regional curation lists instead"
         elif instance.parent_id is None:
             message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
@@ -270,7 +260,104 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
         self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
+        if actor is not None and "essential_tracks" in kwargs:
+            self._write_essential_tracks_rules(instance, kwargs["essential_tracks"], actor)
         updated = super().update_instance(instance, actor=actor, **kwargs)
+        if actor is not None:
+            if "summary" in kwargs:
+                self._upsert_rule(updated, "summary_overrides", actor, summary=kwargs["summary"] or "")
+            if "summary" in kwargs or "essential_tracks" in kwargs:
+                self._lock(updated)
         if was_required_root:
             self.assert_required_roots_present(updated.user)
         return updated
+
+    def _write_essential_tracks_rules(self, instance: Genre, recordings: list[Any], actor: Any) -> None:
+        """The rows are the genre's whole ordered list: a row per recording, and none left for dropped ones."""
+        if not self._is_wikidata_item(instance):
+            return
+        missing = [recording for recording in recordings if recording.musicbrainz_recording_id is None]
+        if missing:
+            raise self._invalid(
+                "essential_tracks", f"{missing[0].title} has no MusicBrainz id, so no curation rule can name it"
+            )
+        kept = {str(recording.musicbrainz_recording_id) for recording in recordings}
+        stale = CurationEntry.objects.filter(
+            user=None, list_name="essential_tracks", key__startswith=f"{instance.wikidata_id}{KEY_SEPARATOR}"
+        )
+        for entry in stale:
+            if entry.key.split(KEY_SEPARATOR)[1] not in kept:
+                CurationEntry.objects.delete_instance(entry, actor=actor)
+        for position, recording in enumerate(recordings, start=1):
+            upsert_admin_rule(
+                "essential_tracks",
+                {
+                    "item_id": instance.wikidata_id,
+                    "musicbrainz_recording_id": str(recording.musicbrainz_recording_id),
+                    "position": str(position),
+                },
+                actor,
+            )
+
+    @transaction.atomic
+    def set_secondary_parent(self, instance: Genre, parent: Genre, *, add: bool, actor: Any) -> Genre:
+        self._lock_curation_writes(actor)
+        if parent.pk == instance.pk:
+            raise self._invalid("parent", "A genre can't be its own secondary parent")
+        if parent.pk == instance.parent_id:
+            raise self._invalid("parent", "The main parent can't also be a secondary parent")
+        if instance.wikidata_id is None or parent.wikidata_id is None:
+            raise self._invalid("parent", "Secondary parents are only recorded between wikidata-backed genres")
+        others = [other for other in instance.secondary_parents.all() if other.pk != parent.pk]
+        updated = self.update_instance(instance, actor=actor, secondary_parents=[*others, parent] if add else others)
+        upsert_admin_rule(
+            "secondary_parents",
+            {
+                "item_id": instance.wikidata_id,
+                "item_label": instance.name,
+                "parent_id": parent.wikidata_id,
+                "parent_label": parent.name,
+                "action": "add" if add else "remove",
+            },
+            actor,
+        )
+        self._lock(updated)
+        return updated
+
+    @staticmethod
+    def _recordings_of(genre: Genre):
+        from grow.model.recording.Recording import Recording
+
+        return Recording.objects.filter(genre=genre)
+
+    def alias_counts(self, source: Genre, target: Genre) -> dict[str, int]:
+        """What aliasing `source` onto `target` moves; a 400 when the pair isn't an allowed alias."""
+        if source.wikidata_id is not None:
+            raise self._invalid("genre", "Only a genre without a wikidata id can be an alias")
+        if target.wikidata_id is None:
+            raise self._invalid("target", "The alias target must have a wikidata id")
+        return {
+            "recordings": self._recordings_of(source).count(),
+            "essential_tracks": source.essential_tracks.count(),
+            "children": self.filter(parent=source).count(),
+        }
+
+    @transaction.atomic
+    def alias_instance(self, source: Genre, target: Genre, actor: Any) -> Genre:
+        """Merges a MusicBrainz-only genre into the wikidata genre it names: the rule lets the next import match
+        them, and the source's recordings, essential tracks and children move to the target before it is deleted."""
+        self._lock_curation_writes(actor)
+        self.alias_counts(source, target)
+        upsert_admin_rule(
+            "genre_alias",
+            {"musicbrainz_genre_name": source.name.lower(), "wikidata_genre_name": target.name},
+            actor,
+        )
+        for recording in list(self._recordings_of(source)):
+            type(recording).objects.update_instance(recording, actor=actor, genre=target)
+        target.essential_tracks.add(*source.essential_tracks.all())
+        for child in list(self.filter(parent=source)):
+            self.update_instance(child, actor=actor, parent=target)
+        self.delete_instance(source, actor=actor)
+        self._lock(target)
+        return target

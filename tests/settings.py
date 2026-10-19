@@ -63,6 +63,8 @@ GOOGLE_OAUTH_CLIENT_ID = "test-google-client-id"
 
 ADMIN_GOOGLE_SUB = "test-admin-sub"
 
+YOUTUBE_API_KEY = "test-youtube-api-key"
+
 CRITERIA_MODEL = "grow.Criteria"
 TRACK_MODEL = "grow.Recording"
 ARTIST_MODEL = "grow.Artist"

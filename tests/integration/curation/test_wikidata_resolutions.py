@@ -60,13 +60,13 @@ class TestWikidataResolutions(AppTestCase):
 
     def test_remap_value_and_composite_key_then_rewritten(self):
         main = _entry("main_parent", "Q999999001", item_label="x", parent_item_id=OLD, exclude_other_parents=False)
-        edge = _entry("regional_secondary_parents", "Q999999002\tQ999999003", item_label="a", parent_label="b")
+        edge = _entry("secondary_parents", "Q999999002\tQ999999003", item_label="a", parent_label="b", action="add")
 
         response = self._report(
             [
                 _remap("main_parent", "Q999999001", "parent_item_id"),
-                _remap("regional_secondary_parents", "Q999999002\tQ999999003", "item_id", "Q999999002", "Q999999020"),
-                _remap("regional_secondary_parents", "Q999999002\tQ999999003", "parent_id", "Q999999003", "Q999999030"),
+                _remap("secondary_parents", "Q999999002\tQ999999003", "item_id", "Q999999002", "Q999999020"),
+                _remap("secondary_parents", "Q999999002\tQ999999003", "parent_id", "Q999999003", "Q999999030"),
             ]
         )
 

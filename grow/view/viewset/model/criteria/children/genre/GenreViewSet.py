@@ -5,6 +5,7 @@ from django.http import QueryDict
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
@@ -15,6 +16,8 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.recording.RecordingCurationManager import RecordingCurationManager
+from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
 from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
 from grow.serializer.model.criteria.children.genre.input.name_conflict_validate import (
     GenreNameConflictValidateSerializer,
@@ -26,6 +29,8 @@ from grow.serializer.model.criteria.children.genre.input.unaccepted_root_accept 
 )
 from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
+from grow.serializer.model.recording.output.without_playlists import RecordingWithoutPlaylistsSerializer
+from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
@@ -133,3 +138,53 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
             **self._get_manager_write_kwargs(request),
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def _genre_by_uuid(self, uuid) -> Genre:
+        return get_object_or_404(self.get_queryset(), uuid=uuid)
+
+    def _detailed(self, genre: Genre) -> Response:
+        return Response(data=self._require_serializer(SerializerType.DETAILED)(instance=genre).data)
+
+    @action(detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin])
+    def link_suggestions(self, request: Request, *args, **kwargs) -> Response:
+        recordings = RecordingCurationManager.link_suggestions(self.get_object())
+        data = RecordingWithoutPlaylistsSerializer(recordings, many=True, context=self.get_serializer_context()).data
+        return Response(
+            [
+                {**item, "shared_artists": recording.shared_artists}
+                for item, recording in zip(data, recordings, strict=True)
+            ]
+        )
+
+    @action(
+        detail=True,
+        methods=["post", "delete"],
+        url_path=r"secondary-parents/(?P<parent_uuid>[0-9a-f-]+)",
+        permission_classes=[IsAdmin],
+    )
+    def secondary_parent(self, request: Request, parent_uuid: str, *args, **kwargs) -> Response:
+        genre = Genre.objects.set_secondary_parent(
+            self.get_object(),
+            self._genre_by_uuid(parent_uuid),
+            add=request.method == "POST",
+            **self._get_manager_write_kwargs(request),
+        )
+        return self._detailed(genre)
+
+    @action(detail=True, methods=["post"], url_path="alias-of", permission_classes=[IsAdmin])
+    def alias_of(self, request: Request, *args, **kwargs) -> Response:
+        serializer = GenreAliasOfSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        target = Genre.objects.alias_instance(
+            self.get_object(),
+            self._genre_by_uuid(serializer.validated_data["target"]),
+            **self._get_manager_write_kwargs(request),
+        )
+        return self._detailed(target)
+
+    @action(detail=True, methods=["get"], url_path="alias-of/preview", permission_classes=[IsAdmin])
+    def alias_of_preview(self, request: Request, *args, **kwargs) -> Response:
+        serializer = GenreAliasOfSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        counts = Genre.objects.alias_counts(self.get_object(), self._genre_by_uuid(serializer.validated_data["target"]))
+        return Response(counts)
