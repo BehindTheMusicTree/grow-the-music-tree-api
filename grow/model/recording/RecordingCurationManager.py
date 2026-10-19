@@ -62,6 +62,8 @@ class RecordingCurationManager:
         key = self._stable_key(recording)
         video_id = fields.get("youtube_video_id", recording.youtube_video_id)
         reason = fields.get("youtube_unplayable_reason")
+        if reason is None and "youtube_unplayable_reason" not in fields and video_id == recording.youtube_video_id:
+            reason = recording.youtube_unplayable_reason
         if (
             reason is None
             and video_id is not None

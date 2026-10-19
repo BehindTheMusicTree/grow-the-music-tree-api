@@ -127,6 +127,22 @@ class TestCase(AppTestCase):
         assert recording.youtube_unplayable_reason == "private"
         assert self._rule("recording_youtube_video")[0]["unplayable_reason"] == "private"
 
+    def test_patch_same_video_then_unplayable_reason_kept(self):
+        recording = self._recording(genre=self._rock())
+        recording.youtube_video_id = "abc"
+        recording.youtube_unplayable_reason = "not_embeddable"
+        recording.save()
+
+        with patch(FETCH) as fetch:
+            response = self.api_client.patch(
+                reverse("recording-detail", kwargs={"pk": recording.uuid}), {"youtubeVideoId": "abc"}, format="json"
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        fetch.assert_not_called()
+        recording.refresh_from_db()
+        assert recording.youtube_unplayable_reason == "not_embeddable"
+
     def test_patch_video_null_then_cleared_without_lookup(self):
         recording = self._recording(genre=self._rock())
 

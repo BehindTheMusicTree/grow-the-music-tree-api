@@ -2,10 +2,10 @@ from datetime import datetime
 
 from django.db import transaction
 from django.http import QueryDict
-from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import get_object_or_404
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
