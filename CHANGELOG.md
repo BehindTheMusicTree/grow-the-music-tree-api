@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.14.1] - 2026-10-19
+
+### Fixed
+
+- Canonical tree import no longer fails with "Post-apply state does not match the imported payload" when a QID also exists in the regional tree (`the-music-tree-genre-kit` repinned to v0.47.1).
+
 ## [12.14.0] - 2026-10-19
 
 ### Added
