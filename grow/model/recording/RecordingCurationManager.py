@@ -81,9 +81,12 @@ class RecordingCurationManager:
         )
         if video_id is None:
             reason = None
-        updated = Recording.objects.update_instance(
-            recording, youtube_video_id=video_id, youtube_unplayable_reason=reason
-        )
+        if (video_id, reason) == (recording.youtube_video_id, recording.youtube_unplayable_reason):
+            updated = recording
+        else:
+            updated = Recording.objects.update_instance(
+                recording, youtube_video_id=video_id, youtube_unplayable_reason=reason
+            )
         updated.is_manually_edited = True
         updated.save(update_fields=["is_manually_edited"])
         return updated

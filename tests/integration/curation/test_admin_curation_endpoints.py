@@ -129,9 +129,9 @@ class TestCase(AppTestCase):
 
     def test_patch_same_video_then_unplayable_reason_kept(self):
         recording = self._recording(genre=self._rock())
-        recording.youtube_video_id = "abc"
-        recording.youtube_unplayable_reason = "not_embeddable"
-        recording.save()
+        Recording.objects.filter(pk=recording.pk).update(
+            youtube_video_id="abc", youtube_unplayable_reason="not_embeddable"
+        )
 
         with patch(FETCH) as fetch:
             response = self.api_client.patch(
