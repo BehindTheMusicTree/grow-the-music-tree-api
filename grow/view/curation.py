@@ -9,7 +9,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
@@ -19,20 +19,12 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
-from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN
-from grow.curation.rows import (
-    InvalidRow,
-    ParsedRow,
-    find_exclusivity_conflict,
-    find_item_rules,
-    find_other_pop_child_error,
-    find_precedence_cycle,
-    lock_writes,
-    parse_row,
-    precedence_cycle_error,
-)
+from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN, KEY_MAX_LENGTH
+from grow.curation.resolutions import apply_wikidata_resolutions
+from grow.curation.rows import InvalidRow, ParsedRow, RowConflict, check_edit, find_item_rules, lock_writes
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
@@ -62,22 +54,11 @@ def _row(request: Request) -> dict[str, Any]:
 
 def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> ParsedRow:
     try:
-        parsed = parse_row(list_name, row)
+        return check_edit(_entries(), list_name, row, exclude_pk)
     except InvalidRow as e:
         raise ValidationError({"row": e.errors}) from e
-    lock_writes(_entries())
-    if _entries().filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
-        raise ValidationError({"row": f"An entry with this key already exists in {list_name}"})
-    conflict = find_exclusivity_conflict(_entries(), list_name, parsed.key, exclude_pk)
-    if conflict:
-        raise ValidationError({"row": f"{parsed.key} is already in {conflict}; these lists are mutually exclusive"})
-    cycle = find_precedence_cycle(_entries(), list_name, parsed.key, exclude_pk)
-    if cycle:
-        raise ValidationError({"row": precedence_cycle_error(cycle)})
-    pop_child_error = find_other_pop_child_error(_entries(), list_name, parsed.key, exclude_pk)
-    if pop_child_error:
-        raise ValidationError({"row": pop_child_error})
-    return parsed
+    except RowConflict as e:
+        raise ValidationError({"row": str(e)}) from e
 
 
 ORDERINGS = {"key": "key", "-updated_on": "-last_edited_on"}
@@ -257,3 +238,68 @@ class CurationExportView(CurationView):
             export[entry.list_name].append(entry.csv_row)
         export["exported_on"] = exported_on.isoformat()
         return Response(export)
+
+
+def _item_id_field(**kwargs) -> serializers.RegexField:
+    return serializers.RegexField(rf"^(?:{ITEM_ID_PATTERN})$", **kwargs)
+
+
+class _CurationItemSerializer(serializers.Serializer):
+    list = serializers.ChoiceField(choices=list(CURATION_LISTS))
+    key = serializers.CharField(max_length=KEY_MAX_LENGTH, trim_whitespace=False)
+    column = serializers.ChoiceField(choices=sorted(ITEM_ID_COLUMNS))
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if attrs["column"] not in CURATION_LISTS[attrs["list"]].columns:
+            raise ValidationError({"column": f"Not a column of {attrs['list']}"})
+        return attrs
+
+
+class _RemapSerializer(_CurationItemSerializer):
+    to = _item_id_field()
+
+    def get_fields(self) -> dict[str, serializers.Field]:
+        return {**super().get_fields(), "from": _item_id_field()}  # `from` is a Python keyword
+
+
+class _ReviewItemSerializer(_CurationItemSerializer):
+    item_id = _item_id_field()
+    reason = serializers.ChoiceField(choices=CurationReviewItem.Reason.choices)
+    target = _item_id_field(required=False, allow_null=True)
+
+
+class _WikidataResolutionsSerializer(serializers.Serializer):
+    remaps = _RemapSerializer(many=True)
+    review = _ReviewItemSerializer(many=True)
+
+
+class CurationWikidataResolutionsView(CurationView):
+    """The pipeline's Wikidata resolution of curation item ids: redirects to remap, and ids it couldn't resolve."""
+
+    permission_classes = [IsPipelineOrAdmin]
+
+    def post(self, request: Request) -> Response:
+        serializer = _WikidataResolutionsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(apply_wikidata_resolutions(**serializer.validated_data))
+
+
+class CurationReviewView(CurationView):
+    """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
+
+    def get(self, request: Request) -> Response:
+        items = CurationReviewItem.objects.order_by("list_name", "key", "column")
+        return Response(
+            [
+                {
+                    "list": i.list_name,
+                    "key": i.key,
+                    "column": i.column,
+                    "item_id": i.item_id,
+                    "reason": i.reason,
+                    "target": i.target_item_id,
+                    "reported_on": i.reported_on,
+                }
+                for i in items
+            ]
+        )
