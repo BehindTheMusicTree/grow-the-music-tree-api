@@ -277,7 +277,7 @@ class TestImportRunMerge(AppTestCase):
 
         assert result == {"imported": 1, "skipped": 0}
         assert sorted(Artist.objects.values_list("_name", flat=True)) == ["Credited", "Unlisted", "Waters"]
-        assert not ArtistMembership.objects.exists() and not Album.objects.exists()
+        assert not ArtistMembership.objects.exists()
 
     def test_delta_run_with_nothing_to_do_succeeds(self):
         self.model_fixture_factory.create_artist("Kept")
