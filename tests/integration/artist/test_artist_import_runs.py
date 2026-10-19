@@ -58,6 +58,7 @@ PERSON = {
     "members": [],
     "links": [],
 }
+OTHER = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
 RUNS = reverse("artist-list") + "import-runs/"
 
 
@@ -125,13 +126,26 @@ class TestImportRunMerge(AppTestCase):
             HTTP_CONTENT_ENCODING="gzip",
         )
 
-    def _sync(self, *parts: list[dict], client=None) -> dict:
+    def _upload_deletions(self, run_id: int, deleted: tuple[str, ...], client=None):
+        body = _gzip_ndjson([{"musicbrainz_artist_id": mbid} for mbid in deleted])
+        return (client or self.api_client).put(
+            path=f"{RUNS}{run_id}/deletions/",
+            data=body,
+            format=None,
+            content_type="application/x-ndjson",
+            HTTP_CONTENT_ENCODING="gzip",
+        )
+
+    def _sync(self, *parts: list[dict], client=None, mode: str = "full", deleted: tuple[str, ...] = ()) -> dict:
         client = client or self.api_client
-        run_id = client.post(path=RUNS).data["run_id"]
+        run_id = client.post(path=RUNS, data={"mode": mode}).data["run_id"]
         for part, artists in enumerate(parts):
             response = self._upload(run_id, part, _gzip_ndjson(artists), client)
             assert response.status_code == status.HTTP_200_OK, response.content
             assert response.data["count"] == len(artists)
+        if deleted:
+            response = self._upload_deletions(run_id, deleted, client)
+            assert response.status_code == status.HTTP_200_OK, response.content
         response = client.post(path=f"{RUNS}{run_id}/commit/")
         assert response.status_code == status.HTTP_202_ACCEPTED
         task = self.api_client.get(path=reverse("artist-list") + f"import/{response.data['task_id']}/status/")
@@ -251,6 +265,25 @@ class TestImportRunMerge(AppTestCase):
         assert sorted(Artist.objects.values_list("_name", flat=True)) == ["Credited", "Roger Waters"]
         assert not ArtistMembership.objects.exists() and not ArtistLink.objects.exists()
         assert not Album.objects.exists()
+
+    def test_delta_run_upserts_and_deletes_only_listed_uncredited_artists(self):
+        factory = self.model_fixture_factory
+        credited = factory.create_artist("Credited", musicbrainz_artist_id=OTHER)
+        factory.create_recording(title="Song", genre=None, artists=[credited])
+        factory.create_artist("Unlisted")
+        self._sync([ARTIST, PERSON])
+
+        result = self._sync([{**PERSON, "name": "Waters"}], mode="delta", deleted=(BAND, OTHER))
+
+        assert result == {"imported": 1, "skipped": 0}
+        assert sorted(Artist.objects.values_list("_name", flat=True)) == ["Credited", "Unlisted", "Waters"]
+        assert not ArtistMembership.objects.exists() and not Album.objects.exists()
+
+    def test_delta_run_with_nothing_to_do_succeeds(self):
+        self.model_fixture_factory.create_artist("Kept")
+
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert Artist.objects.count() == 1
 
     def test_invalid_part_then_400_and_nothing_staged(self):
         run_id = self.api_client.post(path=RUNS).data["run_id"]

@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
+from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.run_steps import run_steps
 from grow.model.history.HistoryAction import HistoryAction
@@ -50,6 +51,15 @@ LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
 
 # Same predicate as TrackManager._is_playable: only playable recordings belong to playlists.
 PLAYABLE = "{0}.youtube_video_id IS NOT NULL AND {0}.youtube_unplayable_reason IS NULL"
+
+# A full run deletes every unlocked owner track missing from it; a delta run only the ones it lists.
+STALE_TRACKS = """CREATE TEMP TABLE stale AS
+    SELECT y.track_id FROM grow_recording y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
+    WHERE t.user_id IS NOT DISTINCT FROM %(user)s AND NOT y.is_manually_edited
+        AND {missing}"""
+MISSING_FROM_FULL_RUN = "NOT EXISTS (SELECT 1 FROM song_import s WHERE s.track_id = y.track_id)"
+LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
+            SELECT musicbrainz_id FROM grow_bulk_import_deletion WHERE run_id = %(run)s)"""
 
 STEPS = [
     ("analyze_song_import", "ANALYZE song_import"),
@@ -171,13 +181,9 @@ STEPS = [
     )
     ORDER BY d.track_id""",
     ),
-    (
-        "stale_tracks",
-        """CREATE TEMP TABLE stale AS
-    SELECT y.track_id FROM grow_recording y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
-    WHERE t.user_id IS NOT DISTINCT FROM %(user)s AND NOT y.is_manually_edited
-        AND NOT EXISTS (SELECT 1 FROM song_import s WHERE s.track_id = y.track_id)""",
-    ),
+]
+
+AFTER_STALE_STEPS = [
     (
         "touched_playlist",
         """CREATE TEMP TABLE touched_playlist AS SELECT DISTINCT playlist_id FROM the_music_tree_genre_kit_track_playlist_rel
@@ -289,7 +295,7 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     """
     Merges a committed run's staged songs into the owner's `Recording`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
-    keep their genre and are never deleted, every other track missing from the run is deleted, and genre-playlist
+    keep their genre and are never deleted, every other track missing from the run is deleted (a `delta` run instead deletes only the tracks it lists), and genre-playlist
     rels follow genre and playability changes, holding playable recordings only. Track artists are re-synced: matched
     on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
     artists import, which owns their lifecycle. A genre name with no criteria match
@@ -307,18 +313,21 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     finally:
         # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
         SongImportStaging.objects.filter(run_id=run_id).delete()
+        BulkImportDeletion.objects.filter(run_id=run_id).delete()
         BulkImportRun.objects.filter(pk=run_id).delete()
 
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
+    delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
+    stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         run_steps(cursor, [("song_import", SONG_IMPORT)], params)
         cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
-        if not cursor.fetchone()[0]:
+        if not delta and not cursor.fetchone()[0]:
             # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
             raise ValueError(f"import run {run_id} has no staged songs")
-        run_steps(cursor, STEPS, params)
+        run_steps(cursor, [*STEPS, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
         cursor.execute(
             "SELECT count(*), count(*) FILTER (WHERE genre_name IS NOT NULL AND genre_id IS NULL) FROM song_import"
         )
