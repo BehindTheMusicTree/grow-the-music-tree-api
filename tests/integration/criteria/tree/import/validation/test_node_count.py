@@ -60,8 +60,7 @@ class TestNodeCount(GenreTestCase):
     @pytest.mark.slow
     def test_largest_then_ok(self):
         root = {Fields.ID: "Q104", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
-        # Kit chunks multi-row INSERTs for Postgres (65535 params); SQLite builds capped at 32766 overflow with 3000 rows.
-        for i in range(2000):
+        for i in range(3000):
             root[Fields.CHILDREN].append(
                 {Fields.ID: f"Q{1000 + i}", Fields.NAME_PUBLIC: f"Child {i}", Fields.CHILDREN: []}
             )
@@ -70,7 +69,7 @@ class TestNodeCount(GenreTestCase):
         response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
         genres_count = Genre.objects.filter(user=None).count()
-        assert genres_count == 2001
+        assert genres_count == 3001
 
     @pytest.mark.slow
     def test_deep_tree_completes_well_under_timeout(self):
