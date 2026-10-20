@@ -3,6 +3,7 @@ from django.db import connection, transaction
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.merge_lock import hold_merge_lock
 from grow.bulk_import.run_steps import run_steps
 from grow.model.import_run.ImportRun import ImportRun
 
@@ -248,13 +249,14 @@ def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> d
     from the run (a `delta` run: only the artists it lists) deleted once nothing credits it. Run after the songs import so
     song artists already carry their MBID.
     """
-    try:
-        return _merge(run_id, {"run": run_id, "user": user_id}, record)
-    finally:
-        # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
-        ArtistImportStaging.objects.filter(run_id=run_id).delete()
-        BulkImportDeletion.objects.filter(run_id=run_id).delete()
-        BulkImportRun.objects.filter(pk=run_id).delete()
+    with hold_merge_lock(run_id):
+        try:
+            return _merge(run_id, {"run": run_id, "user": user_id}, record)
+        finally:
+            # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
+            ArtistImportStaging.objects.filter(run_id=run_id).delete()
+            BulkImportDeletion.objects.filter(run_id=run_id).delete()
+            BulkImportRun.objects.filter(pk=run_id).delete()
 
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
