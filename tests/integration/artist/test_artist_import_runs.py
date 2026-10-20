@@ -164,7 +164,10 @@ class TestImportRunMerge(AppTestCase):
         BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
 
         assert self.api_client.get(path=status_path).data["status"] == "pending"
-        assert self.api_client.get(path=status_path).data == {"status": "success", "result": {"imported": 1, "skipped": 0}}
+        assert self.api_client.get(path=status_path).data == {
+            "status": "success",
+            "result": {"imported": 1, "skipped": 0},
+        }
         assert Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
 
     def test_status_leaves_queued_merge_alone(self):

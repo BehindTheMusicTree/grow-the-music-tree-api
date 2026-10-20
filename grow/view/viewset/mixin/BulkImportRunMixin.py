@@ -23,7 +23,6 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.model.import_run.ImportRun import ImportRun
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
-
 GROUP_PREFIX = "import-run-"
 
 
