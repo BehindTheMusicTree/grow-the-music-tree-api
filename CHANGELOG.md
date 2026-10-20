@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `the-music-tree-genre-kit` bumped to v0.48.1: bulk inserts chunk by the connection's parameter limit (999 on SQLite, 65535 on Postgres), and a genre summary source URL without a summary is rejected. `test_largest_then_ok` is back to 3000 rows. A test pins that clearing a genre summary upserts a `summary_overrides` row with an empty summary, nulls `summary_source_url` and locks the genre.
+
 ## [12.15.0] - 2026-10-20
 
 ### Fixed

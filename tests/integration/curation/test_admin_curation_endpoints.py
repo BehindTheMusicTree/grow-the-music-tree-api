@@ -382,6 +382,24 @@ class TestCase(AppTestCase):
 
         assert [r["key"].split("\t")[1] for r in self._rule("essential_tracks")] == [str(a.musicbrainz_recording_id)]
 
+    def test_put_blank_summary_then_override_row_with_empty_summary_and_locked(self):
+        genre = self._rock()
+        genre.summary = "Loud."
+        genre.summary_source_url = "https://en.wikipedia.org/wiki/Rock_music"
+        genre.save(update_fields=["summary", "summary_source_url"])
+
+        response = self.api_client.put(
+            reverse("genre-detail", kwargs={"pk": genre.uuid}), {"summary": ""}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        genre.refresh_from_db()
+        assert genre.summary == ""
+        assert genre.summary_source_url is None
+        assert genre.is_manually_edited
+        [summary] = self._rule("summary_overrides")
+        assert summary["summary"] == ""
+
     def test_put_unchanged_then_no_rule_and_no_lock(self):
         genre = self._rock()
         a = self._recording("A", genre)
