@@ -8,7 +8,8 @@ from django.conf import settings
 from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django_q.tasks import async_task, fetch
+from django_q.models import Task
+from django_q.tasks import async_task
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -18,8 +19,12 @@ from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.copy_part import copy_part
+from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.model.import_run.ImportRun import ImportRun
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
+
+
+GROUP_PREFIX = "import-run-"
 
 
 def bulk_import_run_actions(
@@ -102,16 +107,24 @@ def bulk_import_run_actions(
     )
     def commit_import_run(self, request, run_id: str):
         run = uncommitted_run(run_id)
-        if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(committed_on=timezone.now()):
-            raise ValidationError("import run is already committed")
         owner = get_request_owner(request)
-        task_id = async_task(merge, run.pk, owner and owner.pk, request.auth.role == "pipeline")
+        user_id, record = owner and owner.pk, request.auth.role == "pipeline"
+        if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
+            committed_on=timezone.now(), user_id=user_id, record=record
+        ):
+            raise ValidationError("import run is already committed")
+        task_id = f"{GROUP_PREFIX}{run.pk}"
+        async_task(merge, run.pk, user_id, record, group=task_id)
         return Response({"task_id": task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
     def import_run_status(self, request, task_id=None):
-        task = fetch(task_id)
+        task = Task.objects.filter(group=task_id).order_by("-stopped").first()
         if task is None:
+            if task_id.startswith(GROUP_PREFIX) and task_id[len(GROUP_PREFIX) :].isdigit():
+                lost = claim_lost_merge(int(task_id[len(GROUP_PREFIX) :]), kind)
+                if lost is not None:
+                    async_task(merge, lost.pk, lost.user_id, lost.record, group=task_id)
             return Response({"status": "pending"})
         if task.success:
             return Response({"status": "success", "result": task.result})

@@ -152,6 +152,29 @@ class TestImportRunMerge(AppTestCase):
         assert task.data["status"] == "success", task.data
         return task.data["result"]
 
+    def _commit_without_worker(self) -> tuple[int, str]:
+        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        assert self._upload(run_id, 0, _gzip_ndjson([ARTIST])).status_code == status.HTTP_200_OK
+        with mock.patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task"):
+            task_id = self.api_client.post(path=f"{RUNS}{run_id}/commit/").data["task_id"]
+        return run_id, reverse("artist-list") + f"import/{task_id}/status/"
+
+    def test_status_requeues_merge_lost_to_worker_restart(self):
+        run_id, status_path = self._commit_without_worker()
+        BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
+
+        assert self.api_client.get(path=status_path).data["status"] == "pending"
+        assert self.api_client.get(path=status_path).data == {"status": "success", "result": {"imported": 1, "skipped": 0}}
+        assert Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
+
+    def test_status_leaves_queued_merge_alone(self):
+        run_id, status_path = self._commit_without_worker()
+
+        for _ in range(2):
+            assert self.api_client.get(path=status_path).data["status"] == "pending"
+        assert BulkImportRun.objects.filter(pk=run_id).exists()
+        assert not Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
+
     def test_import_creates_artists_memberships_links_and_release_groups(self):
         assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0}
 

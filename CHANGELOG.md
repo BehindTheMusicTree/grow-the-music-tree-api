@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A songs or artists import merge lost to a worker restart (a redeploy killed the django-q2 worker mid-merge; the Redis broker never redelivers) is enqueued again by the next import status poll, instead of staying `pending` forever. `BulkImportRun` records `started_on`, `user_id` and `record`; the merge holds a per-run Postgres advisory lock, so a free lock on a started run means its worker died. `task_id` is now the run's task group (`import-run-<runId>`). Postgres tests cover requeueing a lost merge and leaving a merely queued one alone.
+
 ### Added
 
 - `POST curation/wikidata-resolutions/` review items accept an optional validated `evidence` (the item's current Wikidata label, last edit, P31/P279 values, whether it has a P2341, the colliding curation list), and `GET curation/review/` returns it, so the admin can see why a rule was dropped. Integration tests cover the round trip and rejected keys.

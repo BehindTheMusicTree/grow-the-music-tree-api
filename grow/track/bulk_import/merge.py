@@ -4,6 +4,7 @@ from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypeP
 
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.merge_lock import hold_merge_lock
 from grow.bulk_import.run_steps import run_steps
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
@@ -308,13 +309,14 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         "genre_type": CriteriaTypePks.GENRE.value,
         "content_type": ContentType.objects.get_for_model(Recording).pk,
     }
-    try:
-        return _merge(run_id, params, record)
-    finally:
-        # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
-        SongImportStaging.objects.filter(run_id=run_id).delete()
-        BulkImportDeletion.objects.filter(run_id=run_id).delete()
-        BulkImportRun.objects.filter(pk=run_id).delete()
+    with hold_merge_lock(run_id):
+        try:
+            return _merge(run_id, params, record)
+        finally:
+            # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
+            SongImportStaging.objects.filter(run_id=run_id).delete()
+            BulkImportDeletion.objects.filter(run_id=run_id).delete()
+            BulkImportRun.objects.filter(pk=run_id).delete()
 
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:

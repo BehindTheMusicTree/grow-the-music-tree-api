@@ -68,7 +68,7 @@ their MBID):
 2. `PUT {base}import-runs/<runId>/parts/<n>/` per gzip NDJSON part, one artist per line:
    `{musicbrainz_artist_id, name, type, country, begin_year, end_year, ended, members: [{musicbrainz_artist_id, begin_year, end_year, ended, roles}], links: [{kind, url}], release_groups: [{musicbrainz_release_group_id, title, primary_type, secondary_types, first_release_year}]}`
 3. `POST {base}import-runs/<runId>/commit/` → `{taskId}`
-4. `GET {base}import/<taskId>/status/`
+4. `GET {base}import/<taskId>/status/`: polling also re-enqueues a merge lost to a worker restart (it stays `pending` until the re-run finishes)
 
 Creating a run abandons any uncommitted artists run. The merge upserts artists on MBID, replaces their memberships
 (members missing from the database are skipped), links and release-group album credits, and deletes artists missing
