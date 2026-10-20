@@ -264,6 +264,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         essential_tracks_changed = "essential_tracks" in kwargs and [
             recording.pk for recording in kwargs["essential_tracks"]
         ] != self._essential_track_pks(instance)
+        if summary_changed:
+            kwargs["summary_source_url"] = None
         if actor is not None and essential_tracks_changed:
             self._write_essential_tracks_rules(instance, kwargs["essential_tracks"], actor)
         updated = super().update_instance(instance, actor=actor, **kwargs)

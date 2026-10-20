@@ -12,6 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.16.0] - 2026-10-20
+
+### Fixed
+
+- Local `docker compose up` crashed at startup with `KeyError: 'WEB_DB_STATEMENT_TIMEOUT_MS'`: the dev override now sets it (30000, same as production).
+- `the-music-tree-genre-kit` bumped to v0.48.1: bulk inserts chunk by the connection's parameter limit (999 on SQLite, 65535 on Postgres), and a genre summary source URL without a summary is rejected. `test_largest_then_ok` is back to 3000 rows. A test pins that clearing a genre summary upserts a `summary_overrides` row with an empty summary, nulls `summary_source_url` and locks the genre.
+
 ## [12.15.0] - 2026-10-20
 
 ### Fixed
@@ -20,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `GET genres/<uuid>/overview/` returns `description` (Wikidata short description) and `summarySourceUrl` (the Wikipedia page the summary came from; `null` for non-genre criteria). An admin summary edit clears `summary_source_url`, so a hand-written summary carries no Wikipedia attribution. Bumps `the-music-tree-genre-kit` to v0.48.0 (migration `0063` adds the two genre columns). Tests cover the overview fields and the attribution being cleared.
 - `POST curation/wikidata-resolutions/` review items accept an optional validated `evidence` (the item's current Wikidata label, last edit, P31/P279 values, whether it has a P2341, the colliding curation list), and `GET curation/review/` returns it, so the admin can see why a rule was dropped. Integration tests cover the round trip and rejected keys.
 
 ## [12.14.1] - 2026-10-19

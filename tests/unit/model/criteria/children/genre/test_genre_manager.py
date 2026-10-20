@@ -68,6 +68,26 @@ class TestCase(AppTestCase):
 
         assert updated.summary == "A short blurb."
 
+    def test_update_summary_clears_summary_source_url(self):
+        root = self.model_fixture_factory.create_genre(
+            "Mainstream Pop", summary_source_url="https://en.wikipedia.org/wiki/Pop"
+        )
+
+        updated = Genre.objects.update_instance(root, summary="Mine.")
+
+        updated.refresh_from_db()
+        assert updated.summary_source_url is None
+
+    def test_update_other_fields_keeps_summary_source_url(self):
+        root = self.model_fixture_factory.create_genre(
+            "Mainstream Pop", summary="Wiki text.", summary_source_url="https://en.wikipedia.org/wiki/Pop"
+        )
+
+        updated = Genre.objects.update_instance(root, summary="Wiki text.")
+
+        updated.refresh_from_db()
+        assert updated.summary_source_url == "https://en.wikipedia.org/wiki/Pop"
+
     def test_create_without_actor_does_not_lock_and_logs_pipeline_history(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
 

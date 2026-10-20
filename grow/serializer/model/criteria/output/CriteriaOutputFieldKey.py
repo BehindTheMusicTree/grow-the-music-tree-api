@@ -20,6 +20,8 @@ class CriteriaOutputFieldKey(StrEnum):
     SIDE = "side"
     WIKIDATA_ID = "wikidata_id"
     SUMMARY = "summary"
+    DESCRIPTION = "description"
+    SUMMARY_SOURCE_URL = "summary_source_url"
     TREE_NAME = "tree_name"
     PRIMARY_PARENTS = "primary_parents"
     SECONDARY_PARENTS = "secondary_parents"
