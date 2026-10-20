@@ -16,6 +16,11 @@ class BulkImportRun(models.Model):
     mode = models.TextField(choices=Mode.choices, default=Mode.FULL)
     created_on = models.DateTimeField(auto_now_add=True)
     committed_on = models.DateTimeField(null=True)
+    # Merge start, set under the run's advisory lock; null until a worker picks the merge up. Together with the
+    # committer's `user_id`/`record` it lets a merge lost to a worker restart be enqueued again.
+    started_on = models.DateTimeField(null=True)
+    user_id = models.IntegerField(null=True)
+    record = models.BooleanField(default=False)
 
     class Meta:
         db_table = "grow_bulk_import_run"
