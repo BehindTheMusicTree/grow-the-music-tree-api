@@ -32,12 +32,22 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         body = response.json()
-        assert set(body) == {"uuid", "name", "summary", "side", "essentialTracks"}
+        assert set(body) == {"uuid", "name", "summary", "description", "summarySourceUrl", "side", "essentialTracks"}
         assert body["name"] == "EDM"
         assert body["summary"] == "Loud."
         assert body["side"] == CriteriaSide.POP
         assert [track["title"] for track in body["essentialTracks"]] == ["Track 0"]
         assert set(body["essentialTracks"][0]) == {"uuid", "title", "artists", "rating", "language", "playCount"}
+
+    def test_returns_description_and_summary_source_url(self):
+        genre = self.model_fixture_factory.create_genre(
+            "EDM", description="Dance music", summary_source_url="https://en.wikipedia.org/wiki/EDM"
+        )
+
+        body = self._get_overview(genre.uuid).json()
+
+        assert body["description"] == "Dance music"
+        assert body["summarySourceUrl"] == "https://en.wikipedia.org/wiki/EDM"
 
     def test_tag_overview_has_no_side_or_essential_tracks(self):
         tag = self.model_fixture_factory.create_tag("Live")
@@ -47,6 +57,8 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["side"] is None
         assert response.json()["essentialTracks"] == []
+        assert response.json()["description"] is None
+        assert response.json()["summarySourceUrl"] is None
 
     def test_unknown_uuid_returns_404(self):
         response = self._get_overview(uuid.uuid4())
