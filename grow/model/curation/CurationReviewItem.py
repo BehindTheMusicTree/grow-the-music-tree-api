@@ -22,6 +22,8 @@ class CurationReviewItem(models.Model):
     item_id = models.TextField()
     reason = models.TextField(choices=Reason.choices)
     target_item_id = models.TextField(null=True)
+    evidence = models.JSONField(null=True)
+    """Wikidata facts the pipeline saw when dropping the rule (label, P31/P279, ...), for the admin to act on."""
     reported_on = models.DateTimeField(auto_now_add=True)
 
     class Meta:

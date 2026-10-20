@@ -1,5 +1,6 @@
 import re
 import uuid
+from datetime import UTC
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
@@ -262,10 +263,38 @@ class _RemapSerializer(_CurationItemSerializer):
         return {**super().get_fields(), "from": _item_id_field()}  # `from` is a Python keyword
 
 
+class _StrictSerializer(serializers.Serializer):
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict) and (unknown := set(data) - set(self.fields)):
+            raise ValidationError(dict.fromkeys(sorted(unknown), "Unknown field"))
+        return super().to_internal_value(data)
+
+
+class _ItemRefSerializer(_StrictSerializer):
+    id = _item_id_field()
+    label = serializers.CharField(allow_null=True, allow_blank=True, trim_whitespace=False)
+
+
+class _EvidenceSerializer(_StrictSerializer):
+    label = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+    modified = serializers.DateTimeField(required=False, default_timezone=UTC)
+    instance_of = _ItemRefSerializer(many=True, required=False)
+    subclass_of = _ItemRefSerializer(many=True, required=False)
+    has_indigenous_to = serializers.BooleanField(required=False)
+    conflict_list = serializers.ChoiceField(choices=list(CURATION_LISTS), required=False)
+
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        value = super().to_internal_value(data)
+        if "modified" in value:
+            value["modified"] = value["modified"].isoformat()
+        return value
+
+
 class _ReviewItemSerializer(_CurationItemSerializer):
     item_id = _item_id_field()
     reason = serializers.ChoiceField(choices=CurationReviewItem.Reason.choices)
     target = _item_id_field(required=False, allow_null=True)
+    evidence = _EvidenceSerializer(required=False, allow_null=True)
 
 
 class _WikidataResolutionsSerializer(serializers.Serializer):
@@ -298,6 +327,7 @@ class CurationReviewView(CurationView):
                     "item_id": i.item_id,
                     "reason": i.reason,
                     "target": i.target_item_id,
+                    "evidence": i.evidence,
                     "reported_on": i.reported_on,
                 }
                 for i in items

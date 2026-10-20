@@ -92,6 +92,7 @@ class TestWikidataResolutions(AppTestCase):
             (OLD, OLD, "redirect_conflict", NEW),
             ("Q999999005", "Q999999005", "redirect_conflict", "Q999999006"),
         ]
+        assert all(i["evidence"] is None for i in self._review())
 
     def test_unknown_entry_or_already_fixed_then_skipped(self):
         _entry("technique_genres", "Q999999007", item_label="x")
@@ -119,6 +120,33 @@ class TestWikidataResolutions(AppTestCase):
         assert item["reason"] == "not_in_tree"
         assert item["target"] is None
         assert "reportedOn" in item
+
+    def test_review_evidence_then_round_trips(self):
+        evidence = {
+            "label": "Foo rock",
+            "modified": "2026-10-01T12:00:00Z",
+            "instanceOf": [{"id": "Q5", "label": "human"}, {"id": "Q999999011", "label": None}],
+            "subclassOf": [],
+            "hasIndigenousTo": False,
+            "conflictList": "theme_genres",
+        }
+        item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": "not_in_tree"}
+
+        response = self._report([], [{**item, "evidence": evidence}, {**item, "key": NEW, "evidence": None}])
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert [i["evidence"] for i in self._review()] == [{**evidence, "modified": "2026-10-01T12:00:00+00:00"}, None]
+
+    def test_invalid_evidence_then_400(self):
+        item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": "not_in_tree"}
+        for evidence in [
+            {"comment": "x"},
+            {"instanceOf": [{"id": "Q5", "label": "human", "extra": 1}]},
+            {"instanceOf": [{"id": "bad", "label": None}]},
+            {"conflictList": "nope"},
+        ]:
+            assert self._report([], [{**item, "evidence": evidence}]).status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationReviewItem.objects.count() == 0
 
     def test_invalid_report_then_400(self):
         for remap in [
