@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [12.16.0] - 2026-10-20
+
 ### Fixed
 
 - Local `docker compose up` crashed at startup with `KeyError: 'WEB_DB_STATEMENT_TIMEOUT_MS'`: the dev override now sets it (30000, same as production).
