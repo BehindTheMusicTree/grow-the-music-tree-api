@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `POST curation/wikidata-resolutions/` review items accept an optional validated `evidence` (the item's current Wikidata label, last edit, P31/P279 values, whether it has a P2341, the colliding curation list), and `GET curation/review/` returns it, so the admin can see why a rule was dropped. Integration tests cover the round trip and rejected keys.
 
+## [12.14.1] - 2026-10-19
+
+### Fixed
+
+- Canonical tree import no longer fails with "Post-apply state does not match the imported payload" when a QID also exists in the regional tree (`the-music-tree-genre-kit` repinned to v0.47.1).
+
 ## [12.14.0] - 2026-10-19
 
 ### Added
