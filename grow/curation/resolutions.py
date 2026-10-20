@@ -55,6 +55,7 @@ def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[s
             item_id=item["item_id"],
             reason=item["reason"],
             target_item_id=item.get("target"),
+            evidence=item.get("evidence"),
         )
         for item in review
     )
