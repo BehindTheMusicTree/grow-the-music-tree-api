@@ -8,10 +8,15 @@ from grow.model.criteria.Fields import Fields as ModelFields
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
 from .essential_tracks import CriteriaEssentialTracksSerializerMixin
+from .genre_text import CriteriaGenreTextSerializerMixin
 
 
 class CriteriaOverviewSerializer(
-    CriteriaSideSerializerMixin, CriteriaEssentialTracksSerializerMixin, AppInputSerializer, serializers.ModelSerializer
+    CriteriaSideSerializerMixin,
+    CriteriaEssentialTracksSerializerMixin,
+    CriteriaGenreTextSerializerMixin,
+    AppInputSerializer,
+    serializers.ModelSerializer,
 ):
     name = AppCharField(source=ModelFields.NAME_INTERNAL)
 
@@ -21,6 +26,8 @@ class CriteriaOverviewSerializer(
             CriteriaOutputFieldKey.UUID.value,
             CriteriaOutputFieldKey.NAME.value,
             CriteriaOutputFieldKey.SUMMARY.value,
+            CriteriaOutputFieldKey.DESCRIPTION.value,
+            CriteriaOutputFieldKey.SUMMARY_SOURCE_URL.value,
             CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
         ]

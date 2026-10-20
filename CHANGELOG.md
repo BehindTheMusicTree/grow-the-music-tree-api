@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `GET genres/<uuid>/overview/` returns `description` (Wikidata short description) and `summarySourceUrl` (the Wikipedia page the summary came from; `null` for non-genre criteria). An admin summary edit clears `summary_source_url`, so a hand-written summary carries no Wikipedia attribution. Bumps `the-music-tree-genre-kit` to v0.48.0 (migration `0063` adds the two genre columns). Tests cover the overview fields and the attribution being cleared.
 - `POST curation/wikidata-resolutions/` review items accept an optional validated `evidence` (the item's current Wikidata label, last edit, P31/P279 values, whether it has a P2341, the colliding curation list), and `GET curation/review/` returns it, so the admin can see why a rule was dropped. Integration tests cover the round trip and rejected keys.
 
 ## [12.14.1] - 2026-10-19
