@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The Docker image now includes `wget`, so Coolify's healthcheck fallback no longer logs "wget: not found".
+
 ## [13.0.1] - 2026-10-22
 
 ### Fixed
