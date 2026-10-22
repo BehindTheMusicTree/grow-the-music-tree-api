@@ -42,6 +42,8 @@ class RecordingCurationManager:
         lock_writes(CurationEntry.objects.all())
         if genre is not None and genre.wikidata_id is None:
             raise invalid("genre", "Only a wikidata-backed genre can be assigned; no curation list names the others")
+        if genre is not None and genre.is_umbrella:
+            raise invalid("genre", f"{genre.name} is an umbrella genre; assign one of its sub-genres instead")
         keys = [self._stable_key(recording) for recording in recordings]
         previous = []
         for recording, key in zip(recordings, keys, strict=True):

@@ -13,9 +13,9 @@ from grow.curation.lists import (
     BOOL_COLUMNS,
     CURATION_LISTS,
     EXCLUSIVE_LISTS,
-    GENRE_PAIR_LISTS,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
+    ITEM_PAIR_LISTS,
     KEY_MAX_LENGTH,
     OPTIONAL_COLUMNS,
     PARENT_RULE_COLUMNS,
@@ -23,6 +23,7 @@ from grow.curation.lists import (
 
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
+UMBRELLA_LIST = "umbrella_genres"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
@@ -84,14 +85,8 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
-        if list_name in GENRE_PAIR_LISTS and column in curation_list.key and value != value.strip():
-            errors[column] = "Must not have leading or trailing whitespace"
-            continue
-        if list_name in GENRE_PAIR_LISTS and column in curation_list.key and value != value.lower():
-            errors[column] = "Must be lowercase"
-            continue
         parsed[column] = value
-    if not errors and list_name in GENRE_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
+    if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if errors:
         raise InvalidRow(errors)
@@ -143,7 +138,7 @@ def find_precedence_cycle(
     queryset: models.QuerySet, list_name: str, key: str, exclude_pk: Any = None
 ) -> list[str] | None:
     """The genres, from winner back to winner, of the cycle the `key` rule would close with the list's others."""
-    if list_name not in GENRE_PAIR_LISTS:
+    if list_name not in ITEM_PAIR_LISTS:
         return None
     winner, loser = key.split(KEY_SEPARATOR)
     beats: dict[str, list[str]] = {}
@@ -175,6 +170,24 @@ def find_other_pop_child_error(
     if other_key is None:
         return None
     return f"{root} already has the pop child {other_key.split(KEY_SEPARATOR, 1)[1]}; a root has at most one"
+
+
+def find_umbrella_leaf_error(list_name: str, key: str) -> str | None:
+    """Why `key` can't be an umbrella, if it can't: a canonical genre without children leaves its songs no sub-genre.
+
+    A genre not imported yet passes; the pipeline's own checks reject it."""
+    if list_name != UMBRELLA_LIST:
+        return None
+    from grow.model.criteria.children.genre.Genre import Genre
+    from grow.model.criteria.Criteria import Criteria
+
+    genre = Genre.objects.filter(user=None, tree_name="canonical", wikidata_id=key).first()
+    if genre is None:
+        return None
+    has_children = Criteria.objects.filter(
+        models.Q(parent=genre) | models.Q(additional_primary_parents=genre) | models.Q(secondary_parents=genre)
+    ).exists()
+    return None if has_children else f"{genre.name} has no sub-genre, so it can't be an umbrella"
 
 
 def precedence_cycle_error(cycle: list[str]) -> str:
@@ -214,6 +227,9 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key)
     if pop_child_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[-1]: pop_child_error})
+    umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
+    if umbrella_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
 
 
@@ -234,6 +250,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key, exclude_pk)
     if pop_child_error:
         raise RowConflict(pop_child_error)
+    umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
+    if umbrella_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
     return parsed
 
 

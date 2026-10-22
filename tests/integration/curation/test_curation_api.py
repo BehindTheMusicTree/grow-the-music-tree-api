@@ -313,7 +313,7 @@ class TestCase(AppTestCase):
         assert "512" in str(response.json())
 
     def test_genre_precedence_then_created(self):
-        row = {"musicbrainz_genre_name": "test ska", "over_musicbrainz_genre_name": "test reggae", "reason": "r"}
+        row = {"item_id": "Q101", "over_item_id": "Q102", "reason": "r"}
 
         response = self._create(row, "genre_precedence")
 
@@ -322,66 +322,62 @@ class TestCase(AppTestCase):
 
     def test_genre_precedence_invalid_names_then_400(self):
         invalid = (
-            ("Ska", "reggae"),
-            ("ska", "Reggae"),
-            ("ska", "ska"),
-            ("", "reggae"),
-            ("ska ", "reggae"),
-            ("ska", " x"),
+            ("Q1", "q2"),
+            ("Q1", "Q1"),
+            ("", "Q2"),
+            ("Q1 ", "Q2"),
+            ("Q1", "ska"),
         )
         for winner, over in invalid:
-            row = {"musicbrainz_genre_name": winner, "over_musicbrainz_genre_name": over, "reason": "r"}
+            row = {"item_id": winner, "over_item_id": over, "reason": "r"}
 
             assert self._create(row, "genre_precedence").status_code == status.HTTP_400_BAD_REQUEST, row
 
     def _precedence(self, winner: str, over: str):
-        row = {"musicbrainz_genre_name": winner, "over_musicbrainz_genre_name": over, "reason": "r"}
+        row = {"item_id": winner, "over_item_id": over, "reason": "r"}
         return self._create(row, "genre_precedence")
 
     def test_genre_precedence_reversing_rule_then_400_naming_cycle(self):
-        self._precedence("test ska", "test reggae")
+        self._precedence("Q101", "Q102")
 
-        response = self._precedence("test reggae", "test ska")
+        response = self._precedence("Q102", "Q101")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "test reggae over test ska over test reggae" in str(response.json())
+        assert "Q102 over Q101 over Q102" in str(response.json())
 
     def test_genre_precedence_longer_cycle_then_400_naming_cycle(self):
-        self._precedence("test a", "test b")
-        self._precedence("test b", "test c")
+        self._precedence("Q103", "Q104")
+        self._precedence("Q104", "Q105")
 
-        response = self._precedence("test c", "test a")
+        response = self._precedence("Q105", "Q103")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "test c over test a over test b over test c" in str(response.json())
+        assert "Q105 over Q103 over Q104 over Q105" in str(response.json())
 
     def test_genre_precedence_shared_loser_then_no_cycle(self):
-        self._precedence("test a", "test c")
-        self._precedence("test b", "test c")
+        self._precedence("Q103", "Q105")
+        self._precedence("Q104", "Q105")
 
-        assert self._precedence("test a", "test b").status_code == status.HTTP_201_CREATED
+        assert self._precedence("Q103", "Q104").status_code == status.HTTP_201_CREATED
 
     def test_genre_precedence_patch_into_cycle_then_400(self):
-        self._precedence("test a", "test b")
-        uuid = self._precedence("test c", "test d").json()["uuid"]
+        self._precedence("Q103", "Q104")
+        uuid = self._precedence("Q105", "Q106").json()["uuid"]
         url = self._entry_url(uuid, "genre_precedence")
 
         same = self.api_client.patch(url, {"row": {"reason": "r2"}}, format="json")
-        cycle = self.api_client.patch(
-            url, {"row": {"musicbrainz_genre_name": "test b", "over_musicbrainz_genre_name": "test a"}}, format="json"
-        )
+        cycle = self.api_client.patch(url, {"row": {"item_id": "Q104", "over_item_id": "Q103"}}, format="json")
 
         assert same.status_code == status.HTTP_200_OK
         assert cycle.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_genre_precedence_upsert_into_cycle_then_invalid_row(self):
-        with self.assertRaises(InvalidRow) as raised:
-            CurationEntry.objects.upsert(
-                "genre_precedence",
-                {"musicbrainz_genre_name": "reggae", "over_musicbrainz_genre_name": "ska", "reason": "r"},
-            )
+        self._precedence("Q107", "Q108")
 
-        assert "reggae over ska over reggae" in str(raised.exception.errors)
+        with self.assertRaises(InvalidRow) as raised:
+            CurationEntry.objects.upsert("genre_precedence", {"item_id": "Q108", "over_item_id": "Q107", "reason": "r"})
+
+        assert "Q108 over Q107 over Q108" in str(raised.exception.errors)
 
     @skipUnless(connection.vendor == "postgresql", "advisory locks are Postgres-only")
     def test_genre_precedence_create_then_write_lock_held_until_commit(self):

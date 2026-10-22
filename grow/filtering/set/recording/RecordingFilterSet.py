@@ -57,6 +57,7 @@ class RecordingFilterSet(PrivateUniqueResourceFilterSet):
         lookup_expr="icontains",
     )
     genre = UUIDFilter(method="filter_genre")
+    genre_is_umbrella = BooleanFilter(field_name="genre__genre__is_umbrella")
     artist = UUIDFilter(field_name=ModelFields.ARTISTS)
     playable = BooleanFilter(method="filter_playable")
     ordering = ChoiceFilter(
