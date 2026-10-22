@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- The large track, track-artist and recording tables get absolute autovacuum/autoanalyze thresholds (200k/100k changed rows) instead of the default 20%/10% scale factors, which a nightly delta merge never reached on ~30M-row tables, so they were never vacuumed or analyzed.
 - The songs import merge no longer scans every owner track to match staged songs, and re-syncs track artists in one scan instead of two, cutting about 1 min 30 s off a 500k-song delta.
 
 ### Fixed
