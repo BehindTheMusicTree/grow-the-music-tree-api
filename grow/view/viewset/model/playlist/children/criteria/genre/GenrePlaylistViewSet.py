@@ -62,6 +62,7 @@ def _tree_rows(queryset) -> list[dict]:
         "criteria__genre__side",
         "criteria__genre__wikidata_id",
         "criteria__genre__is_unaccepted_root",
+        "criteria__genre__is_umbrella",
     ):
         criteria_id = r["criteria_id"]
         name = r["criteria___name"] if criteria_id else CriterialessPlaylistNames.GENRE
@@ -94,6 +95,7 @@ def _tree_rows(queryset) -> list[dict]:
                 "root": root,
                 "tracks_count": r["tracks_count"],
                 "is_unaccepted_root": bool(r["criteria__genre__is_unaccepted_root"]),
+                "is_umbrella": bool(r["criteria__genre__is_umbrella"]),
                 "created_on": _datetime(r["created_on"]),
                 "updated_on": _datetime(r["updated_on"]),
             }

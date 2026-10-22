@@ -12,6 +12,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.0.0] - 2026-10-22
+
+### Breaking
+
+- Curation list `umbrella_canonical_genres` renamed `non_stylistic_genres` (appellations without a coherent style, still dropped from the canonical tree); entries and review items are migrated, and `curation/export/` serves the new name.
+- Curation list `genre_precedence` is now keyed by Wikidata ids (`item_id`, `over_item_id`, `reason`) instead of MusicBrainz tag names. Migration 0065 converts existing entries via canonical genre names then `genre_alias`, drops pairs already in a lineage, and fails listing any name it can't resolve.
+
+### Added
+
+- Umbrella genres: `Genre.is_umbrella` (canonical genres kept only to group sub-genres), set from the tree import's `isUmbrella` (`the-music-tree-genre-kit` v0.49.0) and exposed as `is_umbrella` on genres, genre playlists and the tree endpoint, with `?is_umbrella=` on genres.
+- Curation list `umbrella_genres`; an entry for a genre with no sub-genre is rejected.
+- Assigning a recording to an umbrella genre is rejected with a 400.
+- `GET recordings/?genre_is_umbrella=true` lists the recordings still to refine.
+
+### Fixed
+
+- SQLite test databases lost the `grow_genre` tree-version triggers when `is_umbrella` was added; migration 0064 recreates them.
+
 ## [12.16.0] - 2026-10-20
 
 ### Fixed
