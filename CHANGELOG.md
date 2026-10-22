@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.0.1] - 2026-10-22
+
+### Fixed
+
+- Migration 0065 no longer aborts the deploy when a `genre_precedence` name has no canonical genre: names also resolve through the " music" suffix, and pairs naming an unresolvable genre are dropped with a warning.
+
 ## [13.0.0] - 2026-10-22
 
 ### Breaking

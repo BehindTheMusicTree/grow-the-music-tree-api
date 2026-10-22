@@ -78,9 +78,25 @@ class TestCase(AppTestCase):
         keys = sorted(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True))
         assert keys == ["Q3071\tQ37073", "Q484641\tQ11399"]
 
-    def test_precedence_migration_unresolvable_name_then_raises(self):
+    def test_precedence_migration_unresolvable_name_then_pair_dropped(self):
         self._genre("Rock", "Q11399")
-        CurationEntry.objects.create(user=None, list_name="genre_precedence", key="nope\trock", values={}, reason="r")
+        self._genre("Pop punk", "Q1", parent=self._genre("Punk rock", "Q3071"))
+        for key in ("nope\trock", "pop punk\tpunk rock"):
+            CurationEntry.objects.create(user=None, list_name="genre_precedence", key=key, values={}, reason="r")
 
-        with self.assertRaisesMessage(RuntimeError, "nope"):
-            migration.convert_precedence(apps, None)
+        migration.convert_precedence(apps, None)
+
+        assert list(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True)) == []
+
+    def test_precedence_migration_music_suffix_then_resolved(self):
+        self._genre("Rock music", "Q11399")
+        self._genre("Punk rock", "Q3071")
+        CurationEntry.objects.create(
+            user=None, list_name="genre_precedence", key="punk rock\trock", values={}, reason="r"
+        )
+
+        migration.convert_precedence(apps, None)
+
+        assert list(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True)) == [
+            "Q3071\tQ11399"
+        ]
