@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.0.0] - 2026-10-22
+
 ### Breaking
 
 - Curation list `umbrella_canonical_genres` renamed `non_stylistic_genres` (appellations without a coherent style, still dropped from the canonical tree); entries and review items are migrated, and `curation/export/` serves the new name.
