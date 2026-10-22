@@ -11,7 +11,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.recording.Recording import Recording
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist"
+TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -23,15 +23,17 @@ WITH staged AS (
         youtube_unplayable_reason, genre_name, first_release_year
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
-), owned AS (
-    SELECT y.track_id, y.musicbrainz_recording_id, y.youtube_video_id, y.is_manually_edited
-    FROM grow_recording y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
-    WHERE t.user_id IS NOT DISTINCT FROM %(user)s
 ), matched AS (
-    SELECT s.*, o.track_id, o.is_manually_edited FROM staged s LEFT JOIN owned o ON o.musicbrainz_recording_id = s.mbid
+    -- Flat outer joins let the planner hash the staged songs instead of every owner track.
+    SELECT s.*, t.uuid AS track_id, CASE WHEN t.uuid IS NOT NULL THEN y.is_manually_edited END AS is_manually_edited
+    FROM staged s
+    LEFT JOIN grow_recording y ON y.musicbrainz_recording_id = s.mbid
+    LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id AND t.user_id IS NOT DISTINCT FROM %(user)s
 ), legacy AS (
-    SELECT DISTINCT ON (youtube_video_id) track_id, youtube_video_id, is_manually_edited FROM owned
-    WHERE musicbrainz_recording_id IS NULL AND youtube_video_id IS NOT NULL ORDER BY youtube_video_id, track_id
+    SELECT DISTINCT ON (y.youtube_video_id) y.track_id, y.youtube_video_id, y.is_manually_edited
+    FROM grow_recording y JOIN the_music_tree_genre_kit_track t ON t.uuid = y.track_id
+    WHERE t.user_id IS NOT DISTINCT FROM %(user)s AND y.musicbrainz_recording_id IS NULL AND y.youtube_video_id IS NOT NULL
+    ORDER BY y.youtube_video_id, y.track_id
 ), candidate AS (
     SELECT DISTINCT ON (youtube_video_id) mbid, youtube_video_id FROM matched
     WHERE track_id IS NULL AND youtube_video_id IS NOT NULL ORDER BY youtube_video_id, mbid
@@ -167,19 +169,27 @@ STEPS = [
         WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
     ) n ON s.artist_mbid IS NULL AND n.name = s.artist""",
     ),
+    ("analyze_desired_artist", "ANALYZE desired_artist"),
+    # One scan of the track artists; the delete and insert below then only diff the two temp tables.
+    (
+        "current_artist",
+        """CREATE TEMP TABLE current_artist AS
+    SELECT ta.id, ta.track_id, ta.artist_id FROM the_music_tree_genre_kit_track_artists ta
+    JOIN song_import s ON s.track_id = ta.track_id""",
+    ),
+    ("analyze_current_artist", "ANALYZE current_artist"),
     (
         "delete_track_artists",
-        """DELETE FROM the_music_tree_genre_kit_track_artists ta USING song_import s
-    WHERE ta.track_id = s.track_id
-        AND NOT EXISTS (SELECT 1 FROM desired_artist d WHERE d.track_id = ta.track_id AND d.artist_id = ta.artist_id)""",
+        """DELETE FROM the_music_tree_genre_kit_track_artists WHERE id IN (
+        SELECT c.id FROM current_artist c
+        WHERE NOT EXISTS (SELECT 1 FROM desired_artist d WHERE d.track_id = c.track_id AND d.artist_id = c.artist_id)
+    )""",
     ),
     (
         "insert_track_artists",
         """INSERT INTO the_music_tree_genre_kit_track_artists (track_id, artist_id)
     SELECT d.track_id, d.artist_id FROM desired_artist d
-    WHERE NOT EXISTS (
-        SELECT 1 FROM the_music_tree_genre_kit_track_artists ta WHERE ta.track_id = d.track_id AND ta.artist_id = d.artist_id
-    )
+    WHERE NOT EXISTS (SELECT 1 FROM current_artist c WHERE c.track_id = d.track_id AND c.artist_id = d.artist_id)
     ORDER BY d.track_id""",
     ),
 ]

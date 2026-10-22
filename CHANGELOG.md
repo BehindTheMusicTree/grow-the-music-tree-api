@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Improved
+
+- The songs import merge no longer scans every owner track to match staged songs, and re-syncs track artists in one scan instead of two, cutting about 1 min 30 s off a 500k-song delta.
+
 ### Fixed
 
 - The Docker image now includes `wget`, so Coolify's healthcheck fallback no longer logs "wget: not found".
