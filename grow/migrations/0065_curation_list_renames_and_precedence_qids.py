@@ -16,6 +16,9 @@ def _qid_by_name(apps) -> dict[str, str]:
             "_name", "wikidata_id"
         )
     }
+    for name, qid in list(by_name.items()):
+        if name.endswith(" music"):
+            by_name.setdefault(name.removesuffix(" music"), qid)
     for entry in CurationEntry.objects.filter(user=None, list_name="genre_alias"):
         qid = by_name.get(entry.values["wikidata_genre_name"].lower())
         if qid is not None:
@@ -34,13 +37,16 @@ def convert_precedence(apps, schema_editor):
         CurationEntry.objects.filter(list_name="genre_precedence").delete()
         return
 
-    unresolved = sorted(
-        {name for e in entries for name in e.key.split(SEPARATOR) if name.lower() not in qids},
-    )
-    if unresolved:
-        raise RuntimeError(f"genre_precedence names with no canonical genre or alias: {unresolved}")
+    # A tag with no canonical genre never reaches a song's genre in gold, so a pair naming one is moot.
+    for entry in entries:
+        if any(name.lower() not in qids for name in entry.key.split(SEPARATOR)):
+            logger.warning("Dropping genre_precedence %s: a name has no canonical genre or alias", entry.key)
+            entry.delete()
+    entries = [e for e in entries if all(name.lower() in qids for name in e.key.split(SEPARATOR))]
 
-    genres = {g.wikidata_id: g for g in Genre.objects.filter(user=None, tree_name="canonical", wikidata_id__in=qids.values())}
+    genres = {
+        g.wikidata_id: g for g in Genre.objects.filter(user=None, tree_name="canonical", wikidata_id__in=qids.values())
+    }
     converted: set[str] = set()
     for entry in entries:
         winner, loser = (qids[name.lower()] for name in entry.key.split(SEPARATOR))
