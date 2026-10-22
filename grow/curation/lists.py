@@ -4,7 +4,9 @@ from typing import Literal
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
-ITEM_ID_COLUMNS = frozenset({"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id"})
+ITEM_ID_COLUMNS = frozenset(
+    {"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id", "over_item_id"}
+)
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
 OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary"})
 REASON_COLUMN = "reason"
@@ -74,7 +76,14 @@ CURATION_LISTS: dict[str, CurationList] = {
     "regional_overview_additions": _item_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
-    "umbrella_canonical_genres": _item_list("Genuine genres too broad to keep as canonical nodes, dropped."),
+    "non_stylistic_genres": _item_list(
+        "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as canonical nodes, "
+        "dropped."
+    ),
+    "umbrella_genres": _item_list(
+        "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
+        source="gold",
+    ),
     "accepted_non_genre_tags": CurationList(
         "gold",
         ("musicbrainz_genre_name",),
@@ -124,16 +133,16 @@ CURATION_LISTS: dict[str, CurationList] = {
         "Genre summary an admin wrote, overriding the Wikipedia one.",
     ),
     "genre_precedence": CurationList(
-        "musicbrainz",
-        ("musicbrainz_genre_name", "over_musicbrainz_genre_name"),
-        ("musicbrainz_genre_name", "over_musicbrainz_genre_name", "reason"),
-        "On a recording carrying both MusicBrainz genres, the more precise first one wins over the second.",
+        "gold",
+        ("item_id", "over_item_id"),
+        ("item_id", "over_item_id", "reason"),
+        "On a song carrying both genres, the first, more precise one wins over the second.",
     ),
 }
 
-GENRE_PAIR_LISTS = frozenset({"genre_precedence"})
-"""Lists keyed by two distinct MusicBrainz `genre.name`s, which MusicBrainz stores lowercase and trimmed. The first
-wins over the second, so the pipeline fails on a cycle of such rules."""
+ITEM_PAIR_LISTS = frozenset({"genre_precedence"})
+"""Lists keyed by two distinct item ids, the first winning over the second, so the pipeline fails on a cycle of such
+rules."""
 
 EXCLUDED_GENRE_LISTS = {
     "theme": "theme_genres",

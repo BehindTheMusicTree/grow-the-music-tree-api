@@ -7,6 +7,13 @@ class GenreFilterSet(CriteriaFilterSet):
     wikidata_id = CharFilter(field_name="wikidata_id")
     has_name_conflict = StrictBooleanFilter(field_name="has_name_conflict")
     is_unaccepted_root = StrictBooleanFilter(field_name="is_unaccepted_root")
+    is_umbrella = StrictBooleanFilter(field_name="is_umbrella")
 
     class Meta(CriteriaFilterSet.Meta):
-        fields = [*CriteriaFilterSet.Meta.fields, "wikidata_id", "has_name_conflict", "is_unaccepted_root"]
+        fields = [
+            *CriteriaFilterSet.Meta.fields,
+            "wikidata_id",
+            "has_name_conflict",
+            "is_unaccepted_root",
+            "is_umbrella",
+        ]
