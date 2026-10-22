@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.0.2] - 2026-10-22
+
 ### Improved
 
 - The large track, track-artist and recording tables get absolute autovacuum/autoanalyze thresholds (200k/100k changed rows) instead of the default 20%/10% scale factors, which a nightly delta merge never reached on ~30M-row tables, so they were never vacuumed or analyzed.
