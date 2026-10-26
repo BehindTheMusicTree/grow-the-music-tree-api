@@ -14,6 +14,8 @@ TYPES = set(Artist.Type.values)
 LINK_KINDS = set(ArtistLink.Kind.values)
 # A btree key (artist, kind, url) must stay under ~2.7 kB.
 LINK_URL_LEN_MAX = 2048  # bytes
+# Same btree key limit for the unique (artist, name) alias index.
+ALIAS_NAME_LEN_MAX = 2048  # bytes
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -58,6 +60,18 @@ def _row(line_number: int, line: bytes) -> tuple:
     _require(country is None or (_is_text(country) and len(country) == 2), line_number, "country must be ISO 3166-1")
     _require(_is_year(artist.get("begin_year")) and _is_year(artist.get("end_year")), line_number, "invalid year")
     _require(isinstance(artist.get("ended"), bool), line_number, "ended must be a boolean")
+    disambiguation = artist.get("disambiguation")
+    _require(
+        disambiguation is None or _is_text(disambiguation, settings.ARTIST_NAME_LEN_MAX),
+        line_number,
+        f"disambiguation must be a non-empty string of at most {settings.ARTIST_NAME_LEN_MAX} characters",
+    )
+    aliases = artist.get("aliases", [])
+    _require(
+        _is_text_list(aliases) and all(len(alias.encode()) <= ALIAS_NAME_LEN_MAX for alias in aliases),
+        line_number,
+        f"aliases must be a list of non-empty strings of at most {ALIAS_NAME_LEN_MAX} bytes",
+    )
     for key in ("members", "links", "release_groups"):
         _require(
             isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),

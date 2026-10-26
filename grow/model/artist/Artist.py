@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from the_music_tree_genre_kit.track.Track import Track
 
     from grow.model.album.Album import Album
+    from grow.model.artist_alias.ArtistAlias import ArtistAlias
     from grow.model.artist_link.ArtistLink import ArtistLink
     from grow.model.artist_membership.ArtistMembership import ArtistMembership
 
@@ -56,6 +57,9 @@ class Artist(TrackMixin):
     begin_year = models.SmallIntegerField(null=True, blank=True)
     end_year = models.SmallIntegerField(null=True, blank=True)
     ended = models.BooleanField(default=False)
+    disambiguation = models.TextField(null=True, blank=True)
+    # Playable recordings crediting the artist, kept by the songs import merge to rank search results.
+    recording_count = models.PositiveIntegerField(db_default=0)
 
     @property
     def name(self) -> str:
@@ -70,6 +74,7 @@ class Artist(TrackMixin):
         members: models.QuerySet[ArtistMembership]
         member_of: models.QuerySet[ArtistMembership]
         links: models.QuerySet[ArtistLink]
+        aliases: models.QuerySet[ArtistAlias]
 
     objects: ArtistManager = ArtistManager()
 
