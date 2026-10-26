@@ -14,7 +14,7 @@ from tests.utils.AppApiClient import ADMIN_EMAIL
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
 
-ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
+ITEM = {"item_id": "Q999999991", "reason": "testing"}
 TREE = {
     Fields.TREE_NAME: "canonical",
     Fields.TREE: [{Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}],

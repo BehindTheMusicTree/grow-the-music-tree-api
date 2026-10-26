@@ -9,8 +9,8 @@ from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.utils.AppTestCase import AppTestCase
 
-ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
-OTHER = {"item_id": "Q999999992", "item_label": "other genre", "reason": "testing"}
+ITEM = {"item_id": "Q999999991", "reason": "testing"}
+OTHER = {"item_id": "Q999999992", "reason": "testing"}
 
 backfill = importlib.import_module("grow.migrations.0037_curation_history_list_name").add_list_name
 
