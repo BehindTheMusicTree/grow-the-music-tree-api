@@ -6,4 +6,4 @@ from .Fields import Fields
 
 class GenrePostSerializer(EssentialSongsInputMixin, CriteriaPostSerializer):
     class Meta(CriteriaPostSerializer.Meta):
-        fields = [*CriteriaPostSerializer.Meta.fields, Fields.ESSENTIAL_SONGS, Fields.ESSENTIAL_TRACKS]
+        fields = [*CriteriaPostSerializer.Meta.fields, Fields.ESSENTIAL_SONGS]

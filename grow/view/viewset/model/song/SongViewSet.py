@@ -100,10 +100,3 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     ) = bulk_import_run_actions(
         "songs/", ImportRun.Kind.SONGS, SongImportStaging, load_part, merge_song_import_run, "musicbrainz_recording_id"
     )
-
-
-class LegacyYoutubeViewSet(SongViewSet):
-    def list(self, *args, **kwargs):
-        # Legacy consumers require a non-null youtubeVideoId.
-        queryset = self.get_queryset().filter(genre__isnull=False, youtube_video_id__isnull=False)
-        return self._get_paginated_list_response(queryset)

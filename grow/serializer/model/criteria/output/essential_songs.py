@@ -18,9 +18,7 @@ class CriteriaEssentialSongsSerializerMixin:
     """
 
     essential_songs = serializers.SerializerMethodField()
-    # Deprecated duplicate of `essential_songs`, kept for one release.
-    essential_tracks = serializers.SerializerMethodField()
-    _declared_fields = {"essential_songs": essential_songs, "essential_tracks": essential_tracks}
+    _declared_fields = {"essential_songs": essential_songs}
 
     def get_essential_songs(self, obj) -> list[dict]:
         genre = getattr(obj, "genre", None)
@@ -29,6 +27,3 @@ class CriteriaEssentialSongsSerializerMixin:
         return TrackWithoutAlbumPlaylistGenreSerializer(
             genre.essential_songs.all(), many=True, context=self.context
         ).data
-
-    def get_essential_tracks(self, obj) -> list[dict]:
-        return self.get_essential_songs(obj)

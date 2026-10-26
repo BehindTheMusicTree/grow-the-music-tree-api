@@ -14,5 +14,4 @@ class GenrePutSerializer(EssentialSongsInputMixin, CriteriaPutSerializer):
             *CriteriaPutSerializer.Meta.fields,
             Fields.SUMMARY,
             Fields.ESSENTIAL_SONGS,
-            Fields.ESSENTIAL_TRACKS,
         ]
