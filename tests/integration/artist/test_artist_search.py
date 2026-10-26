@@ -23,6 +23,14 @@ class TestArtistSearch(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         return [item["name"] for item in response.data]
 
+    def test_invalid_bearer_token_is_ignored(self):
+        self.factory.create_artist("Nirvana")
+        self.api_client.credentials(HTTP_AUTHORIZATION="Bearer not-a-grow-token")
+
+        response = self.search("nirvana")
+
+        assert response.status_code == status.HTTP_200_OK
+
     def test_anonymous_search_then_result_shape(self):
         artist = self.factory.create_artist(
             "Nirvana", type="group", country="GB", begin_year=1967, disambiguation="60s UK band", recording_count=3
