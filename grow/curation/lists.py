@@ -202,7 +202,7 @@ EXCLUDED_GENRE_LISTS = {
     "out_of_scope": "out_of_scope_genres",
     "duplicate": "duplicate_genres",
 }
-"""Admin genre-exclusion category -> the pruning list song it."""
+"""Admin genre-exclusion category -> the pruning list recording it."""
 
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
