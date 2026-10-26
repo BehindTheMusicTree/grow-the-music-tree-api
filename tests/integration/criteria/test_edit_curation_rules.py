@@ -48,6 +48,32 @@ class TestCase(GenreTestCase):
             }
         ]
 
+    def test_reparent_onto_secondary_added_parent_then_add_rule_and_edge_dropped(self):
+        self.punk.secondary_parents.add(self.rock)
+        CurationEntry.objects.upsert(
+            "secondary_parents",
+            {"item_id": "Q888002", "parent_id": "Q888001", "action": "add", "reason": REASON},
+            actor=None,
+        )
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert not self.punk.secondary_parents.exists()
+        assert _rows("secondary_parents") == []
+
+    def test_reparent_onto_secondary_removed_parent_then_remove_rule_kept(self):
+        CurationEntry.objects.upsert(
+            "secondary_parents",
+            {"item_id": "Q888002", "parent_id": "Q888001", "action": "remove", "reason": REASON},
+            actor=None,
+        )
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert [r["action"] for r in _rows("secondary_parents")] == ["remove"]
+
     def test_reparent_to_root_then_400_and_rolled_back(self):
         punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
 
