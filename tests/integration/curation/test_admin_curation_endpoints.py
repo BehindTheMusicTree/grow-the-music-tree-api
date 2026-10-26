@@ -8,12 +8,12 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 from grow.youtube import YoutubeLookupError
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
-FETCH = "grow.model.recording.RecordingCurationManager.fetch_unplayable_reason"
+FETCH = "grow.model.song.SongCurationManager.fetch_unplayable_reason"
 MB_ID = "11111111-1111-4111-8111-111111111111"
 
 
@@ -26,13 +26,13 @@ class TestCase(AppTestCase):
             {**entry.values, "key": entry.key} for entry in CurationEntry.objects.filter(list_name=list_name, user=None)
         ]
 
-    def _recording(self, title="Song", genre=None, mb_id=MB_ID) -> Recording:
-        return self.model_fixture_factory.create_recording(title, genre, musicbrainz_recording_id=mb_id)
+    def _song(self, title="Song", genre=None, mb_id=MB_ID) -> Song:
+        return self.model_fixture_factory.create_song(title, genre, musicbrainz_recording_id=mb_id)
 
-    def _assign(self, recordings, genre):
+    def _assign(self, songs, genre):
         return self.api_client.post(
-            path=reverse("recording-assign-genre"),
-            data={"recordings": [str(r.uuid) for r in recordings], "genre": str(genre.uuid) if genre else None},
+            path=reverse("song-assign-genre"),
+            data={"songs": [str(r.uuid) for r in songs], "genre": str(genre.uuid) if genre else None},
             format="json",
         )
 
@@ -46,31 +46,31 @@ class TestCase(AppTestCase):
 
     def test_assign_genre_then_rule_row_and_undo(self):
         rock = self._rock()
-        recording = self._recording()
+        song = self._song()
 
-        response = self._assign([recording], rock)
+        response = self._assign([song], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(recording.uuid), "genre": None, "undoable": True}]
-        recording.refresh_from_db()
-        assert recording.genre.pk == rock.pk
-        assert recording.is_manually_edited
-        [rule] = self._rule("recording_genre")
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None, "undoable": True}]
+        song.refresh_from_db()
+        assert song.genre.pk == rock.pk
+        assert song.is_manually_edited
+        [rule] = self._rule("song_genre")
         assert rule["genre_item_id"] == "Q11399"
         assert rule["key"] == MB_ID
 
-        undo = self._assign([recording], None)
+        undo = self._assign([song], None)
 
         assert undo.status_code == status.HTTP_200_OK
-        recording.refresh_from_db()
-        assert recording.genre is None
-        [rule] = self._rule("recording_genre")
+        song.refresh_from_db()
+        assert song.genre is None
+        [rule] = self._rule("song_genre")
         assert rule["genre_item_id"] == ""
 
     def test_assign_genre_batch_then_previous_restores_each(self):
         rock, jazz = self._rock(), self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q8341")
-        a = self._recording("A", rock)
-        b = self._recording("B", None, "22222222-2222-4222-8222-222222222222")
+        a = self._song("A", rock)
+        b = self._song("B", None, "22222222-2222-4222-8222-222222222222")
 
         previous = self._assign([a, b], jazz).json()["previous"]
 
@@ -84,40 +84,40 @@ class TestCase(AppTestCase):
 
     def test_assign_genre_from_genre_without_wikidata_id_then_not_undoable(self):
         local = self.model_fixture_factory.create_genre("Local")
-        recording = self._recording("A", local)
+        song = self._song("A", local)
 
-        previous = self._assign([recording], self._rock()).json()["previous"]
+        previous = self._assign([song], self._rock()).json()["previous"]
 
-        assert previous == [{"uuid": str(recording.uuid), "genre": str(local.uuid), "undoable": False}]
+        assert previous == [{"uuid": str(song.uuid), "genre": str(local.uuid), "undoable": False}]
 
     def test_assign_genre_without_musicbrainz_id_then_400_and_nothing_written(self):
         rock = self._rock()
-        ok, bad = self._recording(), self._recording("Bad", None, None)
+        ok, bad = self._song(), self._song("Bad", None, None)
 
         response = self._assign([ok, bad], rock)
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not CurationEntry.objects.filter(list_name="recording_genre").exists()
+        assert not CurationEntry.objects.filter(list_name="song_genre").exists()
         ok.refresh_from_db()
         assert ok.genre is None
 
     def test_assign_genre_then_401_and_403(self):
-        self._forbidden_and_unauthorized("post", reverse("recording-assign-genre"), {"recordings": [], "genre": None})
+        self._forbidden_and_unauthorized("post", reverse("song-assign-genre"), {"songs": [], "genre": None})
 
     def test_patch_video_then_rule_row_and_youtube_called(self):
-        recording = self._recording(genre=self._rock())
-        old_video_id = recording.youtube_video_id
+        song = self._song(genre=self._rock())
+        old_video_id = song.youtube_video_id
 
         with patch(FETCH, return_value="not_embeddable") as fetch:
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": recording.uuid}), {"youtubeVideoId": "abc"}, format="json"
+                reverse("song-detail", kwargs={"pk": song.uuid}), {"youtubeVideoId": "abc"}, format="json"
             )
 
         assert response.status_code == status.HTTP_200_OK
         fetch.assert_called_once_with("abc")
-        recording.refresh_from_db()
-        assert (recording.youtube_video_id, recording.youtube_unplayable_reason) == ("abc", "not_embeddable")
-        assert recording.is_manually_edited
+        song.refresh_from_db()
+        assert (song.youtube_video_id, song.youtube_unplayable_reason) == ("abc", "not_embeddable")
+        assert song.is_manually_edited
         entry = HistoryEntry.objects.get(action=HistoryAction.UPDATED)
         assert (entry.actor, entry.old_value, entry.new_value) == (self.admin, old_video_id, "abc")
         [rule] = self._rule("recording_youtube_video")
@@ -125,65 +125,63 @@ class TestCase(AppTestCase):
         assert rule["unplayable_reason"] == ""
 
     def test_patch_explicit_reason_then_youtube_not_called(self):
-        recording = self._recording(genre=self._rock())
+        song = self._song(genre=self._rock())
 
         with patch(FETCH) as fetch:
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": recording.uuid}),
+                reverse("song-detail", kwargs={"pk": song.uuid}),
                 {"youtubeVideoId": "abc", "youtubeUnplayableReason": "private"},
                 format="json",
             )
 
         assert response.status_code == status.HTTP_200_OK
         fetch.assert_not_called()
-        recording.refresh_from_db()
-        assert recording.youtube_unplayable_reason == "private"
+        song.refresh_from_db()
+        assert song.youtube_unplayable_reason == "private"
         assert self._rule("recording_youtube_video")[0]["unplayable_reason"] == "private"
 
     def test_patch_same_video_then_unplayable_reason_kept(self):
-        recording = self._recording(genre=self._rock())
-        Recording.objects.filter(pk=recording.pk).update(
-            youtube_video_id="abc", youtube_unplayable_reason="not_embeddable"
-        )
+        song = self._song(genre=self._rock())
+        Song.objects.filter(pk=song.pk).update(youtube_video_id="abc", youtube_unplayable_reason="not_embeddable")
 
         with patch(FETCH) as fetch:
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": recording.uuid}), {"youtubeVideoId": "abc"}, format="json"
+                reverse("song-detail", kwargs={"pk": song.uuid}), {"youtubeVideoId": "abc"}, format="json"
             )
 
         assert response.status_code == status.HTTP_200_OK
         fetch.assert_not_called()
-        recording.refresh_from_db()
-        assert recording.youtube_unplayable_reason == "not_embeddable"
+        song.refresh_from_db()
+        assert song.youtube_unplayable_reason == "not_embeddable"
 
     def test_patch_video_null_then_cleared_without_lookup(self):
-        recording = self._recording(genre=self._rock())
+        song = self._song(genre=self._rock())
 
         with patch(FETCH) as fetch:
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": recording.uuid}), {"youtubeVideoId": None}, format="json"
+                reverse("song-detail", kwargs={"pk": song.uuid}), {"youtubeVideoId": None}, format="json"
             )
 
         assert response.status_code == status.HTTP_200_OK
         fetch.assert_not_called()
-        recording.refresh_from_db()
-        assert recording.youtube_video_id is None
+        song.refresh_from_db()
+        assert song.youtube_video_id is None
 
     def test_patch_when_youtube_down_then_502_and_nothing_written(self):
-        recording = self._recording(genre=self._rock())
+        song = self._song(genre=self._rock())
 
         with patch(FETCH, side_effect=YoutubeLookupError("down")):
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": recording.uuid}), {"youtubeVideoId": "abc"}, format="json"
+                reverse("song-detail", kwargs={"pk": song.uuid}), {"youtubeVideoId": "abc"}, format="json"
             )
 
         assert response.status_code == status.HTTP_502_BAD_GATEWAY
         assert not CurationEntry.objects.filter(list_name="recording_youtube_video").exists()
 
     def test_patch_other_field_or_no_musicbrainz_id_then_400(self):
-        recording = self._recording(genre=self._rock())
-        bare = self._recording("Bare", None, None)
-        url = reverse("recording-detail", kwargs={"pk": recording.uuid})
+        song = self._song(genre=self._rock())
+        bare = self._song("Bare", None, None)
+        url = reverse("song-detail", kwargs={"pk": song.uuid})
 
         assert self.api_client.patch(url, {"title": "x"}, format="json").status_code == status.HTTP_400_BAD_REQUEST
         assert (
@@ -192,13 +190,13 @@ class TestCase(AppTestCase):
         )
         with patch(FETCH, return_value=None):
             response = self.api_client.patch(
-                reverse("recording-detail", kwargs={"pk": bare.uuid}), {"youtubeVideoId": "abc"}, format="json"
+                reverse("song-detail", kwargs={"pk": bare.uuid}), {"youtubeVideoId": "abc"}, format="json"
             )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_patch_then_401_and_403_and_put_still_405(self):
-        recording = self._recording(genre=self._rock())
-        url = reverse("recording-detail", kwargs={"pk": recording.uuid})
+        song = self._song(genre=self._rock())
+        url = reverse("song-detail", kwargs={"pk": song.uuid})
         self._forbidden_and_unauthorized("patch", url, {"youtubeVideoId": "abc"})
         self.api_client.credentials()
         assert self.api_client.put(url, {"title": "x"}, format="json").status_code in (
@@ -209,12 +207,12 @@ class TestCase(AppTestCase):
     def test_search_then_genreless_filter_and_cursor(self):
         rock = self._rock()
         artist = self.model_fixture_factory.create_artist("Nirvana")
-        loose = self._recording("Lithium", None)
+        loose = self._song("Lithium", None)
         loose.artists.add(artist)
-        self._recording("Lithium Tree", rock, "33333333-3333-4333-8333-333333333333")
+        self._song("Lithium Tree", rock, "33333333-3333-4333-8333-333333333333")
 
-        everything = self.api_client.get(reverse("recording-search"), {"q": "lithium"}).json()
-        genreless = self.api_client.get(reverse("recording-search"), {"q": "nirvana", "genreless": "true"}).json()
+        everything = self.api_client.get(reverse("song-search"), {"q": "lithium"}).json()
+        genreless = self.api_client.get(reverse("song-search"), {"q": "nirvana", "genreless": "true"}).json()
 
         assert len(everything["results"]) == 2
         assert [r["uuid"] for r in genreless["results"]] == [str(loose.uuid)]
@@ -222,28 +220,28 @@ class TestCase(AppTestCase):
 
     def test_search_cursor_then_pages(self):
         for i in range(51):
-            self.model_fixture_factory.create_recording(f"Bulk {i}", None)
+            self.model_fixture_factory.create_song(f"Bulk {i}", None)
 
-        first = self.api_client.get(reverse("recording-search"), {"genreless": "true"}).json()
-        second = self.api_client.get(reverse("recording-search"), {"genreless": "true", "cursor": first["next"]}).json()
+        first = self.api_client.get(reverse("song-search"), {"genreless": "true"}).json()
+        second = self.api_client.get(reverse("song-search"), {"genreless": "true", "cursor": first["next"]}).json()
 
         assert len(first["results"]) == 50
         assert len(second["results"]) == 1
         assert second["next"] is None
 
     def test_search_then_401_and_403(self):
-        self._forbidden_and_unauthorized("get", reverse("recording-search"))
+        self._forbidden_and_unauthorized("get", reverse("song-search"))
 
     def test_link_suggestions_then_sorted_by_shared_artists(self):
         rock = self._rock()
         a1, a2 = self.model_fixture_factory.create_artist("A1"), self.model_fixture_factory.create_artist("A2")
-        known = self._recording("Known", rock)
+        known = self._song("Known", rock)
         known.artists.add(a1, a2)
-        one = self._recording("One", None, "44444444-4444-4444-8444-444444444444")
+        one = self._song("One", None, "44444444-4444-4444-8444-444444444444")
         one.artists.add(a1)
-        two = self._recording("Two", None, "55555555-5555-4555-8555-555555555555")
+        two = self._song("Two", None, "55555555-5555-4555-8555-555555555555")
         two.artists.add(a1, a2)
-        stranger = self._recording("Stranger", None, "66666666-6666-4666-8666-666666666666")
+        stranger = self._song("Stranger", None, "66666666-6666-4666-8666-666666666666")
         stranger.artists.add(self.model_fixture_factory.create_artist("Other"))
 
         response = self.api_client.get(reverse("genre-link-suggestions", kwargs={"pk": rock.uuid}))
@@ -299,8 +297,8 @@ class TestCase(AppTestCase):
         target = self.model_fixture_factory.create_genre("Alternative rock", wikidata_id="Q11366", parent=root)
         source = self.model_fixture_factory.create_genre("alt rock", parent=root)
         child = self.model_fixture_factory.create_genre("Child", parent=source)
-        recording = self._recording("Song", source)
-        source.essential_tracks.add(recording)
+        song = self._song("Song", source)
+        source.essential_songs.add(song)
         url = reverse("genre-alias-of", kwargs={"pk": source.uuid})
 
         preview = self.api_client.get(
@@ -308,17 +306,17 @@ class TestCase(AppTestCase):
         )
         response = self.api_client.post(url, {"target": str(target.uuid)}, format="json")
 
-        assert preview.json() == {"recordings": 1, "essentialTracks": 1, "children": 1}
+        assert preview.json() == {"songs": 1, "essentialSongs": 1, "children": 1}
         assert response.status_code == status.HTTP_200_OK
         assert not Genre.objects.filter(pk=source.pk).exists()
-        recording.refresh_from_db()
+        song.refresh_from_db()
         child.refresh_from_db()
-        assert recording.genre.pk == target.pk
+        assert song.genre.pk == target.pk
         assert child.parent.pk == target.pk
-        assert list(target.essential_tracks.all()) == [Recording.objects.get(pk=recording.pk)]
+        assert list(target.essential_songs.all()) == [Song.objects.get(pk=song.pk)]
         [rule] = self._rule("genre_alias")
         assert (rule["key"], rule["wikidata_genre_name"]) == ("alt rock", "Alternative rock")
-        assert [r["key"] for r in self._rule("essential_tracks")] == [f"Q11366\t{MB_ID}"]
+        assert [r["key"] for r in self._rule("essential_songs")] == [f"Q11366\t{MB_ID}"]
 
     def test_alias_of_descendant_then_400(self):
         root = self.model_fixture_factory.create_genre("Music", wikidata_id="Q638")
@@ -358,29 +356,29 @@ class TestCase(AppTestCase):
         self._forbidden_and_unauthorized("post", reverse("genre-alias-of", kwargs={"pk": pk}), {"target": str(pk)})
         self._forbidden_and_unauthorized("get", reverse("genre-alias-of-preview", kwargs={"pk": pk}))
 
-    def test_put_summary_and_essential_tracks_then_rules(self):
+    def test_put_summary_and_essential_songs_then_rules(self):
         genre = self._rock()
-        a = self._recording("A", genre)
-        b = self._recording("B", genre, "77777777-7777-4777-8777-777777777777")
+        a = self._song("A", genre)
+        b = self._song("B", genre, "77777777-7777-4777-8777-777777777777")
         url = reverse("genre-detail", kwargs={"pk": genre.uuid})
 
         response = self.api_client.put(
-            url, {"summary": "Loud.", "essentialTracks": [str(b.uuid), str(a.uuid)]}, format="json"
+            url, {"summary": "Loud.", "essentialSongs": [str(b.uuid), str(a.uuid)]}, format="json"
         )
 
         assert response.status_code == status.HTTP_200_OK
         genre.refresh_from_db()
         assert genre.summary == "Loud."
         assert genre.is_manually_edited
-        assert {t.pk for t in genre.essential_tracks.all()} == {a.pk, b.pk}
+        assert {t.pk for t in genre.essential_songs.all()} == {a.pk, b.pk}
         [summary] = self._rule("summary_overrides")
         assert summary["summary"] == "Loud."
-        positions = {r["key"].split("\t")[1]: r["position"] for r in self._rule("essential_tracks")}
+        positions = {r["key"].split("\t")[1]: r["position"] for r in self._rule("essential_songs")}
         assert positions == {str(b.musicbrainz_recording_id): "1", str(a.musicbrainz_recording_id): "2"}
 
-        self.api_client.put(url, {"essentialTracks": [str(a.uuid)]}, format="json")
+        self.api_client.put(url, {"essentialSongs": [str(a.uuid)]}, format="json")
 
-        assert [r["key"].split("\t")[1] for r in self._rule("essential_tracks")] == [str(a.musicbrainz_recording_id)]
+        assert [r["key"].split("\t")[1] for r in self._rule("essential_songs")] == [str(a.musicbrainz_recording_id)]
 
     def test_put_blank_summary_then_override_row_with_empty_summary_and_locked(self):
         genre = self._rock()
@@ -402,29 +400,29 @@ class TestCase(AppTestCase):
 
     def test_put_unchanged_then_no_rule_and_no_lock(self):
         genre = self._rock()
-        a = self._recording("A", genre)
-        genre.essential_tracks.add(a)
+        a = self._song("A", genre)
+        genre.essential_songs.add(a)
         genre.summary = "Loud."
         genre.save(update_fields=["summary"])
 
         response = self.api_client.put(
             reverse("genre-detail", kwargs={"pk": genre.uuid}),
-            {"summary": "Loud.", "essentialTracks": [str(a.uuid)]},
+            {"summary": "Loud.", "essentialSongs": [str(a.uuid)]},
             format="json",
         )
 
         assert response.status_code == status.HTTP_200_OK
         genre.refresh_from_db()
         assert not genre.is_manually_edited
-        assert not CurationEntry.objects.filter(list_name__in=["summary_overrides", "essential_tracks"]).exists()
+        assert not CurationEntry.objects.filter(list_name__in=["summary_overrides", "essential_songs"]).exists()
 
     def test_put_essential_track_without_musicbrainz_id_then_400(self):
         genre = self._rock()
-        bare = self._recording("Bare", genre, None)
+        bare = self._song("Bare", genre, None)
 
         response = self.api_client.put(
-            reverse("genre-detail", kwargs={"pk": genre.uuid}), {"essentialTracks": [str(bare.uuid)]}, format="json"
+            reverse("genre-detail", kwargs={"pk": genre.uuid}), {"essentialSongs": [str(bare.uuid)]}, format="json"
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not genre.essential_tracks.exists()
+        assert not genre.essential_songs.exists()

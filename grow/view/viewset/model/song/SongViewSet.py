@@ -2,17 +2,17 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.response import Response
 
-from grow.filtering.set.recording.RecordingFilterSet import RecordingFilterSet
+from grow.filtering.set.song.SongFilterSet import SongFilterSet
 from grow.model.import_run.ImportRun import ImportRun
-from grow.model.recording.Recording import Recording
-from grow.model.recording.RecordingCurationManager import SEARCH_PAGE_SIZE, RecordingCurationManager
-from grow.serializer.model.recording.input import (
-    RecordingAssignGenreSerializer,
-    RecordingSearchQuerySerializer,
-    RecordingYoutubePatchSerializer,
+from grow.model.song.Song import Song
+from grow.model.song.SongCurationManager import SEARCH_PAGE_SIZE, SongCurationManager
+from grow.serializer.model.song.input import (
+    SongAssignGenreSerializer,
+    SongSearchQuerySerializer,
+    SongYoutubePatchSerializer,
 )
-from grow.serializer.model.recording.output.detailed import RecordingDetailedSerializer
-from grow.serializer.model.recording.output.without_playlists import RecordingWithoutPlaylistsSerializer
+from grow.serializer.model.song.output.detailed import SongDetailedSerializer
+from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -28,15 +28,15 @@ from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 
-class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
+class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
 
     def __init__(self, **kwargs):
         super().__init__(
-            model_class=Recording,
-            filterset_class=RecordingFilterSet,
-            simple_serializer_class=RecordingDetailedSerializer,
-            detailed_serializer_class=RecordingDetailedSerializer,
+            model_class=Song,
+            filterset_class=SongFilterSet,
+            simple_serializer_class=SongDetailedSerializer,
+            detailed_serializer_class=SongDetailedSerializer,
             **kwargs,
         )
 
@@ -60,35 +60,35 @@ class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
         return self._handle_destroy()
 
     def partial_update(self, request, *args, **kwargs):
-        recording = self.get_object()
-        serializer = RecordingYoutubePatchSerializer(data=request.data)
+        song = self.get_object()
+        serializer = SongYoutubePatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         unknown = set(request.data) - set(serializer.fields)
         if unknown:
             raise ValidationError(dict.fromkeys(sorted(unknown), "Not editable"))
-        updated = RecordingCurationManager().update_youtube(recording, serializer.validated_data, request.user)
-        return Response(RecordingDetailedSerializer(updated, context=self.get_serializer_context()).data)
+        updated = SongCurationManager().update_youtube(song, serializer.validated_data, request.user)
+        return Response(SongDetailedSerializer(updated, context=self.get_serializer_context()).data)
 
     @action(detail=False, methods=["post"], url_path="assign-genre", permission_classes=[IsAdmin])
     def assign_genre(self, request):
-        serializer = RecordingAssignGenreSerializer(data=request.data)
+        serializer = SongAssignGenreSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        previous = RecordingCurationManager().assign_genre(
-            serializer.validated_data["recordings"], serializer.validated_data["genre"], request.user
+        previous = SongCurationManager().assign_genre(
+            serializer.validated_data["songs"], serializer.validated_data["genre"], request.user
         )
         return Response({"previous": previous})
 
     @action(detail=False, methods=["get"], permission_classes=[IsAdmin])
     def search(self, request):
-        query = RecordingSearchQuerySerializer(data=request.query_params)
+        query = SongSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
         page = list(
-            RecordingCurationManager.search(params["q"], params["genreless"], params["cursor"])[: SEARCH_PAGE_SIZE + 1]
+            SongCurationManager.search(params["q"], params["genreless"], params["cursor"])[: SEARCH_PAGE_SIZE + 1]
         )
         has_more = len(page) > SEARCH_PAGE_SIZE
         page = page[:SEARCH_PAGE_SIZE]
-        results = RecordingWithoutPlaylistsSerializer(page, many=True, context=self.get_serializer_context()).data
+        results = SongWithoutPlaylistsSerializer(page, many=True, context=self.get_serializer_context()).data
         return Response({"results": results, "next": str(page[-1].uuid) if has_more else None})
 
     (
@@ -102,7 +102,7 @@ class RecordingViewSet(HistoryActionMixin, GrowModelViewSet[Recording]):
     )
 
 
-class LegacyYoutubeViewSet(RecordingViewSet):
+class LegacyYoutubeViewSet(SongViewSet):
     def list(self, *args, **kwargs):
         # Legacy consumers require a non-null youtubeVideoId.
         queryset = self.get_queryset().filter(genre__isnull=False, youtube_video_id__isnull=False)

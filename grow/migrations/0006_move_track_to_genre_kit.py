@@ -50,7 +50,7 @@ def repoint_track_parent_link(apps, schema_editor):
     `UploadedTrack` never needs this treatment: it's dead code with no live data, so its table is
     dropped outright (see this migration's `database_operations`) instead of repointed.
     """
-    from grow.model.recording.Recording import Recording as YoutubeTrack
+    from grow.model.song.Song import Song as YoutubeTrack
 
     GrowTrack = apps.get_model("grow", "Track")
 

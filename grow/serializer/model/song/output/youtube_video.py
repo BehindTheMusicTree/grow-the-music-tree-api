@@ -1,14 +1,14 @@
 from rest_framework import serializers
 
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 
 
-class RecordingYoutubeVideoSerializer(serializers.ModelSerializer):
+class SongYoutubeVideoSerializer(serializers.ModelSerializer):
     id = serializers.CharField(source="youtube_video_id")
     unplayable_reason = serializers.CharField(source="youtube_unplayable_reason", allow_null=True)
 
     class Meta:
-        model = Recording
+        model = Song
         fields = ["id", "unplayable_reason"]
 
     def to_representation(self, instance):

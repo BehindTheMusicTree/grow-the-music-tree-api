@@ -5,7 +5,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 class TestCase(AppTestCase):
-    list_endpoint = "recording-list"
+    list_endpoint = "song-list"
 
     def test_get_without_api_key_then_200_ok(self):
         self.api_client.credentials()
@@ -16,18 +16,18 @@ class TestCase(AppTestCase):
 
     def test_delete_without_api_key_then_401_unauthorized(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        recording = self.model_fixture_factory.create_recording(title="Track Title", genre=genre)
+        song = self.model_fixture_factory.create_song(title="Track Title", genre=genre)
         self.api_client.credentials()
 
-        response = self.api_client.delete(path=reverse("recording-detail", kwargs={"pk": recording.uuid}))
+        response = self.api_client.delete(path=reverse("song-detail", kwargs={"pk": song.uuid}))
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_delete_with_api_key_then_not_401_unauthorized(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        recording = self.model_fixture_factory.create_recording(title="Track Title", genre=genre)
+        song = self.model_fixture_factory.create_song(title="Track Title", genre=genre)
 
-        response = self.api_client.delete(path=reverse("recording-detail", kwargs={"pk": recording.uuid}))
+        response = self.api_client.delete(path=reverse("song-detail", kwargs={"pk": song.uuid}))
 
         assert response.status_code != status.HTTP_401_UNAUTHORIZED
 

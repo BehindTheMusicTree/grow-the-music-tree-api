@@ -6,7 +6,7 @@ from the_music_tree_api_kit.serializer.field.foreign_key.PrivateUuidField import
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.model.ContentObjectFields import ContentObjectFields
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 
 
 class PrivateContentUuidField(PrivateUuidField):
@@ -45,12 +45,12 @@ class PrivateContentUuidField(PrivateUuidField):
 
     def _get_track_ct(self):
         if self._track_ct is None:
-            self._track_ct = ContentType.objects.get_for_model(Recording)
+            self._track_ct = ContentType.objects.get_for_model(Song)
         return self._track_ct
 
     def get_queryset(self):
         user = self.get_request_user()
-        return Playlist.objects.filter(user=user) | Recording.objects.filter(user=user)
+        return Playlist.objects.filter(user=user) | Song.objects.filter(user=user)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         if data is None:
@@ -69,7 +69,7 @@ class PrivateContentUuidField(PrivateUuidField):
         if playlist:
             return {ContentObjectFields.CONTENT_TYPE: self._get_playlist_ct(), ContentObjectFields.CONTENT: playlist}
 
-        track = Recording.objects.filter(user=user, uuid=uuid).first()
+        track = Song.objects.filter(user=user, uuid=uuid).first()
         if track:
             return {
                 ContentObjectFields.CONTENT_TYPE: self._get_track_ct(),

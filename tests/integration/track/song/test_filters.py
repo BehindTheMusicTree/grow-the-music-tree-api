@@ -6,7 +6,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 class TestCase(AppTestCase):
-    list_endpoint = "recording-list"
+    list_endpoint = "song-list"
 
     def setUp(self):
         super().setUp()
@@ -14,14 +14,14 @@ class TestCase(AppTestCase):
         self.jazz = self.model_fixture_factory.create_genre("Jazz")
         self.pink_floyd = self.model_fixture_factory.create_artist("Pink Floyd")
         self.album = self.model_fixture_factory.create_album("The Wall")
-        self.matching_track = self.model_fixture_factory.create_recording(
+        self.matching_track = self.model_fixture_factory.create_song(
             title="Comfortably Numb",
             genre=self.rock,
             artists=[self.pink_floyd],
             album=self.album,
             language="en",
         )
-        self.other_track = self.model_fixture_factory.create_recording(
+        self.other_track = self.model_fixture_factory.create_song(
             title="So What",
             genre=self.jazz,
             language="fr",
@@ -46,7 +46,7 @@ class TestCase(AppTestCase):
 
     def test_filter_by_genre_covers_primary_descendants_regardless_of_video(self):
         prog = self.model_fixture_factory.create_genre("Progressive Rock", parent=self.rock)
-        prog_track = self.model_fixture_factory.create_recording(title="Echoes", genre=prog, youtube_video_id=None)
+        prog_track = self.model_fixture_factory.create_song(title="Echoes", genre=prog, youtube_video_id=None)
 
         assert self._list_uuids(genre=str(self.rock.uuid)) == {str(self.matching_track.uuid), str(prog_track.uuid)}
         assert self._list_uuids(genre=str(prog.uuid)) == {str(prog_track.uuid)}
@@ -70,23 +70,23 @@ class TestCase(AppTestCase):
         Money tied on 1979; So What (no album), Bootleg (non-numeric album year) and Demo (non-four-digit "70") have none."""
         factory = self.model_fixture_factory
         type(self.album).objects.filter(pk=self.album.pk).update(year="1979")
-        factory.create_recording(title="Echoes", genre=self.rock, album=factory.create_album("Meddle", year="1971"))
-        factory.create_recording(
+        factory.create_song(title="Echoes", genre=self.rock, album=factory.create_album("Meddle", year="1971"))
+        factory.create_song(
             title="Wish You Were Here",
             genre=self.rock,
             album=factory.create_album("Best Of", year="2001"),
             first_release_year=1975,
         )
-        factory.create_recording(title="Bootleg", genre=self.rock, album=factory.create_album("Live", year="c.70"))
-        factory.create_recording(title="Demo", genre=self.rock, album=factory.create_album("Demos", year="70"))
-        factory.create_recording(title="Money", genre=self.rock, album=self.album, first_release_year=1979)
+        factory.create_song(title="Bootleg", genre=self.rock, album=factory.create_album("Live", year="c.70"))
+        factory.create_song(title="Demo", genre=self.rock, album=factory.create_album("Demos", year="70"))
+        factory.create_song(title="Money", genre=self.rock, album=self.album, first_release_year=1979)
 
     def test_ordering_by_title_and_album_year(self):
         self._with_years()
-        Recording = type(self.matching_track)
+        Song = type(self.matching_track)
 
         def by_pk(*titles):  # pk tie-breaker
-            return sorted(titles, key=lambda title: Recording.objects.get(title=title).pk)
+            return sorted(titles, key=lambda title: Song.objects.get(title=title).pk)
 
         tied_titles = by_pk("Comfortably Numb", "Money")
         no_year = by_pk("So What", "Bootleg", "Demo")
@@ -111,17 +111,17 @@ class TestCase(AppTestCase):
 
     def test_from_starts_at_the_anchor_in_the_active_ordering(self):
         self._with_years()
-        Recording = type(self.matching_track)
+        Song = type(self.matching_track)
 
         for ordering in ("title", "-title", "albumYear", "-albumYear", None):
             params = {"ordering": ordering} if ordering else {}
             full = self._titles(**params)
             for index, title in enumerate(full):
-                anchor = str(Recording.objects.get(title=title).pk)
+                anchor = str(Song.objects.get(title=title).pk)
                 assert self._titles(**params, **{"from": anchor}) == full[index:], (ordering, title)
 
     def test_from_anchor_filtered_out_then_404(self):
-        unplayable = self.model_fixture_factory.create_recording(title="Gone", genre=self.rock, youtube_video_id=None)
+        unplayable = self.model_fixture_factory.create_song(title="Gone", genre=self.rock, youtube_video_id=None)
 
         response = self.api_client.get(
             path=reverse(self.list_endpoint), data={"playable": "true", "from": str(unplayable.pk)}
@@ -136,8 +136,8 @@ class TestCase(AppTestCase):
 
     def test_filter_playable(self):
         factory = self.model_fixture_factory
-        no_video = factory.create_recording(title="No Video", genre=self.rock, youtube_video_id=None)
-        unplayable = factory.create_recording(
+        no_video = factory.create_song(title="No Video", genre=self.rock, youtube_video_id=None)
+        unplayable = factory.create_song(
             title="Private", genre=self.rock, youtube_unplayable_reason=YoutubeUnplayableReason.values[0]
         )
         playable = {str(self.matching_track.uuid), str(self.other_track.uuid)}

@@ -1,7 +1,7 @@
 from django.urls import reverse
 from rest_framework import status
 
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 from tests.utils.AppApiClient import ADMIN_PSEUDO
 from tests.utils.AppTestCase import AppTestCase
 
@@ -10,10 +10,10 @@ class TestCase(AppTestCase):
     def test_history_returns_genre_changed_entry(self):
         rock = self.model_fixture_factory.create_genre(name="Rock")
         pop = self.model_fixture_factory.create_genre(name="Pop")
-        track = self.model_fixture_factory.create_recording(title="wech", genre=rock)
-        Recording.objects.update_instance(track, genre=pop, actor=self.admin)
+        track = self.model_fixture_factory.create_song(title="wech", genre=rock)
+        Song.objects.update_instance(track, genre=pop, actor=self.admin)
 
-        response = self.api_client.get(path=reverse("recording-detail", kwargs={"pk": track.uuid}) + "history/")
+        response = self.api_client.get(path=reverse("song-detail", kwargs={"pk": track.uuid}) + "history/")
 
         assert response.status_code == status.HTTP_200_OK
         actions = [entry["action"] for entry in response.data]

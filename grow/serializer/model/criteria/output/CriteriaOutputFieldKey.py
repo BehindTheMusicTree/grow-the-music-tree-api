@@ -25,4 +25,5 @@ class CriteriaOutputFieldKey(StrEnum):
     TREE_NAME = "tree_name"
     PRIMARY_PARENTS = "primary_parents"
     SECONDARY_PARENTS = "secondary_parents"
+    ESSENTIAL_SONGS = "essential_songs"
     ESSENTIAL_TRACKS = "essential_tracks"

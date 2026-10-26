@@ -7,13 +7,13 @@ from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as ModelFields
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
-from .essential_tracks import CriteriaEssentialTracksSerializerMixin
+from .essential_songs import CriteriaEssentialSongsSerializerMixin
 from .genre_text import CriteriaGenreTextSerializerMixin
 
 
 class CriteriaOverviewSerializer(
     CriteriaSideSerializerMixin,
-    CriteriaEssentialTracksSerializerMixin,
+    CriteriaEssentialSongsSerializerMixin,
     CriteriaGenreTextSerializerMixin,
     AppInputSerializer,
     serializers.ModelSerializer,
@@ -29,5 +29,6 @@ class CriteriaOverviewSerializer(
             CriteriaOutputFieldKey.DESCRIPTION.value,
             CriteriaOutputFieldKey.SUMMARY_SOURCE_URL.value,
             CriteriaOutputFieldKey.SIDE.value,
+            CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,
             CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
         ]

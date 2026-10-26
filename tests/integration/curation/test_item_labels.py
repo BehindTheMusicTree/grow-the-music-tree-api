@@ -117,4 +117,4 @@ class TestItemLabels(AppTestCase):
             {"name": "exclude_other_parents", "kind": "bool", "optional": False},
         ]
         assert {"name": "label", "kind": "text", "optional": False} in specs["canonical_parent_additions"]
-        assert {"name": "genre_item_id", "kind": "item_id", "optional": True} in specs["recording_genre"]
+        assert {"name": "genre_item_id", "kind": "item_id", "optional": True} in specs["song_genre"]

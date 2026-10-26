@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.2.0] - 2026-10-26
+
+### Changed
+
+- Renamed grow's catalog entry `Recording` to `Song` and a genre's `essential_tracks` to `essential_songs`, matching the glossary (a Recording is only the MusicBrainz entity). Migration `0072` renames the model and table (`grow_recording` to `grow_song`), the genre field and its through table, and the `recording_genre` / `essential_tracks` curation lists to `song_genre` / `essential_songs` (reversible). `musicbrainz_recording_id` is unchanged. Tests moved to `tests/integration/track/song/`.
+- `/v1/library/songs/` is the canonical route; `/v1/library/recordings/` stays as a legacy alias for one release.
+
+### Deprecated
+
+- `/v1/library/recordings/`: use `/v1/library/songs/`. To be removed in the next release.
+- Genre output `essentialTracks` (a duplicate of `essentialSongs`) and input `essentialTracks` (`essentialSongs` wins when both are sent). To be removed in the next release.
+
 ## [13.1.1] - 2026-10-26
 
 ### Fixed
