@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `GET /artists/search/` no longer authenticates the request, so a bearer token from another BTMT app (e.g. hear) is ignored instead of rejected.
+
 ## [13.1.0] - 2026-10-26
 
 ### Added
