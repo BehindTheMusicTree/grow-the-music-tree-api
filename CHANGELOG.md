@@ -12,6 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Artist search data: `Artist.disambiguation` and `Artist.recording_count` (playable recordings, refreshed by the song import), an `ArtistAlias` model, and trigram GIN indexes on the accent-folded artist and alias names (`pg_trgm` + `unaccent`, built concurrently). The artist bulk import accepts optional `disambiguation` and `aliases` and resyncs them per artist. Postgres tests cover the alias round-trip, stale deletion, validation and `recording_count`.
 ### Changed
 
 - Genre searches by `name` (e.g. `GET /genres/?name=techno`) list the best matches first — exact, then prefix, then contains — so a short exact match such as "Techno" is no longer pushed past the first page by "Acid techno"; genre-kit 0.51.0.

@@ -7,6 +7,7 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
+from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.criteria.children.genre.Genre import Genre
@@ -33,6 +34,7 @@ from grow.track.bulk_import.SongImportStaging import SongImportStaging
 __all__ = [
     "Album",
     "Artist",
+    "ArtistAlias",
     "ArtistImportStaging",
     "ArtistLink",
     "ArtistMembership",

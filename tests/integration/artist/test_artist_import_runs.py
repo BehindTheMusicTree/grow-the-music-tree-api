@@ -18,6 +18,7 @@ from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
+from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.import_run.ImportRun import ImportRun
@@ -221,6 +222,32 @@ class TestImportRunMerge(AppTestCase):
         assert list(ArtistLink.objects.values_list("kind", flat=True)) == ["wikidata"]
         assert [a.name for a in Album.objects.get().album_artists.all()] == ["The Pink Floyd"]
 
+    def test_aliases_and_disambiguation_imported_resynced_and_cleared(self):
+        self._sync([{**ARTIST, "disambiguation": "UK band", "aliases": ["Floyd", "ピンク・フロイド"]}])
+
+        band = Artist.objects.get(musicbrainz_artist_id=BAND)
+        assert band.disambiguation == "UK band"
+        assert sorted(band.aliases.values_list("name", flat=True)) == ["Floyd", "ピンク・フロイド"]
+        kept = ArtistAlias.objects.get(name="Floyd").pk
+
+        self._sync([{**ARTIST, "disambiguation": None, "aliases": ["Floyd", "The Floyd", "Floyd"]}])
+
+        band.refresh_from_db()
+        assert band.disambiguation is None
+        assert sorted(band.aliases.values_list("name", flat=True)) == ["Floyd", "The Floyd"]
+        assert ArtistAlias.objects.get(name="Floyd").pk == kept
+
+        self._sync([ARTIST])
+
+        assert not band.aliases.exists()
+
+    def test_deleted_artist_takes_its_aliases(self):
+        self._sync([{**ARTIST, "aliases": ["Floyd"]}, PERSON])
+
+        self._sync([PERSON])
+
+        assert not ArtistAlias.objects.exists()
+
     def test_unchanged_reimport_keeps_child_rows(self):
         self._sync([ARTIST, PERSON])
         before = [
@@ -320,6 +347,11 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**ARTIST, "links": [{"kind": "myspace", "url": "https://myspace.com"}]}]),
             _gzip_ndjson([{**ARTIST, "release_groups": [{**ARTIST["release_groups"][0], "title": ""}]}]),
             _gzip_ndjson([{**ARTIST, "release_groups": [{**ARTIST["release_groups"][0], "title": "x" * 2049}]}]),
+            _gzip_ndjson([{**ARTIST, "aliases": "Floyd"}]),
+            _gzip_ndjson([{**ARTIST, "aliases": ["Floyd", ""]}]),
+            _gzip_ndjson([{**ARTIST, "aliases": ["x" * 2049]}]),
+            _gzip_ndjson([{**ARTIST, "disambiguation": ""}]),
+            _gzip_ndjson([{**ARTIST, "disambiguation": 3}]),
         ]
 
         codes = [self._upload(run_id, 0, body).status_code for body in invalid]

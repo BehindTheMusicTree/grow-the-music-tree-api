@@ -8,8 +8,9 @@ from grow.bulk_import.run_steps import run_steps
 from grow.model.import_run.ImportRun import ImportRun
 
 TEMP_TABLES = (
-    "artist_import, run_artist, membership_import, link_import, release_group_row, release_group_import, "
-    "credit_import, run_album, desired_membership, desired_link, desired_album_artist, stale_artist"
+    "artist_import, run_artist, membership_import, link_import, alias_import, release_group_row, "
+    "release_group_import, credit_import, run_album, desired_membership, desired_link, desired_alias, "
+    "desired_album_artist, stale_artist"
 )
 
 YEAR = "(({0})::int)"
@@ -23,7 +24,8 @@ EXPANDED_STEPS = [
         f"""CREATE TEMP TABLE artist_import AS
     SELECT DISTINCT ON (musicbrainz_artist_id) musicbrainz_artist_id AS mbid, id AS staging_id, data->>'name' AS name,
         data->>'type' AS type, data->>'country' AS country, {YEAR.format("data->>'begin_year'")} AS begin_year,
-        {YEAR.format("data->>'end_year'")} AS end_year, (data->>'ended')::boolean AS ended
+        {YEAR.format("data->>'end_year'")} AS end_year, (data->>'ended')::boolean AS ended,
+        data->>'disambiguation' AS disambiguation
     FROM grow_artist_import_staging WHERE run_id = %(run)s ORDER BY musicbrainz_artist_id, part DESC""",
     ),
     ("artist_import_pkey", "ALTER TABLE artist_import ADD PRIMARY KEY (mbid)"),
@@ -46,6 +48,15 @@ EXPANDED_STEPS = [
     CROSS JOIN jsonb_array_elements(s.data->'links') e""",
     ),
     ("analyze_link_import", "ANALYZE link_import"),
+    # Parts exported before aliases existed have no `aliases` key: they stage as an empty list.
+    (
+        "alias_import",
+        """CREATE TEMP TABLE alias_import AS
+    SELECT DISTINCT i.mbid AS artist_mbid, e AS name
+    FROM artist_import i JOIN grow_artist_import_staging s ON s.id = i.staging_id
+    CROSS JOIN jsonb_array_elements_text(COALESCE(s.data->'aliases', '[]'::jsonb)) e""",
+    ),
+    ("analyze_alias_import", "ANALYZE alias_import"),
     (
         "release_group_row",
         """CREATE TEMP TABLE release_group_row AS
@@ -74,15 +85,18 @@ RESOLVE_STEPS = [
     (
         "upsert_artists",
         """INSERT INTO grow_artist
-        (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended)
-    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended
+        (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended,
+        disambiguation)
+    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation
     FROM artist_import ORDER BY mbid
     ON CONFLICT (musicbrainz_artist_id) DO UPDATE SET
         name = EXCLUDED.name, type = EXCLUDED.type, country = EXCLUDED.country, begin_year = EXCLUDED.begin_year,
-        end_year = EXCLUDED.end_year, ended = EXCLUDED.ended, updated_on = now()
+        end_year = EXCLUDED.end_year, ended = EXCLUDED.ended, disambiguation = EXCLUDED.disambiguation,
+        updated_on = now()
     WHERE (grow_artist.name, grow_artist.type, grow_artist.country, grow_artist.begin_year, grow_artist.end_year,
-        grow_artist.ended) IS DISTINCT FROM
-        (EXCLUDED.name, EXCLUDED.type, EXCLUDED.country, EXCLUDED.begin_year, EXCLUDED.end_year, EXCLUDED.ended)""",
+        grow_artist.ended, grow_artist.disambiguation) IS DISTINCT FROM
+        (EXCLUDED.name, EXCLUDED.type, EXCLUDED.country, EXCLUDED.begin_year, EXCLUDED.end_year, EXCLUDED.ended,
+        EXCLUDED.disambiguation)""",
     ),
     (
         "run_artist",
@@ -169,6 +183,26 @@ DIFF_STEPS = [
     ORDER BY d.artist_id, d.kind, d.url""",
     ),
     (
+        "desired_alias",
+        """CREATE TEMP TABLE desired_alias AS
+    SELECT r.uuid AS artist_id, a.name FROM alias_import a JOIN run_artist r ON r.mbid = a.artist_mbid""",
+    ),
+    ("analyze_desired_alias", "ANALYZE desired_alias"),
+    (
+        "delete_aliases",
+        """DELETE FROM grow_artist_alias l USING run_artist r
+    WHERE l.artist_id = r.uuid AND NOT EXISTS (
+        SELECT 1 FROM desired_alias d WHERE d.artist_id = l.artist_id AND d.name = l.name
+    )""",
+    ),
+    (
+        "insert_aliases",
+        """INSERT INTO grow_artist_alias (artist_id, name)
+    SELECT d.artist_id, d.name FROM desired_alias d
+    WHERE NOT EXISTS (SELECT 1 FROM grow_artist_alias l WHERE l.artist_id = d.artist_id AND l.name = d.name)
+    ORDER BY d.artist_id, d.name""",
+    ),
+    (
         "desired_album_artist",
         """CREATE TEMP TABLE desired_album_artist AS
     SELECT al.uuid AS album_id, r.uuid AS artist_id FROM credit_import c
@@ -228,6 +262,7 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
             "DELETE FROM grow_artist_membership m USING stale_artist s WHERE m.member_id = s.uuid",
         ),
         ("delete_stale_links", "DELETE FROM grow_artist_link l USING stale_artist s WHERE l.artist_id = s.uuid"),
+        ("delete_stale_aliases", "DELETE FROM grow_artist_alias l USING stale_artist s WHERE l.artist_id = s.uuid"),
         (
             "delete_stale_album_artists",
             "DELETE FROM grow_album_album_artists aa USING stale_artist s WHERE aa.artist_id = s.uuid",
@@ -245,7 +280,7 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
 def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, int]:
     """
     Merges a committed run's staged artists in one transaction: artists upserted on MBID with their details, their
-    memberships, links and release-group albums (with album artists) diffed against the run, and every artist missing
+    memberships, links, aliases and release-group albums (with album artists) diffed against the run, and every artist missing
     from the run (a `delta` run: only the artists it lists) deleted once nothing credits it. Run after the songs import so
     song artists already carry their MBID.
     """

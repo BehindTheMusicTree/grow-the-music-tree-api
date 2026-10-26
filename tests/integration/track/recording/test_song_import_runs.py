@@ -455,3 +455,24 @@ class TestImportRunMerge(AppTestCase):
         self._sync([{**song, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
         assert [a.name for a in Recording.objects.get().artists.all()] == ["Syd Barrett"]
         assert Artist.objects.filter(pk=legacy.pk).exists()
+
+    def test_artist_recording_count_tracks_playable_recordings(self):
+        self.model_fixture_factory.create_genre("Rock")
+        playable = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        unplayable = {
+            **playable,
+            "musicbrainz_recording_id": OTHER_MBID,
+            "youtube_video_id": None,
+        }
+
+        self._sync([playable, unplayable])
+        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 1
+
+        self._sync([playable, {**unplayable, "youtube_video_id": "zzz123defgh"}])
+        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 2
+
+        self._sync([{**unplayable, "youtube_video_id": "zzz123defgh"}])
+        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 1
+
+        self._sync([{**playable, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
+        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 0
