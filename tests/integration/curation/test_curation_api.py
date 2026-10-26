@@ -16,7 +16,7 @@ from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
-ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
+ITEM = {"item_id": "Q999999991", "reason": "testing"}
 
 
 class TestCase(AppTestCase):
@@ -71,18 +71,17 @@ class TestCase(AppTestCase):
         assert lists["theme_genres"]["count"] == CurationEntry.objects.filter(list_name="theme_genres").count()
         assert lists["theme_genres"]["count"] > 0
 
-    def test_search_then_matches_key_values_reason_and_genre_name(self):
+    def test_search_then_matches_key_reason_and_genre_name(self):
         self.model_fixture_factory.create_genre("Shoegaze", wikidata_id="Q999999993")
         self._create(ITEM)
-        self._create({**ITEM, "item_id": "Q999999992", "item_label": "drone", "reason": "noise wall"})
-        self._create({**ITEM, "item_id": "Q999999993", "item_label": "x"})
+        self._create({**ITEM, "item_id": "Q999999992", "reason": "noise wall"})
+        self._create({**ITEM, "item_id": "Q999999993"})
 
         def keys(q: str) -> list[str]:
             response = self.api_client.get(path=self._entries_url(), data={"q": q})
             return sorted(e["row"]["item_id"] for e in response.json()["results"])
 
         assert keys("Q999999991") == ["Q999999991"]
-        assert keys("DRONE") == ["Q999999992"]
         assert keys("wall") == ["Q999999992"]
         assert keys("shoegaze") == ["Q999999993"]
 
@@ -119,9 +118,7 @@ class TestCase(AppTestCase):
         )
         row = {
             "item_id": "Q999999993",
-            "item_label": "x",
             "parent_id": "Q999999991",
-            "parent_label": "Rock",
             "action": "add",
         }
         self._create({**row, "reason": "r"}, "secondary_parents")
@@ -237,6 +234,36 @@ class TestCase(AppTestCase):
         self._create(ITEM, "theme_genres")
 
         assert self._create(ITEM, "indigenous_to_exclusions").status_code == 201
+
+    def test_entity_lists_then_accept_glottocodes_and_qids(self):
+        exclusion = self._create({"entity_id": "bret1244", "reason": "testing"}, "entity_exclusions")
+        membership = self._create(
+            {"child_entity_id": "Q1", "parent_entity_id": "bret1244", "action": "add", "reason": "testing"},
+            "entity_membership_overrides",
+        )
+
+        assert exclusion.status_code == status.HTTP_201_CREATED
+        assert membership.status_code == status.HTTP_201_CREATED
+
+    def test_entity_id_then_rejects_other_shapes(self):
+        response = self._create({"entity_id": "Genre", "reason": "testing"}, "entity_exclusions")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "entityId" in str(response.json()) or "entity_id" in str(response.json())
+
+    def test_time_span_override_then_years_optional_integers(self):
+        ok = self._create(
+            {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
+            "entity_time_span_overrides",
+        )
+        bad = self._create(
+            {"entity_id": "Q153837", "start_year": "early", "end_year": "", "reason": "testing"},
+            "entity_time_span_overrides",
+        )
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert ok.json()["row"]["start_year"] == "-3500"
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_unknown_list_then_404(self):
         assert self.api_client.get(path=self._entries_url("nope")).status_code == status.HTTP_404_NOT_FOUND

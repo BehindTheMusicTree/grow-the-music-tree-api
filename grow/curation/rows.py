@@ -12,7 +12,10 @@ from django.utils import timezone
 from grow.curation.lists import (
     BOOL_COLUMNS,
     CURATION_LISTS,
+    ENTITY_ID_COLUMNS,
+    ENTITY_ID_PATTERN,
     EXCLUSIVE_LISTS,
+    INT_COLUMNS,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     ITEM_PAIR_LISTS,
@@ -84,6 +87,12 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             continue
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
+            continue
+        if column in ENTITY_ID_COLUMNS and not re.fullmatch(ENTITY_ID_PATTERN, value):
+            errors[column] = "Must be a Glottocode (abcd1234) or a Wikidata QID (Q123)"
+            continue
+        if column in INT_COLUMNS and not re.fullmatch(r"-?[1-9][0-9]*|0", value.strip()):
+            errors[column] = "Must be an integer year"
             continue
         parsed[column] = value
     if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:

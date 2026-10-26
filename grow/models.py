@@ -7,6 +7,7 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
+from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.criteria.children.genre.Genre import Genre
@@ -16,6 +17,7 @@ from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRe
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
@@ -32,6 +34,7 @@ from grow.track.bulk_import.SongImportStaging import SongImportStaging
 __all__ = [
     "Album",
     "Artist",
+    "ArtistAlias",
     "ArtistImportStaging",
     "ArtistLink",
     "ArtistMembership",
@@ -59,4 +62,5 @@ __all__ = [
     "Track",
     "TrackPlaylistRel",
     "UserProfile",
+    "WikidataItem",
 ]

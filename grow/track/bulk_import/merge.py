@@ -11,7 +11,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.recording.Recording import Recording
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist"
+TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist, count_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -195,6 +195,15 @@ STEPS = [
 ]
 
 AFTER_STALE_STEPS = [
+    # Taken before the stale tracks' artist links are deleted: those artists lose a recording too.
+    (
+        "count_artist",
+        """CREATE TEMP TABLE count_artist AS
+    SELECT artist_id FROM desired_artist WHERE artist_id IS NOT NULL
+    UNION SELECT artist_id FROM current_artist
+    UNION SELECT ta.artist_id FROM the_music_tree_genre_kit_track_artists ta JOIN stale s ON s.track_id = ta.track_id""",
+    ),
+    ("analyze_count_artist", "ANALYZE count_artist"),
     (
         "touched_playlist",
         """CREATE TEMP TABLE touched_playlist AS SELECT DISTINCT playlist_id FROM the_music_tree_genre_kit_track_playlist_rel
@@ -298,6 +307,18 @@ AFTER_STALE_STEPS = [
     LEFT JOIN grow_criteria o ON o.uuid = c.old_genre_id
     LEFT JOIN grow_criteria n ON n.uuid = c.new_genre_id
     WHERE c.old_genre_id IS DISTINCT FROM c.new_genre_id""",
+    ),
+    # Ranks artist search results; only artists whose tracks this run touched are recounted.
+    (
+        "refresh_recording_count",
+        f"""WITH counted AS (
+        SELECT c.artist_id, count(y.track_id) AS n FROM count_artist c
+        LEFT JOIN the_music_tree_genre_kit_track_artists ta ON ta.artist_id = c.artist_id
+        LEFT JOIN grow_recording y ON y.track_id = ta.track_id AND {PLAYABLE.format("y")}
+        GROUP BY c.artist_id
+    )
+    UPDATE grow_artist a SET recording_count = counted.n FROM counted
+    WHERE a.uuid = counted.artist_id AND a.recording_count <> counted.n""",
     ),
 ]
 

@@ -45,7 +45,7 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `type`: `person|group|orchestra|choir|character|other|null`. `links[].kind`:
 `official|wikipedia|wikidata|spotify|youtube|bandcamp|soundcloud|discogs|social`. `memberOf` has the `members` shape,
 `artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
-`tracksCount` counts the recordings with a genre, the ones the library lists.
+`tracksCount` counts the songs with a genre, the ones the library lists.
 
 An artist's recordings: `GET /v1/library/recordings/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
 (nulls last). `albumYear` uses the recording's `first_release_year` where the pipelines supply one, falling back to a
@@ -58,6 +58,17 @@ nulls last, ties by id). 404 if it is not in the filtered list, 400 if not a UUI
 
 `isSpecialPurpose` (read-only boolean, also on nested artists) is true for the special-purpose MBIDs (Various Artists,
 Unknown, etc.).
+
+#### Search
+
+`GET {base}search/?q=<text>&limit=<n>`
+
+Public typeahead over artist names and MusicBrainz aliases, accent- and case-insensitive and typo-tolerant. `q` is 2-100
+characters and `limit` defaults to 10 (max 25); otherwise 400. Special-purpose artists are excluded. Not paginated.
+
+`{uuid, name, disambiguation, type, country, beginYear, endYear, matchedAlias, recordingCount}` per artist, best match
+first: exact name, then prefix, then similarity, then `recordingCount`. `matchedAlias` is set only when an alias matched
+better than the name. Throttled to 120 requests per minute per client.
 
 #### Import
 

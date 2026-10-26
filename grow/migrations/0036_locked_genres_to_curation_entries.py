@@ -13,7 +13,7 @@ def _rules(genre, actions: set[str], parent) -> list[tuple[str, dict[str, str]]]
     item = {"item_id": genre.wikidata_id}
     rules = []
     if "root_accepted" in actions and not genre.is_unaccepted_root:
-        rules.append(("accepted_canonical_roots", {**item, "item_label": genre._name}))
+        rules.append(("accepted_canonical_roots", {**item}))
     if "renamed" in actions:
         rules.append(("label_overrides", {**item, "display_label": genre._name, "reason": REASON}))
     if (
@@ -23,11 +23,11 @@ def _rules(genre, actions: set[str], parent) -> list[tuple[str, dict[str, str]]]
         and parent.wikidata_id is not None
         and not (genre.is_excluded or parent.is_excluded)
     ):
-        row = {**item, "item_label": genre._name, "reason": REASON}
+        row = {**item, "reason": REASON}
         rules.append(("main_parent", {**row, "parent_item_id": parent.wikidata_id, "exclude_other_parents": "true"}))
     if "excluded" in actions and genre.is_excluded:
         # The exclusion's category was never recorded: out_of_scope_genres is the catch-all.
-        rules.append(("out_of_scope_genres", {**item, "item_label": genre._name, "reason": REASON}))
+        rules.append(("out_of_scope_genres", {**item, "reason": REASON}))
     return rules
 
 

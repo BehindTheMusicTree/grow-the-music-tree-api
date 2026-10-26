@@ -35,6 +35,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [p.strip() for p in CORS_ALLOWED_ORIGIN_REGEXES_ST
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.postgres",
     "rest_framework",
     "corsheaders",
     "django_q",

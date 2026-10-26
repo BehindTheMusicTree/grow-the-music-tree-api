@@ -12,6 +12,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.1.0] - 2026-10-26
+
+### Added
+
+- Geohistory curation lists `entity_exclusions`, `entity_membership_overrides` and `entity_time_span_overrides` (entity ids are Glottocodes or Wikidata QIDs, years are optional integers): editable through the curation endpoints and included in the curation export the geohistory pipeline reads, with `entity_id` and `int` column kinds and tests.
+- Artist search data: `Artist.disambiguation` and `Artist.recording_count` (playable recordings, refreshed by the song import), an `ArtistAlias` model, and trigram GIN indexes on the accent-folded artist and alias names (`pg_trgm` + `unaccent`, built concurrently). The artist bulk import accepts optional `disambiguation` and `aliases` and resyncs them per artist. Postgres tests cover the alias round-trip, stale deletion, validation and `recording_count`.
+- `GET /artists/search/?q=&limit=`: public, throttled artist typeahead over names and aliases (accent-insensitive, typo-tolerant, ranked by exact, prefix, similarity, then `recordingCount`); special-purpose artists are excluded. Tested against Postgres.
+
+### Changed
+
+- Genre searches by `name` (e.g. `GET /genres/?name=techno`) list the best matches first — exact, then prefix, then contains — so a short exact match such as "Techno" is no longer pushed past the first page by "Acid techno"; genre-kit 0.51.0.
+
+### Fixed
+
+- Moving a genre with hundreds of tracks under a large parent (e.g. Contemporary R&B under Pop hip-hop) no longer hits the 30s worker timeout and returns a 500: genre-kit 0.50.1 moves tracks with set-based SQL. A query-budget test (constant query count) and a Postgres latency SLO guard the reparent.
+
+### Added
+
+- Wikidata item catalog: `POST curation/wikidata-items/` (pipeline) replaces a `WikidataItem(item_id, label)` table holding every item the pipeline knows, pruned and `LOCAL:` ones included; `GET curation/items/?q=` (admin) searches items by name or id across the canonical tree, the catalog and pending additions. Tests cover push, replace, validation, auth and search.
+- Curation lists expose `columnSpecs` (`{name, kind: item_id|bool|text, optional}`) and the history response a `labels` map, so clients no longer hardcode column kinds or show bare QIDs.
+
+### Changed
+
+- Curation item names are resolved by one function: canonical tree name, else catalog label, else the name given to a pending addition; entries, rules and history all use it.
+- **Breaking:** curation lists no longer carry the derived names `item_label`, `parent_label` and `recording_label` (rows, CSV headers, seeds); they are resolved from the catalog or the tree. In `canonical_parent_additions` and `regional_overview_additions`, which create a node, `item_label` becomes `label`. A data migration rewrites existing entries, and the admin edit paths stop filling the names. Tests updated.
+
 ## [13.0.2] - 2026-10-22
 
 ### Improved

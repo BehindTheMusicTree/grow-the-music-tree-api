@@ -42,7 +42,6 @@ class TestCase(GenreTestCase):
         assert _rows("main_parent") == [
             {
                 "item_id": "Q888002",
-                "item_label": "Punk",
                 "reason": REASON,
                 "parent_item_id": "Q888001",
                 "exclude_other_parents": True,
@@ -93,12 +92,12 @@ class TestCase(GenreTestCase):
         )
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert _rows("accepted_canonical_roots") == [{"item_id": "Q888002", "item_label": "Punk"}]
+        assert _rows("accepted_canonical_roots") == [{"item_id": "Q888002"}]
 
     def test_exclude_then_category_list(self):
         assert self._post_genre_exclude(self.punk.uuid, "technique").status_code == status.HTTP_200_OK
 
-        assert _rows("technique_genres") == [{"item_id": "Q888002", "item_label": "Punk", "reason": REASON}]
+        assert _rows("technique_genres") == [{"item_id": "Q888002", "reason": REASON}]
 
     def test_exclude_without_or_with_unknown_category_then_400(self):
         for category in (None, "nope"):
@@ -108,7 +107,7 @@ class TestCase(GenreTestCase):
         assert not Genre.objects.get(pk=self.punk.pk).is_excluded
 
     def test_exclude_into_conflicting_list_then_400_and_rolled_back(self):
-        CurationEntry.objects.upsert("theme_genres", {"item_id": "Q888002", "item_label": "Punk", "reason": "x"})
+        CurationEntry.objects.upsert("theme_genres", {"item_id": "Q888002", "reason": "x"})
 
         response = self._post_genre_exclude(self.punk.uuid, "duplicate")
 

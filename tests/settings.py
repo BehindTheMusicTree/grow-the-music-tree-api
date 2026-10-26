@@ -12,6 +12,7 @@ SECRET_KEY = "fixture-only-not-for-production"
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",
+    "django.contrib.postgres",
     "rest_framework",
     "django_q",
     "the_music_tree_genre_kit",

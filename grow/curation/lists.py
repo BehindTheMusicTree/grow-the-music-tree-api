@@ -1,20 +1,27 @@
 from dataclasses import dataclass
 from typing import Literal
 
+ADDITION_LABEL_COLUMN = "label"
+
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
 ITEM_ID_COLUMNS = frozenset(
     {"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id", "over_item_id"}
 )
+ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
+"""A Glottocode, or the QID of a Wikidata-only cultural entity."""
+
+ENTITY_ID_COLUMNS = frozenset({"entity_id", "child_entity_id", "parent_entity_id"})
+INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
-OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary"})
+OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS})
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
 """`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
 
 
-Source = Literal["wikidata", "musicbrainz", "gold"]
+Source = Literal["wikidata", "musicbrainz", "gold", "geohistory"]
 """The pipeline consuming the list."""
 
 
@@ -34,19 +41,42 @@ class CurationList:
     def has_reason(self) -> bool:
         return REASON_COLUMN in self.columns
 
+    @property
+    def column_specs(self) -> tuple[dict[str, str | bool], ...]:
+        return tuple(
+            {
+                "name": c,
+                "kind": "item_id"
+                if c in ITEM_ID_COLUMNS
+                else "entity_id"
+                if c in ENTITY_ID_COLUMNS
+                else "int"
+                if c in INT_COLUMNS
+                else "bool"
+                if c in BOOL_COLUMNS
+                else "text",
+                "optional": c in OPTIONAL_COLUMNS,
+            }
+            for c in self.columns
+        )
+
 
 def _item_list(description: str, *extra: str, source: Source = "wikidata") -> CurationList:
-    return CurationList(source, ("item_id",), ("item_id", "item_label", "reason", *extra), description)
+    return CurationList(source, ("item_id",), ("item_id", "reason", *extra), description)
+
+
+def _addition_list(description: str) -> CurationList:
+    return CurationList("wikidata", ("item_id",), ("item_id", ADDITION_LABEL_COLUMN, "reason"), description)
 
 
 CURATION_LISTS: dict[str, CurationList] = {
     "accepted_canonical_roots": CurationList(
         "wikidata",
         ("item_id",),
-        ("item_id", "item_label"),
+        ("item_id",),
         "Canonical roots reviewed and accepted as roots; any other root is flagged for review.",
     ),
-    "canonical_parent_additions": _item_list("Synthetic canonical parent items the pipeline adds to the tree."),
+    "canonical_parent_additions": _addition_list("Synthetic canonical parent items the pipeline adds to the tree."),
     "capitalized_words": CurationList(
         "wikidata",
         ("word",),
@@ -73,7 +103,7 @@ CURATION_LISTS: dict[str, CurationList] = {
         "overview_item_id",
         "exclude_other_parents",
     ),
-    "regional_overview_additions": _item_list("Synthetic regional overview items the pipeline adds."),
+    "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
     "non_stylistic_genres": _item_list(
@@ -105,13 +135,13 @@ CURATION_LISTS: dict[str, CurationList] = {
     "secondary_parents": CurationList(
         "gold",
         ("item_id", "parent_id"),
-        ("item_id", "item_label", "parent_id", "parent_label", "action", "reason"),
+        ("item_id", "parent_id", "action", "reason"),
         "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
     ),
     "recording_genre": CurationList(
         "musicbrainz",
         ("musicbrainz_recording_id",),
-        ("musicbrainz_recording_id", "recording_label", "genre_item_id", "reason"),
+        ("musicbrainz_recording_id", "genre_item_id", "reason"),
         "Genre an admin assigned to a recording, overriding its MusicBrainz tags.",
     ),
     "recording_youtube_video": CurationList(
@@ -138,7 +168,29 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "over_item_id", "reason"),
         "On a song carrying both genres, the first, more precise one wins over the second.",
     ),
+    "entity_exclusions": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "reason"),
+        "Cultural entities dropped, with their membership and succession edges.",
+    ),
+    "entity_membership_overrides": CurationList(
+        "geohistory",
+        ("child_entity_id", "parent_entity_id"),
+        ("child_entity_id", "parent_entity_id", "action", "reason"),
+        "Membership edges of a cultural entity: `add` adds a parent, `remove` drops one.",
+    ),
+    "entity_time_span_overrides": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "start_year", "end_year", "reason"),
+        "Start and end year of a cultural entity (BCE negative, no year 0), overriding the sourced dates; a blank "
+        "year keeps the sourced one.",
+    ),
 }
+
+ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
+"""Lists whose rows create a node: their `label` is the item's only name until it reaches the tree."""
 
 ITEM_PAIR_LISTS = frozenset({"genre_precedence"})
 """Lists keyed by two distinct item ids, the first winning over the second, so the pipeline fails on a cycle of such

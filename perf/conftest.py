@@ -68,6 +68,17 @@ def largest_genre_playlist() -> GenrePlaylist:
     return GenrePlaylist.objects.get(pk=counts[0][TrackPlaylistRelFields.PLAYLIST])
 
 
+def mid_size_genre(*, exclude: Genre) -> Genre:
+    rels = TrackPlaylistRel._default_manager.filter(
+        **{f"{TrackPlaylistRelFields.PLAYLIST}__in": GenrePlaylist.objects.exclude(criteria=exclude).values("pk")}
+    )
+    counts = rels.values(TrackPlaylistRelFields.PLAYLIST).annotate(tracks=Count("pk")).filter(tracks__gte=200)
+    playlist = GenrePlaylist.objects.filter(
+        pk__in=[row[TrackPlaylistRelFields.PLAYLIST] for row in counts], criteria__parent__isnull=False
+    ).order_by("pk")[0]
+    return playlist.criteria
+
+
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
