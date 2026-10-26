@@ -20,13 +20,15 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
-from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN, KEY_MAX_LENGTH
+from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
+from grow.curation.lists import ADDITION_LISTS, CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN, KEY_MAX_LENGTH
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import InvalidRow, ParsedRow, RowConflict, check_edit, find_item_rules, lock_writes
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.view.permission.IsAdmin import IsAdmin
@@ -78,9 +80,8 @@ def _search(queryset, q: str):
 
 
 def _labels(entries: list[CurationEntry]) -> dict[str, str]:
-    """Canonical genre name of every item id on the page, keyed by QID."""
-    ids = {str(v) for e in entries for c, v in e.row.items() if c in ITEM_ID_COLUMNS and v}
-    return dict(_canonical_genres().filter(wikidata_id__in=ids).values_list("wikidata_id", "_name"))
+    """Name of every item id on the page, keyed by id."""
+    return resolve_item_labels(item_ids(e.row for e in entries))
 
 
 def _item_id(request: Request) -> str:
@@ -109,6 +110,7 @@ class CurationListsView(CurationView):
                     "name": name,
                     "key_columns": c.key,
                     "columns": c.columns,
+                    "column_specs": c.column_specs,
                     "description": c.description,
                     "count": counts.get(name, 0),
                 }
@@ -209,7 +211,10 @@ class CurationHistoryView(CurationView):
         page = paginator.paginate_queryset(
             queryset.select_related("actor__profile").order_by("-created_on"), request, view=self
         )
-        return paginator.get_paginated_response(CurationHistoryEntrySerializer(page, many=True).data)
+        response = paginator.get_paginated_response(CurationHistoryEntrySerializer(page, many=True).data)
+        snapshots = [v for h in page or [] for v in (h.old_value, h.new_value)]
+        response.data["labels"] = resolve_item_labels(snapshot_item_ids(snapshots))
+        return response
 
 
 class CurationStatusView(CurationView):
@@ -311,6 +316,67 @@ class CurationWikidataResolutionsView(CurationView):
         serializer = _WikidataResolutionsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         return Response(apply_wikidata_resolutions(**serializer.validated_data))
+
+
+class _WikidataItemSerializer(_StrictSerializer):
+    id = _item_id_field()
+    label = serializers.CharField(trim_whitespace=False)
+
+
+class _WikidataItemsSerializer(serializers.Serializer):
+    items = _WikidataItemSerializer(many=True)
+
+
+class CurationWikidataItemsView(CurationView):
+    """The pipeline's catalog of every Wikidata item it knows, pruned ones included: replaces the previous one."""
+
+    permission_classes = [IsPipelineOrAdmin]
+
+    @transaction.atomic
+    def post(self, request: Request) -> Response:
+        serializer = _WikidataItemsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = {i["id"]: i["label"] for i in serializer.validated_data["items"]}
+        WikidataItem.objects.all().delete()
+        WikidataItem.objects.bulk_create(WikidataItem(item_id=k, label=v) for k, v in items.items())
+        return Response({"itemCount": len(items)})
+
+
+ITEM_SEARCH_LIMIT = 20
+
+
+class CurationItemsView(CurationView):
+    """Items matching `q` by id or name, for an admin to pick one: the canonical tree, the catalog and pending additions."""
+
+    def get(self, request: Request) -> Response:
+        q = request.query_params.get("q", "").strip()
+        if not q:
+            raise ValidationError({"q": "Required"})
+        ids = set(
+            WikidataItem.objects.filter(Q(item_id__iexact=q) | Q(label__icontains=q)).values_list("item_id", flat=True)[
+                :ITEM_SEARCH_LIMIT
+            ]
+        )
+        ids |= set(
+            _canonical_genres()
+            .filter(Q(_name__icontains=q) | Q(wikidata_id__iexact=q))
+            .exclude(wikidata_id=None)
+            .values_list("wikidata_id", flat=True)[:ITEM_SEARCH_LIMIT]
+        )
+        ids |= set(
+            _entries()
+            .filter(list_name__in=ADDITION_LISTS)
+            .annotate(values_text=Cast("values", TextField()))
+            .filter(Q(key__iexact=q) | Q(values_text__icontains=q))
+            .values_list("key", flat=True)[:ITEM_SEARCH_LIMIT]
+        )
+        labels = resolve_item_labels(ids)
+        results = [
+            {"id": i, "label": labels[i]}
+            for i in sorted(ids, key=lambda i: (labels.get(i, "~").lower(), i))
+            if i in labels
+        ]
+        return Response({"results": results[:ITEM_SEARCH_LIMIT]})
 
 
 class CurationReviewView(CurationView):
