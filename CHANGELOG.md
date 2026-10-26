@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Moving a genre with hundreds of tracks under a large parent (e.g. Contemporary R&B under Pop hip-hop) no longer hits the 30s worker timeout and returns a 500: genre-kit 0.50.1 moves tracks with set-based SQL. A query-budget test (constant query count) and a Postgres latency SLO guard the reparent.
+
 ### Added
 
 - Wikidata item catalog: `POST curation/wikidata-items/` (pipeline) replaces a `WikidataItem(item_id, label)` table holding every item the pipeline knows, pruned and `LOCAL:` ones included; `GET curation/items/?q=` (admin) searches items by name or id across the canonical tree, the catalog and pending additions. Tests cover push, replace, validation, auth and search.

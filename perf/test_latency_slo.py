@@ -8,7 +8,8 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 
-from perf.conftest import largest_genre_playlist
+from grow.model.criteria.children.genre.Genre import Genre
+from perf.conftest import largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
 
 WARMUPS = 2
@@ -92,3 +93,29 @@ def test_genre_tree_median_latency_within_slo(mode):
     p50 = statistics.median(timings)
     print(f"\ngenre-playlist-tree ({mode})".ljust(39) + f"p50={p50:8.1f}ms")
     assert p50 <= TREE_SLO_MS[mode]
+
+
+# Reparenting a ~250-track genre under the biggest playlist's genre timed out (gunicorn 30s) before the set-based track moves.
+REPARENT_SLO_MS = 2400
+
+
+@pytest.mark.django_db
+def test_genre_reparent_median_latency_within_slo():
+    client = AppApiClient()
+    target = largest_genre_playlist().criteria
+    moved = mid_size_genre(exclude=target)
+    original_parent = moved.parent
+    url = reverse("genre-detail", kwargs={"pk": moved.uuid})
+
+    timings = []
+    for _ in range(3):
+        for parent in (target, original_parent):
+            start = time.perf_counter()
+            response = client.put(url, {"parent": str(parent.uuid)})
+            timings.append((time.perf_counter() - start) * 1000)
+            assert response.status_code == status.HTTP_200_OK, response.content[:500]
+    assert Genre.objects.get(pk=moved.pk).parent_id == original_parent.pk
+
+    p50 = statistics.median(timings)
+    print(f"\ngenre reparent ({moved.name})".ljust(39) + f"p50={p50:8.1f}ms  max={max(timings):8.1f}ms")
+    assert p50 <= REPARENT_SLO_MS
