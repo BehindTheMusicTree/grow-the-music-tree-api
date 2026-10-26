@@ -57,7 +57,6 @@ class CriteriaDetailedSerializer(
             CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,
-            CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
             CriteriaOutputFieldKey.CREATED_ON.value,
             CriteriaOutputFieldKey.UPDATED_ON.value,
         ]
