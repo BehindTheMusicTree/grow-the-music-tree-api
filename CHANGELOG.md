@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [13.1.0] - 2026-10-26
+
 ### Added
 
 - Geohistory curation lists `entity_exclusions`, `entity_membership_overrides` and `entity_time_span_overrides` (entity ids are Glottocodes or Wikidata QIDs, years are optional integers): editable through the curation endpoints and included in the curation export the geohistory pipeline reads, with `entity_id` and `int` column kinds and tests.
