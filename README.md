@@ -24,7 +24,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
 
 - Genre and tag criteria trees, with bulk tree import and export
 - Playlists automatically derived from genre/tag criteria, plus manually curated playlists
-- Artist, album, and recording library (every MusicBrainz song, with or without a genre or YouTube video), with play tracking
+- Artist, album, and song catalog (every MusicBrainz song, with or without a genre or YouTube video), with play tracking
 - Every MusicBrainz song, including songs with no video or no genre, loaded by a staged bulk import (gzip NDJSON parts, Postgres `COPY`, set-based merge); the library list shows only songs with both a video and a genre
 - Public reads of one canonical reference dataset (rows with no owner); writes via Google sign-in (admin) or the pipeline API key
 - `/health/` endpoint for uptime and database checks
