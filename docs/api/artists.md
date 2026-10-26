@@ -45,7 +45,7 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `type`: `person|group|orchestra|choir|character|other|null`. `links[].kind`:
 `official|wikipedia|wikidata|spotify|youtube|bandcamp|soundcloud|discogs|social`. `memberOf` has the `members` shape,
 `artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
-`tracksCount` counts the recordings with a genre, the ones the library lists.
+`tracksCount` counts the songs with a genre, the ones the library lists.
 
 An artist's recordings: `GET /v1/library/recordings/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
 (nulls last). `albumYear` uses the recording's `first_release_year` where the pipelines supply one, falling back to a
