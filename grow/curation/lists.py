@@ -34,6 +34,17 @@ class CurationList:
     def has_reason(self) -> bool:
         return REASON_COLUMN in self.columns
 
+    @property
+    def column_specs(self) -> tuple[dict[str, str | bool], ...]:
+        return tuple(
+            {
+                "name": c,
+                "kind": "item_id" if c in ITEM_ID_COLUMNS else "bool" if c in BOOL_COLUMNS else "text",
+                "optional": c in OPTIONAL_COLUMNS,
+            }
+            for c in self.columns
+        )
+
 
 def _item_list(description: str, *extra: str, source: Source = "wikidata") -> CurationList:
     return CurationList(source, ("item_id",), ("item_id", "item_label", "reason", *extra), description)
@@ -139,6 +150,10 @@ CURATION_LISTS: dict[str, CurationList] = {
         "On a song carrying both genres, the first, more precise one wins over the second.",
     ),
 }
+
+ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
+"""Lists whose rows create a node: their name column is the item's only name until it reaches the tree."""
+ADDITION_LABEL_COLUMN = "item_label"
 
 ITEM_PAIR_LISTS = frozenset({"genre_precedence"})
 """Lists keyed by two distinct item ids, the first winning over the second, so the pipeline fails on a cycle of such

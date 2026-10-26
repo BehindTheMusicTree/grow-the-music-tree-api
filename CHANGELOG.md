@@ -12,6 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Wikidata item catalog: `POST curation/wikidata-items/` (pipeline) replaces a `WikidataItem(item_id, label)` table holding every item the pipeline knows, pruned and `LOCAL:` ones included; `GET curation/items/?q=` (admin) searches items by name or id across the canonical tree, the catalog and pending additions. Tests cover push, replace, validation, auth and search.
+- Curation lists expose `columnSpecs` (`{name, kind: item_id|bool|text, optional}`) and the history response a `labels` map, so clients no longer hardcode column kinds or show bare QIDs.
+
+### Changed
+
+- Curation item names are resolved by one function: canonical tree name, else catalog label, else the name given to a pending addition; entries, rules and history all use it.
+
 ## [13.0.2] - 2026-10-22
 
 ### Improved

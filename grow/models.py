@@ -16,6 +16,7 @@ from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRe
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
@@ -59,4 +60,5 @@ __all__ = [
     "Track",
     "TrackPlaylistRel",
     "UserProfile",
+    "WikidataItem",
 ]
