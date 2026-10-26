@@ -9,6 +9,7 @@ from rest_framework import status
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.model.artist.Artist import Artist
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
@@ -147,3 +148,28 @@ def test_genre_tree_query_count_is_constant_and_within_budget():
 
     assert few_rows == many_rows, "genre-playlist-tree issues queries per row"
     assert counts == TREE_BUDGETS
+
+
+REPARENT_BUDGET = 42
+
+
+def _count_reparent_queries(track_count: int) -> int:
+    root = factory.create_genre(f"Root {track_count}")
+    old_parent = factory.create_genre(f"Old {track_count}", parent=root)
+    new_parent = factory.create_genre(f"New {track_count}", parent=root)
+    moved = factory.create_genre(f"Moved {track_count}", parent=old_parent)
+    for index in range(track_count):
+        factory.create_recording(title=f"Moved track {track_count}-{index}", genre=moved)
+        factory.create_recording(title=f"Parent track {track_count}-{index}", genre=new_parent)
+    with CaptureQueriesContext(connection) as queries:
+        Genre.objects.update_instance(moved, parent=new_parent)
+    return len(queries.captured_queries)
+
+
+@pytest.mark.django_db
+def test_reparent_query_count_is_constant_and_within_budget():
+    few_rows = _count_reparent_queries(2)
+    many_rows = _count_reparent_queries(12)
+
+    assert few_rows == many_rows, "reparenting issues queries per track"
+    assert many_rows <= REPARENT_BUDGET
