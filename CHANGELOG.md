@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Genre searches by `name` (e.g. `GET /genres/?name=techno`) list the best matches first — exact, then prefix, then contains — so a short exact match such as "Techno" is no longer pushed past the first page by "Acid techno"; genre-kit 0.51.0.
+
 ### Fixed
 
 - Moving a genre with hundreds of tracks under a large parent (e.g. Contemporary R&B under Pop hip-hop) no longer hits the 30s worker timeout and returns a 500: genre-kit 0.50.1 moves tracks with set-based SQL. A query-budget test (constant query count) and a Postgres latency SLO guard the reparent.
