@@ -57,7 +57,7 @@ class CurationEntryManager(StandardResourceManager):
 
     @transaction.atomic
     def upsert(self, list_name: str, row: dict[str, Any], actor: Any = None) -> UpsertResult:
-        """Creates or updates the canonical entry with `row`'s key, recording history. Raises `InvalidRow`."""
+        """Creates or updates the canonical entry with `row`'s key, song history. Raises `InvalidRow`."""
         parsed, entry = check_upsert(self.filter(user=None), list_name, row)
         fields = {"values": parsed.values, "reason": parsed.reason}
         if entry is None:

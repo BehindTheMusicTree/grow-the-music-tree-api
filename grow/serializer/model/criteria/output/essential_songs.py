@@ -5,10 +5,10 @@ from grow.serializer.model.track.output.simple.simple_without_album_and_genre im
 )
 
 
-class CriteriaEssentialTracksSerializerMixin:
+class CriteriaEssentialSongsSerializerMixin:
     """
-    Resolves `essential_tracks` for a serializer whose `Meta.model` is the shared base
-    `Criteria` table rather than the concrete `Genre` MTI subtype -- `essential_tracks`
+    Resolves `essential_songs` for a serializer whose `Meta.model` is the shared base
+    `Criteria` table rather than the concrete `Genre` MTI subtype -- `essential_songs`
     only exists as a field on `Genre`, reached from a base `Criteria` instance via the
     reverse `genre` one-to-one accessor. Mirrors the kit's `CriteriaSideSerializerMixin`.
 
@@ -17,13 +17,18 @@ class CriteriaEssentialTracksSerializerMixin:
     `getattr(obj, "genre", None)` returns `None` rather than raising.
     """
 
+    essential_songs = serializers.SerializerMethodField()
+    # Deprecated duplicate of `essential_songs`, kept for one release.
     essential_tracks = serializers.SerializerMethodField()
-    _declared_fields = {"essential_tracks": essential_tracks}
+    _declared_fields = {"essential_songs": essential_songs, "essential_tracks": essential_tracks}
 
-    def get_essential_tracks(self, obj) -> list[dict]:
+    def get_essential_songs(self, obj) -> list[dict]:
         genre = getattr(obj, "genre", None)
         if not genre:
             return []
         return TrackWithoutAlbumPlaylistGenreSerializer(
-            genre.essential_tracks.all(), many=True, context=self.context
+            genre.essential_songs.all(), many=True, context=self.context
         ).data
+
+    def get_essential_tracks(self, obj) -> list[dict]:
+        return self.get_essential_songs(obj)

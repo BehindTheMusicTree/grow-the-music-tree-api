@@ -12,7 +12,7 @@ from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRe
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 from grow.youtube import YoutubeLookupError, fetch_unplayable_reason
 
 SEARCH_PAGE_SIZE = 50
@@ -25,60 +25,60 @@ class YoutubeUnavailable(APIException):
     default_code = "youtube_unavailable"
 
 
-class RecordingCurationManager:
-    """Admin edits of recordings: each writes the curation rule the pipeline reads, applies it to the row and
-    marks the recording manually edited."""
+class SongCurationManager:
+    """Admin edits of songs: each writes the curation rule the pipeline reads, applies it to the row and
+    marks the song manually edited."""
 
     @staticmethod
-    def _stable_key(recording: Recording) -> str:
-        if recording.musicbrainz_recording_id is None:
-            raise invalid("recordings", f"{recording.title} has no MusicBrainz id, so no curation rule can name it")
-        return str(recording.musicbrainz_recording_id)
+    def _stable_key(song: Song) -> str:
+        if song.musicbrainz_recording_id is None:
+            raise invalid("songs", f"{song.title} has no MusicBrainz id, so no curation rule can name it")
+        return str(song.musicbrainz_recording_id)
 
     @transaction.atomic
-    def assign_genre(self, recordings: list[Recording], genre: Genre | None, actor: Any) -> list[dict[str, Any]]:
-        """Links, moves or (genre None) unlinks recordings; returns each one's previous genre uuid for Undo, which
+    def assign_genre(self, songs: list[Song], genre: Genre | None, actor: Any) -> list[dict[str, Any]]:
+        """Links, moves or (genre None) unlinks songs; returns each one's previous genre uuid for Undo, which
         can't restore a genre without a wikidata id since no curation list names it (`undoable` false)."""
         lock_writes(CurationEntry.objects.all())
         if genre is not None and genre.wikidata_id is None:
             raise invalid("genre", "Only a wikidata-backed genre can be assigned; no curation list names the others")
         if genre is not None and genre.is_umbrella:
             raise invalid("genre", f"{genre.name} is an umbrella genre; assign one of its sub-genres instead")
-        keys = [self._stable_key(recording) for recording in recordings]
+        keys = [self._stable_key(song) for song in songs]
         previous = []
-        for recording, key in zip(recordings, keys, strict=True):
-            old = recording.genre
+        for song, key in zip(songs, keys, strict=True):
+            old = song.genre
             previous.append(
                 {
-                    "uuid": recording.uuid,
+                    "uuid": song.uuid,
                     "genre": old.uuid if old else None,
                     "undoable": old is None or old.genre.wikidata_id is not None,
                 }
             )
             upsert_admin_rule(
-                "recording_genre",
+                "song_genre",
                 {
                     "musicbrainz_recording_id": key,
                     "genre_item_id": genre.wikidata_id if genre else "",
                 },
                 actor,
             )
-            Recording.objects.update_instance(recording, actor=actor, genre=genre)
+            Song.objects.update_instance(song, actor=actor, genre=genre)
         return previous
 
     @transaction.atomic
-    def update_youtube(self, recording: Recording, fields: dict[str, Any], actor: Any) -> Recording:
+    def update_youtube(self, song: Song, fields: dict[str, Any], actor: Any) -> Song:
         """Sets the video and/or its unplayable reason. Without an explicit reason, YouTube decides it."""
         lock_writes(CurationEntry.objects.all())
-        key = self._stable_key(recording)
-        video_id = fields.get("youtube_video_id", recording.youtube_video_id)
+        key = self._stable_key(song)
+        video_id = fields.get("youtube_video_id", song.youtube_video_id)
         reason = fields.get("youtube_unplayable_reason")
-        if reason is None and "youtube_unplayable_reason" not in fields and video_id == recording.youtube_video_id:
-            reason = recording.youtube_unplayable_reason
+        if reason is None and "youtube_unplayable_reason" not in fields and video_id == song.youtube_video_id:
+            reason = song.youtube_unplayable_reason
         if (
             reason is None
             and video_id is not None
-            and (video_id != recording.youtube_video_id or "youtube_unplayable_reason" in fields)
+            and (video_id != song.youtube_video_id or "youtube_unplayable_reason" in fields)
         ):
             try:
                 reason = fetch_unplayable_reason(video_id)
@@ -92,12 +92,12 @@ class RecordingCurationManager:
         )
         if video_id is None:
             reason = None
-        old_video_id = recording.youtube_video_id
-        if (video_id, reason) == (old_video_id, recording.youtube_unplayable_reason):
-            updated = recording
+        old_video_id = song.youtube_video_id
+        if (video_id, reason) == (old_video_id, song.youtube_unplayable_reason):
+            updated = song
         else:
-            updated = Recording.objects.update_instance(
-                recording, actor=actor, youtube_video_id=video_id, youtube_unplayable_reason=reason
+            updated = Song.objects.update_instance(
+                song, actor=actor, youtube_video_id=video_id, youtube_unplayable_reason=reason
             )
             HistoryEntry.objects.record(
                 updated, action=HistoryAction.UPDATED, actor=actor, old_value=old_video_id, new_value=video_id
@@ -107,8 +107,8 @@ class RecordingCurationManager:
         return updated
 
     @staticmethod
-    def search(query: str, genreless: bool, cursor: uuid_lib.UUID | None) -> QuerySet[Recording]:
-        queryset = Recording.objects.all()
+    def search(query: str, genreless: bool, cursor: uuid_lib.UUID | None) -> QuerySet[Song]:
+        queryset = Song.objects.all()
         if query:
             queryset = queryset.filter(Q(title__icontains=query) | Q(artists___name__icontains=query)).distinct()
         if genreless:
@@ -118,16 +118,16 @@ class RecordingCurationManager:
         return queryset.order_by("uuid")
 
     @staticmethod
-    def link_suggestions(genre: Genre) -> QuerySet[Recording]:
-        """Genreless recordings by artists who already have recordings in the genre's subtree, most shared first."""
+    def link_suggestions(genre: Genre) -> QuerySet[Song]:
+        """Genreless songs by artists who already have songs in the genre's subtree, most shared first."""
         descendants = CriteriaLineageRel.objects.filter(ascendant=genre).values_list("descendant", flat=True)
         artist_ids = list(
-            Recording.objects.filter(genre__in=[genre, *descendants], artists__isnull=False)
+            Song.objects.filter(genre__in=[genre, *descendants], artists__isnull=False)
             .values_list("artists", flat=True)
             .distinct()
         )
         return (
-            Recording.objects.filter(genre__isnull=True, artists__in=artist_ids)
+            Song.objects.filter(genre__isnull=True, artists__in=artist_ids)
             .annotate(shared_artists=Count("artists", distinct=True))
             .order_by("-shared_artists", "uuid")[:LINK_SUGGESTIONS_LIMIT]
         )

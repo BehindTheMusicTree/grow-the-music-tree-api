@@ -23,7 +23,7 @@ REQUIRED = {"musicbrainz_recording_id", "title", "artist"}
 MAX_LENGTHS = {
     "title": settings.TRACK_TITLE_LEN_MAX,
     "artist": settings.ARTIST_NAME_LEN_MAX,
-    "youtube_video_id": settings.RECORDING_YOUTUBE_VIDEO_ID_LEN_MAX,
+    "youtube_video_id": settings.SONG_YOUTUBE_VIDEO_ID_LEN_MAX,
     "genre_name": settings.CRITERIA_NAME_LEN_MAX,
 }
 REASONS = set(YoutubeUnplayableReason.values)

@@ -21,18 +21,18 @@ class TestCase(AppTestCase):
 
     def test_assign_umbrella_genre_then_400_and_nothing_written(self):
         techno = self._genre("Techno", "Q9", is_umbrella=True)
-        recording = self.model_fixture_factory.create_recording("Song", None, musicbrainz_recording_id=MB_ID)
+        song = self.model_fixture_factory.create_song("Song", None, musicbrainz_recording_id=MB_ID)
 
         response = self.api_client.post(
-            path=reverse("recording-assign-genre"),
-            data={"recordings": [str(recording.uuid)], "genre": str(techno.uuid)},
+            path=reverse("song-assign-genre"),
+            data={"songs": [str(song.uuid)], "genre": str(techno.uuid)},
             format="json",
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not CurationEntry.objects.filter(list_name="recording_genre").exists()
-        recording.refresh_from_db()
-        assert recording.genre is None
+        assert not CurationEntry.objects.filter(list_name="song_genre").exists()
+        song.refresh_from_db()
+        assert song.genre is None
 
     def test_umbrella_entry_for_leaf_then_invalid_row(self):
         self._genre("Brostep", "Q1")
@@ -51,13 +51,13 @@ class TestCase(AppTestCase):
     def test_umbrella_entry_for_unknown_genre_then_created(self):
         assert CurationEntry.objects.upsert("umbrella_genres", self._umbrella_row("Q404")) == "created"
 
-    def test_recordings_filtered_by_umbrella_genre(self):
+    def test_songs_filtered_by_umbrella_genre(self):
         techno = self._genre("Techno", "Q9", is_umbrella=True)
         detroit = self._genre("Detroit techno", "Q10", parent=techno)
-        coarse = self.model_fixture_factory.create_recording("Coarse", techno)
-        self.model_fixture_factory.create_recording("Fine", detroit)
+        coarse = self.model_fixture_factory.create_song("Coarse", techno)
+        self.model_fixture_factory.create_song("Fine", detroit)
 
-        response = self.api_client.get(path=reverse("recording-list"), data={"genre_is_umbrella": "true"})
+        response = self.api_client.get(path=reverse("song-list"), data={"genre_is_umbrella": "true"})
 
         assert [r["uuid"] for r in response.json()["results"]] == [str(coarse.uuid)]
 

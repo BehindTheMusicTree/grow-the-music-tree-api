@@ -138,23 +138,23 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "parent_id", "action", "reason"),
         "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
     ),
-    "recording_genre": CurationList(
+    "song_genre": CurationList(
         "musicbrainz",
         ("musicbrainz_recording_id",),
         ("musicbrainz_recording_id", "genre_item_id", "reason"),
-        "Genre an admin assigned to a recording, overriding its MusicBrainz tags.",
+        "Genre an admin assigned to a song, overriding its MusicBrainz tags.",
     ),
     "recording_youtube_video": CurationList(
         "musicbrainz",
         ("musicbrainz_recording_id",),
         ("musicbrainz_recording_id", "youtube_video_id", "unplayable_reason", "reason"),
-        "YouTube video an admin set on a recording, with the unplayable reason when it can't be played.",
+        "YouTube video an admin set on a song, with the unplayable reason when it can't be played.",
     ),
-    "essential_tracks": CurationList(
+    "essential_songs": CurationList(
         "gold",
         ("item_id", "musicbrainz_recording_id"),
         ("item_id", "musicbrainz_recording_id", "position", "reason"),
-        "Recordings an admin picked as essential for a genre, in order.",
+        "Songs an admin picked as essential for a genre, in order.",
     ),
     "summary_overrides": CurationList(
         "gold",
@@ -202,7 +202,7 @@ EXCLUDED_GENRE_LISTS = {
     "out_of_scope": "out_of_scope_genres",
     "duplicate": "duplicate_genres",
 }
-"""Admin genre-exclusion category -> the pruning list recording it."""
+"""Admin genre-exclusion category -> the pruning list song it."""
 
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""

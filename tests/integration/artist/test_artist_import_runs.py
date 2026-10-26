@@ -309,7 +309,7 @@ class TestImportRunMerge(AppTestCase):
     def test_artist_missing_from_run_deleted_unless_credited(self):
         factory = self.model_fixture_factory
         credited = factory.create_artist("Credited")
-        factory.create_recording(title="Song", genre=None, artists=[credited])
+        factory.create_song(title="Song", genre=None, artists=[credited])
         factory.create_artist("Stale")
         self._sync([ARTIST, PERSON])
 
@@ -322,7 +322,7 @@ class TestImportRunMerge(AppTestCase):
     def test_delta_run_upserts_and_deletes_only_listed_uncredited_artists(self):
         factory = self.model_fixture_factory
         credited = factory.create_artist("Credited", musicbrainz_artist_id=OTHER)
-        factory.create_recording(title="Song", genre=None, artists=[credited])
+        factory.create_song(title="Song", genre=None, artists=[credited])
         self._sync([ARTIST, PERSON])
         factory.create_artist("Unlisted")
 

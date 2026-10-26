@@ -58,7 +58,7 @@ class Artist(TrackMixin):
     end_year = models.SmallIntegerField(null=True, blank=True)
     ended = models.BooleanField(default=False)
     disambiguation = models.TextField(null=True, blank=True)
-    # Playable recordings crediting the artist, kept by the songs import merge to rank search results.
+    # Playable songs crediting the artist, kept by the songs import merge to rank search results.
     recording_count = models.PositiveIntegerField(db_default=0)
 
     @property

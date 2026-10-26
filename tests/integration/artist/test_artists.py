@@ -15,7 +15,7 @@ class TestCase(AppTestCase):
         factory.create_artist_link(self.band, "wikidata", "https://www.wikidata.org/wiki/Q2306")
         album = factory.create_album("The Wall", year="1979", primary_type="Album")
         album.album_artists.set([self.band])
-        factory.create_recording(title="Comfortably Numb", genre=factory.create_genre("Rock"), artists=[self.band])
+        factory.create_song(title="Comfortably Numb", genre=factory.create_genre("Rock"), artists=[self.band])
         self.api_client.credentials()
 
     def test_anonymous_list_then_simple_shape(self):

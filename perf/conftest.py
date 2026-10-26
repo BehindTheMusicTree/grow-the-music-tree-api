@@ -45,7 +45,7 @@ def _seed() -> None:
         part = gzip.compress(
             "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
         )
-    runs = reverse("recording-list") + "songs/import-runs/"
+    runs = reverse("song-list") + "songs/import-runs/"
     run_id = client.post(runs).data["run_id"]
     _timed(
         f"{SONGS} (part)",

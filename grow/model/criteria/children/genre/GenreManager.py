@@ -134,12 +134,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def create(self, actor: Any = None, **kwargs) -> Genre:
-        # essential_tracks is a many-to-many field: it can't be passed to Model(**kwargs)
+        # essential_songs is a many-to-many field: it can't be passed to Model(**kwargs)
         # before the instance has a primary key, so it's set separately after creation.
-        essential_tracks = kwargs.pop("essential_tracks", None)
+        essential_songs = kwargs.pop("essential_songs", None)
         instance = super().create(actor=actor, **kwargs)
-        if essential_tracks is not None:
-            instance.essential_tracks.set(essential_tracks)
+        if essential_songs is not None:
+            instance.essential_songs.set(essential_songs)
         return instance
 
     @transaction.atomic
@@ -259,18 +259,18 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
         summary_changed = "summary" in kwargs and (kwargs["summary"] or "") != (instance.summary or "")
-        essential_tracks_changed = "essential_tracks" in kwargs and [
-            recording.pk for recording in kwargs["essential_tracks"]
+        essential_songs_changed = "essential_songs" in kwargs and [
+            song.pk for song in kwargs["essential_songs"]
         ] != self._essential_track_pks(instance)
         if summary_changed:
             kwargs["summary_source_url"] = None
-        if actor is not None and essential_tracks_changed:
-            self._write_essential_tracks_rules(instance, kwargs["essential_tracks"], actor)
+        if actor is not None and essential_songs_changed:
+            self._write_essential_songs_rules(instance, kwargs["essential_songs"], actor)
         updated = super().update_instance(instance, actor=actor, **kwargs)
         if actor is not None:
             if summary_changed:
                 self._upsert_rule(updated, "summary_overrides", actor, summary=kwargs["summary"] or "")
-            if summary_changed or essential_tracks_changed:
+            if summary_changed or essential_songs_changed:
                 self._lock(updated)
         if was_required_root:
             self.assert_required_roots_present(updated.user)
@@ -278,31 +278,31 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     def _essential_track_pks(self, instance: Genre) -> list[Any]:
         """In insertion order, the closest the M2M keeps to the order the rules' positions record."""
-        through = self.model.essential_tracks.through
-        return list(through.objects.filter(genre=instance).order_by("pk").values_list("recording_id", flat=True))
+        through = self.model.essential_songs.through
+        return list(through.objects.filter(genre=instance).order_by("pk").values_list("song_id", flat=True))
 
-    def _write_essential_tracks_rules(self, instance: Genre, recordings: list[Any], actor: Any) -> None:
-        """The rows are the genre's whole ordered list: a row per recording, and none left for dropped ones."""
+    def _write_essential_songs_rules(self, instance: Genre, songs: list[Any], actor: Any) -> None:
+        """The rows are the genre's whole ordered list: a row per song, and none left for dropped ones."""
         if not self._is_wikidata_item(instance):
             return
-        missing = [recording for recording in recordings if recording.musicbrainz_recording_id is None]
+        missing = [song for song in songs if song.musicbrainz_recording_id is None]
         if missing:
             raise self._invalid(
-                "essential_tracks", f"{missing[0].title} has no MusicBrainz id, so no curation rule can name it"
+                "essential_songs", f"{missing[0].title} has no MusicBrainz id, so no curation rule can name it"
             )
-        kept = {str(recording.musicbrainz_recording_id) for recording in recordings}
+        kept = {str(song.musicbrainz_recording_id) for song in songs}
         stale = CurationEntry.objects.filter(
-            user=None, list_name="essential_tracks", key__startswith=f"{instance.wikidata_id}{KEY_SEPARATOR}"
+            user=None, list_name="essential_songs", key__startswith=f"{instance.wikidata_id}{KEY_SEPARATOR}"
         )
         for entry in stale:
             if entry.key.split(KEY_SEPARATOR)[1] not in kept:
                 CurationEntry.objects.delete_instance(entry, actor=actor)
-        for position, recording in enumerate(recordings, start=1):
+        for position, song in enumerate(songs, start=1):
             upsert_admin_rule(
-                "essential_tracks",
+                "essential_songs",
                 {
                     "item_id": instance.wikidata_id,
-                    "musicbrainz_recording_id": str(recording.musicbrainz_recording_id),
+                    "musicbrainz_recording_id": str(song.musicbrainz_recording_id),
                     "position": str(position),
                 },
                 actor,
@@ -332,10 +332,10 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         return updated
 
     @staticmethod
-    def _recordings_of(genre: Genre):
-        from grow.model.recording.Recording import Recording
+    def _songs_of(genre: Genre):
+        from grow.model.song.Song import Song
 
-        return Recording.objects.filter(genre=genre)
+        return Song.objects.filter(genre=genre)
 
     def alias_counts(self, source: Genre, target: Genre) -> dict[str, int]:
         """What aliasing `source` onto `target` moves; a 400 when the pair isn't an allowed alias."""
@@ -346,15 +346,15 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         if source.descendants_rels.filter(descendant=target).exists():
             raise self._invalid("target", "The alias target can't be a descendant of the alias; it would loop the tree")
         return {
-            "recordings": self._recordings_of(source).count(),
-            "essential_tracks": source.essential_tracks.count(),
+            "songs": self._songs_of(source).count(),
+            "essential_songs": source.essential_songs.count(),
             "children": self.filter(parent=source).count(),
         }
 
     @transaction.atomic
     def alias_instance(self, source: Genre, target: Genre, actor: Any) -> Genre:
         """Merges a MusicBrainz-only genre into the wikidata genre it names: the rule lets the next import match
-        them, and the source's recordings, essential tracks and children move to the target before it is deleted."""
+        them, and the source's songs, essential songs and children move to the target before it is deleted."""
         self._lock_curation_writes(actor)
         self.alias_counts(source, target)
         upsert_admin_rule(
@@ -362,12 +362,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             {"musicbrainz_genre_name": source.name.lower(), "wikidata_genre_name": target.name},
             actor,
         )
-        for recording in list(self._recordings_of(source)):
-            type(recording).objects.update_instance(recording, actor=actor, genre=target)
+        for song in list(self._songs_of(source)):
+            type(song).objects.update_instance(song, actor=actor, genre=target)
         pks = self._essential_track_pks(target)
         pks += [pk for pk in self._essential_track_pks(source) if pk not in pks]
-        recordings = self.model.essential_tracks.field.related_model.objects.in_bulk(pks)
-        self.update_instance(target, actor=actor, essential_tracks=[recordings[pk] for pk in pks])
+        songs = self.model.essential_songs.field.related_model.objects.in_bulk(pks)
+        self.update_instance(target, actor=actor, essential_songs=[songs[pk] for pk in pks])
         for child in list(self.filter(parent=source)):
             self.update_instance(child, actor=actor, parent=target)
         self.delete_instance(source, actor=actor)

@@ -11,7 +11,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as CriteriaFields
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 
 
 class ModelFixtureFactory:
@@ -50,6 +50,6 @@ class ModelFixtureFactory:
     def create_album(self, name: str, user: User | None = None, **kwargs) -> Album:
         return Album.objects.create(user=user or self.default_user, name=name, **kwargs)
 
-    def create_recording(self, title: str, genre: Genre, user: User | None = None, **kwargs) -> Recording:
+    def create_song(self, title: str, genre: Genre, user: User | None = None, **kwargs) -> Song:
         kwargs.setdefault("youtube_video_id", "dQw4w9WgXcQ")
-        return Recording.objects.create(user=user or self.default_user, title=title, genre=genre, **kwargs)
+        return Song.objects.create(user=user or self.default_user, title=title, genre=genre, **kwargs)

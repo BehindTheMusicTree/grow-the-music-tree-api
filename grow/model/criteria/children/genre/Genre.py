@@ -14,7 +14,7 @@ from .GenreManager import GenreManager
 
 class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-missing]
     criteria_ptr = PrivateOneToOneField(Criteria, on_delete=models.CASCADE, parent_link=True, related_name="genre")
-    essential_tracks = PrivateManyToManyField(
+    essential_songs = PrivateManyToManyField(
         settings.TRACK_MODEL, blank=True, related_name=TrackFields.ESSENTIAL_FOR_GENRES_RELATED_NAME
     )
     """Curated per-genre, not inherited from or propagated to subgenres."""
