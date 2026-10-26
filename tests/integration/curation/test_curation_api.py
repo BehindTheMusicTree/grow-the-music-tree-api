@@ -235,6 +235,36 @@ class TestCase(AppTestCase):
 
         assert self._create(ITEM, "indigenous_to_exclusions").status_code == 201
 
+    def test_entity_lists_then_accept_glottocodes_and_qids(self):
+        exclusion = self._create({"entity_id": "bret1244", "reason": "testing"}, "entity_exclusions")
+        membership = self._create(
+            {"child_entity_id": "Q1", "parent_entity_id": "bret1244", "action": "add", "reason": "testing"},
+            "entity_membership_overrides",
+        )
+
+        assert exclusion.status_code == status.HTTP_201_CREATED
+        assert membership.status_code == status.HTTP_201_CREATED
+
+    def test_entity_id_then_rejects_other_shapes(self):
+        response = self._create({"entity_id": "Genre", "reason": "testing"}, "entity_exclusions")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "entityId" in str(response.json()) or "entity_id" in str(response.json())
+
+    def test_time_span_override_then_years_optional_integers(self):
+        ok = self._create(
+            {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
+            "entity_time_span_overrides",
+        )
+        bad = self._create(
+            {"entity_id": "Q153837", "start_year": "early", "end_year": "", "reason": "testing"},
+            "entity_time_span_overrides",
+        )
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert ok.json()["row"]["start_year"] == "-3500"
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_unknown_list_then_404(self):
         assert self.api_client.get(path=self._entries_url("nope")).status_code == status.HTTP_404_NOT_FOUND
 
