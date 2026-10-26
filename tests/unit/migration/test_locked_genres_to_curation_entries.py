@@ -46,14 +46,13 @@ class TestCase(AppTestCase):
         assert self._rows("main_parent") == [
             {
                 "item_id": "Q8880002",
-                "item_label": "Punk rock",
                 "reason": REASON,
                 "parent_item_id": "Q8880001",
                 "exclude_other_parents": True,
             }
         ]
-        assert self._rows("accepted_canonical_roots") == [{"item_id": "Q8880003", "item_label": "Pala"}]
-        assert self._rows("out_of_scope_genres") == [{"item_id": "Q8880004", "item_label": "Nenia", "reason": REASON}]
+        assert self._rows("accepted_canonical_roots") == [{"item_id": "Q8880003"}]
+        assert self._rows("out_of_scope_genres") == [{"item_id": "Q8880004", "reason": REASON}]
         assert Genre.objects.get(pk=excluded.pk).is_manually_edited
 
     def test_inexpressible_or_pipeline_only_edits_then_no_rule(self):
@@ -89,7 +88,6 @@ class TestCase(AppTestCase):
             "main_parent",
             {
                 "item_id": "Q8880010",
-                "item_label": "x",
                 "reason": "x",
                 "parent_item_id": "Q8880004",
                 "exclude_other_parents": "",
@@ -102,7 +100,7 @@ class TestCase(AppTestCase):
         assert self._rows("out_of_scope_genres") == []
 
     def test_already_in_an_exclusive_list_then_left_alone(self):
-        CurationEntry.objects.upsert("theme_genres", {"item_id": "Q8880004", "item_label": "Nenia", "reason": "x"})
+        CurationEntry.objects.upsert("theme_genres", {"item_id": "Q8880004", "reason": "x"})
         self._locked("Nenia", "Q8880004", HistoryAction.EXCLUDED, is_excluded=True)
 
         self._migrate()

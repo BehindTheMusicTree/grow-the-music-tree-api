@@ -43,7 +43,7 @@ class TestWikidataResolutions(AppTestCase):
         return response.json()
 
     def test_remap_key_then_rewritten_with_pipeline_history(self):
-        entry = _entry("technique_genres", OLD, item_label="x")
+        entry = _entry("technique_genres", OLD)
 
         response = self._report([_remap("technique_genres", OLD)])
 
@@ -59,8 +59,8 @@ class TestWikidataResolutions(AppTestCase):
         assert OLD in history.old_value and NEW in history.new_value
 
     def test_remap_value_and_composite_key_then_rewritten(self):
-        main = _entry("main_parent", "Q999999001", item_label="x", parent_item_id=OLD, exclude_other_parents=False)
-        edge = _entry("secondary_parents", "Q999999002\tQ999999003", item_label="a", parent_label="b", action="add")
+        main = _entry("main_parent", "Q999999001", parent_item_id=OLD, exclude_other_parents=False)
+        edge = _entry("secondary_parents", "Q999999002\tQ999999003", action="add")
 
         response = self._report(
             [
@@ -77,10 +77,10 @@ class TestWikidataResolutions(AppTestCase):
         assert edge.key == "Q999999020\tQ999999030"
 
     def test_remap_onto_existing_or_exclusive_entry_then_review_item(self):
-        _entry("technique_genres", OLD, item_label="x")
-        _entry("technique_genres", NEW, item_label="y")
-        _entry("theme_genres", "Q999999005", item_label="z")
-        _entry("out_of_scope_genres", "Q999999006", item_label="w")
+        _entry("technique_genres", OLD)
+        _entry("technique_genres", NEW)
+        _entry("theme_genres", "Q999999005")
+        _entry("out_of_scope_genres", "Q999999006")
 
         response = self._report(
             [_remap("technique_genres", OLD), _remap("theme_genres", "Q999999005", old="Q999999005", new="Q999999006")]
@@ -95,7 +95,7 @@ class TestWikidataResolutions(AppTestCase):
         assert all(i["evidence"] is None for i in self._review())
 
     def test_unknown_entry_or_already_fixed_then_skipped(self):
-        _entry("technique_genres", "Q999999007", item_label="x")
+        _entry("technique_genres", "Q999999007")
 
         response = self._report(
             [_remap("technique_genres", OLD), _remap("technique_genres", "Q999999007", old="Q999999008")]

@@ -1,13 +1,13 @@
-item_id,item_label
-LOCAL:reggae-dub,Reggae/Dub (grouping)
-Q1583807,art music
-Q9778,electronic music
-Q1640319,experimental music
-Q43343,folk music
-Q11401,hip-hop
-Q8341,jazz
-Q37073,pop music
-Q45981,rhythm and blues
-Q54365,ska
-LOCAL:disco-funk,Disco/Funk (grouping)
-LOCAL:blues-rock,Blues/Rock (grouping)
+item_id
+LOCAL:reggae-dub
+Q1583807
+Q9778
+Q1640319
+Q43343
+Q11401
+Q8341
+Q37073
+Q45981
+Q54365
+LOCAL:disco-funk
+LOCAL:blues-rock

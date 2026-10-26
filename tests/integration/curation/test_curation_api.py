@@ -16,7 +16,7 @@ from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
-ITEM = {"item_id": "Q999999991", "item_label": "test genre", "reason": "testing"}
+ITEM = {"item_id": "Q999999991", "reason": "testing"}
 
 
 class TestCase(AppTestCase):
@@ -71,18 +71,17 @@ class TestCase(AppTestCase):
         assert lists["theme_genres"]["count"] == CurationEntry.objects.filter(list_name="theme_genres").count()
         assert lists["theme_genres"]["count"] > 0
 
-    def test_search_then_matches_key_values_reason_and_genre_name(self):
+    def test_search_then_matches_key_reason_and_genre_name(self):
         self.model_fixture_factory.create_genre("Shoegaze", wikidata_id="Q999999993")
         self._create(ITEM)
-        self._create({**ITEM, "item_id": "Q999999992", "item_label": "drone", "reason": "noise wall"})
-        self._create({**ITEM, "item_id": "Q999999993", "item_label": "x"})
+        self._create({**ITEM, "item_id": "Q999999992", "reason": "noise wall"})
+        self._create({**ITEM, "item_id": "Q999999993"})
 
         def keys(q: str) -> list[str]:
             response = self.api_client.get(path=self._entries_url(), data={"q": q})
             return sorted(e["row"]["item_id"] for e in response.json()["results"])
 
         assert keys("Q999999991") == ["Q999999991"]
-        assert keys("DRONE") == ["Q999999992"]
         assert keys("wall") == ["Q999999992"]
         assert keys("shoegaze") == ["Q999999993"]
 
@@ -119,9 +118,7 @@ class TestCase(AppTestCase):
         )
         row = {
             "item_id": "Q999999993",
-            "item_label": "x",
             "parent_id": "Q999999991",
-            "parent_label": "Rock",
             "action": "add",
         }
         self._create({**row, "reason": "r"}, "secondary_parents")

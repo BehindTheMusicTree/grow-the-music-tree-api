@@ -59,7 +59,6 @@ class RecordingCurationManager:
                 "recording_genre",
                 {
                     "musicbrainz_recording_id": key,
-                    "recording_label": recording.title,
                     "genre_item_id": genre.wikidata_id if genre else "",
                 },
                 actor,

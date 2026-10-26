@@ -1,4 +1,4 @@
-item_id,item_label,reason
+item_id,label,reason
 Q16147503,music of Dominica,"never P31 music genre nor a parent_label in Bronze; real Wikidata QID looked up by hand and confirmed to have label starting with ""music of """
 LOCAL:indigenous-americas,music of Indigenous peoples of the Americas,synthetic (no matching Wikidata overview item) - needed to reclassify cross-national pre-Hispanic/Indigenous-heritage fusion genres as regional instead of forcing them onto an unrelated canonical parent
 Q16823040,music of the Cook Islands,"never P31 music genre nor a parent_label in Bronze; real Wikidata QID looked up by hand and confirmed to have label starting with ""music of """

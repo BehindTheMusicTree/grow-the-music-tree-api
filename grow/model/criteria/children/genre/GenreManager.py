@@ -7,7 +7,7 @@ from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager impor
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
-from grow.curation.lists import CURATION_LISTS, EXCLUDED_GENRE_LISTS
+from grow.curation.lists import EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, find_parent_rule, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
@@ -58,8 +58,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         if not self._is_wikidata_item(instance):
             return
         row = {"item_id": instance.wikidata_id, **row}
-        if "item_label" in CURATION_LISTS[list_name].columns:
-            row["item_label"] = instance.name
         upsert_admin_rule(list_name, row, actor)
 
     def _reparent_rule(self, instance: Genre) -> dict[str, str]:
@@ -325,9 +323,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             "secondary_parents",
             {
                 "item_id": instance.wikidata_id,
-                "item_label": instance.name,
                 "parent_id": parent.wikidata_id,
-                "parent_label": parent.name,
                 "action": "add" if add else "remove",
             },
             actor,

@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Curation item names are resolved by one function: canonical tree name, else catalog label, else the name given to a pending addition; entries, rules and history all use it.
+- **Breaking:** curation lists no longer carry the derived names `item_label`, `parent_label` and `recording_label` (rows, CSV headers, seeds); they are resolved from the catalog or the tree. In `canonical_parent_additions` and `regional_overview_additions`, which create a node, `item_label` becomes `label`. A data migration rewrites existing entries, and the admin edit paths stop filling the names. Tests updated.
 
 ## [13.0.2] - 2026-10-22
 

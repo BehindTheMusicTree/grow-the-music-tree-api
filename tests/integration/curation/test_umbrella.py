@@ -17,7 +17,7 @@ class TestCase(AppTestCase):
         return self.model_fixture_factory.create_genre(name, wikidata_id=wikidata_id, **kwargs)
 
     def _umbrella_row(self, wikidata_id: str) -> dict[str, str]:
-        return {"item_id": wikidata_id, "item_label": "x", "reason": "r"}
+        return {"item_id": wikidata_id, "reason": "r"}
 
     def test_assign_umbrella_genre_then_400_and_nothing_written(self):
         techno = self._genre("Techno", "Q9", is_umbrella=True)
