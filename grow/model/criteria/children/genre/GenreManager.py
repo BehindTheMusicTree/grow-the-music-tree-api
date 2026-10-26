@@ -100,6 +100,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if self._is_wikidata_item(instance):
                 self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
             if instance.parent_id is not None:
+                self._drop_secondary_add_of_main_parent(instance)
                 instance.is_unaccepted_root = False
                 instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
@@ -110,6 +111,18 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             old_value=old_parent.name if old_parent else None,
             new_value=instance.parent.name if instance.parent else None,
         )
+
+    def _drop_secondary_add_of_main_parent(self, instance: Genre) -> None:
+        """A main parent can't also be secondary: drops that edge's `add` rule (`update_instance` already dropped
+        the edge). A `remove` rule is kept, it applies again if the main parent later moves away."""
+        parent_item_id = self.filter(pk=instance.parent_id).values_list("wikidata_id", flat=True).first()
+        if instance.wikidata_id is not None and parent_item_id is not None:
+            CurationEntry.objects.filter(
+                user=None,
+                list_name="secondary_parents",
+                key=KEY_SEPARATOR.join((instance.wikidata_id, parent_item_id)),
+                values__action="add",
+            ).delete()
 
     def _on_renamed(self, instance: Genre, *, old_name: str, actor: Any = None) -> None:
         if actor is not None:
@@ -262,6 +275,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         essential_songs_changed = "essential_songs" in kwargs and [
             song.pk for song in kwargs["essential_songs"]
         ] != self._essential_track_pks(instance)
+        new_parent = kwargs.get("parent")
+        if new_parent is not None and "secondary_parents" not in kwargs:
+            kwargs["secondary_parents"] = [p for p in instance.secondary_parents.all() if p.pk != new_parent.pk]
         if summary_changed:
             kwargs["summary_source_url"] = None
         if actor is not None and essential_songs_changed:

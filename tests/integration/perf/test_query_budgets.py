@@ -150,7 +150,7 @@ def test_genre_tree_query_count_is_constant_and_within_budget():
     assert counts == TREE_BUDGETS
 
 
-REPARENT_BUDGET = 42
+REPARENT_BUDGET = 44
 
 
 def _count_reparent_queries(track_count: int) -> int:
