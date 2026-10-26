@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Reparenting a genre onto one of its secondary parents drops that edge and its `secondary_parents` `add` rule (it was rejected with a 400 before); a `remove` rule is kept, so it applies again if the main parent later moves away.
+
 ## [13.2.0] - 2026-10-26
 
 ### Changed
