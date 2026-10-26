@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.0.0] - 2026-10-26
+
 ### Removed
 
 - **Breaking:** the `/v1/library/recordings/` and `/v1/library/youtube/` route aliases; use `/v1/library/songs/`.
