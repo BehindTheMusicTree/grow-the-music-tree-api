@@ -40,6 +40,7 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
     @action(
         detail=False,
         methods=["get"],
+        authentication_classes=[],
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
     )
