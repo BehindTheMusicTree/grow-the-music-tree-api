@@ -37,7 +37,7 @@ class TestCase(AppTestCase):
         # Content types created inside this rolled-back test would otherwise stay cached for later tests.
         self.addCleanup(ContentType.objects.clear_cache)
         playlist = GenrePlaylist.objects.get(criteria=self.rock).playlist
-        track = self.model_fixture_factory.create_recording(title="Song", genre=self.rock)
+        track = self.model_fixture_factory.create_song(title="Song", genre=self.rock)
         before = GenreTreeVersion.current_token()
 
         Play.objects.create(content=playlist)
@@ -75,7 +75,7 @@ class TestCase(AppTestCase):
         regional = Genre.objects.get(name="Italian progressive rock")
         regional.additional_primary_parents.add(self.rock, metal)
         self.model_fixture_factory.create_genre("Zeuhl", parent=regional, tree_name="regional")
-        self.model_fixture_factory.create_recording(title="Song", genre=punk)
+        self.model_fixture_factory.create_song(title="Song", genre=punk)
         self.model_fixture_factory.create_tag("Live")
 
         for tree_name in ("canonical", "regional"):
@@ -154,7 +154,7 @@ class TestCase(AppTestCase):
 
         def add():
             nonlocal track
-            track = self.model_fixture_factory.create_recording(title="Song", genre=self.rock)
+            track = self.model_fixture_factory.create_song(title="Song", genre=self.rock)
 
         self._assert_bumps(add)
         self._assert_bumps(lambda: track.delete())  # noqa: PLW0108 -- track is bound only after add() runs

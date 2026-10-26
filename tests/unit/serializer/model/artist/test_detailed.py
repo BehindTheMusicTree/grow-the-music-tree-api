@@ -14,7 +14,7 @@ class TestCase(AppTestCase):
         factory.create_artist_link(band, "official", "https://pinkfloyd.com")
         album = factory.create_album(name="The Wall", year="1979", primary_type="Album", secondary_types=["Live"])
         album.album_artists.set([band])
-        factory.create_recording(title="Comfortably Numb", genre=factory.create_genre("Rock"), artists=[band])
+        factory.create_song(title="Comfortably Numb", genre=factory.create_genre("Rock"), artists=[band])
 
         def serialize(artist):
             return ArtistDetailedSerializer(

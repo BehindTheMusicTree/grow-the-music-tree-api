@@ -60,26 +60,26 @@ class TestCase(AppTestCase):
 
         assert data["summary"] == "Music made with electronic instruments"
 
-    def test_serializes_essential_tracks(self):
+    def test_serializes_essential_songs(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
-        track = self.model_fixture_factory.create_recording("Strobe", genre=genre)
-        genre.essential_tracks.add(track)
+        track = self.model_fixture_factory.create_song("Strobe", genre=genre)
+        genre.essential_songs.add(track)
 
         data = CriteriaDetailedSerializer(genre).data
 
-        assert [essential_track["uuid"] for essential_track in data["essential_tracks"]] == [str(track.uuid)]
+        assert [essential_song["uuid"] for essential_song in data["essential_songs"]] == [str(track.uuid)]
 
-    def test_serializes_essential_tracks_as_empty_list_by_default(self):
+    def test_serializes_essential_songs_as_empty_list_by_default(self):
         genre = self.model_fixture_factory.create_genre("Rock")
 
         data = CriteriaDetailedSerializer(genre).data
 
-        assert data["essential_tracks"] == []
+        assert data["essential_songs"] == []
 
-    def test_serializes_essential_tracks_as_empty_list_for_tag_from_base_criteria_instance(self):
+    def test_serializes_essential_songs_as_empty_list_for_tag_from_base_criteria_instance(self):
         tag = self.model_fixture_factory.create_tag("Live")
         base_instance = Criteria.objects.get(uuid=tag.uuid)
 
         data = CriteriaDetailedSerializer(base_instance).data
 
-        assert data["essential_tracks"] == []
+        assert data["essential_songs"] == []

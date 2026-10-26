@@ -16,7 +16,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.import_run.ImportRun import ImportRun
-from grow.model.recording.RecordingCurationManager import RecordingCurationManager
+from grow.model.song.SongCurationManager import SongCurationManager
 from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
 from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
 from grow.serializer.model.criteria.children.genre.input.name_conflict_validate import (
@@ -29,7 +29,7 @@ from grow.serializer.model.criteria.children.genre.input.unaccepted_root_accept 
 )
 from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
-from grow.serializer.model.recording.output.without_playlists import RecordingWithoutPlaylistsSerializer
+from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
@@ -147,13 +147,10 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
 
     @action(detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin])
     def link_suggestions(self, request: Request, *args, **kwargs) -> Response:
-        recordings = RecordingCurationManager.link_suggestions(self.get_object())
-        data = RecordingWithoutPlaylistsSerializer(recordings, many=True, context=self.get_serializer_context()).data
+        songs = SongCurationManager.link_suggestions(self.get_object())
+        data = SongWithoutPlaylistsSerializer(songs, many=True, context=self.get_serializer_context()).data
         return Response(
-            [
-                {**item, "shared_artists": recording.shared_artists}
-                for item, recording in zip(data, recordings, strict=True)
-            ]
+            [{**item, "shared_artists": song.shared_artists} for item, song in zip(data, songs, strict=True)]
         )
 
     @action(

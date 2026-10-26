@@ -19,7 +19,7 @@ from grow.serializer.model.track.output.simple.simple_without_album_and_genre im
 )
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
-from .essential_tracks import CriteriaEssentialTracksSerializerMixin
+from .essential_songs import CriteriaEssentialSongsSerializerMixin
 
 _tracks_fields = build_criteria_detailed_tracks_fields(
     TrackWithoutAlbumPlaylistGenreSerializer,
@@ -29,7 +29,7 @@ _tracks_fields = build_criteria_detailed_tracks_fields(
 
 
 class CriteriaDetailedSerializer(
-    CriteriaSideSerializerMixin, CriteriaEssentialTracksSerializerMixin, AppInputSerializer, serializers.ModelSerializer
+    CriteriaSideSerializerMixin, CriteriaEssentialSongsSerializerMixin, AppInputSerializer, serializers.ModelSerializer
 ):
     tracks = _tracks_fields[CriteriaOutputFieldKey.TRACKS_PUBLIC.value]
     tracks_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value]
@@ -56,6 +56,7 @@ class CriteriaDetailedSerializer(
             CriteriaOutputFieldKey.TRACKS_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.SIDE.value,
+            CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,
             CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
             CriteriaOutputFieldKey.CREATED_ON.value,
             CriteriaOutputFieldKey.UPDATED_ON.value,

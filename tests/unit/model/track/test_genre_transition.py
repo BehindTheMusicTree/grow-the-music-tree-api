@@ -1,7 +1,7 @@
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -9,9 +9,9 @@ class TestCase(AppTestCase):
     def test_update_instance_with_genre_removed_then_removed_from_genre_playlists_and_added_to_genreless_playlist(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="Rock")
         punk_criteria = self.model_fixture_factory.create_genre(name="Punk", parent=rock_criteria)
-        track = self.model_fixture_factory.create_recording(title="wech", genre=punk_criteria)
+        track = self.model_fixture_factory.create_song(title="wech", genre=punk_criteria)
 
-        updated_track = Recording.objects.update_instance(track, genre=None)
+        updated_track = Song.objects.update_instance(track, genre=None)
 
         assert updated_track.genre is None
 

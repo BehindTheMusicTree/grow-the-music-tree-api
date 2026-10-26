@@ -47,13 +47,13 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
 `tracksCount` counts the songs with a genre, the ones the library lists.
 
-An artist's recordings: `GET /v1/library/recordings/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
-(nulls last). `albumYear` uses the recording's `first_release_year` where the pipelines supply one, falling back to a
-four-digit album year; recordings with neither sort with the nulls.
+An artist's songs: `GET /v1/library/songs/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
+(nulls last). `albumYear` uses the song's `first_release_year` where the pipelines supply one, falling back to a
+four-digit album year; songs with neither sort with the nulls.
 
-`GET /v1/library/recordings/?playable=true|false`: playable means `youtube_video_id` is set and
+`GET /v1/library/songs/?playable=true|false`: playable means `youtube_video_id` is set and
 `youtube_unplayable_reason` is empty.
-`?from=<recording uuid>` starts the list at that recording (included) in the current ordering (default `created_on`;
+`?from=<song uuid>` starts the list at that song (included) in the current ordering (default `created_on`;
 nulls last, ties by id). 404 if it is not in the filtered list, 400 if not a UUID.
 
 `isSpecialPurpose` (read-only boolean, also on nested artists) is true for the special-purpose MBIDs (Various Artists,

@@ -6,24 +6,31 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 class TestCase(AppTestCase):
-    list_endpoint = "recording-list"
+    list_endpoint = "song-list"
 
     def test_list_returns_created_tracks(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        recording = self.model_fixture_factory.create_recording(
-            title="Mine", genre=genre, youtube_video_id="abc123defgh"
-        )
+        song = self.model_fixture_factory.create_song(title="Mine", genre=genre, youtube_video_id="abc123defgh")
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["overallTotal"] == 1
-        assert response.data["results"][0]["uuid"] == str(recording.uuid)
+        assert response.data["results"][0]["uuid"] == str(song.uuid)
+
+    def test_legacy_recordings_route_lists_songs(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        song = self.model_fixture_factory.create_song(title="Mine", genre=genre, youtube_video_id="abc123defgh")
+
+        response = self.api_client.get(path=reverse("recording-list"))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["results"][0]["uuid"] == str(song.uuid)
 
     def test_list_does_not_return_other_users_tracks(self):
         other_user = User.objects.create(username="other-user")
         other_genre = self.model_fixture_factory.create_genre("Jazz", user=other_user)
-        self.model_fixture_factory.create_recording(
+        self.model_fixture_factory.create_song(
             title="Not Mine", genre=other_genre, user=other_user, youtube_video_id="def456ghijk"
         )
 
@@ -34,7 +41,7 @@ class TestCase(AppTestCase):
 
     def test_list_includes_youtube_video_id(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_recording(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+        self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -42,7 +49,7 @@ class TestCase(AppTestCase):
 
     def test_list_includes_musicbrainz_recording_id(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_recording(
+        self.model_fixture_factory.create_song(
             title="Track Title", genre=genre, musicbrainz_recording_id="b1a9c0e9-d987-4042-ae91-78d6a3267d69"
         )
 
@@ -52,46 +59,46 @@ class TestCase(AppTestCase):
 
     def test_list_includes_null_youtube_unplayable_reason_for_playable_track(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_recording(title="Track Title", genre=genre)
+        self.model_fixture_factory.create_song(title="Track Title", genre=genre)
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.json()["results"][0]["youtubeUnplayableReason"] is None
 
-    def test_list_includes_recording_without_video_with_null_youtube_video(self):
+    def test_list_includes_song_without_video_with_null_youtube_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_recording(title="No video", genre=genre, youtube_video_id=None)
+        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
-        [recording] = response.json()["results"]
-        assert recording["youtubeVideo"] is None
+        [song] = response.json()["results"]
+        assert song["youtubeVideo"] is None
 
     def test_list_nests_youtube_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_recording(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+        self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.json()["results"][0]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
 
-    def test_legacy_youtube_route_lists_only_recordings_with_video(self):
+    def test_legacy_youtube_route_lists_only_songs_with_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        recording = self.model_fixture_factory.create_recording(title="Mine", genre=genre)
-        self.model_fixture_factory.create_recording(title="No video", genre=genre, youtube_video_id=None)
+        song = self.model_fixture_factory.create_song(title="Mine", genre=genre)
+        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
 
         response = self.api_client.get(path=reverse("youtube-track-list"))
 
         assert response.status_code == status.HTTP_200_OK
-        assert [r["uuid"] for r in response.json()["results"]] == [str(recording.uuid)]
+        assert [r["uuid"] for r in response.json()["results"]] == [str(song.uuid)]
 
     def test_genre_filter_covers_descendants_and_excludes_siblings(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         punk = self.model_fixture_factory.create_genre("Punk", parent=rock)
         jazz = self.model_fixture_factory.create_genre("Jazz")
-        own = self.model_fixture_factory.create_recording(title="Own", genre=rock)
-        child = self.model_fixture_factory.create_recording(title="Child", genre=punk)
-        self.model_fixture_factory.create_recording(title="Sibling", genre=jazz)
+        own = self.model_fixture_factory.create_song(title="Own", genre=rock)
+        child = self.model_fixture_factory.create_song(title="Child", genre=punk)
+        self.model_fixture_factory.create_song(title="Sibling", genre=jazz)
 
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"genre": str(rock.uuid)})
 
@@ -104,11 +111,9 @@ class TestCase(AppTestCase):
         expected = set()
         for genre in (rock, blues_rock):
             for index in range(3):
-                recording = self.model_fixture_factory.create_recording(title=f"{genre.name}{index}", genre=genre)
-                expected.add(str(recording.uuid))
-        self.model_fixture_factory.create_recording(
-            title="Other", genre=self.model_fixture_factory.create_genre("Jazz")
-        )
+                song = self.model_fixture_factory.create_song(title=f"{genre.name}{index}", genre=genre)
+                expected.add(str(song.uuid))
+        self.model_fixture_factory.create_song(title="Other", genre=self.model_fixture_factory.create_genre("Jazz"))
         path = reverse(self.list_endpoint)
 
         seen = []
@@ -152,7 +157,7 @@ class TestCase(AppTestCase):
     def test_list_without_total_skips_count_and_pages_by_next_link(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         for index in range(3):
-            self.model_fixture_factory.create_recording(
+            self.model_fixture_factory.create_song(
                 title=f"T{index}", genre=genre, youtube_video_id=f"abc123def{index}x"
             )
         path = reverse(self.list_endpoint)

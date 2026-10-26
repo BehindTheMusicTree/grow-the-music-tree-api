@@ -9,7 +9,7 @@ from .Fields import Fields
 
 
 def tracks_count(prefix: str = "") -> Count:
-    # Genreless recordings are hidden from the library, so they are not counted either.
+    # Genreless songs are hidden from the library, so they are not counted either.
     tracks = f"{prefix}{Fields.TRACKS_RELATED_NAME}"
     return Count(tracks, filter=Q(**{f"{tracks}__genre__isnull": False}), distinct=True)
 

@@ -87,7 +87,7 @@ class TestCase(AppTestCase):
         artist = self.model_fixture_factory.create_artist("Solo Artist")
         genre = self.model_fixture_factory.create_genre("Rock")
         album = self.model_fixture_factory.create_album(name="Album With Track")
-        track = self.model_fixture_factory.create_recording(title="Track One", genre=genre, album=album)
+        track = self.model_fixture_factory.create_song(title="Track One", genre=genre, album=album)
         track.artists.set([artist])
 
         Album.objects.delete_instance_with_tracks_and_potentially_artists(album)
@@ -102,7 +102,7 @@ class TestCase(AppTestCase):
         album = self.model_fixture_factory.create_album(name="Album With Track")
         other_album = self.model_fixture_factory.create_album(name="Other Album")
         other_album.album_artists.set([artist])
-        track = self.model_fixture_factory.create_recording(title="Track One", genre=genre, album=album)
+        track = self.model_fixture_factory.create_song(title="Track One", genre=genre, album=album)
         track.artists.set([artist])
 
         Album.objects.delete_instance_with_tracks_and_potentially_artists(album)
@@ -122,7 +122,7 @@ class TestCase(AppTestCase):
     def test_delete_instance_if_no_track_linked_with_potential_album_artist_deletion_keeps_album_with_tracks(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         album = self.model_fixture_factory.create_album(name="Album With Track")
-        self.model_fixture_factory.create_recording(title="Track One", genre=genre, album=album)
+        self.model_fixture_factory.create_song(title="Track One", genre=genre, album=album)
 
         Album.objects.delete_instance_if_no_track_linked_with_potential_album_artist_deletion(album)
 

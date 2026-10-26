@@ -13,7 +13,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
-from grow.model.recording.Recording import Recording
+from grow.model.song.Song import Song
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
@@ -42,18 +42,18 @@ def _seed_genres(start: int, stop: int) -> None:
     for index in range(start, stop):
         genre = factory.create_genre(f"Genre {index}", parent=root)
         factory.create_tag(f"Tag {index}")
-        factory.create_recording(title=f"Track {index}", genre=genre)
+        factory.create_song(title=f"Track {index}", genre=genre)
 
 
 def _seed_tracks(start: int, stop: int) -> None:
     genre = GenrePlaylist.objects.get(criteria__name="Root").criteria if start else factory.create_genre("Root")
     for index in range(start, stop):
-        factory.create_recording(title=f"Track {index}", genre=genre)
+        factory.create_song(title=f"Track {index}", genre=genre)
 
 
 def _seed_plays(start: int, stop: int) -> None:
     _seed_tracks(start, stop)
-    for track in Recording.objects.order_by("created_on")[start:stop]:
+    for track in Song.objects.order_by("created_on")[start:stop]:
         Play.objects.create(content=track)
         Play.objects.create(content=Playlist.objects.get(pk=track.genre.criteria_playlist.pk))
 
@@ -69,7 +69,7 @@ def _seed_artists(start: int, stop: int) -> None:
         factory.create_artist_link(band, "official", f"https://band{index}.example")
         album = factory.create_album(f"Album {index}")
         album.album_artists.set([band, member])
-        factory.create_recording(title=f"Track {index}", genre=genre, artists=[band, member])
+        factory.create_song(title=f"Track {index}", genre=genre, artists=[band, member])
 
 
 def _root_playlist_path(name: str) -> str:
@@ -159,8 +159,8 @@ def _count_reparent_queries(track_count: int) -> int:
     new_parent = factory.create_genre(f"New {track_count}", parent=root)
     moved = factory.create_genre(f"Moved {track_count}", parent=old_parent)
     for index in range(track_count):
-        factory.create_recording(title=f"Moved track {track_count}-{index}", genre=moved)
-        factory.create_recording(title=f"Parent track {track_count}-{index}", genre=new_parent)
+        factory.create_song(title=f"Moved track {track_count}-{index}", genre=moved)
+        factory.create_song(title=f"Parent track {track_count}-{index}", genre=new_parent)
     with CaptureQueriesContext(connection) as queries:
         Genre.objects.update_instance(moved, parent=new_parent)
     return len(queries.captured_queries)

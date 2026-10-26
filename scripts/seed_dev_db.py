@@ -63,7 +63,7 @@ def seed() -> None:
         part = gzip.compress(
             "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
         )
-    runs = "library/recordings/songs/import-runs/"
+    runs = "library/songs/songs/import-runs/"
     run_id = call("POST", runs)["runId"]
     call(
         "PUT",

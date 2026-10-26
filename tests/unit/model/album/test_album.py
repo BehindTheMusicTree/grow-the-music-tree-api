@@ -22,7 +22,7 @@ class TestCase(AppTestCase):
     def test_str_includes_track_details(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         album = self.model_fixture_factory.create_album(name="The Wall")
-        self.model_fixture_factory.create_recording(
+        self.model_fixture_factory.create_song(
             title="Another Brick In The Wall", genre=genre, album=album, track_number=1
         )
 
@@ -33,12 +33,8 @@ class TestCase(AppTestCase):
     def test_tracks_sorted_orders_by_track_number(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         album = self.model_fixture_factory.create_album(name="The Wall")
-        second_track = self.model_fixture_factory.create_recording(
-            title="Second", genre=genre, album=album, track_number=2
-        )
-        first_track = self.model_fixture_factory.create_recording(
-            title="First", genre=genre, album=album, track_number=1
-        )
+        second_track = self.model_fixture_factory.create_song(title="Second", genre=genre, album=album, track_number=2)
+        first_track = self.model_fixture_factory.create_song(title="First", genre=genre, album=album, track_number=1)
 
         tracks = list(album.tracks_sorted)
 

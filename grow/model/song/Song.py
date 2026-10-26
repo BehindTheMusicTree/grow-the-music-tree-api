@@ -12,11 +12,11 @@ from grow.model.track.Fields import Fields
 from grow.model.track.TrackManager import TrackManager
 
 
-class Recording(KitTrack):
+class Song(KitTrack):
     track = PrivateOneToOneField(
-        KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.RECORDING_RELATED_NAME
+        KitTrack, on_delete=models.CASCADE, parent_link=True, related_name=Fields.SONG_RELATED_NAME
     )
-    youtube_video_id = AppCharField(max_length=settings.RECORDING_YOUTUBE_VIDEO_ID_LEN_MAX, null=True, blank=True)
+    youtube_video_id = AppCharField(max_length=settings.SONG_YOUTUBE_VIDEO_ID_LEN_MAX, null=True, blank=True)
     musicbrainz_recording_id = models.UUIDField(null=True, blank=True, unique=True)
     youtube_unplayable_reason = models.CharField(
         max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
@@ -24,16 +24,16 @@ class Recording(KitTrack):
     is_manually_edited = models.BooleanField(default=False)
     first_release_year = models.PositiveSmallIntegerField(null=True, blank=True)
 
-    objects: TrackManager[Recording] = TrackManager()
+    objects: TrackManager[Song] = TrackManager()
 
     class Meta:
-        db_table = "grow_recording"
-        verbose_name = "Recording"
-        verbose_name_plural = "Recordings"
+        db_table = "grow_song"
+        verbose_name = "Song"
+        verbose_name_plural = "Songs"
 
     @property
     def relative_url(self) -> str:
-        return f"library/recordings/{self.uuid}/"
+        return f"library/songs/{self.uuid}/"
 
     def __str__(self):
         position_str = f"#{self.track_number}" if self.track_number else "#--"
