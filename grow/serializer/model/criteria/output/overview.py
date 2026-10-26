@@ -30,5 +30,4 @@ class CriteriaOverviewSerializer(
             CriteriaOutputFieldKey.SUMMARY_SOURCE_URL.value,
             CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,
-            CriteriaOutputFieldKey.ESSENTIAL_TRACKS.value,
         ]

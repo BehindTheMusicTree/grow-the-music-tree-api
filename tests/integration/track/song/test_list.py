@@ -18,15 +18,6 @@ class TestCase(AppTestCase):
         assert response.data["overallTotal"] == 1
         assert response.data["results"][0]["uuid"] == str(song.uuid)
 
-    def test_legacy_recordings_route_lists_songs(self):
-        genre = self.model_fixture_factory.create_genre("Rock")
-        song = self.model_fixture_factory.create_song(title="Mine", genre=genre, youtube_video_id="abc123defgh")
-
-        response = self.api_client.get(path=reverse("recording-list"))
-
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["results"][0]["uuid"] == str(song.uuid)
-
     def test_list_does_not_return_other_users_tracks(self):
         other_user = User.objects.create(username="other-user")
         other_genre = self.model_fixture_factory.create_genre("Jazz", user=other_user)
@@ -81,16 +72,6 @@ class TestCase(AppTestCase):
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.json()["results"][0]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
-
-    def test_legacy_youtube_route_lists_only_songs_with_video(self):
-        genre = self.model_fixture_factory.create_genre("Rock")
-        song = self.model_fixture_factory.create_song(title="Mine", genre=genre)
-        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
-
-        response = self.api_client.get(path=reverse("youtube-track-list"))
-
-        assert response.status_code == status.HTTP_200_OK
-        assert [r["uuid"] for r in response.json()["results"]] == [str(song.uuid)]
 
     def test_genre_filter_covers_descendants_and_excludes_siblings(self):
         rock = self.model_fixture_factory.create_genre("Rock")

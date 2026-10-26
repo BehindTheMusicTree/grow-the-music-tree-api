@@ -40,14 +40,13 @@ class TestCase(GenreTestCase):
             "summarySourceUrl",
             "side",
             "essentialSongs",
-            "essentialTracks",
         }
         assert body["name"] == "EDM"
         assert body["summary"] == "Loud."
         assert body["side"] == CriteriaSide.POP
         assert [track["title"] for track in body["essentialSongs"]] == ["Track 0"]
         assert set(body["essentialSongs"][0]) == {"uuid", "title", "artists", "rating", "language", "playCount"}
-        assert body["essentialTracks"] == body["essentialSongs"]
+        assert "essentialTracks" not in body
 
     def test_returns_description_and_summary_source_url(self):
         genre = self.model_fixture_factory.create_genre(

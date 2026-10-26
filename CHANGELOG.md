@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking:** the `/v1/library/recordings/` and `/v1/library/youtube/` route aliases; use `/v1/library/songs/`.
+- **Breaking:** the genre `essentialTracks` output and input key; use `essentialSongs`.
+
 ## [13.2.1] - 2026-10-26
 
 ### Fixed
