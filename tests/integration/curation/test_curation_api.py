@@ -272,6 +272,52 @@ class TestCase(AppTestCase):
         assert ok.json()["row"]["start_year"] == "-3500"
         assert bad.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_tradition_lists_then_accept_qids_only(self):
+        addition = self._create({"wikidata_id": "Q1234", "reason": "testing"}, "tradition_additions")
+        exclusion = self._create({"wikidata_id": "Q1235", "reason": "testing"}, "tradition_exclusions")
+        bad = self._create({"wikidata_id": "bret1244", "reason": "testing"}, "tradition_additions")
+
+        assert addition.status_code == status.HTTP_201_CREATED
+        assert exclusion.status_code == status.HTTP_201_CREATED
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_placement_override_then_empty_fields_keep_derived(self):
+        ok = self._create(
+            {"wikidata_id": "Q1236", "entity_id": "", "start_year": "1200", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+        entity = self._create(
+            {"wikidata_id": "Q1237", "entity_id": "bret1244", "start_year": "", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+        no_key = self._create(
+            {"wikidata_id": "", "entity_id": "", "start_year": "1200", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert entity.status_code == status.HTTP_201_CREATED
+        assert no_key.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_link_override_then_kind_and_action_enumerated(self):
+        row = {
+            "from_wikidata_id": "Q1",
+            "to_wikidata_id": "Q2",
+            "kind": "lineage",
+            "action": "add",
+            "reason": "testing",
+        }
+
+        ok = self._create(row, "tradition_link_overrides")
+        other_kind = self._create({**row, "kind": "association"}, "tradition_link_overrides")
+        bad_kind = self._create({**row, "kind": "influence"}, "tradition_link_overrides")
+        bad_action = self._create({**row, "to_wikidata_id": "Q3", "action": "move"}, "tradition_link_overrides")
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert other_kind.status_code == status.HTTP_201_CREATED
+        assert bad_kind.status_code == status.HTTP_400_BAD_REQUEST
+        assert bad_action.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_unknown_list_then_404(self):
         assert self.api_client.get(path=self._entries_url("nope")).status_code == status.HTTP_404_NOT_FOUND
 
