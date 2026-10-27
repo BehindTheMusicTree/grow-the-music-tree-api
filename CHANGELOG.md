@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.1.0] - 2026-10-27
+
 ### Added
 
 - Songs carry the video's YouTube view count: the song import accepts an optional non-negative `youtube_view_count` (null when unknown), stored on `Song` and exposed as `youtubeVideo.viewCount`; a curator changing a song's video resets it. Tested for import (full and delta), validation, listing and curation.
