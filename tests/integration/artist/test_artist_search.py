@@ -1,10 +1,13 @@
 import uuid
 
 import pytest
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 
+from grow.artist.search_cache import invalidate_search_cache
 from grow.model.artist.Artist import SPECIAL_PURPOSE_ARTIST_MBIDS
+from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -12,6 +15,7 @@ from tests.utils.AppTestCase import AppTestCase
 class TestArtistSearch(AppTestCase):
     def setUp(self):
         super().setUp()
+        cache.clear()
         self.api_client.credentials()
         self.factory = self.model_fixture_factory
 
@@ -126,3 +130,27 @@ class TestArtistSearch(AppTestCase):
         self.factory.create_artist("Radiohead")
 
         assert self.names("zzzzqqqq") == []
+
+    def test_artist_matching_by_name_and_aliases_listed_once(self):
+        artist = self.factory.create_artist("Prince")
+        ArtistAlias.objects.create(artist=artist, name="Prince Rogers Nelson")
+        ArtistAlias.objects.create(artist=artist, name="Prince and The Revolution")
+
+        assert self.names("prince") == ["Prince"]
+
+    def test_repeated_search_served_from_cache(self):
+        self.factory.create_artist("Radiohead")
+        assert self.names("radiohead") == ["Radiohead"]
+
+        self.factory.create_artist("Radiohead Tribute")
+
+        assert self.names("radiohead") == ["Radiohead"]
+
+    def test_invalidating_cache_then_new_artist_found(self):
+        self.factory.create_artist("Radiohead")
+        assert self.names("radiohead") == ["Radiohead"]
+        self.factory.create_artist("Radiohead Tribute")
+
+        invalidate_search_cache()
+
+        assert self.names("radiohead") == ["Radiohead", "Radiohead Tribute"]

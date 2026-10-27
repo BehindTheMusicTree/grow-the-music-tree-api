@@ -1,6 +1,7 @@
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.artist.search_cache import invalidate_search_cache
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.merge_lock import hold_merge_lock
@@ -286,7 +287,9 @@ def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> d
     """
     with hold_merge_lock(run_id):
         try:
-            return _merge(run_id, {"run": run_id, "user": user_id}, record)
+            result = _merge(run_id, {"run": run_id, "user": user_id}, record)
+            invalidate_search_cache()
+            return result
         finally:
             # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
             ArtistImportStaging.objects.filter(run_id=run_id).delete()
