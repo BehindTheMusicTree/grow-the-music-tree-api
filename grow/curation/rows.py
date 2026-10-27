@@ -22,6 +22,7 @@ from grow.curation.lists import (
     KEY_MAX_LENGTH,
     OPTIONAL_COLUMNS,
     PARENT_RULE_COLUMNS,
+    QID_ENTITY_LISTS,
 )
 
 KEY_SEPARATOR = "\t"
@@ -87,6 +88,9 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             continue
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
+            continue
+        if column in ENTITY_ID_COLUMNS and list_name in QID_ENTITY_LISTS and not re.fullmatch(r"Q[0-9]+", value):
+            errors[column] = "Must be a Wikidata QID (Q123)"
             continue
         if column in ENTITY_ID_COLUMNS and not re.fullmatch(ENTITY_ID_PATTERN, value):
             errors[column] = "Must be a Glottocode (abcd1234) or a Wikidata QID (Q123)"

@@ -13,6 +13,8 @@ ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
 """A Glottocode, or the QID of a Wikidata-only cultural entity."""
 
 ENTITY_ID_COLUMNS = frozenset({"entity_id", "child_entity_id", "parent_entity_id"})
+QID_ENTITY_LISTS = frozenset({"entity_additions"})
+"""Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
 OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS})
@@ -167,6 +169,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "over_item_id"),
         ("item_id", "over_item_id", "reason"),
         "On a song carrying both genres, the first, more precise one wins over the second.",
+    ),
+    "entity_additions": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "reason"),
+        "Wikidata items ingested as cultural entities although no bulk class covers them.",
     ),
     "entity_exclusions": CurationList(
         "geohistory",

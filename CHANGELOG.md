@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Geohistory curation list `entity_additions` (QIDs only): Wikidata items the `geohistory` pipeline ingests as cultural entities although no bulk class covers them, such as an archaeological site or a historiographical region. Tested in the curation API suite.
+
 ### Fixed
 
 - Reparenting a genre onto one of its additional primary parents drops that edge instead of returning a 400, and the `secondary_parents` `add` rule of a secondary edge that became the main parent is dropped even without an actor (it would make the pipelines' gold export raise).
