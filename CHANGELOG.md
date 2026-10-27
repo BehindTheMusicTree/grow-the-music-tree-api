@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Gold curation lists `genre_disambiguation` (candidate genres of an ambiguous MusicBrainz tag such as `r&b`, at most one flagged `is_default`) and `genre_disambiguation_context` (a context genre that, on a song, points the tag to one candidate): editable through the curation endpoints and included in the curation export as `manual_<list>.csv`, with `context_item_id` as an item id column. Tested in the curation API suite.
+
 ## [14.1.1] - 2026-10-27
 
 ### Fixed
