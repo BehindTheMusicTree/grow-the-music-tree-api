@@ -288,6 +288,23 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=self._entries_url()).status_code == status.HTTP_403_FORBIDDEN
         assert self._create(ITEM).status_code == status.HTTP_403_FORBIDDEN
 
+    def test_curator_key_then_entries_only_attributed_to_curation_bot(self):
+        self.api_client.credentials(HTTP_X_API_KEY=settings.CURATION_API_KEY)
+
+        created = self._create(ITEM)
+        uuid = created.json()["uuid"]
+        patched = self.api_client.patch(path=self._entry_url(uuid), data={"row": {"reason": "edited"}}, format="json")
+        listed = self.api_client.get(path=self._entries_url())
+        deleted = self.api_client.delete(path=self._entry_url(uuid))
+
+        assert created.status_code == status.HTTP_201_CREATED
+        assert patched.status_code == status.HTTP_200_OK
+        assert listed.status_code == status.HTTP_200_OK
+        assert deleted.status_code == status.HTTP_204_NO_CONTENT
+        assert {h.actor.username for h in self._history(uuid)} == {"curation-bot"}
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_403_FORBIDDEN
+        assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
+
     def test_export_then_csv_rows_snake_case(self):
         self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "main_parent")
 

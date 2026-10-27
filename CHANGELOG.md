@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `curator` role: a second static key, `CURATION_API_KEY`, lets an agent read and write `curation/<list>/entries/` (history attributes its writes to the `curation-bot` user) without the admin Google token. The pipeline key keeps its export-only scope. **BREAKING:** `CURATION_API_KEY` is a required env var; set it before deploying.
 - Geohistory curation list `entity_additions` (QIDs only): Wikidata items the `geohistory` pipeline ingests as cultural entities although no bulk class covers them, such as an archaeological site or a historiographical region. Tested in the curation API suite.
 
 ### Changed
