@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.1.1] - 2026-10-27
+
+### Fixed
+
+- **Prod deploy rolling back on slow migrations**: migrations now run as a CI release phase instead of at container start
+  - `build-and-deploy.yml` runs `manage.py migrate` once per deploy, from the exact image digest, with the app's current Coolify env, before Coolify is triggered; `start-server.sh` only runs `migrate --check`
+  - Migration `0075` is idempotent on PostgreSQL, so the half-applied run left on prod by the killed deploys resumes instead of failing on `column "folded_name" already exists`
+
+## [14.1.0] - 2026-10-27
+
 ### Added
 
 - Songs carry the video's YouTube view count: the song import accepts an optional non-negative `youtube_view_count` (null when unknown), stored on `Song` and exposed as `youtubeVideo.viewCount`; a curator changing a song's video resets it. Tested for import (full and delta), validation, listing and curation.

@@ -22,8 +22,8 @@ bash "$(dirname "$0")/wait-for-postgres-db.sh" "$DB_HOST" "$DB_PORT" 20 2
 log "Running Django system checks..."
 python3 manage.py check
 
-log "Applying migrations..."
-python3 manage.py migrate
+log "Checking migrations are applied..."
+python3 manage.py migrate --check
 
 log "Starting Gunicorn..."
 exec gunicorn grow.wsgi:application \
