@@ -107,3 +107,10 @@ class TestGenealogy(AppTestCase):
 
     def test_get_without_snapshot_then_404(self):
         assert APIClient().get(self.url).status_code == status.HTTP_404_NOT_FOUND
+
+    def test_admin_import_then_snapshot_without_import_run(self):
+        response = self.api_client.post(self.import_url, DOCUMENT, format="json")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert GenealogySnapshot.objects.get().import_run is None
+        assert ImportRun.objects.count() == 0

@@ -44,13 +44,15 @@ class GenealogyImportView(CurationView):
         traditions_count = len(document["traditions"])
 
         with transaction.atomic():
-            latest = GenealogySnapshot.objects.first()
+            latest = GenealogySnapshot.objects.defer("document").first()
             unchanged = latest is not None and latest.checksum == checksum
-            run = ImportRun.objects.create(
-                kind=ImportRun.Kind.GENEALOGY,
-                count=traditions_count,
-                skipped_count=traditions_count if unchanged else None,
-            )
+            run = None
+            if request.auth.role == "pipeline":
+                run = ImportRun.objects.create(
+                    kind=ImportRun.Kind.GENEALOGY,
+                    count=traditions_count,
+                    skipped_count=traditions_count if unchanged else None,
+                )
             if not unchanged:
                 GenealogySnapshot.objects.create(document=document, checksum=checksum, import_run=run)
 

@@ -9,7 +9,7 @@ class GenealogySnapshot(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     document = models.JSONField()
     checksum = models.CharField(max_length=64)
-    import_run = models.ForeignKey(ImportRun, on_delete=models.PROTECT, related_name="genealogy_snapshots")
+    import_run = models.ForeignKey(ImportRun, null=True, on_delete=models.PROTECT, related_name="genealogy_snapshots")
 
     class Meta:
         db_table = "grow_genealogy_snapshot"
