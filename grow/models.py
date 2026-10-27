@@ -18,6 +18,7 @@ from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.curation.WikidataItem import WikidataItem
+from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
@@ -46,6 +47,7 @@ __all__ = [
     "CurationEntry",
     "CurationReviewItem",
     "CurationSyncState",
+    "GenealogySnapshot",
     "Genre",
     "GenrePlaylist",
     "GenreTreeVersion",
