@@ -6,6 +6,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.artist.bulk_import.merge import merge_artist_import_run
 from grow.artist.bulk_import.part_loader import load_part
+from grow.artist.search_cache import get_cached_search, set_cached_search
 from grow.filtering.set.artist.ArtistFilterSet import ArtistFilterSet
 from grow.model.artist.Artist import Artist
 from grow.model.import_run.ImportRun import ImportRun
@@ -47,8 +48,12 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
     def search(self, request):
         query = ArtistSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
-        artists = Artist.objects.search(query.validated_data["q"], query.validated_data["limit"])
-        return Response(ArtistSearchResultSerializer(artists, many=True).data)
+        q, limit = query.validated_data["q"], query.validated_data["limit"]
+        payload = get_cached_search(q, limit)
+        if payload is None:
+            payload = ArtistSearchResultSerializer(Artist.objects.search(q, limit), many=True).data
+            set_cached_search(q, limit, payload)
+        return Response(payload)
 
     (
         create_import_run,

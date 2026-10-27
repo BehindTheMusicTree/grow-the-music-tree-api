@@ -13,9 +13,19 @@ ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
 """A Glottocode, or the QID of a Wikidata-only cultural entity."""
 
 ENTITY_ID_COLUMNS = frozenset({"entity_id", "child_entity_id", "parent_entity_id"})
+TRADITION_ID_COLUMNS = frozenset({"wikidata_id", "from_wikidata_id", "to_wikidata_id"})
+"""Columns holding the QID of a Wikidata music tradition."""
+QID_ENTITY_LISTS = frozenset({"entity_additions"})
+"""Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
+COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
+}
+"""Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents"})
-OPTIONAL_COLUMNS = frozenset({"genre_item_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS})
+OPTIONAL_COLUMNS = frozenset(
+    {"genre_item_id", "entity_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
+)
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
 """`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
@@ -48,6 +58,8 @@ class CurationList:
                 "name": c,
                 "kind": "item_id"
                 if c in ITEM_ID_COLUMNS
+                else "tradition_id"
+                if c in TRADITION_ID_COLUMNS
                 else "entity_id"
                 if c in ENTITY_ID_COLUMNS
                 else "int"
@@ -55,7 +67,7 @@ class CurationList:
                 else "bool"
                 if c in BOOL_COLUMNS
                 else "text",
-                "optional": c in OPTIONAL_COLUMNS,
+                "optional": c in OPTIONAL_COLUMNS and c not in self.key,
             }
             for c in self.columns
         )
@@ -168,6 +180,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "over_item_id", "reason"),
         "On a song carrying both genres, the first, more precise one wins over the second.",
     ),
+    "entity_additions": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "reason"),
+        "Wikidata items ingested as cultural entities although no bulk class covers them.",
+    ),
     "entity_exclusions": CurationList(
         "geohistory",
         ("entity_id",),
@@ -186,6 +204,31 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("entity_id", "start_year", "end_year", "reason"),
         "Start and end year of a cultural entity (BCE negative, no year 0), overriding the sourced dates; a blank "
         "year keeps the sourced one.",
+    ),
+    "tradition_additions": CurationList(
+        "geohistory",
+        ("wikidata_id",),
+        ("wikidata_id", "reason"),
+        "Wikidata items ingested as music traditions although no detection rule covers them.",
+    ),
+    "tradition_exclusions": CurationList(
+        "geohistory",
+        ("wikidata_id",),
+        ("wikidata_id", "reason"),
+        "Music traditions dropped, with their placements and links.",
+    ),
+    "tradition_placement_overrides": CurationList(
+        "geohistory",
+        ("wikidata_id",),
+        ("wikidata_id", "entity_id", "start_year", "end_year", "reason"),
+        "Cultural entity and start and end year (BCE negative, no year 0) placing a music tradition, overriding the "
+        "derived ones; a blank field keeps the derived value.",
+    ),
+    "tradition_link_overrides": CurationList(
+        "geohistory",
+        ("from_wikidata_id", "to_wikidata_id", "kind"),
+        ("from_wikidata_id", "to_wikidata_id", "kind", "action", "reason"),
+        "Links between music traditions, `lineage` or `association`: `add` adds one, `remove` drops a derived one.",
     ),
 }
 

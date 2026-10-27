@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
+from django.db.models import F, Func
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
 
@@ -51,6 +52,13 @@ class Artist(TrackMixin):
 
     _name = AppCharField(max_length=settings.ARTIST_NAME_LEN_MAX, default=None, db_column=Fields.NAME_PUBLIC)
 
+    # Folded name stored so the trigram index and search scoring don't recompute unaccent per row.
+    folded_name = models.GeneratedField(
+        expression=Func(F("_name"), function="grow_search_norm"),
+        output_field=models.TextField(),
+        db_persist=True,
+    )
+
     musicbrainz_artist_id = models.UUIDField(null=True, blank=True, unique=True)
     type = models.TextField(choices=Type.choices, null=True, blank=True)
     country = models.CharField(max_length=2, null=True, blank=True)
@@ -58,7 +66,7 @@ class Artist(TrackMixin):
     end_year = models.SmallIntegerField(null=True, blank=True)
     ended = models.BooleanField(default=False)
     disambiguation = models.TextField(null=True, blank=True)
-    # Playable songs crediting the artist, kept by the songs import merge to rank search results.
+    # Songs crediting the artist, playable or not, kept by the songs import merge to rank search results.
     recording_count = models.PositiveIntegerField(db_default=0)
 
     @property

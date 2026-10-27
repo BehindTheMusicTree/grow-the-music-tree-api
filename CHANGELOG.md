@@ -12,6 +12,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.1.0] - 2026-10-27
+
+### Added
+
+- Songs carry the video's YouTube view count: the song import accepts an optional non-negative `youtube_view_count` (null when unknown), stored on `Song` and exposed as `youtubeVideo.viewCount`; a curator changing a song's video resets it. Tested for import (full and delta), validation, listing and curation.
+- Genealogy snapshot: `POST genealogy/import/` (pipeline key or admin) validates the pipeline's `4_genealogy.json` (`columns`, `bands`, `successions`, `traditionLinks` lists; `traditions` items with `wikidataId`, `label`, `start`, `end`, `anchorId`, `inCanonicalTree`) and stores it whole as a `GenealogySnapshot` with its sha256 checksum, recorded as an `ImportRun` of kind `genealogy` for pipeline imports (admin imports are not recorded); an unchanged checksum creates no snapshot (200 instead of 201). Public `GET genealogy/` returns the latest document with `ETag` = checksum and `304` on `If-None-Match`. Tested in the genealogy suite.
+- `curator` role: a second static key, `CURATION_API_KEY`, lets an agent read and write `curation/<list>/entries/` (history attributes its writes to the `curation-bot` user) without the admin Google token. The pipeline key keeps its export-only scope. **BREAKING:** `CURATION_API_KEY` is a required env var; set it before deploying.
+- Geohistory curation list `entity_additions` (QIDs only): Wikidata items the `geohistory` pipeline ingests as cultural entities although no bulk class covers them, such as an archaeological site or a historiographical region. Tested in the curation API suite.
+- Geohistory curation lists `tradition_additions`, `tradition_exclusions`, `tradition_placement_overrides` and `tradition_link_overrides` (Wikidata QIDs, `kind` `lineage|association`, `action` `add|remove`, a blank placement field keeps the derived value): editable through the curation endpoints and included in the curation export as `manual_<list>.csv`, with a `tradition_id` column kind and tests.
+
+### Changed
+
+- `Artist.recording_count` (`recordingCount`) counts every song crediting the artist, playable or not, instead of playable ones only: an artist whose songs have no video yet (Bob Marley) no longer shows 0 nor ranks below artists with a single matched song in artist search. A migration backfills existing artists; the songs import keeps it current. Tested against Postgres.
+
+### Improved
+
+- Artist search (`/v1/artists/search/`) answers in tens of milliseconds instead of 3-8 seconds: artists and aliases keep a stored folded name (`folded_name`) behind trigram indexes, the name and alias matches are two index-driven queries merged and deduplicated instead of one full-table scan with per-row subqueries, and results are cached in Redis for an hour (dropped when an artist import merges). **Deploy note:** migration `0075` adds stored columns, which rewrites `grow_artist` and `grow_artist_alias` under an exclusive lock (about a minute on production), so apply it outside an artist import run. Tested against Postgres (deduplication across name and aliases, cache hit, invalidation by import).
+
+### Fixed
+
+- Reparenting a genre onto one of its additional primary parents drops that edge instead of returning a 400, and the `secondary_parents` `add` rule of a secondary edge that became the main parent is dropped even without an actor (it would make the pipelines' gold export raise).
+
 ## [14.0.0] - 2026-10-26
 
 ### Removed

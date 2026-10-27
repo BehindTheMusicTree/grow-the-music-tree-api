@@ -71,7 +71,21 @@ class TestCase(AppTestCase):
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
-        assert response.json()["results"][0]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
+        assert response.json()["results"][0]["youtubeVideo"] == {
+            "id": "abc123defgh",
+            "unplayableReason": None,
+            "viewCount": None,
+        }
+
+    def test_list_exposes_youtube_view_count(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_song(
+            title="Track Title", genre=genre, youtube_video_id="abc123defgh", youtube_view_count=1241
+        )
+
+        response = self.api_client.get(path=reverse(self.list_endpoint))
+
+        assert response.json()["results"][0]["youtubeVideo"]["viewCount"] == 1241
 
     def test_genre_filter_covers_descendants_and_excludes_siblings(self):
         rock = self.model_fixture_factory.create_genre("Rock")

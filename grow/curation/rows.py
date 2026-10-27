@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from grow.curation.lists import (
     BOOL_COLUMNS,
+    COLUMN_CHOICES,
     CURATION_LISTS,
     ENTITY_ID_COLUMNS,
     ENTITY_ID_PATTERN,
@@ -22,6 +23,8 @@ from grow.curation.lists import (
     KEY_MAX_LENGTH,
     OPTIONAL_COLUMNS,
     PARENT_RULE_COLUMNS,
+    QID_ENTITY_LISTS,
+    TRADITION_ID_COLUMNS,
 )
 
 KEY_SEPARATOR = "\t"
@@ -76,7 +79,7 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             except ValueError:
                 errors[column] = "Must be a boolean"
             continue
-        if column in OPTIONAL_COLUMNS and (value is None or value == ""):
+        if column in OPTIONAL_COLUMNS and column not in curation_list.key and (value is None or value == ""):
             parsed[column] = ""
             continue
         if not isinstance(value, str) or not value.strip():
@@ -87,6 +90,16 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             continue
         if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
+            continue
+        if column in TRADITION_ID_COLUMNS and not re.fullmatch(r"Q[0-9]+", value):
+            errors[column] = "Must be a Wikidata QID (Q123)"
+            continue
+        choices = COLUMN_CHOICES.get(list_name, {}).get(column)
+        if choices and value not in choices:
+            errors[column] = "Must be one of " + ", ".join(choices)
+            continue
+        if column in ENTITY_ID_COLUMNS and list_name in QID_ENTITY_LISTS and not re.fullmatch(r"Q[0-9]+", value):
+            errors[column] = "Must be a Wikidata QID (Q123)"
             continue
         if column in ENTITY_ID_COLUMNS and not re.fullmatch(ENTITY_ID_PATTERN, value):
             errors[column] = "Must be a Glottocode (abcd1234) or a Wikidata QID (Q123)"

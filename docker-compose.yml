@@ -44,6 +44,7 @@ services:
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
+      CURATION_API_KEY: ${CURATION_API_KEY:-dev-only-curation-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-dev-only-youtube-key}
@@ -82,6 +83,7 @@ services:
       DEBUG: ${DEBUG:-true}
       SECRET_KEY: ${SECRET_KEY:-dev-only-secret-key}
       PIPELINE_API_KEY: ${PIPELINE_API_KEY:-dev-only-api-key}
+      CURATION_API_KEY: ${CURATION_API_KEY:-dev-only-curation-key}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-dev-only-google-client-id}
       ADMIN_GOOGLE_SUB: ${ADMIN_GOOGLE_SUB:-dev-only-admin-sub}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-dev-only-youtube-key}

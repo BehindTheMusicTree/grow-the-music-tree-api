@@ -18,7 +18,7 @@ TEXT_COLUMNS = (
     "youtube_unplayable_reason",
     "genre_name",
 )
-COLUMNS = (*TEXT_COLUMNS, "first_release_year")
+COLUMNS = (*TEXT_COLUMNS, "youtube_view_count", "first_release_year")
 REQUIRED = {"musicbrainz_recording_id", "title", "artist"}
 MAX_LENGTHS = {
     "title": settings.TRACK_TITLE_LEN_MAX,
@@ -26,6 +26,7 @@ MAX_LENGTHS = {
     "youtube_video_id": settings.SONG_YOUTUBE_VIDEO_ID_LEN_MAX,
     "genre_name": settings.CRITERIA_NAME_LEN_MAX,
 }
+MAX_VIEW_COUNT = 2**63 - 1
 REASONS = set(YoutubeUnplayableReason.values)
 
 
@@ -49,6 +50,11 @@ def _row(line_number: int, line: bytes) -> tuple:
             raise ValidationError(f"line {line_number}: {column} is longer than {MAX_LENGTHS[column]}")
     if song.get("youtube_unplayable_reason") not in REASONS | {None}:
         raise ValidationError(f"line {line_number}: unknown youtube_unplayable_reason")
+    view_count = song.get("youtube_view_count")
+    if view_count is not None and (
+        not isinstance(view_count, int) or isinstance(view_count, bool) or not 0 <= view_count <= MAX_VIEW_COUNT
+    ):
+        raise ValidationError(f"line {line_number}: youtube_view_count must be a non-negative integer")
     if "first_release_year" not in song:
         raise ValidationError(f"line {line_number}: first_release_year is required (null if unknown)")
     year = song["first_release_year"]

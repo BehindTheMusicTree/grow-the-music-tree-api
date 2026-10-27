@@ -201,6 +201,21 @@ class TestImportRunMerge(AppTestCase):
 
         assert years() == {uuid.UUID(MBID): 1980, uuid.UUID(OTHER_MBID): 1975}
 
+    def test_youtube_view_count_imported_updated_and_nullable(self):
+        self.model_fixture_factory.create_genre("Rock")
+        unknown_count = {**SONG, "musicbrainz_recording_id": OTHER_MBID}
+
+        self._sync([{**SONG, "youtube_view_count": 1241}, unknown_count])
+
+        def counts():
+            return dict(Song.objects.values_list("musicbrainz_recording_id", "youtube_view_count"))
+
+        assert counts() == {uuid.UUID(MBID): 1241, uuid.UUID(OTHER_MBID): None}
+
+        self._sync([{**SONG, "youtube_view_count": 2**40}, {**unknown_count, "youtube_view_count": 7}])
+
+        assert counts() == {uuid.UUID(MBID): 2**40, uuid.UUID(OTHER_MBID): 7}
+
     def test_import_accepts_musicbrainz_length_title_and_artist(self):
         self.model_fixture_factory.create_genre("Rock")
         song = {**SONG, "title": "t" * 1059, "artist": "a" * 1018}
@@ -391,6 +406,10 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "first_release_year": "1979"}]),
             _gzip_ndjson([{**SONG, "first_release_year": True}]),
             _gzip_ndjson([{**SONG, "first_release_year": -1}]),
+            _gzip_ndjson([{**SONG, "youtube_view_count": -1}]),
+            _gzip_ndjson([{**SONG, "youtube_view_count": "12"}]),
+            _gzip_ndjson([{**SONG, "youtube_view_count": True}]),
+            _gzip_ndjson([{**SONG, "youtube_view_count": 2**63}]),
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
             gzip.compress(b"{not json\n"),
         ]
@@ -456,7 +475,7 @@ class TestImportRunMerge(AppTestCase):
         assert [a.name for a in Song.objects.get().artists.all()] == ["Syd Barrett"]
         assert Artist.objects.filter(pk=legacy.pk).exists()
 
-    def test_artist_recording_count_tracks_playable_songs(self):
+    def test_artist_recording_count_tracks_all_songs(self):
         self.model_fixture_factory.create_genre("Rock")
         playable = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
         unplayable = {
@@ -466,11 +485,12 @@ class TestImportRunMerge(AppTestCase):
         }
 
         self._sync([playable, unplayable])
-        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 1
-
-        self._sync([playable, {**unplayable, "youtube_video_id": "zzz123defgh"}])
         assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 2
 
+        self._sync([unplayable])
+        assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 1
+
+        self._sync([playable, unplayable])
         self._sync([{**unplayable, "youtube_video_id": "zzz123defgh"}])
         assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 1
 

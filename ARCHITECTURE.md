@@ -65,7 +65,7 @@ The kit's `Track` deliberately has no `playlists` M2M field. `Song.playlists_wit
 
 Full chain for a single authenticated request:
 
-1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a single check against one static settings value (plain string equality, no hashing/rotation): `PIPELINE_API_KEY` → row-less `PipelineUser` with the `pipeline` role. Anything else → unauthenticated. `GoogleIdTokenAuthentication` resolves a bearer ID token to the `User` keyed by its `sub` (created on first sign-in), with the `admin` role for `ADMIN_GOOGLE_SUB` and `viewer` otherwise.
+1. **`ApiKeyAuthentication`** (`grow/authentication/ApiKeyAuthentication.py`) — reads `X-API-Key`, a check against two static settings values (constant-time comparison, no hashing/rotation): `PIPELINE_API_KEY` → row-less `PipelineUser` with the `pipeline` role; `CURATION_API_KEY` → the `curation-bot` `User` (created on first use, so history has an actor) with the `curator` role, accepted on the curation entries endpoints only. Anything else → unauthenticated. `GoogleIdTokenAuthentication` resolves a bearer ID token to the `User` keyed by its `sub` (created on first sign-in), with the `admin` role for `ADMIN_GOOGLE_SUB` and `viewer` otherwise.
 2. **`GrowModelViewSet`** (`grow/view/viewset/GrowModelViewSet.py`) sets `permission_classes = [IsAdminOrReadOnly]` and overrides api-kit's `get_owner` to return `None`:
    - `IsAdminOrReadOnly` — allows anonymous `SAFE_METHODS`; writes need the `admin` role on `request.auth` (401 without credentials, 403 otherwise). It is also `DEFAULT_PERMISSION_CLASSES`.
    - `get_owner` → `None` scopes every query and every created row to canonical data (`user IS NULL`), whoever the caller is.
@@ -94,7 +94,7 @@ ALBUM_MODEL = "grow.Album"
 
 There's no `PLAYLIST_MODEL` or `TAG_MODEL`/`GENRE_MODEL` — Tag/Genre are proxy models of `Criteria` (see above), and Playlist variants resolve through `CRITERIA_MODEL`'s FK graph rather than their own setting.
 
-`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `PIPELINE_API_KEY`), and no `GIT_COMMIT` build arg.
+`tests/settings.py` is independently maintained, not inherited from `grow/settings.py` (see `CLAUDE.md` for the general warning about this). Concrete divergences: in-memory SQLite instead of Postgres, no CORS/Host-validation/CamelCase middleware, hardcoded dummy secrets (`SECRET_KEY`, `PIPELINE_API_KEY`, `CURATION_API_KEY`), and no `GIT_COMMIT` build arg.
 
 ## Exception handling
 

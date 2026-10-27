@@ -10,6 +10,7 @@ class ImportRun(models.Model):
         SONGS = "songs"
         ARTISTS = "artists"
         UNRESOLVED_GENRE_TAGS = "unresolved_genre_tags"
+        GENEALOGY = "genealogy"
 
     kind = models.TextField(choices=Kind.choices)
     imported_on = models.DateTimeField(auto_now_add=True)

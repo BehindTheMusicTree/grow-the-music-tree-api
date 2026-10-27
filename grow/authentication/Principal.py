@@ -4,6 +4,6 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class Principal:
-    role: Literal["admin", "viewer", "pipeline"]
+    role: Literal["admin", "viewer", "pipeline", "curator"]
     email: str | None
     sub: str | None

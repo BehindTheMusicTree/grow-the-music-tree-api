@@ -16,6 +16,7 @@ from grow.view.curation import (
     CurationWikidataItemsView,
     CurationWikidataResolutionsView,
 )
+from grow.view.genealogy import GenealogyImportView, GenealogyView
 from grow.view.health import HealthCheckView
 from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
 from grow.view.pipeline_run import (
@@ -82,6 +83,8 @@ urlpatterns += [
         CurationEntryView.as_view(),
         name="curation-entry",
     ),
+    path(f"{settings.API_ROOT_BASE}genealogy/", GenealogyView.as_view(), name="genealogy"),
+    path(f"{settings.API_ROOT_BASE}genealogy/import/", GenealogyImportView.as_view(), name="genealogy-import"),
     path(f"{settings.API_ROOT_BASE}pipeline/runs/", PipelineRunsView.as_view(), name="pipeline-runs"),
     path(
         f"{settings.API_ROOT_BASE}pipeline/runs/latest/", PipelineRunLatestView.as_view(), name="pipeline-runs-latest"

@@ -20,7 +20,7 @@ CREATE TEMP TABLE song_import AS
 WITH staged AS (
     SELECT DISTINCT ON (musicbrainz_recording_id)
         musicbrainz_recording_id AS mbid, title, artist, artist_musicbrainz_id AS artist_mbid, youtube_video_id,
-        youtube_unplayable_reason, genre_name, first_release_year
+        youtube_unplayable_reason, youtube_view_count, genre_name, first_release_year
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
 ), matched AS (
@@ -40,8 +40,8 @@ WITH staged AS (
 ), adopted AS (
     SELECT c.mbid, l.track_id, l.is_manually_edited FROM candidate c JOIN legacy l USING (youtube_video_id)
 )
-SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.genre_name,
-    m.first_release_year, c.uuid AS genre_id,
+SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.youtube_view_count,
+    m.genre_name, m.first_release_year, c.uuid AS genre_id,
     COALESCE(m.track_id, a.track_id, gen_random_uuid()) AS track_id,
     m.track_id IS NULL AND a.track_id IS NULL AS is_new,
     a.track_id IS NOT NULL AS is_adopted,
@@ -97,10 +97,11 @@ STEPS = [
         "update_songs",
         """UPDATE grow_song y SET
         youtube_video_id = s.youtube_video_id, youtube_unplayable_reason = s.youtube_unplayable_reason,
-        first_release_year = s.first_release_year
+        youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year
     FROM song_import s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
+            OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
             OR y.first_release_year IS DISTINCT FROM s.first_release_year)""",
     ),
     # Key order fills the pkey/track_id btrees sequentially instead of evicting a random index page per row.
@@ -113,9 +114,9 @@ STEPS = [
     (
         "insert_songs",
         """INSERT INTO grow_song
-        (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, musicbrainz_recording_id,
-            first_release_year)
-    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, mbid, first_release_year
+        (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
+            musicbrainz_recording_id, first_release_year)
+    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year
     FROM song_import WHERE is_new
     ORDER BY track_id""",
     ),
@@ -311,10 +312,9 @@ AFTER_STALE_STEPS = [
     # Ranks artist search results; only artists whose tracks this run touched are recounted.
     (
         "refresh_recording_count",
-        f"""WITH counted AS (
-        SELECT c.artist_id, count(y.track_id) AS n FROM count_artist c
+        """WITH counted AS (
+        SELECT c.artist_id, count(ta.track_id) AS n FROM count_artist c
         LEFT JOIN the_music_tree_genre_kit_track_artists ta ON ta.artist_id = c.artist_id
-        LEFT JOIN grow_song y ON y.track_id = ta.track_id AND {PLAYABLE.format("y")}
         GROUP BY c.artist_id
     )
     UPDATE grow_artist a SET recording_count = counted.n FROM counted

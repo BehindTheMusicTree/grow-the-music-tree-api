@@ -1,10 +1,9 @@
+import uuid
 from typing import TYPE_CHECKING
 
 from django.contrib.postgres.search import TrigramWordSimilarity
 from django.db import connection, transaction
-from django.db.models import Case, F, Func, OuterRef, Q, Subquery, TextField, Value, When
-from django.db.models.fields import FloatField
-from django.db.models.functions import Coalesce, Greatest
+from django.db.models import Case, F, IntegerField, TextField, Value, When
 from the_music_tree_genre_kit.track_mixin.Fields import Fields as TrackMixinFields
 from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager import (
     TrackMixinWithInternalNameManager,
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
 
 # Below pg_trgm's 0.6 default so a one-letter typo in a long name still matches ("radiohed" -> "Radiohead").
 SEARCH_WORD_SIMILARITY_THRESHOLD = 0.4
+SEARCH_DUPLICATE_HEADROOM = 4
 
 
 class ArtistManager(TrackMixinWithInternalNameManager["Artist"]):
@@ -38,49 +38,61 @@ class ArtistManager(TrackMixinWithInternalNameManager["Artist"]):
         from grow.model.artist.Artist import SPECIAL_PURPOSE_ARTIST_MBIDS
         from grow.model.artist_alias.ArtistAlias import ArtistAlias
 
-        def folded(field: str) -> Func:
-            return Func(F(field), function="grow_search_norm", output_field=TextField())
-
         with transaction.atomic(), connection.cursor() as cursor:
             cursor.execute(
                 "SELECT set_config('pg_trgm.word_similarity_threshold', %s, true), grow_search_norm(%s)",
                 [str(SEARCH_WORD_SIMILARITY_THRESHOLD), query],
             )
             folded_query = cursor.fetchone()[1]
-            alias_hits = ArtistAlias.objects.annotate(norm=folded("name")).filter(
-                norm__trigram_word_similar=folded_query
-            )
-            best_alias = (
-                alias_hits.filter(artist=OuterRef("pk"))
-                .annotate(score=TrigramWordSimilarity(folded_query, "norm"))
-                .order_by("-score")
-            )
-            return list(
-                self.annotate(norm=folded("_name"))
-                .filter(Q(norm__trigram_word_similar=folded_query) | Q(pk__in=alias_hits.values("artist_id")))
+
+            def rank(field: str) -> Case:
+                return Case(
+                    When(**{field: folded_query}, then=2),
+                    When(**{f"{field}__startswith": folded_query}, then=1),
+                    default=0,
+                )
+
+            by_name = (
+                self.filter(folded_name__trigram_word_similar=folded_query)
                 .exclude(musicbrainz_artist_id__in=SPECIAL_PURPOSE_ARTIST_MBIDS)
-                .annotate(
-                    score_by_name=TrigramWordSimilarity(folded_query, "norm"),
-                    score_by_alias=Coalesce(
-                        Subquery(best_alias.values("score")[:1], output_field=FloatField()), Value(0.0)
-                    ),
-                    alias_name=Subquery(best_alias.values("name")[:1], output_field=TextField()),
+                .values(
+                    artist_uuid=F("uuid"),
+                    score=TrigramWordSimilarity(folded_query, "folded_name"),
+                    rank=rank("folded_name"),
+                    matched_alias=Value(None, output_field=TextField()),
+                    count=F("recording_count"),
+                    is_alias=Value(0, output_field=IntegerField()),
                 )
-                .annotate(
-                    score=Greatest(F("score_by_name"), F("score_by_alias")),
-                    rank=Case(
-                        When(norm=folded_query, then=2),
-                        When(norm__startswith=folded_query, then=1),
-                        default=0,
-                    ),
-                    matched_alias=Case(
-                        When(score_by_alias__gt=F("score_by_name"), then=F("alias_name")),
-                        default=None,
-                        output_field=TextField(),
-                    ),
-                )
-                .order_by("-rank", "-score", "-recording_count", "uuid")[:limit]
             )
+            by_alias = (
+                ArtistAlias.objects.filter(folded_name__trigram_word_similar=folded_query)
+                .exclude(artist__musicbrainz_artist_id__in=SPECIAL_PURPOSE_ARTIST_MBIDS)
+                .values(
+                    artist_uuid=F("artist_id"),
+                    score=TrigramWordSimilarity(folded_query, "folded_name"),
+                    rank=rank("artist__folded_name"),
+                    matched_alias=F("name"),
+                    count=F("artist__recording_count"),
+                    is_alias=Value(1, output_field=IntegerField()),
+                )
+            )
+            # An artist can match by its name and several aliases; sorting best-first (a name wins a tie with an alias)
+            # makes its first row the one to keep, and the over-fetch leaves room for the dropped duplicates.
+            rows = by_name.union(by_alias, all=True).order_by("-rank", "-score", "-count", "is_alias", "artist_uuid")[
+                : limit * SEARCH_DUPLICATE_HEADROOM
+            ]
+            best: dict[uuid.UUID, str | None] = {}
+            for row in rows:
+                best.setdefault(row["artist_uuid"], row["matched_alias"])
+                if len(best) == limit:
+                    break
+            artists = self.in_bulk(best)
+            result = []
+            for artist_uuid, matched_alias in best.items():
+                artist = artists[artist_uuid]
+                artist.matched_alias = matched_alias
+                result.append(artist)
+            return result
 
     def delete_instance(self, instance: Artist):
         with transaction.atomic():

@@ -251,6 +251,13 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "entityId" in str(response.json()) or "entity_id" in str(response.json())
 
+    def test_entity_additions_then_accept_qids_only(self):
+        ok = self._create({"entity_id": "Q141814080", "reason": "testing"}, "entity_additions")
+        glottocode = self._create({"entity_id": "bret1244", "reason": "testing"}, "entity_additions")
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert glottocode.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_time_span_override_then_years_optional_integers(self):
         ok = self._create(
             {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
@@ -264,6 +271,52 @@ class TestCase(AppTestCase):
         assert ok.status_code == status.HTTP_201_CREATED
         assert ok.json()["row"]["start_year"] == "-3500"
         assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_lists_then_accept_qids_only(self):
+        addition = self._create({"wikidata_id": "Q1234", "reason": "testing"}, "tradition_additions")
+        exclusion = self._create({"wikidata_id": "Q1235", "reason": "testing"}, "tradition_exclusions")
+        bad = self._create({"wikidata_id": "bret1244", "reason": "testing"}, "tradition_additions")
+
+        assert addition.status_code == status.HTTP_201_CREATED
+        assert exclusion.status_code == status.HTTP_201_CREATED
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_placement_override_then_empty_fields_keep_derived(self):
+        ok = self._create(
+            {"wikidata_id": "Q1236", "entity_id": "", "start_year": "1200", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+        entity = self._create(
+            {"wikidata_id": "Q1237", "entity_id": "bret1244", "start_year": "", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+        no_key = self._create(
+            {"wikidata_id": "", "entity_id": "", "start_year": "1200", "end_year": "", "reason": "testing"},
+            "tradition_placement_overrides",
+        )
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert entity.status_code == status.HTTP_201_CREATED
+        assert no_key.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_link_override_then_kind_and_action_enumerated(self):
+        row = {
+            "from_wikidata_id": "Q1",
+            "to_wikidata_id": "Q2",
+            "kind": "lineage",
+            "action": "add",
+            "reason": "testing",
+        }
+
+        ok = self._create(row, "tradition_link_overrides")
+        other_kind = self._create({**row, "kind": "association"}, "tradition_link_overrides")
+        bad_kind = self._create({**row, "kind": "influence"}, "tradition_link_overrides")
+        bad_action = self._create({**row, "to_wikidata_id": "Q3", "action": "move"}, "tradition_link_overrides")
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert other_kind.status_code == status.HTTP_201_CREATED
+        assert bad_kind.status_code == status.HTTP_400_BAD_REQUEST
+        assert bad_action.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_unknown_list_then_404(self):
         assert self.api_client.get(path=self._entries_url("nope")).status_code == status.HTTP_404_NOT_FOUND
@@ -280,6 +333,23 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
         assert self.api_client.get(path=self._entries_url()).status_code == status.HTTP_403_FORBIDDEN
         assert self._create(ITEM).status_code == status.HTTP_403_FORBIDDEN
+
+    def test_curator_key_then_entries_only_attributed_to_curation_bot(self):
+        self.api_client.credentials(HTTP_X_API_KEY=settings.CURATION_API_KEY)
+
+        created = self._create(ITEM)
+        uuid = created.json()["uuid"]
+        patched = self.api_client.patch(path=self._entry_url(uuid), data={"row": {"reason": "edited"}}, format="json")
+        listed = self.api_client.get(path=self._entries_url())
+        deleted = self.api_client.delete(path=self._entry_url(uuid))
+
+        assert created.status_code == status.HTTP_201_CREATED
+        assert patched.status_code == status.HTTP_200_OK
+        assert listed.status_code == status.HTTP_200_OK
+        assert deleted.status_code == status.HTTP_204_NO_CONTENT
+        assert {h.actor.username for h in self._history(uuid)} == {"curation-bot"}
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_403_FORBIDDEN
+        assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_then_csv_rows_snake_case(self):
         self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "main_parent")
