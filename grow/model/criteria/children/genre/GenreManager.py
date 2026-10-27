@@ -100,7 +100,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if self._is_wikidata_item(instance):
                 self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
             if instance.parent_id is not None:
-                self._drop_secondary_add_of_main_parent(instance, actor)
                 instance.is_unaccepted_root = False
                 instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
@@ -112,19 +111,36 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             new_value=instance.parent.name if instance.parent else None,
         )
 
-    def _drop_secondary_add_of_main_parent(self, instance: Genre, actor: Any) -> None:
-        """A main parent can't also be secondary: drops that edge's `add` rule (`update_instance` already dropped
-        the edge). A `remove` rule is kept, it applies again if the main parent later moves away."""
-        parent_item_id = self.filter(pk=instance.parent_id).values_list("wikidata_id", flat=True).first()
-        if instance.wikidata_id is not None and parent_item_id is not None:
-            entries = CurationEntry.objects.filter(
-                user=None,
-                list_name="secondary_parents",
-                key=KEY_SEPARATOR.join((instance.wikidata_id, parent_item_id)),
-                values__action="add",
-            )
-            for entry in entries:
-                CurationEntry.objects.delete_instance(entry, actor=actor)
+    @staticmethod
+    def _links_without_new_parent(instance: Genre, new_parent: Genre, kwargs: dict[str, Any]) -> bool:
+        """A parent can only be linked once: when `new_parent` is already a secondary or additional primary parent,
+        puts that field minus it in `kwargs`. Returns whether it was a secondary parent."""
+        was_secondary = False
+        for field in ("secondary_parents", "additional_primary_parents"):
+            if field in kwargs or (
+                field == "additional_primary_parents" and not instance.allows_multiple_primary_parents
+            ):
+                continue
+            links = list(getattr(instance, field).all())
+            if any(p.pk == new_parent.pk for p in links):
+                kwargs[field] = [p for p in links if p.pk != new_parent.pk]
+                was_secondary = was_secondary or field == "secondary_parents"
+        return was_secondary
+
+    def _drop_secondary_add_rule(self, instance: Genre, main_parent_pk: Any, actor: Any) -> None:
+        """The `add` rule of an edge that became the main parent would make gold raise on the duplicate. A `remove`
+        rule is kept, it applies again if the main parent later moves away."""
+        main_parent_item_id = self.filter(pk=main_parent_pk).values_list("wikidata_id", flat=True).first()
+        if instance.wikidata_id is None or main_parent_item_id is None:
+            return
+        entries = CurationEntry.objects.filter(
+            user=None,
+            list_name="secondary_parents",
+            key=KEY_SEPARATOR.join((instance.wikidata_id, main_parent_item_id)),
+            values__action="add",
+        )
+        for entry in entries:
+            CurationEntry.objects.delete_instance(entry, actor=actor)
 
     def _on_renamed(self, instance: Genre, *, old_name: str, actor: Any = None) -> None:
         if actor is not None:
@@ -278,15 +294,14 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             song.pk for song in kwargs["essential_songs"]
         ] != self._essential_track_pks(instance)
         new_parent = kwargs.get("parent")
-        if new_parent is not None and "secondary_parents" not in kwargs:
-            secondary_parents = list(instance.secondary_parents.all())
-            if any(p.pk == new_parent.pk for p in secondary_parents):
-                kwargs["secondary_parents"] = [p for p in secondary_parents if p.pk != new_parent.pk]
+        dropped_secondary_edge = new_parent is not None and self._links_without_new_parent(instance, new_parent, kwargs)
         if summary_changed:
             kwargs["summary_source_url"] = None
         if actor is not None and essential_songs_changed:
             self._write_essential_songs_rules(instance, kwargs["essential_songs"], actor)
         updated = super().update_instance(instance, actor=actor, **kwargs)
+        if dropped_secondary_edge:
+            self._drop_secondary_add_rule(updated, new_parent.pk, actor)
         if actor is not None:
             if summary_changed:
                 self._upsert_rule(updated, "summary_overrides", actor, summary=kwargs["summary"] or "")
