@@ -81,10 +81,13 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.1
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
         with:
           app_name: gtmt-api
           coolify_environment: staging
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
           image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
           command: python3 manage.py migrate --no-input
           timeout_minutes: 60
@@ -133,10 +136,13 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.1
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
         with:
           app_name: gtmt-api
           coolify_environment: production
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
           image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
           command: python3 manage.py migrate --no-input
           timeout_minutes: 60

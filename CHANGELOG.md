@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **Release-phase migrations missed newly added env vars** (`KeyError: 'CURATION_API_KEY'`): `run-coolify-oneshot` v4.6.0 reads the env from Coolify instead of the previous running container
 - **Release-phase migrations ran no command**: `run-coolify-oneshot` v4.5.1 keeps the command's arguments, so `manage.py migrate --no-input` actually runs
 - **Prod deploy rolling back on slow migrations**: migrations now run as a CI release phase instead of at container start
   - `build-and-deploy.yml` runs `manage.py migrate` once per deploy, from the exact image digest, before Coolify is triggered; `start-server.sh` only runs `migrate --check`
