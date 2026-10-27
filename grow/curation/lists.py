@@ -7,7 +7,7 @@ ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
 ITEM_ID_COLUMNS = frozenset(
-    {"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id", "over_item_id"}
+    {"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id", "over_item_id", "context_item_id"}
 )
 ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
 """A Glottocode, or the QID of a Wikidata-only cultural entity."""
@@ -22,7 +22,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
-BOOL_COLUMNS = frozenset({"exclude_other_parents"})
+BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default"})
 OPTIONAL_COLUMNS = frozenset(
     {"genre_item_id", "entity_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
 )
@@ -143,6 +143,19 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_genre_name",),
         ("musicbrainz_genre_name", "wikidata_genre_name", "reason"),
         "MusicBrainz genre names matched to a differently named Wikidata genre.",
+    ),
+    "genre_disambiguation": CurationList(
+        "gold",
+        ("musicbrainz_genre_name", "item_id"),
+        ("musicbrainz_genre_name", "item_id", "is_default", "reason"),
+        "Candidate genres of an ambiguous MusicBrainz tag: a song gets the candidate in the lineage of one of its "
+        "other genres, else the default.",
+    ),
+    "genre_disambiguation_context": CurationList(
+        "gold",
+        ("musicbrainz_genre_name", "item_id", "context_item_id"),
+        ("musicbrainz_genre_name", "item_id", "context_item_id", "reason"),
+        "On a song also carrying context_item_id (or a genre under it), an ambiguous tag resolves to item_id.",
     ),
     "secondary_parents": CurationList(
         "gold",
