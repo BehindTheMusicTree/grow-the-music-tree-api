@@ -251,6 +251,13 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "entityId" in str(response.json()) or "entity_id" in str(response.json())
 
+    def test_entity_additions_then_accept_qids_only(self):
+        ok = self._create({"entity_id": "Q141814080", "reason": "testing"}, "entity_additions")
+        glottocode = self._create({"entity_id": "bret1244", "reason": "testing"}, "entity_additions")
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert glottocode.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_time_span_override_then_years_optional_integers(self):
         ok = self._create(
             {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
