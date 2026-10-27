@@ -100,6 +100,15 @@ There's no `PLAYLIST_MODEL` or `TAG_MODEL`/`GENRE_MODEL` — Tag/Genre are proxy
 
 See `CLAUDE.md`'s Architecture section for the full behavior (JSON-forcing under pytest, unlogged fallthrough to a generic 500) — wired identically in both settings modules via `REST_FRAMEWORK["EXCEPTION_HANDLER"] = "the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler"`.
 
+## Migrations
+
+Migrations are a release phase, not part of container startup. `.github/workflows/build-and-deploy.yml` runs `manage.py migrate` once, as a one-off container from the exact image digest being deployed, before triggering Coolify (`run-coolify-oneshot`, 60-minute timeout). `scripts/start-server.sh` only runs `migrate --check` and fails fast if the schema is behind, so a slow migration can no longer eat Coolify's healthcheck window and roll the deploy back.
+
+Consequences for migration authors:
+
+- The schema changes before the new code takes traffic, so every migration must stay compatible with the code still running (expand first, contract in a later release).
+- A non-atomic migration (`atomic = False`, e.g. `CREATE INDEX CONCURRENTLY`) can be killed partway, so every step must be idempotent (`IF [NOT] EXISTS`; wrap `AddField` in `SeparateDatabaseAndState` when needed, as `0075` does).
+
 ## Testing & CI
 
 Pytest config (`pyproject.toml`): `DJANGO_SETTINGS_MODULE = "tests.settings"`, `--cov-fail-under=85`. CI (`.github/workflows/test.yml`) runs three jobs on PRs into `main`/`develop`: **Lint** (`ruff check`, `ruff format --check`, and `mypy grow` all as steps within this one job — not a separate mypy job), **Migration check** (`makemigrations --check --dry-run`), **Pytest**.

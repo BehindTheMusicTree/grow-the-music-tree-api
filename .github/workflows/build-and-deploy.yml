@@ -28,6 +28,8 @@ jobs:
   build:
     name: Build and push image
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -56,6 +58,7 @@ jobs:
             type=sha,prefix=sha-
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -74,9 +77,25 @@ jobs:
     runs-on: ubuntu-latest
     environment: STAGING
     steps:
-      # api first: its start script runs the migrations the worker's tasks depend on.
+      # Release phase: migrations run once, from the exact image being deployed, outside Coolify's
+      # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
+      # run `migrate --check`.
+      - name: Run migrations
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.0
+        with:
+          app_name: gtmt-api
+          coolify_environment: staging
+          image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
+          command: python3 manage.py migrate --no-input
+          timeout_minutes: 60
+          server_host: ${{ vars.SERVER_HOST }}
+          server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
+          server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS }}
+
+      # api first: the worker's tasks depend on the migrated schema.
       - name: Trigger gtmt-api deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.4.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
         with:
           app_name: gtmt-api
           coolify_environment: staging
@@ -91,7 +110,7 @@ jobs:
           health_check_origin_ip: ${{ vars.SERVER_HOST }}
 
       - name: Trigger worker deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.4.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
         with:
           app_name: worker
           coolify_environment: staging
@@ -110,8 +129,24 @@ jobs:
     runs-on: ubuntu-latest
     environment: PROD
     steps:
+      # Release phase: migrations run once, from the exact image being deployed, outside Coolify's
+      # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
+      # run `migrate --check`.
+      - name: Run migrations
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.0
+        with:
+          app_name: gtmt-api
+          coolify_environment: production
+          image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
+          command: python3 manage.py migrate --no-input
+          timeout_minutes: 60
+          server_host: ${{ vars.SERVER_HOST }}
+          server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
+          server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
+
       - name: Trigger gtmt-api deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.4.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
         with:
           app_name: gtmt-api
           coolify_environment: production
@@ -126,7 +161,7 @@ jobs:
           health_check_origin_ip: ${{ vars.SERVER_HOST }}
 
       - name: Trigger worker deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.4.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
         with:
           app_name: worker
           coolify_environment: production

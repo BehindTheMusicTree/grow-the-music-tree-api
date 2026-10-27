@@ -33,6 +33,31 @@ def _restore_indexes(apps, schema_editor):
         schema_editor.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")
 
 
+def _add_folded_name(model_name, table, expression):
+    field = models.GeneratedField(db_persist=True, expression=expression, output_field=models.TextField())
+
+    def forward(apps, schema_editor):
+        if schema_editor.connection.vendor != "postgresql":
+            new_field = field.clone()
+            new_field.set_attributes_from_name("folded_name")
+            schema_editor.add_field(apps.get_model("grow", model_name), new_field)
+            return
+        schema_editor.execute(
+            f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS folded_name text "
+            'GENERATED ALWAYS AS (grow_search_norm("name")) STORED'
+        )
+
+    def backward(apps, schema_editor):
+        schema_editor.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS folded_name")
+
+    # Idempotent on PostgreSQL because this non-atomic migration can die after the column is added but before
+    # it is recorded as applied, and AddField has no IF NOT EXISTS.
+    return migrations.SeparateDatabaseAndState(
+        state_operations=[migrations.AddField(model_name=model_name, name="folded_name", field=field)],
+        database_operations=[migrations.RunPython(forward, backward)],
+    )
+
+
 class Migration(migrations.Migration):
     # Adding a stored generated column rewrites the table under an ACCESS EXCLUSIVE lock (about a minute on ~1.9M
     # artists): deploy outside an import run. The index swap runs outside a transaction to use CONCURRENTLY.
@@ -43,23 +68,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="artist",
-            name="folded_name",
-            field=models.GeneratedField(
-                db_persist=True,
-                expression=Func(F("_name"), function="grow_search_norm"),
-                output_field=models.TextField(),
-            ),
-        ),
-        migrations.AddField(
-            model_name="artistalias",
-            name="folded_name",
-            field=models.GeneratedField(
-                db_persist=True,
-                expression=Func(F("name"), function="grow_search_norm"),
-                output_field=models.TextField(),
-            ),
-        ),
+        _add_folded_name("artist", "grow_artist", Func(F("_name"), function="grow_search_norm")),
+        _add_folded_name("artistalias", "grow_artist_alias", Func(F("name"), function="grow_search_norm")),
         migrations.RunPython(_swap_indexes, _restore_indexes),
     ]
