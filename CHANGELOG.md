@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Prod deploy rolling back on slow migrations**: migrations now run as a CI release phase instead of at container start
+  - `build-and-deploy.yml` runs `manage.py migrate` once per deploy, from the exact image digest, before Coolify is triggered; `start-server.sh` only runs `migrate --check`
+  - Migration `0075` is idempotent on PostgreSQL, so the half-applied run left on prod by the killed deploys resumes instead of failing on `column "folded_name" already exists`
+
 ## [14.1.0] - 2026-10-27
 
 ### Added
