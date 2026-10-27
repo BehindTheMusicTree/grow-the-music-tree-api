@@ -21,6 +21,7 @@ class Song(KitTrack):
     youtube_unplayable_reason = models.CharField(
         max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
     )
+    youtube_view_count = models.PositiveBigIntegerField(null=True, blank=True)
     is_manually_edited = models.BooleanField(default=False)
     first_release_year = models.PositiveSmallIntegerField(null=True, blank=True)
 

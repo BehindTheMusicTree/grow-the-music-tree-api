@@ -46,7 +46,7 @@ class TestCase(AppTestCase):
         response = self.api_client.get(path=reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid}))
 
         [rel] = response.json()["results"]
-        assert rel["track"]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None}
+        assert rel["track"]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None, "viewCount": None}
 
     def test_tracks_from_starts_at_given_track_404s_on_absent_and_400s_on_non_uuid(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")

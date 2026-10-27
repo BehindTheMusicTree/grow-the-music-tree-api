@@ -97,7 +97,11 @@ class SongCurationManager:
             updated = song
         else:
             updated = Song.objects.update_instance(
-                song, actor=actor, youtube_video_id=video_id, youtube_unplayable_reason=reason
+                song,
+                actor=actor,
+                youtube_video_id=video_id,
+                youtube_unplayable_reason=reason,
+                youtube_view_count=song.youtube_view_count if video_id == old_video_id else None,
             )
             HistoryEntry.objects.record(
                 updated, action=HistoryAction.UPDATED, actor=actor, old_value=old_video_id, new_value=video_id

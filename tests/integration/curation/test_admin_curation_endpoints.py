@@ -106,6 +106,8 @@ class TestCase(AppTestCase):
 
     def test_patch_video_then_rule_row_and_youtube_called(self):
         song = self._song(genre=self._rock())
+        song.youtube_view_count = 99
+        song.save()
         old_video_id = song.youtube_video_id
 
         with patch(FETCH, return_value="not_embeddable") as fetch:
@@ -117,6 +119,7 @@ class TestCase(AppTestCase):
         fetch.assert_called_once_with("abc")
         song.refresh_from_db()
         assert (song.youtube_video_id, song.youtube_unplayable_reason) == ("abc", "not_embeddable")
+        assert song.youtube_view_count is None
         assert song.is_manually_edited
         entry = HistoryEntry.objects.get(action=HistoryAction.UPDATED)
         assert (entry.actor, entry.old_value, entry.new_value) == (self.admin, old_video_id, "abc")
