@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Geohistory curation list `entity_additions` (QIDs only): Wikidata items the `geohistory` pipeline ingests as cultural entities although no bulk class covers them, such as an archaeological site or a historiographical region. Tested in the curation API suite.
 
+### Changed
+
+- `Artist.recording_count` (`recordingCount`) counts every song crediting the artist, playable or not, instead of playable ones only: an artist whose songs have no video yet (Bob Marley) no longer shows 0 nor ranks below artists with a single matched song in artist search. A migration backfills existing artists; the songs import keeps it current. Tested against Postgres.
+
 ### Fixed
 
 - Reparenting a genre onto one of its additional primary parents drops that edge instead of returning a 400, and the `secondary_parents` `add` rule of a secondary edge that became the main parent is dropped even without an actor (it would make the pipelines' gold export raise).

@@ -311,10 +311,9 @@ AFTER_STALE_STEPS = [
     # Ranks artist search results; only artists whose tracks this run touched are recounted.
     (
         "refresh_recording_count",
-        f"""WITH counted AS (
-        SELECT c.artist_id, count(y.track_id) AS n FROM count_artist c
+        """WITH counted AS (
+        SELECT c.artist_id, count(ta.track_id) AS n FROM count_artist c
         LEFT JOIN the_music_tree_genre_kit_track_artists ta ON ta.artist_id = c.artist_id
-        LEFT JOIN grow_song y ON y.track_id = ta.track_id AND {PLAYABLE.format("y")}
         GROUP BY c.artist_id
     )
     UPDATE grow_artist a SET recording_count = counted.n FROM counted
