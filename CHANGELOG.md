@@ -21,6 +21,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `Artist.recording_count` (`recordingCount`) counts every song crediting the artist, playable or not, instead of playable ones only: an artist whose songs have no video yet (Bob Marley) no longer shows 0 nor ranks below artists with a single matched song in artist search. A migration backfills existing artists; the songs import keeps it current. Tested against Postgres.
 
+### Improved
+
+- Artist search (`/v1/artists/search/`) answers in tens of milliseconds instead of 3-8 seconds: artists and aliases keep a stored folded name (`folded_name`) behind trigram indexes, the name and alias matches are two index-driven queries merged and deduplicated instead of one full-table scan with per-row subqueries, and results are cached in Redis for an hour (dropped when an artist import merges). **Deploy note:** migration `0075` adds stored columns, which rewrites `grow_artist` and `grow_artist_alias` under an exclusive lock (about a minute on production), so apply it outside an artist import run. Tested against Postgres (deduplication across name and aliases, cache hit, invalidation by import).
+
 ### Fixed
 
 - Reparenting a genre onto one of its additional primary parents drops that edge instead of returning a 400, and the `secondary_parents` `add` rule of a secondary edge that became the main parent is dropped even without an actor (it would make the pipelines' gold export raise).

@@ -179,6 +179,14 @@ class TestImportRunMerge(AppTestCase):
         assert BulkImportRun.objects.filter(pk=run_id).exists()
         assert not Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
 
+    def test_import_invalidates_cached_search(self):
+        assert self.api_client.get(path=reverse("artist-search"), data={"q": "pink floyd"}).data == []
+
+        self._sync([ARTIST])
+
+        response = self.api_client.get(path=reverse("artist-search"), data={"q": "pink floyd"})
+        assert [item["name"] for item in response.data] == ["Pink Floyd"]
+
     def test_import_creates_artists_memberships_links_and_release_groups(self):
         assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0}
 
