@@ -81,7 +81,7 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.1
         with:
           app_name: gtmt-api
           coolify_environment: staging
@@ -133,7 +133,7 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.5.1
         with:
           app_name: gtmt-api
           coolify_environment: production
