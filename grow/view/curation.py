@@ -32,6 +32,7 @@ from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.view.permission.IsAdmin import IsAdmin
+from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 
@@ -120,6 +121,8 @@ class CurationListsView(CurationView):
 
 
 class CurationEntriesView(CurationView):
+    permission_classes = [IsCuratorOrAdmin]
+
     def get(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
         ordering = request.query_params.get("ordering", "key")
@@ -153,6 +156,8 @@ class CurationEntriesView(CurationView):
 
 
 class CurationEntryView(CurationView):
+    permission_classes = [IsCuratorOrAdmin]
+
     def _get(self, list_name: str, uuid: str) -> CurationEntry:
         _check_list(list_name)
         lock_writes(_entries())

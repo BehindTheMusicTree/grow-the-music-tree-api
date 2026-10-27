@@ -59,6 +59,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 
 PIPELINE_API_KEY = "test-api-key"
+CURATION_API_KEY = "test-curation-api-key"
 
 GOOGLE_OAUTH_CLIENT_ID = "test-google-client-id"
 
