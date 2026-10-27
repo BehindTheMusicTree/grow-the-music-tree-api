@@ -74,6 +74,32 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert [r["action"] for r in _rows("secondary_parents")] == ["remove"]
 
+    def test_reparent_without_actor_onto_secondary_added_parent_then_edge_and_rule_dropped(self):
+        self.punk.secondary_parents.add(self.rock)
+        CurationEntry.objects.upsert(
+            "secondary_parents",
+            {"item_id": "Q888002", "parent_id": "Q888001", "action": "add", "reason": REASON},
+            actor=None,
+        )
+
+        Genre.objects.update_instance(self.punk, actor=None, parent=self.rock)
+
+        assert not self.punk.secondary_parents.exists()
+        assert _rows("secondary_parents") == []
+
+    def test_reparent_onto_additional_primary_parent_then_edge_dropped(self):
+        region = self.model_fixture_factory.create_genre("Music of Peru", wikidata_id="Q888004", tree_name="regional")
+        other = self.model_fixture_factory.create_genre("Music of Chile", wikidata_id="Q888006", tree_name="regional")
+        huayno = self.model_fixture_factory.create_genre(
+            "Huayno", wikidata_id="Q888005", tree_name="regional", parent=other
+        )
+        huayno.additional_primary_parents.add(region)
+
+        Genre.objects.update_instance(huayno, actor=None, parent=region)
+
+        assert huayno.additional_primary_parents.count() == 0
+        assert Genre.objects.get(pk=huayno.pk).parent_id == region.pk
+
     def test_reparent_to_root_then_400_and_rolled_back(self):
         punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
 
