@@ -32,7 +32,7 @@ class _DroppedStream(io.RawIOBase):
         raise UnreadablePostError("client disconnected")
 
 
-def _request(stream, content_length: int | None = None):
+def _request(stream, content_length: int | str | None = None):
     meta = {} if content_length is None else {"CONTENT_LENGTH": str(content_length)}
     return SimpleNamespace(_request=stream, META=meta)
 
@@ -62,3 +62,8 @@ def test_client_disconnecting_mid_upload_is_a_parse_error():
 def test_body_shorter_than_content_length_is_a_parse_error():
     with pytest.raises(ParseError, match="received 10 of 20 bytes"):
         spooled_body(_request(_SlowStream(b"x" * 10), 20))
+
+
+def test_non_numeric_content_length_is_a_parse_error():
+    with pytest.raises(ParseError, match="invalid Content-Length"):
+        spooled_body(_request(_SlowStream(b"x"), "abc"))

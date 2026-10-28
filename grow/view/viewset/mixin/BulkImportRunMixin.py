@@ -43,8 +43,11 @@ def spooled_body(request) -> IO[bytes]:
         except UnreadablePostError as e:
             raise ParseError("upload interrupted before the body was complete") from e
         expected = request.META.get("CONTENT_LENGTH")
-        if expected and spool.tell() != int(expected):
-            raise ParseError(f"upload interrupted: received {spool.tell()} of {expected} bytes")
+        if expected:
+            if not expected.isdigit():
+                raise ParseError("invalid Content-Length header")
+            if spool.tell() != int(expected):
+                raise ParseError(f"upload interrupted: received {spool.tell()} of {expected} bytes")
     except BaseException:
         spool.close()
         raise
