@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+
+- Artist bulk import now rejects link URLs that are not `http(s)`, so a `javascript:` or `data:` link can no longer reach the artist panel (image URLs were already checked). Covered by `tests/unit/bulk_import/test_artist_part_loader.py`.
+
 ### Changed
 
 - Core electronic's 49 direct children are now split under its two scene nodes: 9 under Electronic dance music (commercial), 40 under Underground electronic (migration `0082` rewrites their `main_parent` curation entries; `manual_main_parent.csv` seed updated to match, covered by the existing seed round-trip tests).
