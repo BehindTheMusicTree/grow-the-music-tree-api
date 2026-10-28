@@ -488,7 +488,7 @@ requests = [
 
 [[package]]
 name = "grow-the-music-tree-api"
-version = "14.2.0"
+version = "14.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cachecontrol" },
