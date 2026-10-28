@@ -5,6 +5,7 @@ import resource
 import sys
 from datetime import timedelta
 from unittest import mock
+from unittest.mock import ANY
 
 import pytest
 from django.conf import settings
@@ -167,7 +168,7 @@ class TestImportRunMerge(AppTestCase):
         assert self.api_client.get(path=status_path).data["status"] == "pending"
         assert self.api_client.get(path=status_path).data == {
             "status": "success",
-            "result": {"imported": 1, "skipped": 0},
+            "result": {"imported": 1, "skipped": 0, "stepTimings": ANY},
         }
         assert Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
 
@@ -188,7 +189,7 @@ class TestImportRunMerge(AppTestCase):
         assert [item["name"] for item in response.data] == ["Pink Floyd"]
 
     def test_import_creates_artists_memberships_links_and_release_groups(self):
-        assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0}
+        assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0, "stepTimings": ANY}
 
         band = Artist.objects.get(musicbrainz_artist_id=BAND)
         assert (band.name, band.type, band.country, band.begin_year, band.end_year, band.ended) == (
@@ -336,14 +337,14 @@ class TestImportRunMerge(AppTestCase):
 
         result = self._sync([{**PERSON, "name": "Waters"}], mode="delta", deleted=(BAND, OTHER))
 
-        assert result == {"imported": 1, "skipped": 0}
+        assert result == {"imported": 1, "skipped": 0, "stepTimings": ANY}
         assert sorted(Artist.objects.values_list("_name", flat=True)) == ["Credited", "Unlisted", "Waters"]
         assert not ArtistMembership.objects.exists()
 
     def test_delta_run_with_nothing_to_do_succeeds(self):
         self.model_fixture_factory.create_artist("Kept")
 
-        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0, "stepTimings": ANY}
         assert Artist.objects.count() == 1
 
     def test_invalid_part_then_400_and_nothing_staged(self):

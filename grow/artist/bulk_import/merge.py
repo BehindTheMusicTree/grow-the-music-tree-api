@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
@@ -278,7 +280,7 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
     ]
 
 
-def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, int]:
+def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     """
     Merges a committed run's staged artists in one transaction: artists upserted on MBID with their details, their
     memberships, links, aliases and release-group albums (with album artists) diffed against the run, and every artist missing
@@ -297,7 +299,7 @@ def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> d
             BulkImportRun.objects.filter(pk=run_id).delete()
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
+def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
@@ -305,10 +307,12 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
         if not delta and not cursor.fetchone()[0]:
             # Artists missing from the run are deleted, so an empty run would wipe every uncredited artist.
             raise ValueError(f"import run {run_id} has no staged artists")
-        run_steps(cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params)
+        timings = run_steps(
+            cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params
+        )
         cursor.execute("SELECT count(*) FROM run_artist")
         (imported,) = cursor.fetchone()
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, count=imported, skipped_count=0)
-    return {"imported": imported, "skipped": 0}
+    return {"imported": imported, "skipped": 0, "stepTimings": timings}

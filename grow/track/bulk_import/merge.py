@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
@@ -323,7 +325,7 @@ AFTER_STALE_STEPS = [
 ]
 
 
-def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, int]:
+def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     """
     Merges a committed run's staged songs into the owner's `Song`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
@@ -350,17 +352,17 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
             BulkImportRun.objects.filter(pk=run_id).delete()
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
+def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
-        run_steps(cursor, [("song_import", SONG_IMPORT)], params)
+        timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)
         cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
         if not delta and not cursor.fetchone()[0]:
             # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
             raise ValueError(f"import run {run_id} has no staged songs")
-        run_steps(cursor, [*STEPS, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
+        timings += run_steps(cursor, [*STEPS, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
         cursor.execute(
             "SELECT count(*), count(*) FILTER (WHERE genre_name IS NOT NULL AND genre_id IS NULL) FROM song_import"
         )
@@ -368,4 +370,4 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
         cursor.execute(f"DROP TABLE {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped)
-    return {"imported": imported, "skipped": skipped}
+    return {"imported": imported, "skipped": skipped, "stepTimings": timings}
