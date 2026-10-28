@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- A song or artist import-run part or deletions upload cut short (client disconnect, or fewer bytes than `Content-Length`, or a malformed one) now answers 400 instead of 500 or a later invalid-gzip error; covered by unit and action-level tests.
+
 - Import-run part and deletions uploads are read fully into a spooled temp file before the `COPY` starts, so a slow or truncated upload no longer runs inside the statement and trips the web `statement_timeout` (seen as 502s on 19 MB song parts). A truncated body still returns 400 `body is not valid gzip`. Tests in `tests/unit/view/test_bulk_import_spooled_body.py`.
 
 ## [14.3.0] - 2026-10-28

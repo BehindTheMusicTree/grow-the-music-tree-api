@@ -8,13 +8,14 @@ from typing import IO
 
 from django.conf import settings
 from django.db import models, transaction
+from django.http import UnreadablePostError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Task
 from django_q.tasks import async_task
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 
@@ -33,10 +34,23 @@ def spooled_body(request) -> IO[bytes]:
     """
     The whole request body in a seekable file. Loading straight from the raw stream (a part is far over
     DATA_UPLOAD_MAX_MEMORY_SIZE, so not `request.body`) would run its COPY while the client is still sending, and a
-    slow upload would trip the web `statement_timeout`.
+    slow upload would trip the web `statement_timeout`. A body cut short is a client error (400), not a server one.
     """
     spool = tempfile.SpooledTemporaryFile(max_size=SPOOL_MEMORY_BYTES)
-    shutil.copyfileobj(request._request, spool)
+    try:
+        try:
+            shutil.copyfileobj(request._request, spool)
+        except UnreadablePostError as e:
+            raise ParseError("upload interrupted before the body was complete") from e
+        expected = request.META.get("CONTENT_LENGTH")
+        if expected:
+            if not expected.isdigit():
+                raise ParseError("invalid Content-Length header")
+            if spool.tell() != int(expected):
+                raise ParseError(f"upload interrupted: received {spool.tell()} of {expected} bytes")
+    except BaseException:
+        spool.close()
+        raise
     spool.seek(0)
     return spool
 
