@@ -16,6 +16,7 @@ LINK_KINDS = set(ArtistLink.Kind.values)
 LINK_URL_LEN_MAX = 2048  # bytes
 # Same btree key limit for the unique (artist, name) alias index.
 ALIAS_NAME_LEN_MAX = 2048  # bytes
+IMAGE_URL_LEN_MAX = 2048  # bytes
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -41,6 +42,10 @@ def _is_year(value: Any) -> bool:
 
 def _is_text_list(value: Any) -> bool:
     return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _is_https_url(value: Any) -> bool:
+    return _is_text(value) and value.startswith("https://") and len(value.encode()) <= IMAGE_URL_LEN_MAX
 
 
 def _row(line_number: int, line: bytes) -> tuple:
@@ -72,6 +77,25 @@ def _row(line_number: int, line: bytes) -> tuple:
         line_number,
         f"aliases must be a list of non-empty strings of at most {ALIAS_NAME_LEN_MAX} bytes",
     )
+    # Parts exported before images existed have no `image` key: it stages as null.
+    image = artist.get("image")
+    if image is not None:
+        _require(isinstance(image, dict), line_number, "image must be an object")
+        for key in ("url", "page_url"):
+            _require(
+                _is_https_url(image.get(key)),
+                line_number,
+                f"image {key} must be an https URL of at most {IMAGE_URL_LEN_MAX} bytes",
+            )
+        _require(_is_text(image.get("license")), line_number, "image license must be a non-empty string")
+        author = image.get("author")
+        _require(author is None or _is_text(author), line_number, "image author must be a non-empty string")
+        license_url = image.get("license_url")
+        _require(
+            license_url is None or (_is_text(license_url) and len(license_url.encode()) <= IMAGE_URL_LEN_MAX),
+            line_number,
+            f"image license_url must be a non-empty string of at most {IMAGE_URL_LEN_MAX} bytes",
+        )
     for key in ("members", "links", "release_groups"):
         _require(
             isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),

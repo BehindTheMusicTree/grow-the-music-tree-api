@@ -60,6 +60,13 @@ PERSON = {
     "members": [],
     "links": [],
 }
+IMAGE = {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Pink_Floyd_-_all_members.jpg/500px-Pink_Floyd_-_all_members.jpg",
+    "page_url": "https://commons.wikimedia.org/wiki/File:Pink_Floyd_-_all_members.jpg",
+    "author": "Storm Thorgerson",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+}
 OTHER = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
 RUNS = reverse("artist-list") + "import-runs/"
 
@@ -249,6 +256,31 @@ class TestImportRunMerge(AppTestCase):
         self._sync([ARTIST])
 
         assert not band.aliases.exists()
+
+    def test_image_imported_updated_and_cleared(self):
+        def image() -> tuple:
+            return tuple(
+                Artist.objects.filter(musicbrainz_artist_id=BAND)
+                .values_list("image_url", "image_page_url", "image_author", "image_license", "image_license_url")
+                .get()
+            )
+
+        self._sync([{**ARTIST, "image": IMAGE}])
+
+        assert image() == tuple(IMAGE[key] for key in ("url", "page_url", "author", "license", "license_url"))
+        updated_on = Artist.objects.get(musicbrainz_artist_id=BAND).updated_on
+
+        self._sync([{**ARTIST, "image": IMAGE}])
+
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).updated_on == updated_on
+
+        self._sync([{**ARTIST, "image": {**IMAGE, "author": None, "license_url": None}}])
+
+        assert image() == (IMAGE["url"], IMAGE["page_url"], None, IMAGE["license"], None)
+
+        self._sync([{**ARTIST, "image": None}])
+
+        assert image() == (None,) * 5
 
     def test_deleted_artist_takes_its_aliases(self):
         self._sync([{**ARTIST, "aliases": ["Floyd"]}, PERSON])
