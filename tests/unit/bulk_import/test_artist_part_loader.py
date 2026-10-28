@@ -19,8 +19,14 @@ def test_valid_artist_then_mbid_and_data():
 
 @pytest.mark.parametrize(
     "image",
-    [IMAGE, None, {**IMAGE, "author": None}, {**IMAGE, "license_url": None}],
-    ids=["full", "null", "no-author", "no-license-url"],
+    [
+        IMAGE,
+        None,
+        {**IMAGE, "author": None},
+        {**IMAGE, "license_url": None},
+        {**IMAGE, "license_url": "http://creativecommons.org/licenses/by-sa/3.0"},
+    ],
+    ids=["full", "null", "no-author", "no-license-url", "http-license-url"],
 )
 def test_valid_image_then_accepted(image):
     artist = {**ARTIST, "image": image}
@@ -76,6 +82,7 @@ def test_valid_image_then_accepted(image):
         _line(image={**IMAGE, "author": ""}),
         _line(image={**IMAGE, "url": "https://x.org/" + "a" * 2048}),
         _line(image={**IMAGE, "license_url": "https://x.org/" + "a" * 2048}),
+        _line(image={**IMAGE, "license_url": "javascript:alert(1)"}),
     ],
 )
 def test_invalid_artist_then_validation_error(line):
