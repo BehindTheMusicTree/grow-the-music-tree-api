@@ -88,25 +88,28 @@ EXPANDED_STEPS = [
 # MBIDs are resolved to uuids once, here; the diff steps join these maps.
 RESOLVE_STEPS = [
     (
-        "upsert_artists",
+        "update_artists",
+        """UPDATE grow_artist a SET
+        name = i.name, type = i.type, country = i.country, begin_year = i.begin_year, end_year = i.end_year,
+        ended = i.ended, disambiguation = i.disambiguation, image_url = i.image_url,
+        image_page_url = i.image_page_url, image_author = i.image_author, image_license = i.image_license,
+        image_license_url = i.image_license_url, updated_on = now()
+    FROM artist_import i WHERE a.musicbrainz_artist_id = i.mbid
+        AND (a.name, a.type, a.country, a.begin_year, a.end_year, a.ended, a.disambiguation, a.image_url,
+            a.image_page_url, a.image_author, a.image_license, a.image_license_url) IS DISTINCT FROM
+        (i.name, i.type, i.country, i.begin_year, i.end_year, i.ended, i.disambiguation, i.image_url,
+            i.image_page_url, i.image_author, i.image_license, i.image_license_url)""",
+    ),
+    (
+        "insert_artists",
         """INSERT INTO grow_artist
         (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended,
         disambiguation, image_url, image_page_url, image_author, image_license, image_license_url)
     SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation,
         image_url, image_page_url, image_author, image_license, image_license_url
-    FROM artist_import ORDER BY mbid
-    ON CONFLICT (musicbrainz_artist_id) DO UPDATE SET
-        name = EXCLUDED.name, type = EXCLUDED.type, country = EXCLUDED.country, begin_year = EXCLUDED.begin_year,
-        end_year = EXCLUDED.end_year, ended = EXCLUDED.ended, disambiguation = EXCLUDED.disambiguation,
-        image_url = EXCLUDED.image_url, image_page_url = EXCLUDED.image_page_url,
-        image_author = EXCLUDED.image_author, image_license = EXCLUDED.image_license,
-        image_license_url = EXCLUDED.image_license_url, updated_on = now()
-    WHERE (grow_artist.name, grow_artist.type, grow_artist.country, grow_artist.begin_year, grow_artist.end_year,
-        grow_artist.ended, grow_artist.disambiguation, grow_artist.image_url, grow_artist.image_page_url,
-        grow_artist.image_author, grow_artist.image_license, grow_artist.image_license_url) IS DISTINCT FROM
-        (EXCLUDED.name, EXCLUDED.type, EXCLUDED.country, EXCLUDED.begin_year, EXCLUDED.end_year, EXCLUDED.ended,
-        EXCLUDED.disambiguation, EXCLUDED.image_url, EXCLUDED.image_page_url, EXCLUDED.image_author,
-        EXCLUDED.image_license, EXCLUDED.image_license_url)""",
+    FROM artist_import i
+    WHERE NOT EXISTS (SELECT 1 FROM grow_artist a WHERE a.musicbrainz_artist_id = i.mbid)
+    ORDER BY mbid""",
     ),
     (
         "run_artist",
@@ -117,16 +120,22 @@ RESOLVE_STEPS = [
     ("run_artist_uuid_index", "CREATE UNIQUE INDEX ON run_artist (uuid)"),
     ("analyze_run_artist", "ANALYZE run_artist"),
     (
-        "upsert_albums",
+        "update_albums",
+        """UPDATE grow_album a SET
+        name = i.title, year = i.year, primary_type = i.primary_type, secondary_types = i.secondary_types,
+        updated_on = now()
+    FROM release_group_import i WHERE a.musicbrainz_release_group_id = i.mbid
+        AND (a.name, a.year, a.primary_type, a.secondary_types) IS DISTINCT FROM
+        (i.title, i.year, i.primary_type, i.secondary_types)""",
+    ),
+    (
+        "insert_albums",
         """INSERT INTO grow_album
         (uuid, created_on, name, user_id, year, musicbrainz_release_group_id, primary_type, secondary_types)
     SELECT gen_random_uuid(), now(), title, %(user)s, year, mbid, primary_type, secondary_types
-    FROM release_group_import ORDER BY mbid
-    ON CONFLICT (musicbrainz_release_group_id) DO UPDATE SET
-        name = EXCLUDED.name, year = EXCLUDED.year, primary_type = EXCLUDED.primary_type,
-        secondary_types = EXCLUDED.secondary_types, updated_on = now()
-    WHERE (grow_album.name, grow_album.year, grow_album.primary_type, grow_album.secondary_types) IS DISTINCT FROM
-        (EXCLUDED.name, EXCLUDED.year, EXCLUDED.primary_type, EXCLUDED.secondary_types)""",
+    FROM release_group_import i
+    WHERE NOT EXISTS (SELECT 1 FROM grow_album a WHERE a.musicbrainz_release_group_id = i.mbid)
+    ORDER BY mbid""",
     ),
     (
         "run_album",

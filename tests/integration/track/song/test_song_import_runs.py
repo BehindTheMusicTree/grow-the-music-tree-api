@@ -326,6 +326,65 @@ class TestImportRunMerge(AppTestCase):
 
         assert self._playlist_tracks(rock) == ["Newer", "Comfortably Numb"]
 
+    @staticmethod
+    def _steps(result: dict) -> dict[str, int]:
+        return {timing["label"]: timing["rowcount"] for timing in result["stepTimings"]}
+
+    def test_unchanged_rerun_writes_nothing_and_keeps_playlists(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        songs = [
+            {**SONG, "artist_musicbrainz_id": ARTIST_MBID},
+            {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "artist_musicbrainz_id": ARTIST_MBID},
+        ]
+        self._sync(songs)
+        before = self._playlist_tracks(rock)
+
+        steps = self._steps(self._sync(songs))
+
+        assert steps["changed_song"] == 0
+        assert steps["update_tracks"] == steps["update_songs"] == steps["insert_track_artists"] == 0
+        assert self._playlist_tracks(rock) == before
+
+    def test_single_change_of_each_kind_is_the_only_one_carried(self):
+        self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        base = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        other_artist = "11111111-2222-4333-8444-555555555555"
+        changes = {
+            "title": {"title": "Renamed"},
+            "genre": {"genre_name": "Pop"},
+            "video": {"youtube_video_id": "zzz123defgh"},
+            "playability": {"youtube_unplayable_reason": "private"},
+            "year": {"first_release_year": 1979},
+            "views": {"youtube_view_count": 7},
+            "artist": {"artist_musicbrainz_id": other_artist, "artist": "Roger Waters"},
+        }
+        for name, change in changes.items():
+            with self.subTest(name):
+                self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+                steps = self._steps(
+                    self._sync([{**base, **change}, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+                )
+
+                assert steps["changed_song"] == 1
+                changed = Song.objects.get(musicbrainz_recording_id=MBID)
+                assert Song.objects.exclude(pk=changed.pk).get().title == "Other"
+                if name == "genre":
+                    assert changed.genre_id == pop.pk
+                if name == "artist":
+                    assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
+                self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+    def test_locked_track_keeps_its_genre_and_is_not_carried(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self._sync([{**SONG, "artist_musicbrainz_id": ARTIST_MBID}])
+        Song.objects.update(is_manually_edited=True)
+
+        steps = self._steps(self._sync([{**SONG, "artist_musicbrainz_id": ARTIST_MBID, "genre_name": "Pop"}]))
+
+        assert steps["changed_song"] == 0
+
     def test_stale_tracks_deleted_but_locked_kept_with_their_genre(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
