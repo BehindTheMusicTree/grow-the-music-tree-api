@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Song and artist import merges return `stepTimings` (`[{label, rowcount, ms}]` per SQL step) in their task result, so the import status endpoint shows where a merge spends its time. Tests in `tests/integration/track/song/test_song_import_runs.py` and `tests/integration/artist/test_artist_import_runs.py`.
 - Artist detail exposes a nullable `image` (`{url, pageUrl, author, license, licenseUrl}`): a 500 px Wikimedia Commons photo, imported from the Gold artists' `image` key (parts without it import as no image). Showing it requires its attribution (author and license, linked to `pageUrl`); `author` and `licenseUrl` can be null; `url` and `pageUrl` must be https, `licenseUrl` http(s). Migration `0081` adds the columns with an `artist_image_complete` constraint. Tests in `tests/unit/bulk_import/test_artist_part_loader.py`, `tests/integration/artist/test_artist_import_runs.py`, `tests/unit/serializer/model/artist/test_detailed.py` and `tests/unit/model/artist/test_artist.py`.
 
+### Improved
+
+- Song import merge carries only new, adopted and changed songs (title, genre, YouTube fields, year, artist credit) through its write steps, and the artists import updates and inserts artists and albums with set-based statements instead of `ON CONFLICT`: an unchanged run no longer pays for the whole staged volume. Tests in `tests/integration/track/song/test_song_import_runs.py`.
+
 ### Fixed
 
 - Import-run part and deletions uploads are read fully into a spooled temp file before the `COPY` starts, so a slow or truncated upload no longer runs inside the statement and trips the web `statement_timeout` (seen as 502s on 19 MB song parts). A truncated body still returns 400 `body is not valid gzip`. Tests in `tests/unit/view/test_bulk_import_spooled_body.py`.

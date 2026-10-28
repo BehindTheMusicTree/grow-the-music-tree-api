@@ -13,7 +13,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist, count_artist"
+TEMP_TABLES = "song_import, changed_song, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist, count_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -68,10 +68,33 @@ LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
 
 STEPS = [
     ("analyze_song_import", "ANALYZE song_import"),
+    # Everything below works on the songs that need a write; the rest of the run only counts toward `stale`. A song
+    # whose credit isn't exactly its one MBID artist is kept: the artist steps resolve it (legacy names, extra credits).
+    (
+        "changed_song",
+        """CREATE TEMP TABLE changed_song AS
+    SELECT s.* FROM song_import s
+    LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
+    LEFT JOIN grow_song y ON y.track_id = s.track_id
+    LEFT JOIN (
+        SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
+        FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
+        GROUP BY ta.track_id HAVING count(*) = 1
+    ) c ON c.track_id = s.track_id
+    WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
+        OR t.title IS DISTINCT FROM s.title
+        OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id)
+        OR y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
+        OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
+        OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
+        OR y.first_release_year IS DISTINCT FROM s.first_release_year
+        OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text""",
+    ),
+    ("analyze_changed_song", "ANALYZE changed_song"),
     (
         "adopt_legacy_tracks",
         """UPDATE grow_song y SET musicbrainz_recording_id = s.mbid
-    FROM song_import s WHERE y.track_id = s.track_id AND s.is_adopted""",
+    FROM changed_song s WHERE y.track_id = s.track_id AND s.is_adopted""",
     ),
     # Playlist membership changes when the genre (locked tracks keep theirs) or the playability changes. Captured
     # before the updates below, from the stored values and the incoming ones the updates write.
@@ -82,7 +105,7 @@ STEPS = [
         SELECT s.track_id, t.genre_id AS old_genre_id,
             CASE WHEN s.is_locked THEN t.genre_id ELSE s.genre_id END AS new_genre_id,
             {PLAYABLE.format("y")} AS was_playable, {PLAYABLE.format("s")} AS is_playable
-        FROM song_import s
+        FROM changed_song s
         JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
         JOIN grow_song y ON y.track_id = s.track_id
         WHERE NOT s.is_new
@@ -92,7 +115,7 @@ STEPS = [
         "update_tracks",
         """UPDATE the_music_tree_genre_kit_track t SET
         title = s.title, genre_id = CASE WHEN s.is_locked THEN t.genre_id ELSE s.genre_id END, updated_on = now()
-    FROM song_import s WHERE t.uuid = s.track_id AND NOT s.is_new
+    FROM changed_song s WHERE t.uuid = s.track_id AND NOT s.is_new
         AND (t.title IS DISTINCT FROM s.title OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id))""",
     ),
     (
@@ -100,7 +123,7 @@ STEPS = [
         """UPDATE grow_song y SET
         youtube_video_id = s.youtube_video_id, youtube_unplayable_reason = s.youtube_unplayable_reason,
         youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year
-    FROM song_import s WHERE y.track_id = s.track_id AND NOT s.is_new
+    FROM changed_song s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
             OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
@@ -110,7 +133,7 @@ STEPS = [
     (
         "insert_tracks",
         """INSERT INTO the_music_tree_genre_kit_track (uuid, created_on, play_count, title, genre_id, user_id)
-    SELECT track_id, now(), 0, title, genre_id, %(user)s FROM song_import WHERE is_new
+    SELECT track_id, now(), 0, title, genre_id, %(user)s FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
     (
@@ -119,7 +142,7 @@ STEPS = [
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
             musicbrainz_recording_id, first_release_year)
     SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year
-    FROM song_import WHERE is_new
+    FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
     # A legacy MBID-less artist with the song's artist name takes the MBID instead of a duplicate being created
@@ -129,7 +152,7 @@ STEPS = [
         """UPDATE grow_artist a SET musicbrainz_artist_id = c.mbid FROM (
         SELECT DISTINCT ON (s.mbid) l.uuid, s.mbid
         FROM (
-            SELECT DISTINCT ON (artist) artist, artist_mbid AS mbid FROM song_import
+            SELECT DISTINCT ON (artist) artist, artist_mbid AS mbid FROM changed_song
             WHERE artist_mbid IS NOT NULL ORDER BY artist, artist_mbid
         ) s
         JOIN (
@@ -145,7 +168,7 @@ STEPS = [
         "insert_mbid_artists",
         """INSERT INTO grow_artist (uuid, created_on, name, user_id, musicbrainz_artist_id, ended)
     SELECT gen_random_uuid(), now(), n.artist, %(user)s, n.mbid, false FROM (
-        SELECT DISTINCT ON (artist_mbid) artist_mbid AS mbid, artist FROM song_import
+        SELECT DISTINCT ON (artist_mbid) artist_mbid AS mbid, artist FROM changed_song
         WHERE artist_mbid IS NOT NULL ORDER BY artist_mbid, artist
     ) n
     ON CONFLICT (musicbrainz_artist_id) DO NOTHING""",
@@ -154,7 +177,7 @@ STEPS = [
         "insert_legacy_artists",
         """INSERT INTO grow_artist (uuid, created_on, name, user_id, ended)
     SELECT gen_random_uuid(), now(), n.artist, %(user)s, false
-    FROM (SELECT DISTINCT artist FROM song_import WHERE artist_mbid IS NULL) n
+    FROM (SELECT DISTINCT artist FROM changed_song WHERE artist_mbid IS NULL) n
     WHERE NOT EXISTS (
         SELECT 1 FROM grow_artist a
         WHERE a.name = n.artist AND a.musicbrainz_artist_id IS NULL AND a.user_id IS NOT DISTINCT FROM %(user)s
@@ -164,7 +187,7 @@ STEPS = [
     (
         "desired_artist",
         """CREATE TEMP TABLE desired_artist AS
-    SELECT s.track_id, COALESCE(m.uuid, n.uuid) AS artist_id FROM song_import s
+    SELECT s.track_id, COALESCE(m.uuid, n.uuid) AS artist_id FROM changed_song s
     LEFT JOIN grow_artist m ON m.musicbrainz_artist_id = s.artist_mbid
     LEFT JOIN (
         -- An MBID-less song never borrows an MBID artist's name: a namesake would be credited.
@@ -178,7 +201,7 @@ STEPS = [
         "current_artist",
         """CREATE TEMP TABLE current_artist AS
     SELECT ta.id, ta.track_id, ta.artist_id FROM the_music_tree_genre_kit_track_artists ta
-    JOIN song_import s ON s.track_id = ta.track_id""",
+    JOIN changed_song s ON s.track_id = ta.track_id""",
     ),
     ("analyze_current_artist", "ANALYZE current_artist"),
     (
@@ -234,7 +257,7 @@ AFTER_STALE_STEPS = [
         SELECT uuid AS child, parent_id AS parent FROM grow_criteria WHERE parent_id IS NOT NULL
         UNION SELECT from_criteria_id, to_criteria_id FROM grow_criteria_additional_primary_parents
     ), ascendant (genre_id, ascendant_id) AS (
-        SELECT genre_id, genre_id FROM (SELECT genre_id FROM song_import UNION SELECT new_genre_id FROM track_change) g
+        SELECT genre_id, genre_id FROM (SELECT genre_id FROM changed_song UNION SELECT new_genre_id FROM track_change) g
         WHERE genre_id IS NOT NULL
         UNION SELECT a.genre_id, p.parent FROM ascendant a JOIN primary_parent p ON p.child = a.ascendant_id
     )
@@ -249,10 +272,10 @@ AFTER_STALE_STEPS = [
     (
         "desired_rel",
         f"""CREATE TEMP TABLE desired_rel AS
-    SELECT s.track_id, gp.playlist_id FROM song_import s JOIN genre_playlist gp USING (genre_id)
+    SELECT s.track_id, gp.playlist_id FROM changed_song s JOIN genre_playlist gp USING (genre_id)
     WHERE s.is_new AND {PLAYABLE.format("s")}
     UNION ALL
-    SELECT s.track_id, g.playlist_id FROM song_import s CROSS JOIN genreless_playlist g
+    SELECT s.track_id, g.playlist_id FROM changed_song s CROSS JOIN genreless_playlist g
     WHERE s.is_new AND s.genre_id IS NULL AND {PLAYABLE.format("s")}
     UNION ALL
     SELECT c.track_id, gp.playlist_id FROM track_change c JOIN genre_playlist gp ON gp.genre_id = c.new_genre_id
