@@ -22,3 +22,9 @@ class Fields:
     LINKS = ArtistFields.LINKS
     MEMBERS = ArtistFields.MEMBERS
     MEMBER_OF = ArtistFields.MEMBER_OF
+    IMAGE = "image"
+    IMAGE_URL = ArtistFields.IMAGE_URL
+    IMAGE_PAGE_URL = ArtistFields.IMAGE_PAGE_URL
+    IMAGE_AUTHOR = ArtistFields.IMAGE_AUTHOR
+    IMAGE_LICENSE = ArtistFields.IMAGE_LICENSE
+    IMAGE_LICENSE_URL = ArtistFields.IMAGE_LICENSE_URL

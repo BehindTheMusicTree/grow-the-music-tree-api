@@ -68,6 +68,12 @@ class Artist(TrackMixin):
     disambiguation = models.TextField(null=True, blank=True)
     # Songs crediting the artist, playable or not, kept by the songs import merge to rank search results.
     recording_count = models.PositiveIntegerField(db_default=0)
+    # Wikimedia Commons photo; its attribution (author, license linked to the Commons page) must be shown with it.
+    image_url = models.URLField(max_length=2048, null=True, blank=True)
+    image_page_url = models.URLField(max_length=2048, null=True, blank=True)
+    image_author = models.TextField(null=True, blank=True)
+    image_license = models.TextField(null=True, blank=True)
+    image_license_url = models.URLField(max_length=2048, null=True, blank=True)
 
     @property
     def name(self) -> str:
@@ -92,7 +98,20 @@ class Artist(TrackMixin):
 
     class Meta:
         db_table = "grow_artist"
-        constraints = [models.CheckConstraint(condition=~models.Q(_name=""), name="artist_non_empty_name")]
+        constraints = [
+            models.CheckConstraint(condition=~models.Q(_name=""), name="artist_non_empty_name"),
+            models.CheckConstraint(
+                condition=models.Q(image_url__isnull=False, image_page_url__isnull=False, image_license__isnull=False)
+                | models.Q(
+                    image_url__isnull=True,
+                    image_page_url__isnull=True,
+                    image_author__isnull=True,
+                    image_license__isnull=True,
+                    image_license_url__isnull=True,
+                ),
+                name="artist_image_complete",
+            ),
+        ]
 
     def __str__(self) -> str:
         return f"{self.uuid} | {self._name}"

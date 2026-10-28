@@ -12,6 +12,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.4.0] - 2026-10-29
+
+### Security
+
+- Artist bulk import now rejects link URLs that are not `http(s)`, so a `javascript:` or `data:` link can no longer reach the artist panel (image URLs were already checked). Covered by `tests/unit/bulk_import/test_artist_part_loader.py`.
+
+### Changed
+
+- Core electronic's 49 direct children are now split under its two scene nodes: 9 under Electronic dance music (commercial), 40 under Underground electronic (migration `0082` rewrites their `main_parent` curation entries; `manual_main_parent.csv` seed updated to match, covered by the existing seed round-trip tests).
+
+### Added
+
+- `GET /v1/artists/<uuid>/genre-counts/` (public) returns `[{genrePlaylist, songsCount, tracksCount}]` for the genre playlists whose subtree holds one of the artist's songs (ancestors included, Genreless for genre-less songs), so the genre tree can be pruned to an artist's footprint. `songsCount` counts all songs, `tracksCount` the playable ones. At most 3 queries. Tests in `tests/integration/artist/test_artist_genre_counts.py`, `tests/integration/perf/test_query_budgets.py` and `perf/test_latency_slo.py`.
+- Song and artist import merges return `stepTimings` (`[{label, rowcount, ms}]` per SQL step) in their task result, so the import status endpoint shows where a merge spends its time. Tests in `tests/integration/track/song/test_song_import_runs.py` and `tests/integration/artist/test_artist_import_runs.py`.
+- Artist detail exposes a nullable `image` (`{url, pageUrl, author, license, licenseUrl}`): a 500 px Wikimedia Commons photo, imported from the Gold artists' `image` key (parts without it import as no image). Showing it requires its attribution (author and license, linked to `pageUrl`); `author` and `licenseUrl` can be null; `url` and `pageUrl` must be https, `licenseUrl` http(s). Migration `0081` adds the columns with an `artist_image_complete` constraint. Tests in `tests/unit/bulk_import/test_artist_part_loader.py`, `tests/integration/artist/test_artist_import_runs.py`, `tests/unit/serializer/model/artist/test_detailed.py` and `tests/unit/model/artist/test_artist.py`.
+
+### Improved
+
+- Song import merge carries only new, adopted and changed songs (title, genre, YouTube fields, year, artist credit) through its write steps, and the artists import updates and inserts artists and albums with set-based statements instead of `ON CONFLICT`: an unchanged run no longer pays for the whole staged volume. Tests in `tests/integration/track/song/test_song_import_runs.py`.
+
+### Fixed
+
+- A song or artist import-run part or deletions upload cut short (client disconnect, or fewer bytes than `Content-Length`, or a malformed one) now answers 400 instead of 500 or a later invalid-gzip error; covered by unit and action-level tests.
+
+- Import-run part and deletions uploads are read fully into a spooled temp file before the `COPY` starts, so a slow or truncated upload no longer runs inside the statement and trips the web `statement_timeout` (seen as 502s on 19 MB song parts). A truncated body still returns 400 `body is not valid gzip`. Tests in `tests/unit/view/test_bulk_import_spooled_body.py`.
+
 ## [14.3.0] - 2026-10-28
 
 ### Added

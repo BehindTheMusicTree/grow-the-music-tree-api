@@ -1,9 +1,11 @@
 import gzip
 import json
 import uuid
+from unittest.mock import ANY, patch
 
 import pytest
 from django.conf import settings
+from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -86,6 +88,35 @@ class TestImportRunProtocol(AppTestCase):
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not BulkImportDeletion.objects.exists()
+
+    def test_part_upload_interrupted_then_400_and_nothing_staged(self):
+        run_id = self._create_run()
+
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.shutil.copyfileobj", side_effect=UnreadablePostError):
+            response = self.api_client.put(
+                path=f"{RUNS}{run_id}/parts/0/",
+                data=_gzip_ndjson([SONG]),
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not SongImportStaging.objects.exists()
+
+    def test_deletions_upload_interrupted_then_400(self):
+        run_id = self.api_client.post(path=RUNS, data={"mode": "delta"}).data["run_id"]
+
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.shutil.copyfileobj", side_effect=UnreadablePostError):
+            response = self.api_client.put(
+                path=f"{RUNS}{run_id}/deletions/",
+                data=_gzip_ndjson([{"musicbrainz_recording_id": MBID}]),
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_commit_unknown_run_then_404(self):
         assert self.api_client.post(path=f"{RUNS}999/commit/").status_code == status.HTTP_404_NOT_FOUND
@@ -175,7 +206,7 @@ class TestImportRunMerge(AppTestCase):
             {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Unknown", "genre_name": "Nope"},
         ]
 
-        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 1}
+        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 1, "stepTimings": ANY}
 
         track = Song.objects.get(musicbrainz_recording_id=MBID)
         assert (track.title, track.genre_id, track.youtube_video_id) == ("Comfortably Numb", rock.pk, "abc123defgh")
@@ -220,7 +251,7 @@ class TestImportRunMerge(AppTestCase):
         self.model_fixture_factory.create_genre("Rock")
         song = {**SONG, "title": "t" * 1059, "artist": "a" * 1018}
 
-        assert self._sync([song]) == {"imported": 1, "skipped": 0}
+        assert self._sync([song]) == {"imported": 1, "skipped": 0, "stepTimings": ANY}
 
         track = Song.objects.get(musicbrainz_recording_id=MBID)
         assert track.title == song["title"]
@@ -325,6 +356,65 @@ class TestImportRunMerge(AppTestCase):
 
         assert self._playlist_tracks(rock) == ["Newer", "Comfortably Numb"]
 
+    @staticmethod
+    def _steps(result: dict) -> dict[str, int]:
+        return {timing["label"]: timing["rowcount"] for timing in result["stepTimings"]}
+
+    def test_unchanged_rerun_writes_nothing_and_keeps_playlists(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        songs = [
+            {**SONG, "artist_musicbrainz_id": ARTIST_MBID},
+            {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "artist_musicbrainz_id": ARTIST_MBID},
+        ]
+        self._sync(songs)
+        before = self._playlist_tracks(rock)
+
+        steps = self._steps(self._sync(songs))
+
+        assert steps["changed_song"] == 0
+        assert steps["update_tracks"] == steps["update_songs"] == steps["insert_track_artists"] == 0
+        assert self._playlist_tracks(rock) == before
+
+    def test_single_change_of_each_kind_is_the_only_one_carried(self):
+        self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        base = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        other_artist = "11111111-2222-4333-8444-555555555555"
+        changes = {
+            "title": {"title": "Renamed"},
+            "genre": {"genre_name": "Pop"},
+            "video": {"youtube_video_id": "zzz123defgh"},
+            "playability": {"youtube_unplayable_reason": "private"},
+            "year": {"first_release_year": 1979},
+            "views": {"youtube_view_count": 7},
+            "artist": {"artist_musicbrainz_id": other_artist, "artist": "Roger Waters"},
+        }
+        for name, change in changes.items():
+            with self.subTest(name):
+                self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+                steps = self._steps(
+                    self._sync([{**base, **change}, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+                )
+
+                assert steps["changed_song"] == 1
+                changed = Song.objects.get(musicbrainz_recording_id=MBID)
+                assert Song.objects.exclude(pk=changed.pk).get().title == "Other"
+                if name == "genre":
+                    assert changed.genre_id == pop.pk
+                if name == "artist":
+                    assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
+                self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+    def test_locked_track_keeps_its_genre_and_is_not_carried(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self._sync([{**SONG, "artist_musicbrainz_id": ARTIST_MBID}])
+        Song.objects.update(is_manually_edited=True)
+
+        steps = self._steps(self._sync([{**SONG, "artist_musicbrainz_id": ARTIST_MBID, "genre_name": "Pop"}]))
+
+        assert steps["changed_song"] == 0
+
     def test_stale_tracks_deleted_but_locked_kept_with_their_genre(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
@@ -341,6 +431,12 @@ class TestImportRunMerge(AppTestCase):
         locked.refresh_from_db()
         assert (locked.title, locked.genre_id) == ("Renamed", pop.pk)
 
+    def test_merge_reports_step_timings(self):
+        timings = self._sync([SONG])["stepTimings"]
+
+        assert timings[0]["label"] == "song_import"
+        assert all({"label", "rowcount", "ms"} == timing.keys() for timing in timings)
+
     def test_delta_run_upserts_without_deleting_unlisted_tracks(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_song(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")
@@ -348,7 +444,7 @@ class TestImportRunMerge(AppTestCase):
         self._sync([SONG], mode="delta")
         result = self._sync([{**SONG, "title": "Renamed"}], mode="delta")
 
-        assert result == {"imported": 1, "skipped": 0}
+        assert result == {"imported": 1, "skipped": 0, "stepTimings": ANY}
         assert sorted(Song.objects.values_list("title", flat=True)) == ["Renamed", "Unlisted"]
 
     def test_delta_run_deletes_only_listed_unlocked_tracks(self):
@@ -371,7 +467,7 @@ class TestImportRunMerge(AppTestCase):
     def test_delta_run_with_nothing_to_do_succeeds(self):
         self.model_fixture_factory.create_song(title="Kept", genre=None)
 
-        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0, "stepTimings": ANY}
         assert Song.objects.count() == 1
 
     def test_legacy_track_adopted_by_video_id(self):
@@ -433,7 +529,7 @@ class TestImportRunMerge(AppTestCase):
     def test_tag_name_is_not_a_genre(self):
         self.model_fixture_factory.create_tag("Rock")
 
-        assert self._sync([SONG]) == {"imported": 1, "skipped": 1}
+        assert self._sync([SONG]) == {"imported": 1, "skipped": 1, "stepTimings": ANY}
         assert Song.objects.get().genre is None
 
     def test_pipeline_commit_recorded_and_admin_not(self):

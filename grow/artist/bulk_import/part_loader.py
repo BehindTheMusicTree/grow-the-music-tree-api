@@ -16,6 +16,7 @@ LINK_KINDS = set(ArtistLink.Kind.values)
 LINK_URL_LEN_MAX = 2048  # bytes
 # Same btree key limit for the unique (artist, name) alias index.
 ALIAS_NAME_LEN_MAX = 2048  # bytes
+IMAGE_URL_LEN_MAX = 2048  # bytes
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -41,6 +42,10 @@ def _is_year(value: Any) -> bool:
 
 def _is_text_list(value: Any) -> bool:
     return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _is_https_url(value: Any) -> bool:
+    return _is_text(value) and value.startswith("https://") and len(value.encode()) <= IMAGE_URL_LEN_MAX
 
 
 def _row(line_number: int, line: bytes) -> tuple:
@@ -72,6 +77,31 @@ def _row(line_number: int, line: bytes) -> tuple:
         line_number,
         f"aliases must be a list of non-empty strings of at most {ALIAS_NAME_LEN_MAX} bytes",
     )
+    # Parts exported before images existed have no `image` key: it stages as null.
+    image = artist.get("image")
+    if image is not None:
+        _require(isinstance(image, dict), line_number, "image must be an object")
+        for key in ("url", "page_url"):
+            _require(
+                _is_https_url(image.get(key)),
+                line_number,
+                f"image {key} must be an https URL of at most {IMAGE_URL_LEN_MAX} bytes",
+            )
+        _require(_is_text(image.get("license")), line_number, "image license must be a non-empty string")
+        author = image.get("author")
+        _require(author is None or _is_text(author), line_number, "image author must be a non-empty string")
+        # Commons serves some license URLs as plain http, so only the scheme is checked: the frontend links it.
+        license_url = image.get("license_url")
+        _require(
+            license_url is None
+            or (
+                _is_text(license_url)
+                and license_url.startswith(("http://", "https://"))
+                and len(license_url.encode()) <= IMAGE_URL_LEN_MAX
+            ),
+            line_number,
+            f"image license_url must be an http(s) URL of at most {IMAGE_URL_LEN_MAX} bytes",
+        )
     for key in ("members", "links", "release_groups"):
         _require(
             isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),
@@ -86,9 +116,11 @@ def _row(line_number: int, line: bytes) -> tuple:
     for link in artist["links"]:
         _require(link.get("kind") in LINK_KINDS, line_number, "unknown link kind")
         _require(
-            _is_text(link.get("url")) and len(link["url"].encode()) <= LINK_URL_LEN_MAX,
+            _is_text(link.get("url"))
+            and link["url"].startswith(("http://", "https://"))
+            and len(link["url"].encode()) <= LINK_URL_LEN_MAX,
             line_number,
-            f"link url must be a non-empty string of at most {LINK_URL_LEN_MAX} bytes",
+            f"link url must be an http(s) URL of at most {LINK_URL_LEN_MAX} bytes",
         )
     for release_group in artist["release_groups"]:
         _require(_is_mbid(release_group.get("musicbrainz_release_group_id")), line_number, "release group MBID invalid")

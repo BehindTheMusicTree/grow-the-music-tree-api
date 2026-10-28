@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
@@ -26,7 +28,9 @@ EXPANDED_STEPS = [
     SELECT DISTINCT ON (musicbrainz_artist_id) musicbrainz_artist_id AS mbid, id AS staging_id, data->>'name' AS name,
         data->>'type' AS type, data->>'country' AS country, {YEAR.format("data->>'begin_year'")} AS begin_year,
         {YEAR.format("data->>'end_year'")} AS end_year, (data->>'ended')::boolean AS ended,
-        data->>'disambiguation' AS disambiguation
+        data->>'disambiguation' AS disambiguation, data->'image'->>'url' AS image_url,
+        data->'image'->>'page_url' AS image_page_url, data->'image'->>'author' AS image_author,
+        data->'image'->>'license' AS image_license, data->'image'->>'license_url' AS image_license_url
     FROM grow_artist_import_staging WHERE run_id = %(run)s ORDER BY musicbrainz_artist_id, part DESC""",
     ),
     ("artist_import_pkey", "ALTER TABLE artist_import ADD PRIMARY KEY (mbid)"),
@@ -84,20 +88,28 @@ EXPANDED_STEPS = [
 # MBIDs are resolved to uuids once, here; the diff steps join these maps.
 RESOLVE_STEPS = [
     (
-        "upsert_artists",
+        "update_artists",
+        """UPDATE grow_artist a SET
+        name = i.name, type = i.type, country = i.country, begin_year = i.begin_year, end_year = i.end_year,
+        ended = i.ended, disambiguation = i.disambiguation, image_url = i.image_url,
+        image_page_url = i.image_page_url, image_author = i.image_author, image_license = i.image_license,
+        image_license_url = i.image_license_url, updated_on = now()
+    FROM artist_import i WHERE a.musicbrainz_artist_id = i.mbid
+        AND (a.name, a.type, a.country, a.begin_year, a.end_year, a.ended, a.disambiguation, a.image_url,
+            a.image_page_url, a.image_author, a.image_license, a.image_license_url) IS DISTINCT FROM
+        (i.name, i.type, i.country, i.begin_year, i.end_year, i.ended, i.disambiguation, i.image_url,
+            i.image_page_url, i.image_author, i.image_license, i.image_license_url)""",
+    ),
+    (
+        "insert_artists",
         """INSERT INTO grow_artist
         (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended,
-        disambiguation)
-    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation
-    FROM artist_import ORDER BY mbid
-    ON CONFLICT (musicbrainz_artist_id) DO UPDATE SET
-        name = EXCLUDED.name, type = EXCLUDED.type, country = EXCLUDED.country, begin_year = EXCLUDED.begin_year,
-        end_year = EXCLUDED.end_year, ended = EXCLUDED.ended, disambiguation = EXCLUDED.disambiguation,
-        updated_on = now()
-    WHERE (grow_artist.name, grow_artist.type, grow_artist.country, grow_artist.begin_year, grow_artist.end_year,
-        grow_artist.ended, grow_artist.disambiguation) IS DISTINCT FROM
-        (EXCLUDED.name, EXCLUDED.type, EXCLUDED.country, EXCLUDED.begin_year, EXCLUDED.end_year, EXCLUDED.ended,
-        EXCLUDED.disambiguation)""",
+        disambiguation, image_url, image_page_url, image_author, image_license, image_license_url)
+    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation,
+        image_url, image_page_url, image_author, image_license, image_license_url
+    FROM artist_import i
+    WHERE NOT EXISTS (SELECT 1 FROM grow_artist a WHERE a.musicbrainz_artist_id = i.mbid)
+    ORDER BY mbid""",
     ),
     (
         "run_artist",
@@ -108,16 +120,22 @@ RESOLVE_STEPS = [
     ("run_artist_uuid_index", "CREATE UNIQUE INDEX ON run_artist (uuid)"),
     ("analyze_run_artist", "ANALYZE run_artist"),
     (
-        "upsert_albums",
+        "update_albums",
+        """UPDATE grow_album a SET
+        name = i.title, year = i.year, primary_type = i.primary_type, secondary_types = i.secondary_types,
+        updated_on = now()
+    FROM release_group_import i WHERE a.musicbrainz_release_group_id = i.mbid
+        AND (a.name, a.year, a.primary_type, a.secondary_types) IS DISTINCT FROM
+        (i.title, i.year, i.primary_type, i.secondary_types)""",
+    ),
+    (
+        "insert_albums",
         """INSERT INTO grow_album
         (uuid, created_on, name, user_id, year, musicbrainz_release_group_id, primary_type, secondary_types)
     SELECT gen_random_uuid(), now(), title, %(user)s, year, mbid, primary_type, secondary_types
-    FROM release_group_import ORDER BY mbid
-    ON CONFLICT (musicbrainz_release_group_id) DO UPDATE SET
-        name = EXCLUDED.name, year = EXCLUDED.year, primary_type = EXCLUDED.primary_type,
-        secondary_types = EXCLUDED.secondary_types, updated_on = now()
-    WHERE (grow_album.name, grow_album.year, grow_album.primary_type, grow_album.secondary_types) IS DISTINCT FROM
-        (EXCLUDED.name, EXCLUDED.year, EXCLUDED.primary_type, EXCLUDED.secondary_types)""",
+    FROM release_group_import i
+    WHERE NOT EXISTS (SELECT 1 FROM grow_album a WHERE a.musicbrainz_release_group_id = i.mbid)
+    ORDER BY mbid""",
     ),
     (
         "run_album",
@@ -278,7 +296,7 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
     ]
 
 
-def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, int]:
+def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     """
     Merges a committed run's staged artists in one transaction: artists upserted on MBID with their details, their
     memberships, links, aliases and release-group albums (with album artists) diffed against the run, and every artist missing
@@ -297,7 +315,7 @@ def merge_artist_import_run(run_id: int, user_id: int | None, record: bool) -> d
             BulkImportRun.objects.filter(pk=run_id).delete()
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
+def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
@@ -305,10 +323,12 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, int]:
         if not delta and not cursor.fetchone()[0]:
             # Artists missing from the run are deleted, so an empty run would wipe every uncredited artist.
             raise ValueError(f"import run {run_id} has no staged artists")
-        run_steps(cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params)
+        timings = run_steps(
+            cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params
+        )
         cursor.execute("SELECT count(*) FROM run_artist")
         (imported,) = cursor.fetchone()
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, count=imported, skipped_count=0)
-    return {"imported": imported, "skipped": 0}
+    return {"imported": imported, "skipped": 0, "stepTimings": timings}

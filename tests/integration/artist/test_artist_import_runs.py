@@ -5,6 +5,7 @@ import resource
 import sys
 from datetime import timedelta
 from unittest import mock
+from unittest.mock import ANY
 
 import pytest
 from django.conf import settings
@@ -58,6 +59,13 @@ PERSON = {
     "ended": False,
     "members": [],
     "links": [],
+}
+IMAGE = {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d4/Pink_Floyd_-_all_members.jpg/500px-Pink_Floyd_-_all_members.jpg",
+    "page_url": "https://commons.wikimedia.org/wiki/File:Pink_Floyd_-_all_members.jpg",
+    "author": "Storm Thorgerson",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
 }
 OTHER = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
 RUNS = reverse("artist-list") + "import-runs/"
@@ -167,7 +175,7 @@ class TestImportRunMerge(AppTestCase):
         assert self.api_client.get(path=status_path).data["status"] == "pending"
         assert self.api_client.get(path=status_path).data == {
             "status": "success",
-            "result": {"imported": 1, "skipped": 0},
+            "result": {"imported": 1, "skipped": 0, "stepTimings": ANY},
         }
         assert Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
 
@@ -188,7 +196,7 @@ class TestImportRunMerge(AppTestCase):
         assert [item["name"] for item in response.data] == ["Pink Floyd"]
 
     def test_import_creates_artists_memberships_links_and_release_groups(self):
-        assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0}
+        assert self._sync([ARTIST, PERSON]) == {"imported": 2, "skipped": 0, "stepTimings": ANY}
 
         band = Artist.objects.get(musicbrainz_artist_id=BAND)
         assert (band.name, band.type, band.country, band.begin_year, band.end_year, band.ended) == (
@@ -248,6 +256,31 @@ class TestImportRunMerge(AppTestCase):
         self._sync([ARTIST])
 
         assert not band.aliases.exists()
+
+    def test_image_imported_updated_and_cleared(self):
+        def image() -> tuple:
+            return tuple(
+                Artist.objects.filter(musicbrainz_artist_id=BAND)
+                .values_list("image_url", "image_page_url", "image_author", "image_license", "image_license_url")
+                .get()
+            )
+
+        self._sync([{**ARTIST, "image": IMAGE}])
+
+        assert image() == tuple(IMAGE[key] for key in ("url", "page_url", "author", "license", "license_url"))
+        updated_on = Artist.objects.get(musicbrainz_artist_id=BAND).updated_on
+
+        self._sync([{**ARTIST, "image": IMAGE}])
+
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).updated_on == updated_on
+
+        self._sync([{**ARTIST, "image": {**IMAGE, "author": None, "license_url": None}}])
+
+        assert image() == (IMAGE["url"], IMAGE["page_url"], None, IMAGE["license"], None)
+
+        self._sync([{**ARTIST, "image": None}])
+
+        assert image() == (None,) * 5
 
     def test_deleted_artist_takes_its_aliases(self):
         self._sync([{**ARTIST, "aliases": ["Floyd"]}, PERSON])
@@ -336,14 +369,14 @@ class TestImportRunMerge(AppTestCase):
 
         result = self._sync([{**PERSON, "name": "Waters"}], mode="delta", deleted=(BAND, OTHER))
 
-        assert result == {"imported": 1, "skipped": 0}
+        assert result == {"imported": 1, "skipped": 0, "stepTimings": ANY}
         assert sorted(Artist.objects.values_list("_name", flat=True)) == ["Credited", "Unlisted", "Waters"]
         assert not ArtistMembership.objects.exists()
 
     def test_delta_run_with_nothing_to_do_succeeds(self):
         self.model_fixture_factory.create_artist("Kept")
 
-        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0, "stepTimings": ANY}
         assert Artist.objects.count() == 1
 
     def test_invalid_part_then_400_and_nothing_staged(self):

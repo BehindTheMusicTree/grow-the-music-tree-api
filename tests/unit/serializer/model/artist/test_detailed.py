@@ -52,3 +52,24 @@ class TestCase(AppTestCase):
         ]
         assert data["tracks_count"] == 1
         assert serialize(waters)["member_of"][0]["artist"]["name"] == "Pink Floyd"
+
+    def test_image_null_without_one_and_full_object_with_one(self):
+        artist = self.model_fixture_factory.create_artist("Pink Floyd")
+
+        def serialize():
+            return ArtistDetailedSerializer(
+                ArtistDetailedSerializer.setup_queryset(Artist.objects.filter(pk=artist.pk)).get()
+            ).data["image"]
+
+        assert serialize() is None
+
+        image = {
+            "url": "https://upload.wikimedia.org/500px-Pink_Floyd.jpg",
+            "page_url": "https://commons.wikimedia.org/wiki/File:Pink_Floyd.jpg",
+            "author": None,
+            "license": "CC BY-SA 4.0",
+            "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+        }
+        Artist.objects.filter(pk=artist.pk).update(**{f"image_{key}": value for key, value in image.items()})
+
+        assert serialize() == image
