@@ -1,10 +1,11 @@
 import gzip
 import json
 import uuid
-from unittest.mock import ANY
+from unittest.mock import ANY, patch
 
 import pytest
 from django.conf import settings
+from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -87,6 +88,35 @@ class TestImportRunProtocol(AppTestCase):
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not BulkImportDeletion.objects.exists()
+
+    def test_part_upload_interrupted_then_400_and_nothing_staged(self):
+        run_id = self._create_run()
+
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.shutil.copyfileobj", side_effect=UnreadablePostError):
+            response = self.api_client.put(
+                path=f"{RUNS}{run_id}/parts/0/",
+                data=_gzip_ndjson([SONG]),
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not SongImportStaging.objects.exists()
+
+    def test_deletions_upload_interrupted_then_400(self):
+        run_id = self.api_client.post(path=RUNS, data={"mode": "delta"}).data["run_id"]
+
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.shutil.copyfileobj", side_effect=UnreadablePostError):
+            response = self.api_client.put(
+                path=f"{RUNS}{run_id}/deletions/",
+                data=_gzip_ndjson([{"musicbrainz_recording_id": MBID}]),
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_commit_unknown_run_then_404(self):
         assert self.api_client.post(path=f"{RUNS}999/commit/").status_code == status.HTTP_404_NOT_FOUND
