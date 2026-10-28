@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Genres expose a nullable `scene` (`commercial` | `underground`), curated through the new `canonical_genre_scene` gold list and imported with the tree (genre-kit 0.52.0). Electronic dance music (`commercial`) and the new `Underground electronic` node (`underground`) now sit side by side under Core electronic. `scene` is on genre and genre-playlist outputs and filterable on `genres/`. Migration `0080` seeds the list and the tree rows; tests in `tests/integration/curation/test_scene.py`.
+
 ## [14.2.0] - 2026-10-27
 
 ### Added

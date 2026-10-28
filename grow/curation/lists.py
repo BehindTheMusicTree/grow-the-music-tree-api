@@ -19,6 +19,7 @@ QID_ENTITY_LISTS = frozenset({"entity_additions"})
 """Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
+    "canonical_genre_scene": {"scene": ("commercial", "underground")},
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
@@ -125,6 +126,12 @@ CURATION_LISTS: dict[str, CurationList] = {
     "umbrella_genres": _item_list(
         "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
         source="gold",
+    ),
+    "canonical_genre_scene": CurationList(
+        "gold",
+        ("item_id",),
+        ("item_id", "scene", "reason"),
+        "Canonical genres the front displays as the commercial or the underground side of their parent.",
     ),
     "accepted_non_genre_tags": CurationList(
         "gold",
