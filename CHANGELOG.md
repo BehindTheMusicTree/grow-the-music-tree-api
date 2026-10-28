@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Song and artist import merges return `stepTimings` (`[{label, rowcount, ms}]` per SQL step) in their task result, so the import status endpoint shows where a merge spends its time. Tests in `tests/integration/track/song/test_song_import_runs.py` and `tests/integration/artist/test_artist_import_runs.py`.
-- Artist detail exposes a nullable `image` (`{url, pageUrl, author, license, licenseUrl}`): a 500 px Wikimedia Commons photo, imported from the Gold artists' `image` key (parts without it import as no image). Showing it requires its attribution (author and license, linked to `pageUrl`); `author` and `licenseUrl` can be null. Migration `0081` adds the columns with an `artist_image_complete` constraint. Tests in `tests/unit/bulk_import/test_artist_part_loader.py`, `tests/integration/artist/test_artist_import_runs.py`, `tests/unit/serializer/model/artist/test_detailed.py` and `tests/unit/model/artist/test_artist.py`.
+- Artist detail exposes a nullable `image` (`{url, pageUrl, author, license, licenseUrl}`): a 500 px Wikimedia Commons photo, imported from the Gold artists' `image` key (parts without it import as no image). Showing it requires its attribution (author and license, linked to `pageUrl`); `author` and `licenseUrl` can be null; `url` and `pageUrl` must be https, `licenseUrl` http(s). Migration `0081` adds the columns with an `artist_image_complete` constraint. Tests in `tests/unit/bulk_import/test_artist_part_loader.py`, `tests/integration/artist/test_artist_import_runs.py`, `tests/unit/serializer/model/artist/test_detailed.py` and `tests/unit/model/artist/test_artist.py`.
 
 ## [14.3.0] - 2026-10-28
 

@@ -90,11 +90,17 @@ def _row(line_number: int, line: bytes) -> tuple:
         _require(_is_text(image.get("license")), line_number, "image license must be a non-empty string")
         author = image.get("author")
         _require(author is None or _is_text(author), line_number, "image author must be a non-empty string")
+        # Commons serves some license URLs as plain http, so only the scheme is checked: the frontend links it.
         license_url = image.get("license_url")
         _require(
-            license_url is None or (_is_text(license_url) and len(license_url.encode()) <= IMAGE_URL_LEN_MAX),
+            license_url is None
+            or (
+                _is_text(license_url)
+                and license_url.startswith(("http://", "https://"))
+                and len(license_url.encode()) <= IMAGE_URL_LEN_MAX
+            ),
             line_number,
-            f"image license_url must be a non-empty string of at most {IMAGE_URL_LEN_MAX} bytes",
+            f"image license_url must be an http(s) URL of at most {IMAGE_URL_LEN_MAX} bytes",
         )
     for key in ("members", "links", "release_groups"):
         _require(
