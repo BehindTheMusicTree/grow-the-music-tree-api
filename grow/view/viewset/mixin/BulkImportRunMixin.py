@@ -1,4 +1,6 @@
 import json
+import shutil
+import tempfile
 import uuid
 from collections.abc import Callable
 from datetime import timedelta
@@ -24,6 +26,19 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 GROUP_PREFIX = "import-run-"
+SPOOL_MEMORY_BYTES = 8 * 1024 * 1024
+
+
+def spooled_body(request) -> IO[bytes]:
+    """
+    The whole request body in a seekable file. Loading straight from the raw stream (a part is far over
+    DATA_UPLOAD_MAX_MEMORY_SIZE, so not `request.body`) would run its COPY while the client is still sending, and a
+    slow upload would trip the web `statement_timeout`.
+    """
+    spool = tempfile.SpooledTemporaryFile(max_size=SPOOL_MEMORY_BYTES)
+    shutil.copyfileobj(request._request, spool)
+    spool.seek(0)
+    return spool
 
 
 def bulk_import_run_actions(
@@ -81,8 +96,8 @@ def bulk_import_run_actions(
     )
     def upload_import_run_part(self, request, run_id: str, part: str):
         run = uncommitted_run(run_id)
-        # The raw stream, not request.body: a part is far over DATA_UPLOAD_MAX_MEMORY_SIZE.
-        count = load_part(run.pk, int(part), request._request)
+        with spooled_body(request) as body:
+            count = load_part(run.pk, int(part), body)
         return Response({"count": count})
 
     @action(
@@ -95,7 +110,8 @@ def bulk_import_run_actions(
         run = uncommitted_run(run_id)
         if run.mode != BulkImportRun.Mode.DELTA:
             raise ValidationError("deletions are only accepted by a delta import run")
-        count = copy_part(BulkImportDeletion, ("musicbrainz_id",), deletion_row, run.pk, 0, request._request)
+        with spooled_body(request) as body:
+            count = copy_part(BulkImportDeletion, ("musicbrainz_id",), deletion_row, run.pk, 0, body)
         return Response({"count": count})
 
     @action(
