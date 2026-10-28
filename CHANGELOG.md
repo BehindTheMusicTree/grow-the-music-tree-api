@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- The ambiguous MusicBrainz tags `r&b` (Rhythm and blues by default, with blues/jazz hints) and `trap` (trap music by default, EDM trap music alongside electronic dance music) are now seeded in the `genre_disambiguation` and `genre_disambiguation_context` curation lists (migration `0083`; seed CSVs updated to match, covered by the existing seed round-trip tests).
 - Core electronic's 49 direct children are now split under its two scene nodes: 9 under Electronic dance music (commercial), 40 under Underground electronic (migration `0082` rewrites their `main_parent` curation entries; `manual_main_parent.csv` seed updated to match, covered by the existing seed round-trip tests).
 
 ### Added
