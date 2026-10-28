@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Core electronic's 49 direct children are now split under its two scene nodes: 9 under Electronic dance music (commercial), 40 under Underground electronic (migration `0082` rewrites their `main_parent` curation entries; `manual_main_parent.csv` seed updated to match, covered by the existing seed round-trip tests).
+
 ### Added
 
 - `GET /v1/artists/<uuid>/genre-counts/` (public) returns `[{genrePlaylist, songsCount, tracksCount}]` for the genre playlists whose subtree holds one of the artist's songs (ancestors included, Genreless for genre-less songs), so the genre tree can be pruned to an artist's footprint. `songsCount` counts all songs, `tracksCount` the playable ones. At most 3 queries. Tests in `tests/integration/artist/test_artist_genre_counts.py`, `tests/integration/perf/test_query_budgets.py` and `perf/test_latency_slo.py`.
