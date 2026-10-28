@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from django.db.models import Count, Q
 from rest_framework.exceptions import NotFound
 
@@ -8,12 +10,16 @@ from grow.model.song.playable import PLAYABLE
 from grow.model.song.Song import Song
 
 
-def artist_genre_counts(artist_uuid) -> list[dict]:
+def artist_genre_counts(artist_id: str) -> list[dict]:
     """
     Sparse per-genre-playlist counts of an artist's canonical songs, each genre folding in its primary descendants'
     (the subtree `library/songs/?genre=` lists). Songs without a genre count toward the Genreless playlist.
     At most 3 queries, whatever the number of songs; the artist is only looked up (404) when it has no songs.
     """
+    try:
+        artist_uuid = UUID(artist_id)
+    except ValueError:
+        raise NotFound from None
     own: dict[int | None, list[int]] = {
         row["genre"]: [row["songs"], row["playable"]]
         for row in Song.objects.filter(user__isnull=True, artists=artist_uuid)

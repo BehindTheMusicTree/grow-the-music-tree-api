@@ -87,3 +87,8 @@ class TestCase(AppTestCase):
         self.song("Straight Edge", self.hardcore)
 
         assert set(self.counts()) == {"Hardcore", "Punk", "Rock"}
+
+    def test_malformed_uuid_then_404(self):
+        response = self.api_client.get("/v1/artists/not-a-uuid/genre-counts/")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
