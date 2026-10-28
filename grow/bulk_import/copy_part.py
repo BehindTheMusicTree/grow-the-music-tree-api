@@ -47,7 +47,7 @@ def copy_part(
         ) as copy,
     ):
         try:
-            for line_number, line in enumerate(gzip.GzipFile(fileobj=body), 1):
+            for line_number, line in enumerate(gzip.GzipFile(fileobj=body, mode="rb"), 1):
                 if line.strip():
                     copy.write_row((run_id, part, *row(line_number, line)))
                     count += 1
