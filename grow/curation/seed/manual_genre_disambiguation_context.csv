@@ -1,1 +1,4 @@
 musicbrainz_genre_name,item_id,context_item_id,reason
+r&b,Q45981,Q9759,ambiguous MusicBrainz tag resolved per song from its other genres
+r&b,Q45981,Q8341,ambiguous MusicBrainz tag resolved per song from its other genres
+trap,Q47781397,Q851213,ambiguous MusicBrainz tag resolved per song from its other genres

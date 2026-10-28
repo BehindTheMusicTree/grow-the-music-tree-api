@@ -211,19 +211,19 @@ class TestCase(AppTestCase):
 
     def test_genre_disambiguation_then_candidates_per_tag(self):
         default = self._create(
-            {"musicbrainz_genre_name": "r&b", "item_id": "Q45981", "is_default": "true", "reason": "testing"},
+            {"musicbrainz_genre_name": "rap", "item_id": "Q45981", "is_default": "true", "reason": "testing"},
             "genre_disambiguation",
         )
         other = self._create(
-            {"musicbrainz_genre_name": "r&b", "item_id": "Q850412", "is_default": False, "reason": "testing"},
+            {"musicbrainz_genre_name": "rap", "item_id": "Q850412", "is_default": False, "reason": "testing"},
             "genre_disambiguation",
         )
         hint = self._create(
-            {"musicbrainz_genre_name": "r&b", "item_id": "Q850412", "context_item_id": "Q11401", "reason": "testing"},
+            {"musicbrainz_genre_name": "rap", "item_id": "Q850412", "context_item_id": "Q11401", "reason": "testing"},
             "genre_disambiguation_context",
         )
         bad_hint = self._create(
-            {"musicbrainz_genre_name": "r&b", "item_id": "Q850412", "context_item_id": "hip hop", "reason": "testing"},
+            {"musicbrainz_genre_name": "rap", "item_id": "Q850412", "context_item_id": "hip hop", "reason": "testing"},
             "genre_disambiguation_context",
         )
 
