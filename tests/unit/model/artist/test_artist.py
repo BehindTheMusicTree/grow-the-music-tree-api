@@ -3,6 +3,7 @@ import uuid
 import pytest
 from django.db import IntegrityError
 
+from grow.model.artist.Artist import Artist
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from tests.utils.AppTestCase import AppTestCase
@@ -28,3 +29,11 @@ class TestCase(AppTestCase):
 
         with pytest.raises(IntegrityError):
             self.model_fixture_factory.create_artist("D", musicbrainz_artist_id=mbid)
+
+    def test_image_requires_url_page_url_and_license_together(self):
+        artist = self.model_fixture_factory.create_artist("A")
+
+        with pytest.raises(IntegrityError):
+            Artist.objects.filter(pk=artist.pk).update(
+                image_url="https://upload.wikimedia.org/a.jpg", image_page_url="https://commons.wikimedia.org/a"
+            )

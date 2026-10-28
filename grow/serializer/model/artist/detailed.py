@@ -61,6 +61,18 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     member_of = _GroupSerializer(many=True)
     albums = _AlbumSerializer(many=True)
     tracks_count = serializers.IntegerField(source=Fields.TRACKS_COUNT_ANNOTATED)
+    image = serializers.SerializerMethodField()
+
+    def get_image(self, artist: Artist) -> dict | None:
+        if artist.image_url is None:
+            return None
+        return {
+            "url": artist.image_url,
+            "page_url": artist.image_page_url,
+            "author": artist.image_author,
+            "license": artist.image_license,
+            "license_url": artist.image_license_url,
+        }
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
@@ -91,6 +103,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             Fields.BEGIN_YEAR,
             Fields.END_YEAR,
             Fields.ENDED,
+            Fields.IMAGE,
             Fields.LINKS,
             Fields.MEMBERS,
             Fields.MEMBER_OF,

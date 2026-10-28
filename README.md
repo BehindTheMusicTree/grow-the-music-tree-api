@@ -94,7 +94,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
 | `/v1/albums`                  | Albums                                               |
-| `/v1/artists`                 | Artists (list, detail with MusicBrainz details, members, links and release-group albums, + `import-runs/`) |
+| `/v1/artists`                 | Artists (list, detail with MusicBrainz details, `image` (`{url, pageUrl, author, license, licenseUrl}` or null; show with its attribution), members, links and release-group albums, + `import-runs/`) |
 | `/v1/genealogy`               | `GET` latest music-tradition genealogy document (public; `ETag` = checksum, `304` on `If-None-Match`, 404 before the first import); `POST import/` stores a new snapshot from the pipeline's `4_genealogy.json` (pipeline key or admin; 201 created, 200 unchanged) |
 | `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `{uuid}/exclude/` (body `{"category": "theme"\|"technique"\|"out_of_scope"\|"duplicate"}`), `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |

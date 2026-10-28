@@ -4,7 +4,7 @@ import pytest
 from rest_framework.exceptions import ValidationError
 
 from grow.artist.bulk_import.part_loader import _row
-from tests.integration.artist.test_artist_import_runs import ARTIST, BAND
+from tests.integration.artist.test_artist_import_runs import ARTIST, BAND, IMAGE
 
 RELEASE_GROUP = ARTIST["release_groups"][0]
 
@@ -15,6 +15,17 @@ def _line(**overrides) -> bytes:
 
 def test_valid_artist_then_mbid_and_data():
     assert _row(1, _line()) == (BAND, json.dumps(ARTIST))
+
+
+@pytest.mark.parametrize(
+    "image",
+    [IMAGE, None, {**IMAGE, "author": None}, {**IMAGE, "license_url": None}],
+    ids=["full", "null", "no-author", "no-license-url"],
+)
+def test_valid_image_then_accepted(image):
+    artist = {**ARTIST, "image": image}
+
+    assert _row(1, json.dumps(artist).encode()) == (BAND, json.dumps(artist))
 
 
 @pytest.mark.parametrize(
@@ -57,6 +68,14 @@ def test_valid_artist_then_mbid_and_data():
         _line(release_groups=[{**RELEASE_GROUP, "secondary_types": None}]),
         _line(release_groups=[{**RELEASE_GROUP, "first_release_year": -1}]),
         _line(release_groups=[{**RELEASE_GROUP, "first_release_year": 999}]),
+        _line(image=IMAGE["url"]),
+        _line(image={**IMAGE, "url": "http://upload.wikimedia.org/x.jpg"}),
+        _line(image={**IMAGE, "page_url": None}),
+        _line(image={**IMAGE, "license": ""}),
+        _line(image={**IMAGE, "license": None}),
+        _line(image={**IMAGE, "author": ""}),
+        _line(image={**IMAGE, "url": "https://x.org/" + "a" * 2048}),
+        _line(image={**IMAGE, "license_url": "https://x.org/" + "a" * 2048}),
     ],
 )
 def test_invalid_artist_then_validation_error(line):

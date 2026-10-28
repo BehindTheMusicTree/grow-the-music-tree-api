@@ -28,7 +28,9 @@ EXPANDED_STEPS = [
     SELECT DISTINCT ON (musicbrainz_artist_id) musicbrainz_artist_id AS mbid, id AS staging_id, data->>'name' AS name,
         data->>'type' AS type, data->>'country' AS country, {YEAR.format("data->>'begin_year'")} AS begin_year,
         {YEAR.format("data->>'end_year'")} AS end_year, (data->>'ended')::boolean AS ended,
-        data->>'disambiguation' AS disambiguation
+        data->>'disambiguation' AS disambiguation, data->'image'->>'url' AS image_url,
+        data->'image'->>'page_url' AS image_page_url, data->'image'->>'author' AS image_author,
+        data->'image'->>'license' AS image_license, data->'image'->>'license_url' AS image_license_url
     FROM grow_artist_import_staging WHERE run_id = %(run)s ORDER BY musicbrainz_artist_id, part DESC""",
     ),
     ("artist_import_pkey", "ALTER TABLE artist_import ADD PRIMARY KEY (mbid)"),
@@ -89,17 +91,22 @@ RESOLVE_STEPS = [
         "upsert_artists",
         """INSERT INTO grow_artist
         (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended,
-        disambiguation)
-    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation
+        disambiguation, image_url, image_page_url, image_author, image_license, image_license_url)
+    SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation,
+        image_url, image_page_url, image_author, image_license, image_license_url
     FROM artist_import ORDER BY mbid
     ON CONFLICT (musicbrainz_artist_id) DO UPDATE SET
         name = EXCLUDED.name, type = EXCLUDED.type, country = EXCLUDED.country, begin_year = EXCLUDED.begin_year,
         end_year = EXCLUDED.end_year, ended = EXCLUDED.ended, disambiguation = EXCLUDED.disambiguation,
-        updated_on = now()
+        image_url = EXCLUDED.image_url, image_page_url = EXCLUDED.image_page_url,
+        image_author = EXCLUDED.image_author, image_license = EXCLUDED.image_license,
+        image_license_url = EXCLUDED.image_license_url, updated_on = now()
     WHERE (grow_artist.name, grow_artist.type, grow_artist.country, grow_artist.begin_year, grow_artist.end_year,
-        grow_artist.ended, grow_artist.disambiguation) IS DISTINCT FROM
+        grow_artist.ended, grow_artist.disambiguation, grow_artist.image_url, grow_artist.image_page_url,
+        grow_artist.image_author, grow_artist.image_license, grow_artist.image_license_url) IS DISTINCT FROM
         (EXCLUDED.name, EXCLUDED.type, EXCLUDED.country, EXCLUDED.begin_year, EXCLUDED.end_year, EXCLUDED.ended,
-        EXCLUDED.disambiguation)""",
+        EXCLUDED.disambiguation, EXCLUDED.image_url, EXCLUDED.image_page_url, EXCLUDED.image_author,
+        EXCLUDED.image_license, EXCLUDED.image_license_url)""",
     ),
     (
         "run_artist",
