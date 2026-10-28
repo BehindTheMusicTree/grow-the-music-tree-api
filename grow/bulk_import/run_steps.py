@@ -8,11 +8,13 @@ from django.db.backends.utils import CursorWrapper
 logger = logging.getLogger(__name__)
 
 
-def run_steps(cursor: CursorWrapper, steps: Iterable[tuple[str, str]], params: dict[str, Any]) -> None:
-    """Executes `(label, sql)` merge steps in order, logging each one's rowcount and duration."""
+def run_steps(cursor: CursorWrapper, steps: Iterable[tuple[str, str]], params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Executes `(label, sql)` merge steps in order, logging each one's rowcount and duration and returning them."""
+    timings = []
     for label, sql in steps:
         started = perf_counter()
         cursor.execute(sql, params)
-        logger.info(
-            "bulk import step %s rowcount=%d in %d ms", label, cursor.rowcount, (perf_counter() - started) * 1000
-        )
+        ms = int((perf_counter() - started) * 1000)
+        logger.info("bulk import step %s rowcount=%d in %d ms", label, cursor.rowcount, ms)
+        timings.append({"label": label, "rowcount": cursor.rowcount, "ms": ms})
+    return timings

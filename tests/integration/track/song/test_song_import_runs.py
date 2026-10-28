@@ -1,6 +1,7 @@
 import gzip
 import json
 import uuid
+from unittest.mock import ANY
 
 import pytest
 from django.conf import settings
@@ -175,7 +176,7 @@ class TestImportRunMerge(AppTestCase):
             {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Unknown", "genre_name": "Nope"},
         ]
 
-        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 1}
+        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 1, "stepTimings": ANY}
 
         track = Song.objects.get(musicbrainz_recording_id=MBID)
         assert (track.title, track.genre_id, track.youtube_video_id) == ("Comfortably Numb", rock.pk, "abc123defgh")
@@ -220,7 +221,7 @@ class TestImportRunMerge(AppTestCase):
         self.model_fixture_factory.create_genre("Rock")
         song = {**SONG, "title": "t" * 1059, "artist": "a" * 1018}
 
-        assert self._sync([song]) == {"imported": 1, "skipped": 0}
+        assert self._sync([song]) == {"imported": 1, "skipped": 0, "stepTimings": ANY}
 
         track = Song.objects.get(musicbrainz_recording_id=MBID)
         assert track.title == song["title"]
@@ -341,6 +342,12 @@ class TestImportRunMerge(AppTestCase):
         locked.refresh_from_db()
         assert (locked.title, locked.genre_id) == ("Renamed", pop.pk)
 
+    def test_merge_reports_step_timings(self):
+        timings = self._sync([SONG])["stepTimings"]
+
+        assert timings[0]["label"] == "song_import"
+        assert all({"label", "rowcount", "ms"} == timing.keys() for timing in timings)
+
     def test_delta_run_upserts_without_deleting_unlisted_tracks(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_song(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")
@@ -348,7 +355,7 @@ class TestImportRunMerge(AppTestCase):
         self._sync([SONG], mode="delta")
         result = self._sync([{**SONG, "title": "Renamed"}], mode="delta")
 
-        assert result == {"imported": 1, "skipped": 0}
+        assert result == {"imported": 1, "skipped": 0, "stepTimings": ANY}
         assert sorted(Song.objects.values_list("title", flat=True)) == ["Renamed", "Unlisted"]
 
     def test_delta_run_deletes_only_listed_unlocked_tracks(self):
@@ -371,7 +378,7 @@ class TestImportRunMerge(AppTestCase):
     def test_delta_run_with_nothing_to_do_succeeds(self):
         self.model_fixture_factory.create_song(title="Kept", genre=None)
 
-        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0}
+        assert self._sync([], mode="delta") == {"imported": 0, "skipped": 0, "stepTimings": ANY}
         assert Song.objects.count() == 1
 
     def test_legacy_track_adopted_by_video_id(self):
@@ -433,7 +440,7 @@ class TestImportRunMerge(AppTestCase):
     def test_tag_name_is_not_a_genre(self):
         self.model_fixture_factory.create_tag("Rock")
 
-        assert self._sync([SONG]) == {"imported": 1, "skipped": 1}
+        assert self._sync([SONG]) == {"imported": 1, "skipped": 1, "stepTimings": ANY}
         assert Song.objects.get().genre is None
 
     def test_pipeline_commit_recorded_and_admin_not(self):

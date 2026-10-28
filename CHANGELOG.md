@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Song and artist import merges return `stepTimings` (`[{label, rowcount, ms}]` per SQL step) in their task result, so the import status endpoint shows where a merge spends its time. Tests in `tests/integration/track/song/test_song_import_runs.py` and `tests/integration/artist/test_artist_import_runs.py`.
+
 ## [14.3.0] - 2026-10-28
 
 ### Added
