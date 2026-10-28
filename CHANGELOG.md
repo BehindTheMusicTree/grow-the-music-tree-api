@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.4.1] - 2026-10-29
+
+### Changed
+
+- The ambiguous MusicBrainz tags `r&b` (Rhythm and blues by default, with blues/jazz hints) and `trap` (trap music by default, EDM trap music alongside electronic dance music) are now seeded in the `genre_disambiguation` and `genre_disambiguation_context` curation lists (migration `0083`; seed CSVs updated to match, covered by the existing seed round-trip tests).
+
 ## [14.4.0] - 2026-10-29
 
 ### Security
