@@ -13,6 +13,7 @@ from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.song.Fields import Fields as ModelFields
+from grow.model.song.playable import PLAYABLE
 from grow.model.song.Song import Song
 from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM
 
@@ -78,9 +79,7 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         return queryset.filter(genre__in=[value, *descendants])
 
     def filter_playable(self, queryset: QuerySet[Song], name: str, value: bool) -> QuerySet[Song]:
-        # Same predicate as TrackManager._is_playable.
-        playable = Q(**{f"{ModelFields.YOUTUBE_VIDEO_ID}__isnull": False, "youtube_unplayable_reason__isnull": True})
-        return queryset.filter(playable if value else ~playable)
+        return queryset.filter(PLAYABLE if value else ~PLAYABLE)
 
     def filter_from(self, queryset: QuerySet[Song], name: str, value) -> QuerySet[Song]:
         # Applied in filter_queryset, once the other filters and the ordering it pages through are known.

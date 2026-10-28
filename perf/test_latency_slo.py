@@ -8,6 +8,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 
+from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from perf.conftest import largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
@@ -26,11 +27,17 @@ SLO_MS = {
     "genre-playlist-detail (largest genre)": 100,
     "playlist-detail (largest genre)": 100,
     "genre-playlist-tracks?page_size=100 (largest genre)": 150,
+    "artist-genre-counts (Canned Heat)": 150,
 }
 
 
 def _large_playlist(name: str) -> str:
     return reverse(name, kwargs={"pk": largest_genre_playlist().uuid})
+
+
+def _largest_artist_genre_counts() -> str:
+    artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
+    return reverse("artist-genre-counts", kwargs={"pk": artist.uuid})
 
 
 PATHS = {
@@ -45,6 +52,7 @@ PATHS = {
         _large_playlist("genre-playlist-tracks"),
         {"page_size": 100},
     ),
+    "artist-genre-counts (Canned Heat)": lambda: (_largest_artist_genre_counts(), {}),
 }
 
 
