@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.4.0] - 2026-10-29
+
 ### Security
 
 - Artist bulk import now rejects link URLs that are not `http(s)`, so a `javascript:` or `data:` link can no longer reach the artist panel (image URLs were already checked). Covered by `tests/unit/bulk_import/test_artist_part_loader.py`.
