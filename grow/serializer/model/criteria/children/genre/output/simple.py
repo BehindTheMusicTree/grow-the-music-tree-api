@@ -14,4 +14,5 @@ class GenreSimpleSerializer(_GenreBaseSimpleSerializer):  # type: ignore[valid-t
             "has_name_conflict",
             "is_unaccepted_root",
             "is_umbrella",
+            "scene",
         ]  # type: ignore[name-defined]
