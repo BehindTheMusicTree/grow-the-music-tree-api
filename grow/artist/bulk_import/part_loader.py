@@ -116,9 +116,11 @@ def _row(line_number: int, line: bytes) -> tuple:
     for link in artist["links"]:
         _require(link.get("kind") in LINK_KINDS, line_number, "unknown link kind")
         _require(
-            _is_text(link.get("url")) and len(link["url"].encode()) <= LINK_URL_LEN_MAX,
+            _is_text(link.get("url"))
+            and link["url"].startswith(("http://", "https://"))
+            and len(link["url"].encode()) <= LINK_URL_LEN_MAX,
             line_number,
-            f"link url must be a non-empty string of at most {LINK_URL_LEN_MAX} bytes",
+            f"link url must be an http(s) URL of at most {LINK_URL_LEN_MAX} bytes",
         )
     for release_group in artist["release_groups"]:
         _require(_is_mbid(release_group.get("musicbrainz_release_group_id")), line_number, "release group MBID invalid")
