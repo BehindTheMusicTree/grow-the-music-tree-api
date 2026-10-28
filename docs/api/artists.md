@@ -47,6 +47,21 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
 `tracksCount` counts the songs with a genre, the ones the library lists.
 
+#### Genre counts
+
+`GET {base}{uuid}/genre-counts/`
+
+Public. Sparse per-genre-playlist counts of the artist's canonical songs, for pruning the genre tree to the artist's footprint:
+
+```json
+[{"genrePlaylist": "…", "songsCount": 12, "tracksCount": 9}]
+```
+
+Only non-zero nodes are listed: every genre playlist whose primary subtree holds at least one of the artist's songs, ancestors
+included. `songsCount` is all of the artist's songs in the subtree (what `library/songs/?genre=<uuid>&artist=<uuid>`
+lists); `tracksCount` only the playable ones, like `tracksCount` in `genre-playlists/tree/`. The artist's genre-less songs
+count toward the Genreless playlist. An artist without songs gives `[]`; 404 for an unknown artist.
+
 An artist's songs: `GET /v1/library/songs/?artist=<uuid>&ordering=title|-title|albumYear|-albumYear`
 (nulls last). `albumYear` uses the song's `first_release_year` where the pipelines supply one, falling back to a
 four-digit album year; songs with neither sort with the nulls.

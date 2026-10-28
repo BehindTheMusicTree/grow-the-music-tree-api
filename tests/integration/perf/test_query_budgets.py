@@ -32,6 +32,7 @@ BUDGETS = {
     "plays-list": 4,
     "artist-list": 4,
     "artist-detail": 6,
+    "artist-genre-counts": 3,
 }
 
 factory = ModelFixtureFactory(default_user=None)
@@ -72,6 +73,15 @@ def _seed_artists(start: int, stop: int) -> None:
         factory.create_song(title=f"Track {index}", genre=genre, artists=[band, member])
 
 
+def _seed_artist_genre_counts(start: int, stop: int) -> None:
+    band = Artist.objects.filter(_name="Band").first() or factory.create_artist("Band")
+    root = GenrePlaylist.objects.get(criteria__name="Root").criteria if start else factory.create_genre("Root")
+    for index in range(start, stop):
+        genre = factory.create_genre(f"Genre {index}", parent=root)
+        factory.create_song(title=f"Track {index}", genre=genre, artists=[band])
+        factory.create_song(title=f"Unplayable {index}", genre=genre, artists=[band], youtube_video_id=None)
+
+
 def _root_playlist_path(name: str) -> str:
     return reverse(name, kwargs={"pk": GenrePlaylist.objects.get(criteria__name="Root").uuid})
 
@@ -93,6 +103,10 @@ SCENARIOS: dict[str, tuple[Callable[[int, int], None], Callable[[], str]]] = {
     "playlist-tracks": (_seed_tracks, lambda: _root_playlist_path("playlist-tracks")),
     "plays-list": (_seed_plays, lambda: reverse("play-list")),
     "artist-list": (_seed_artists, lambda: reverse("artist-list")),
+    "artist-genre-counts": (
+        _seed_artist_genre_counts,
+        lambda: reverse("artist-genre-counts", kwargs={"pk": Artist.objects.get(_name="Band").uuid}),
+    ),
     "artist-detail": (
         _seed_artists,
         lambda: reverse("artist-detail", kwargs={"pk": Artist.objects.get(_name="Band").uuid}),

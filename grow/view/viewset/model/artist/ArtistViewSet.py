@@ -6,6 +6,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.artist.bulk_import.merge import merge_artist_import_run
 from grow.artist.bulk_import.part_loader import load_part
+from grow.artist.genre_counts import artist_genre_counts
 from grow.artist.search_cache import get_cached_search, set_cached_search
 from grow.filtering.set.artist.ArtistFilterSet import ArtistFilterSet
 from grow.model.artist.Artist import Artist
@@ -54,6 +55,17 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
             payload = ArtistSearchResultSerializer(Artist.objects.search(q, limit), many=True).data
             set_cached_search(q, limit, payload)
         return Response(payload)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="genre-counts",
+        authentication_classes=[],
+        permission_classes=[AllowAny],
+    )
+    def genre_counts(self, request, pk=None):
+        """Sparse per-genre-playlist counts of the artist's songs, for pruning the genre tree to their footprint."""
+        return Response(artist_genre_counts(pk))
 
     (
         create_import_run,
