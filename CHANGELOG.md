@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.5.0] - 2026-10-29
+
 ### Added
 
 - Genre playlists expose `viewsCount`, the sum of the YouTube view counts of the playable songs behind `tracksCount`, on the list, detail and `genre-playlists/tree/` payloads so clients can size the genre tree by views. Migration `0085` adds `CriteriaPlaylist.views_count`, backfills it, and keeps it current with database triggers (statement-level on Postgres) on playlist rels and `grow_song.youtube_view_count`, so the songs merge, curation edits and cascade deletes all stay in sync and the cached tree refreshes on its own. Tested on SQLite and, for the merge, on Postgres.
