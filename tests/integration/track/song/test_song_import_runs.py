@@ -16,6 +16,7 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.artist.Artist import Artist
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -246,6 +247,54 @@ class TestImportRunMerge(AppTestCase):
         self._sync([{**SONG, "youtube_view_count": 2**40}, {**unknown_count, "youtube_view_count": 7}])
 
         assert counts() == {uuid.UUID(MBID): 2**40, uuid.UUID(OTHER_MBID): 7}
+
+    def _assert_views_count_matches_rels(self) -> dict[str, int]:
+        def label(playlist: CriteriaPlaylist) -> str:
+            return playlist.criteria.genre.name if playlist.criteria else "Genreless"
+
+        expected: dict[str, int] = {}
+        for rel in TrackPlaylistRel.objects.select_related(
+            "playlist__criteria_playlist__criteria__genre", "track__song"
+        ):
+            name = label(rel.playlist.criteria_playlist)
+            expected[name] = expected.get(name, 0) + (rel.track.song.youtube_view_count or 0)
+        actual = {
+            label(playlist): playlist.views_count
+            for playlist in CriteriaPlaylist.objects.select_related("criteria__genre")
+            if playlist.views_count or label(playlist) in expected
+        }
+        assert actual == expected
+        return actual
+
+    def test_playlist_views_count_follows_full_and_delta_runs_and_deletions(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Pop")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": "othervideo1"}
+
+        self._sync([{**SONG, "youtube_view_count": 10}, {**other, "youtube_view_count": 5}])
+        assert self._assert_views_count_matches_rels() == {"Rock": 15}
+
+        self._sync([{**SONG, "youtube_view_count": 30}, {**other, "genre_name": "Pop", "youtube_view_count": None}])
+        assert self._assert_views_count_matches_rels() == {"Rock": 30, "Pop": 0}
+
+        self._sync([{**other, "genre_name": "Pop", "youtube_view_count": 7}], mode="delta", deleted=(MBID,))
+        assert self._assert_views_count_matches_rels() == {"Pop": 7}
+
+        self._sync([{**SONG, "youtube_view_count": 4}])
+        assert self._assert_views_count_matches_rels() == {"Rock": 4}
+
+    def test_playlist_views_count_follows_playability_and_video_change(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        self._sync([{**SONG, "youtube_view_count": 10}])
+        self._sync([{**SONG, "youtube_view_count": 10, "youtube_video_id": None}])
+        assert self._assert_views_count_matches_rels() == {}
+
+        self._sync([{**SONG, "youtube_view_count": 10}])
+        song = Song.objects.get(musicbrainz_recording_id=MBID)
+        Song.objects.update_instance(song, actor=None, youtube_video_id="newvideo001", youtube_view_count=None)
+
+        assert CriteriaPlaylist.objects.get(criteria=rock).views_count == 0
+        self._assert_views_count_matches_rels()
 
     def test_import_accepts_musicbrainz_length_title_and_artist(self):
         self.model_fixture_factory.create_genre("Rock")
