@@ -81,8 +81,6 @@ def _check_index(index: Any, files: dict[str, str]) -> None:
 
 
 def _merge(run_id: int, record: bool) -> dict[str, Any]:
-    if BulkImportRun.objects.get(pk=run_id).mode != BulkImportRun.Mode.FULL:
-        raise ValueError(f"import run {run_id} must be full: a region map snapshot is always whole")
     files = _staged_hashes(run_id)
     if INDEX_PATH not in files:
         raise ValueError(f"import run {run_id} has no {INDEX_PATH}")

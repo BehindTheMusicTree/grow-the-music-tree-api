@@ -16,7 +16,11 @@ PATH_LEN_MAX = 512  # bytes
 
 def canonical_bytes(document: Any) -> bytes:
     """The bytes a region map file's sha256 is taken over, as the pipeline serializes them."""
-    return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+
+
+def _reject_constant(name: str) -> None:
+    raise ValueError(f"{name} is not valid JSON")
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -26,8 +30,8 @@ def _require(condition: bool, line_number: int, message: str) -> None:
 
 def _row(line_number: int, line: bytes) -> tuple:
     try:
-        entry = json.loads(line)
-    except ValueError as e:
+        entry = json.loads(line, parse_constant=_reject_constant)
+    except (ValueError, RecursionError) as e:
         raise ValidationError(f"line {line_number}: invalid region map file ({e})") from e
     _require(isinstance(entry, dict), line_number, "region map file must be an object")
     path = entry.get("path")

@@ -62,11 +62,13 @@ def bulk_import_run_actions(
     load_part: Callable[[int, int, IO[bytes]], int],
     merge: Callable[[int, int | None, bool], dict[str, int]],
     deletion_key: str,
+    modes: tuple[str, ...] = tuple(BulkImportRun.Mode.values),
 ) -> tuple[Callable, ...]:
     """
     The bulk import-run protocol actions for one `kind`, to unpack into a viewset body: create a run, upload its
     gzip NDJSON parts, commit it (queues `merge`), poll the merge task. Every path starts with `url_prefix`.
-    A `delta` run also uploads its deleted ids (gzip NDJSON, `{deletion_key: <uuid>}` per line) to `deletions/`.
+    `modes` lists the run modes `kind` accepts. A `delta` run also uploads its deleted ids (gzip NDJSON,
+    `{deletion_key: <uuid>}` per line) to `deletions/`.
     """
     runs = f"{url_prefix}import-runs"
 
@@ -85,8 +87,8 @@ def bulk_import_run_actions(
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
-        if mode not in BulkImportRun.Mode.values:
-            raise ValidationError(f"mode must be one of {', '.join(BulkImportRun.Mode.values)}")
+        if mode not in modes:
+            raise ValidationError(f"mode must be one of {', '.join(modes)}")
         with transaction.atomic():
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
