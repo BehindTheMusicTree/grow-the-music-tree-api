@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db.models import Count
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.track_playlist_rel.Fields import Fields as TrackPlaylistRelFields
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
@@ -73,9 +74,14 @@ def mid_size_genre(*, exclude: Genre) -> Genre:
         **{f"{TrackPlaylistRelFields.PLAYLIST}__in": GenrePlaylist.objects.exclude(criteria=exclude).values("pk")}
     )
     counts = rels.values(TrackPlaylistRelFields.PLAYLIST).annotate(tracks=Count("pk")).filter(tracks__gte=200)
-    playlist = GenrePlaylist.objects.filter(
-        pk__in=[row[TrackPlaylistRelFields.PLAYLIST] for row in counts], criteria__parent__isnull=False
-    ).order_by("pk")[0]
+    # A pop-side genre can't move under a root that already has a pop child, which would make the move invalid.
+    playlist = (
+        GenrePlaylist.objects.filter(
+            pk__in=[row[TrackPlaylistRelFields.PLAYLIST] for row in counts], criteria__parent__isnull=False
+        )
+        .exclude(criteria__genre__side=CriteriaSide.POP)
+        .order_by("criteria__name", "pk")[0]
+    )
     return playlist.criteria
 
 
