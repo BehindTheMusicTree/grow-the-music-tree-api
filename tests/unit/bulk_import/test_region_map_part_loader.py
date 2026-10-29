@@ -23,6 +23,11 @@ def test_non_json_line_rejected(document: str):
         _row(1, _line(document))
 
 
+def test_number_overflowing_to_infinity_rejected():
+    with pytest.raises(ValidationError, match="document is not serializable"):
+        _row(1, _line('{"x":1e999}'))
+
+
 def test_valid_line_then_path_and_sha256():
     document = {"type": "FeatureCollection", "features": []}
     sha256 = hashlib.sha256(canonical_bytes(document)).hexdigest()

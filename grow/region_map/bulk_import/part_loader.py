@@ -43,7 +43,10 @@ def _row(line_number: int, line: bytes) -> tuple:
     sha256 = entry.get("sha256")
     _require(isinstance(sha256, str) and SHA256.fullmatch(sha256) is not None, line_number, "sha256 must be hex")
     _require(isinstance(entry.get("document"), dict), line_number, "document must be an object")
-    canonical = canonical_bytes(entry["document"])
+    try:
+        canonical = canonical_bytes(entry["document"])
+    except (ValueError, RecursionError) as e:
+        raise ValidationError(f"line {line_number}: {path}: document is not serializable as JSON ({e})") from e
     _require(hashlib.sha256(canonical).hexdigest() == sha256, line_number, f"{path}: sha256 does not match document")
     return path, sha256, gzip.compress(canonical, mtime=0)
 
