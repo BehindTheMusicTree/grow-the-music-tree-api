@@ -20,6 +20,10 @@ class CriteriaPlaylist(AbstractCriteriaPlaylist, KitPlaylist):  # type: ignore[d
         KitPlaylist, on_delete=models.CASCADE, parent_link=True, related_name=PlayListFields.CRITERIA_PLAYLIST
     )
 
+    # Sum of `youtube_view_count` over the playlist's rels (the songs behind `tracks_count`), kept by database
+    # triggers (migration 0085) so every rel or view count write path stays in sync.
+    views_count = models.PositiveBigIntegerField(default=0, db_default=0)
+
     objects: CriteriaPlaylistManager = CriteriaPlaylistManager()
 
     class Meta:

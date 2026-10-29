@@ -23,6 +23,7 @@ class Fields:
     IS_UNACCEPTED_ROOT = "is_unaccepted_root"
     IS_UMBRELLA = "is_umbrella"
     SCENE = "scene"
+    VIEWS_COUNT = "views_count"
 
 
 class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSerializer):
@@ -33,6 +34,7 @@ class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSeria
     is_unaccepted_root = serializers.SerializerMethodField()
     is_umbrella = serializers.SerializerMethodField()
     scene = serializers.SerializerMethodField()
+    views_count = serializers.IntegerField()
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
@@ -72,6 +74,7 @@ class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSeria
             Fields.PARENT,
             Fields.ROOT,
             Fields.TRACKS_COUNT_PUBLIC,
+            Fields.VIEWS_COUNT,
             Fields.IS_UNACCEPTED_ROOT,
             Fields.IS_UMBRELLA,
             Fields.SCENE,
