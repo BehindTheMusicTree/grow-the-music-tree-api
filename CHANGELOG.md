@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The genre reparent latency SLO test always moves the same genre and never picks a pop-side one, which the API rightly rejects under a root that already has a pop child. It used to pick a random genre and failed intermittently with 400.
+
 ### Added
 
 - Region map snapshots: the pipeline uploads the region map index and GeoJSON files through `regions/map/import-runs/` (the chunked songs/artists protocol), grow stores each file once by content hash and swaps the active snapshot atomically, keeping the previous one. `GET /v1/regions/map/` serves the index with an `ETag` and `304`, `GET /v1/regions/map/files/{sha256}/` serves each file gzip-compressed and cached as immutable. Migration `0086` adds the tables and the `region_map` import kind. Tested on SQLite and, for the merge, on Postgres.
