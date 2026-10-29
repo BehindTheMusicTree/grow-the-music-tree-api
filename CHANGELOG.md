@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Region map snapshots: the pipeline uploads the region map index and GeoJSON files through `regions/map/import-runs/` (the chunked songs/artists protocol), grow stores each file once by content hash and swaps the active snapshot atomically, keeping the previous one. `GET /v1/regions/map/` serves the index with an `ETag` and `304`, `GET /v1/regions/map/files/{sha256}/` serves each file gzip-compressed and cached as immutable. Migration `0086` adds the tables and the `region_map` import kind. Tested on SQLite and, for the merge, on Postgres.
+
 ## [14.5.0] - 2026-10-29
 
 ### Added

@@ -28,8 +28,12 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
+from grow.model.region_map.RegionMapFile import RegionMapFile
+from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
+from grow.model.region_map.RegionMapSnapshotFile import RegionMapSnapshotFile
 from grow.model.song.Song import Song
 from grow.model.user.UserProfile import UserProfile
+from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 __all__ = [
@@ -57,6 +61,10 @@ __all__ = [
     "PipelineRunRequest",
     "Play",
     "Playlist",
+    "RegionMapFile",
+    "RegionMapFileStaging",
+    "RegionMapSnapshot",
+    "RegionMapSnapshotFile",
     "Song",
     "SongImportStaging",
     "Tag",
