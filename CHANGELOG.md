@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+
+- Bumped `the-music-tree-genre-kit` to v0.52.1: genre tree import and `Genre.summary_source_url` now accept only `http(s)` URLs (migration `0084` records the validator). Covered by `tests/integration/criteria/test_summary_source_url_import.py`.
+
 ## [14.4.1] - 2026-10-29
 
 ### Changed
