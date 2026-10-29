@@ -76,13 +76,49 @@ class TestRegionMapReads(AppTestCase):
         response = self.public.get(INDEX, HTTP_ACCEPT_ENCODING="gzip, br")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response["ETag"] == f'"{snapshot.checksum}"'
+        assert response["ETag"] == f'"{snapshot.checksum}-gzip"'
         assert response["Cache-Control"] == "no-cache"
         assert response["Content-Encoding"] == "gzip"
         assert response["Content-Type"] == "application/json"
         assert gzip.decompress(response.content) == b'{"regions":[]}'
-        revalidated = self.public.get(INDEX, HTTP_IF_NONE_MATCH=f'W/"{snapshot.checksum}"')
+        revalidated = self.public.get(
+            INDEX, HTTP_ACCEPT_ENCODING="gzip", HTTP_IF_NONE_MATCH=f'W/"{snapshot.checksum}-gzip"'
+        )
         assert revalidated.status_code == status.HTTP_304_NOT_MODIFIED
+        assert revalidated["ETag"] == f'"{snapshot.checksum}-gzip"'
+
+    def test_each_encoding_revalidates_only_with_its_own_etag(self):
+        snapshot = _snapshot({"index.json": b'{"regions":[]}'})
+        plain, gzipped = f'"{snapshot.checksum}"', f'"{snapshot.checksum}-gzip"'
+
+        identity = self.public.get(INDEX, HTTP_ACCEPT_ENCODING="identity", HTTP_IF_NONE_MATCH=gzipped)
+        compressed = self.public.get(INDEX, HTTP_ACCEPT_ENCODING="gzip", HTTP_IF_NONE_MATCH=plain)
+
+        assert identity.status_code == status.HTTP_200_OK
+        assert identity["ETag"] == plain
+        assert identity.content == b'{"regions":[]}'
+        assert compressed.status_code == status.HTTP_200_OK
+        assert compressed["ETag"] == gzipped
+        assert self.public.get(INDEX, HTTP_IF_NONE_MATCH=plain).status_code == status.HTTP_304_NOT_MODIFIED
+
+    def test_gzip_follows_accept_encoding_q_values(self):
+        _snapshot({"index.json": b'{"regions":[]}'})
+        cases = {
+            "gzip;q=0": False,
+            "gzip;q=0, *": False,
+            "br, gzip;q=0.5": True,
+            "x-gzip": True,
+            "*": True,
+            "*;q=0": False,
+            "gzip;q=abc": False,
+            "deflate, br": False,
+            "GZIP; Q=1": True,
+        }
+        for accept_encoding, gzipped in cases.items():
+            with self.subTest(accept_encoding=accept_encoding):
+                response = self.public.get(INDEX, HTTP_ACCEPT_ENCODING=accept_encoding)
+
+                assert response.has_header("Content-Encoding") is gzipped
 
     def test_latest_snapshot_is_served(self):
         _snapshot({"index.json": b'{"regions":[1]}'})
@@ -192,9 +228,11 @@ class TestRegionMapImportRun(AppTestCase):
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(self.files, _index(self.files, tradition)))["imported"] == 2
 
-    def test_delta_run_fails(self):
-        assert self._commit(_parts(self.files), mode="delta").status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert not RegionMapSnapshot.objects.exists()
+    def test_delta_run_refused_at_creation(self):
+        response = self.api_client.post(path=RUNS, data={"mode": "delta"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not BulkImportRun.objects.exists()
 
     def test_unchanged_index_skipped_and_recorded_for_pipeline_only(self):
         self._sync(_parts(self.files))

@@ -16,7 +16,11 @@ PATH_LEN_MAX = 512  # bytes
 
 def canonical_bytes(document: Any) -> bytes:
     """The bytes a region map file's sha256 is taken over, as the pipeline serializes them."""
-    return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()
+
+
+def _reject_constant(name: str) -> None:
+    raise ValueError(f"{name} is not valid JSON")
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -26,8 +30,8 @@ def _require(condition: bool, line_number: int, message: str) -> None:
 
 def _row(line_number: int, line: bytes) -> tuple:
     try:
-        entry = json.loads(line)
-    except ValueError as e:
+        entry = json.loads(line, parse_constant=_reject_constant)
+    except (ValueError, RecursionError) as e:
         raise ValidationError(f"line {line_number}: invalid region map file ({e})") from e
     _require(isinstance(entry, dict), line_number, "region map file must be an object")
     path = entry.get("path")
@@ -39,7 +43,10 @@ def _row(line_number: int, line: bytes) -> tuple:
     sha256 = entry.get("sha256")
     _require(isinstance(sha256, str) and SHA256.fullmatch(sha256) is not None, line_number, "sha256 must be hex")
     _require(isinstance(entry.get("document"), dict), line_number, "document must be an object")
-    canonical = canonical_bytes(entry["document"])
+    try:
+        canonical = canonical_bytes(entry["document"])
+    except (ValueError, RecursionError) as e:
+        raise ValidationError(f"line {line_number}: {path}: document is not serializable as JSON ({e})") from e
     _require(hashlib.sha256(canonical).hexdigest() == sha256, line_number, f"{path}: sha256 does not match document")
     return path, sha256, gzip.compress(canonical, mtime=0)
 

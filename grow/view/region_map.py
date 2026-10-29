@@ -7,6 +7,7 @@ from rest_framework import viewsets
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
+from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
@@ -28,8 +29,36 @@ class RegionMapViewSet(viewsets.ViewSet):
         commit_import_run,
         import_run_status,
     ) = bulk_import_run_actions(
-        "", ImportRun.Kind.REGION_MAP, RegionMapFileStaging, load_part, merge_region_map_import_run, "path"
+        "",
+        ImportRun.Kind.REGION_MAP,
+        RegionMapFileStaging,
+        load_part,
+        merge_region_map_import_run,
+        "path",
+        modes=(BulkImportRun.Mode.FULL,),
     )
+
+
+def _accepts_gzip(accept_encoding: str) -> bool:
+    """RFC 9110 content coding negotiation: an explicit gzip (or x-gzip) q-value wins over `*`, and q=0 refuses."""
+    qualities: dict[str, float] = {}
+    for item in accept_encoding.split(","):
+        coding, *params = (part.strip() for part in item.split(";"))
+        if not coding:
+            continue
+        quality = 1.0
+        for param in params:
+            name, _, value = param.partition("=")
+            if name.strip().lower() == "q":
+                try:
+                    quality = float(value)
+                except ValueError:
+                    quality = 0.0
+        qualities[coding.lower()] = quality
+    for coding in ("gzip", "x-gzip", "*"):
+        if coding in qualities:
+            return qualities[coding] > 0
+    return False
 
 
 def _file_response(
@@ -37,16 +66,18 @@ def _file_response(
 ) -> HttpResponse | HttpResponseNotModified:
     """
     The stored gzip body as-is, inflated only for a client that does not accept gzip. A plain Django view: DRF content
-    negotiation would refuse an `Accept: application/geo+json` request.
+    negotiation would refuse an `Accept: application/geo+json` request. Each representation has its own ETag, so a
+    cache never revalidates one encoding's bytes with the other's validator.
     """
-    etag = f'"{sha256}"'
+    gzipped = _accepts_gzip(request.headers.get("Accept-Encoding", ""))
+    etag = f'"{sha256}-gzip"' if gzipped else f'"{sha256}"'
     headers = {"ETag": etag, "Cache-Control": cache_control, "Vary": "Accept-Encoding"}
     if etag in (e.removeprefix("W/") for e in parse_etags(request.headers.get("If-None-Match", ""))):
         return HttpResponseNotModified(headers=headers)
     body = RegionMapFile.objects.filter(pk=sha256).values_list("body", flat=True).first()
     if body is None:
         return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
-    if "gzip" in request.headers.get("Accept-Encoding", ""):
+    if gzipped:
         return HttpResponse(bytes(body), content_type=content_type, headers={**headers, "Content-Encoding": "gzip"})
     return HttpResponse(gzip.decompress(body), content_type=content_type, headers=headers)
 
