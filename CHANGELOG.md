@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.6.0] - 2026-10-30
+
 ### Fixed
 
 - The genre reparent latency SLO test always moves the same genre and never picks a pop-side one, which the API rightly rejects under a root that already has a pop child. It used to pick a random genre and failed intermittently with 400.
