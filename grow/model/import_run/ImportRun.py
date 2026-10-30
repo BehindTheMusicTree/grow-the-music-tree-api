@@ -11,6 +11,7 @@ class ImportRun(models.Model):
         ARTISTS = "artists"
         UNRESOLVED_GENRE_TAGS = "unresolved_genre_tags"
         GENEALOGY = "genealogy"
+        REGION_MAP = "region_map"
 
     kind = models.TextField(choices=Kind.choices)
     imported_on = models.DateTimeField(auto_now_add=True)
