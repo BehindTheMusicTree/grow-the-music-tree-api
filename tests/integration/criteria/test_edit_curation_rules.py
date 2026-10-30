@@ -3,6 +3,8 @@ from rest_framework import status
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.criteria.GenreTestCase import GenreTestCase
 
 REASON = "grow admin edit by admin"
@@ -197,3 +199,66 @@ class TestCase(GenreTestCase):
         response = self._post_genre_exclude("00000000-0000-0000-0000-000000000000", None)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_side_to_pop_then_pop_side_rule_locked_and_history(self):
+        pop_punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
+
+        response = self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "pop"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("canonical_genre_pop_side") == [
+            {"root_item_id": "Q888001", "pop_child_item_id": "Q888003", "reason": REASON}
+        ]
+        genre = Genre.objects.get(pk=pop_punk.pk)
+        assert genre.side == "pop"
+        assert genre.is_manually_edited
+        history = HistoryEntry.objects.filter(action=HistoryAction.SIDE_CHANGED).get()
+        assert (history.old_value, history.new_value) == ("core", "pop")
+
+    def test_side_back_to_core_then_pop_side_rule_deleted(self):
+        pop_punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
+        self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "pop"})
+
+        response = self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "core"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("canonical_genre_pop_side") == []
+        assert Genre.objects.get(pk=pop_punk.pk).side == "core"
+
+    def test_side_to_pop_on_local_grouping_then_rule_with_local_ids(self):
+        grouping = self.model_fixture_factory.create_genre("Rock grouping", wikidata_id="LOCAL:rock-888")
+        pop = self.model_fixture_factory.create_genre("Pop rock", wikidata_id="LOCAL:pop-rock-888", parent=grouping)
+
+        assert self._put_genre(pop.uuid, data={"name": "Pop rock", "side": "pop"}).status_code == status.HTTP_200_OK
+
+        assert CurationEntry.objects.filter(
+            list_name="canonical_genre_pop_side", key="LOCAL:rock-888\tLOCAL:pop-rock-888"
+        ).exists()
+
+    def test_second_pop_child_then_400_and_rolled_back(self):
+        pop_punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
+        soft_rock = self.model_fixture_factory.create_genre("Soft rock", wikidata_id="Q888004", parent=self.rock)
+        self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "pop"})
+
+        response = self._put_genre(soft_rock.uuid, data={"name": "Soft rock", "side": "pop"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert Genre.objects.get(pk=soft_rock.pk).side != "pop"
+        assert [r["pop_child_item_id"] for r in _rows("canonical_genre_pop_side")] == ["Q888003"]
+
+    def test_side_to_pop_off_root_child_then_400(self):
+        pop_punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
+        skate_punk = self.model_fixture_factory.create_genre("Skate punk", wikidata_id="Q888004", parent=pop_punk)
+
+        response = self._put_genre(skate_punk.uuid, data={"name": "Skate punk", "side": "pop"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert _rows("canonical_genre_pop_side") == []
+
+    def test_side_to_pop_on_app_created_genre_then_locked_without_rule(self):
+        mine = self.model_fixture_factory.create_genre("My pop", parent=self.rock)
+
+        assert self._put_genre(mine.uuid, data={"name": "My pop", "side": "pop"}).status_code == status.HTTP_200_OK
+
+        assert Genre.objects.get(pk=mine.pk).is_manually_edited
+        assert _rows("canonical_genre_pop_side") == []

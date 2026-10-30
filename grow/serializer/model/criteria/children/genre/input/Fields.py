@@ -4,3 +4,4 @@ from grow.serializer.model.criteria.input.Fields import Fields as CriteriaInputF
 class Fields(CriteriaInputFields):
     ESSENTIAL_SONGS = "essential_songs"
     SUMMARY = "summary"
+    SIDE = "side"
