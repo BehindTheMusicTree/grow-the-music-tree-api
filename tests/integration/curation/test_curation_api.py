@@ -42,7 +42,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         lists = {lst["name"]: lst for lst in response.json()}
         assert set(lists) == set(CURATION_LISTS)
-        assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_genre_name", "pop_child_genre_name"]
+        assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
 
     def test_create_then_row_snake_case_and_history(self):
         response = self._create(ITEM)
@@ -158,33 +158,33 @@ class TestCase(AppTestCase):
         assert self._history(uuid)[-1].action == HistoryAction.DELETED
 
     def test_composite_key_then_split_back(self):
-        row = {"root_genre_name": "rock", "pop_child_genre_name": "test pop child", "reason": "r"}
+        row = {"root_item_id": "Q11399", "pop_child_item_id": "LOCAL:test-pop-child", "reason": "r"}
 
         response = self._create(row, "canonical_genre_pop_side")
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"] == row
-        assert CurationEntry.objects.get(uuid=response.json()["uuid"]).key == "rock\ttest pop child"
+        assert CurationEntry.objects.get(uuid=response.json()["uuid"]).key == "Q11399\tLOCAL:test-pop-child"
 
     def test_second_pop_child_for_root_then_400(self):
         self._create(
-            {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}, "canonical_genre_pop_side"
+            {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}, "canonical_genre_pop_side"
         )
 
         response = self._create(
-            {"root_genre_name": "rock", "pop_child_genre_name": "soft rock", "reason": "r"}, "canonical_genre_pop_side"
+            {"root_item_id": "Q11399", "pop_child_item_id": "Q1072283", "reason": "r"}, "canonical_genre_pop_side"
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "pop rock" in str(response.json())
+        assert "Q484641" in str(response.json())
 
     def test_patch_pop_child_of_same_root_then_200(self):
-        row = {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}
+        row = {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}
         uuid = self._create(row, "canonical_genre_pop_side").json()["uuid"]
 
         response = self.api_client.patch(
             self._entry_url(uuid, "canonical_genre_pop_side"),
-            {"row": {**row, "pop_child_genre_name": "soft rock"}},
+            {"row": {**row, "pop_child_item_id": "Q1072283"}},
             format="json",
         )
 
@@ -192,13 +192,13 @@ class TestCase(AppTestCase):
 
     def test_upsert_second_pop_child_for_root_then_invalid(self):
         CurationEntry.objects.upsert(
-            "canonical_genre_pop_side", {"root_genre_name": "rock", "pop_child_genre_name": "pop rock", "reason": "r"}
+            "canonical_genre_pop_side", {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}
         )
 
         with self.assertRaises(InvalidRow):
             CurationEntry.objects.upsert(
                 "canonical_genre_pop_side",
-                {"root_genre_name": "rock", "pop_child_genre_name": "soft rock", "reason": "r"},
+                {"root_item_id": "Q11399", "pop_child_item_id": "Q1072283", "reason": "r"},
             )
 
     def test_bool_column_then_coerced(self):
@@ -389,9 +389,9 @@ class TestCase(AppTestCase):
         assert self._create({**ITEM, "item_id": "LOCAL:my-genre"}).status_code == status.HTTP_201_CREATED
 
     def test_tab_in_key_column_then_400(self):
-        row = {"root_genre_name": "rock\tx", "pop_child_genre_name": "pop", "reason": "r"}
+        row = {"musicbrainz_genre_name": "rock\tx", "item_id": "Q11399", "is_default": "", "reason": "r"}
 
-        assert self._create(row, "canonical_genre_pop_side").status_code == status.HTTP_400_BAD_REQUEST
+        assert self._create(row, "genre_disambiguation").status_code == status.HTTP_400_BAD_REQUEST
 
     def test_patch_key_to_existing_then_400(self):
         self._create(ITEM)

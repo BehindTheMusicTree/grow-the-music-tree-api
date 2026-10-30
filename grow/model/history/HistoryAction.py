@@ -5,6 +5,7 @@ class HistoryAction(models.TextChoices):
     CREATED = "created", "Created"
     PARENT_CHANGED = "parent_changed", "Parent changed"
     RENAMED = "renamed", "Renamed"
+    SIDE_CHANGED = "side_changed", "Side changed"
     EXCLUDED = "excluded", "Excluded"
     GENRE_CHANGED = "genre_changed", "Genre changed"
     UPDATED = "updated", "Updated"
