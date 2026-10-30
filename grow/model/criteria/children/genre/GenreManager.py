@@ -4,11 +4,12 @@ from django.db import transaction
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
+from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.lists import EXCLUDED_GENRE_LISTS
-from grow.curation.rows import KEY_SEPARATOR, find_parent_rule, lock_writes
+from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, find_parent_rule, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -152,6 +153,33 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance, action=HistoryAction.RENAMED, actor=actor, old_value=old_name, new_value=instance.name
         )
 
+    def _on_side_changed(self, instance: Genre, *, old_side: str, actor: Any = None) -> None:
+        if actor is not None:
+            self._lock(instance)
+            self._write_pop_side_rule(instance, actor)
+        HistoryEntry.objects.record(
+            instance,
+            action=HistoryAction.SIDE_CHANGED,
+            actor=actor,
+            old_value=old_side,
+            new_value=instance.side or CriteriaSide.CORE,
+        )
+
+    def _write_pop_side_rule(self, instance: Genre, actor: Any) -> None:
+        """Unlike the wikidata lists, the pop-side list applies to the gold tree, so `LOCAL:` grouping nodes count."""
+        root_item_id = self.filter(pk=instance.root.pk).values_list("wikidata_id", flat=True).first()
+        if instance.tree_name != CriteriaTreeName.CANONICAL or instance.wikidata_id is None or root_item_id is None:
+            return
+        if instance.side == CriteriaSide.POP:
+            row = {"root_item_id": root_item_id, "pop_child_item_id": instance.wikidata_id}
+            upsert_admin_rule(POP_SIDE_LIST, row, actor)
+            return
+        entries = CurationEntry.objects.filter(
+            user=None, list_name=POP_SIDE_LIST, key=KEY_SEPARATOR.join((root_item_id, instance.wikidata_id))
+        )
+        for entry in entries:
+            CurationEntry.objects.delete_instance(entry, actor=actor)
+
     def assert_required_roots_present(self, user: Any) -> None:
         existing_root_names = set(self.get_roots(user).filter(is_excluded=False).values_list("_name", flat=True))
         missing_root_names = sorted(REQUIRED_ROOT_GENRE_NAMES - existing_root_names)
@@ -289,6 +317,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
         self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
+        old_side = instance.side or CriteriaSide.CORE
         summary_changed = "summary" in kwargs and (kwargs["summary"] or "") != (instance.summary or "")
         essential_songs_changed = "essential_songs" in kwargs and [
             song.pk for song in kwargs["essential_songs"]
@@ -302,6 +331,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         updated = super().update_instance(instance, actor=actor, **kwargs)
         if dropped_secondary_edge:
             self._drop_secondary_add_rule(updated, new_parent.pk, actor)
+        if (updated.side or CriteriaSide.CORE) != old_side:
+            self._on_side_changed(updated, old_side=old_side, actor=actor)
         if actor is not None:
             if summary_changed:
                 self._upsert_rule(updated, "summary_overrides", actor, summary=kwargs["summary"] or "")

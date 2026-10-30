@@ -7,7 +7,17 @@ ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
 
 ITEM_ID_COLUMNS = frozenset(
-    {"item_id", "parent_item_id", "overview_item_id", "parent_id", "genre_item_id", "over_item_id", "context_item_id"}
+    {
+        "item_id",
+        "parent_item_id",
+        "overview_item_id",
+        "parent_id",
+        "genre_item_id",
+        "over_item_id",
+        "context_item_id",
+        "root_item_id",
+        "pop_child_item_id",
+    }
 )
 ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
 """A Glottocode, or the QID of a Wikidata-only cultural entity."""
@@ -141,8 +151,8 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
     "canonical_genre_pop_side": CurationList(
         "gold",
-        ("root_genre_name", "pop_child_genre_name"),
-        ("root_genre_name", "pop_child_genre_name", "reason"),
+        ("root_item_id", "pop_child_item_id"),
+        ("root_item_id", "pop_child_item_id", "reason"),
         "Direct children of a canonical root exported on its pop side.",
     ),
     "genre_alias": CurationList(
