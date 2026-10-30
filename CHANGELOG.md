@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.7.0] - 2026-10-30
+
 ### Added
 
 - Admins can flip a genre between the pop and core side of its root: `PUT /v1/genres/<uuid>/` accepts `side` (`core` | `pop`). The model still rejects a pop side off a root's direct child or a second pop child under the same root (400). An admin flip locks the genre, records a `side_changed` history entry and, on the canonical tree, writes (→ pop) or deletes (→ core) the matching `canonical_genre_pop_side` curation row. Covered in `tests/integration/criteria/test_edit_curation_rules.py`.
