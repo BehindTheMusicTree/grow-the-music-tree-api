@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.7.1] - 2026-11-01
+
+### Changed
+
+- Use explicit deployment SSH and application origin variables in deployment workflows.
+
+- Share agent guidance and migration review rules across Claude and Codex, with a drift check.
+
 ## [14.7.0] - 2026-10-30
 
 ### Added

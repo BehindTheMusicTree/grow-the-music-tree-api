@@ -16,7 +16,7 @@ Flag any PR that:
 - Reimplements a class that already exists in one of these packages instead of importing/subclassing it.
 - Adds new generic (non-genre) infra directly in `grow/` instead of proposing it for api-kit.
 - Adds new genre/tag/criteria/tree logic directly in `grow/` instead of proposing it for genre-kit — this repo's own model code should be thin concrete subclasses (`Criteria(AbstractCriteria)`, `Genre`/`Tag` proxies) plus hook overrides for its own playlist-maintenance needs, not fresh tree-structure logic.
-- Domain code that is genuinely local to grow only (artist/album/playlist/manual-playlist/play/uploaded-track — deliberately *not* shared with hear-api) is expected and fine here.
+- Domain code that is genuinely local to grow only (artist/album/playlist/manual-playlist/play/song — deliberately *not* shared with hear-api) is expected and fine here.
 
 ## Config / fail-fast pattern
 
@@ -24,11 +24,11 @@ Flag any PR that:
 
 ## Migrations
 
-No migration files are ever copied in from hear-api or the shared packages — this service generates its own independent migration history against the shared abstract base classes. Flag any PR that changes a model field without a corresponding migration, or that hand-edits a migration file instead of regenerating it via `makemigrations`.
+Read `.agents/rules/migrations.md` before reviewing migration changes. Check model changes have matching migrations and validate MTI database/state behavior; hand-authored operations may be necessary.
 
 ## Cross-repo dependency pins
 
-`pyproject.toml` pins `the-music-tree-api-kit` and `the-music-tree-genre-kit` via `git+https://...@<tag>`. When reviewing a PR that bumps either pin, confirm it points at a real tag on that package's `main` (not a feature branch), that the corresponding change has already merged and gone green in its own CI, and that `uv.lock` was regenerated in the same commit — a stale lockfile after a pin bump is easy to miss in review. Also watch for git-ref conflicts: if two dependencies-of-dependencies pin the same shared package to different refs, `uv lock` fails even when one ref is a strict ancestor of the other (uv does not do content-based dedup across git refs).
+`pyproject.toml` directly pins `the-music-tree-genre-kit` via a Git tag; `uv.lock` records its transitive dependencies, including api-kit. When reviewing a PR that bumps either pin, confirm it points at a real tag on that package's `main` (not a feature branch), that the corresponding change has already merged and gone green in its own CI, and that `uv.lock` was regenerated in the same commit — a stale lockfile after a pin bump is easy to miss in review. Also watch for git-ref conflicts: if two dependencies-of-dependencies pin the same shared package to different refs, `uv lock` fails even when one ref is a strict ancestor of the other (uv does not do content-based dedup across git refs).
 
 ## Style and tooling
 
