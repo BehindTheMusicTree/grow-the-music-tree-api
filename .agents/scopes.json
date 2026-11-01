@@ -1,0 +1,9 @@
+{
+  "migrations": {
+    "source": ".agents/rules/migrations.md",
+    "paths": [
+      "grow/model/**/*.py",
+      "grow/migrations/*.py"
+    ]
+  }
+}

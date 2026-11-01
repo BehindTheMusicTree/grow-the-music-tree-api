@@ -16,8 +16,9 @@ docker compose up
 
 This starts:
 - **`db`** — Postgres 16.4 on host port `5433`
+- **`redis`** and **`worker`** — Redis and the django-q2 worker
 - **`api`** — Django, via `docker-compose.override.yml`'s command: waits for
-  Postgres, runs `python3 manage.py migrate`, then
+  Postgres, runs `python3 manage.py migrate`, starts the development seed, then
   `python3 manage.py runserver 0.0.0.0:${APP_PORT:-8001}` with the repo
   mounted for live reload
 
