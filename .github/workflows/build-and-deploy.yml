@@ -2,8 +2,8 @@
 # to GHCR, keeping Docker builds off the CPU-bound VPS. One image serves both Coolify apps: gtmt-api
 # and its django-q2 worker (same image, qcluster entrypoint override set in the infrastructure repo).
 # Coolify deploys the moving `staging` / `prod` tag. Requires org-level vars COOLIFY_API_SUBDOMAIN,
-# DOMAIN_NAME, SERVER_HOST and org-level secret COOLIFY_API_TOKEN. The api health check passes
-# health_check_origin_ip (SERVER_HOST) to curl --resolve straight to the origin, bypassing
+# DOMAIN_NAME, DEPLOY_SSH_HOST, APP_ORIGIN_IP and org-level secret COOLIFY_API_TOKEN. The api health check passes
+# health_check_origin_ip (APP_ORIGIN_IP) to curl --resolve straight to the origin, bypassing
 # Cloudflare's Bot Fight Mode.
 name: Build and deploy
 
@@ -91,7 +91,7 @@ jobs:
           image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
           command: python3 manage.py migrate --no-input
           timeout_minutes: 60
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS }}
@@ -105,12 +105,12 @@ jobs:
           coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS }}
           health_check_path: /health/
-          health_check_origin_ip: ${{ vars.SERVER_HOST }}
+          health_check_origin_ip: ${{ vars.APP_ORIGIN_IP }}
 
       - name: Trigger worker deploy
         uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
@@ -120,7 +120,7 @@ jobs:
           coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS }}
@@ -146,7 +146,7 @@ jobs:
           image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
           command: python3 manage.py migrate --no-input
           timeout_minutes: 60
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
@@ -159,12 +159,12 @@ jobs:
           coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
           health_check_path: /health/
-          health_check_origin_ip: ${{ vars.SERVER_HOST }}
+          health_check_origin_ip: ${{ vars.APP_ORIGIN_IP }}
 
       - name: Trigger worker deploy
         uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
@@ -174,7 +174,7 @@ jobs:
           coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
           domain: ${{ vars.DOMAIN_NAME }}
           coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
-          server_host: ${{ vars.SERVER_HOST }}
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
           server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
           server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
