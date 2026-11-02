@@ -10,6 +10,7 @@ from rest_framework import status
 
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.view.pagination.OptionalTotalPagination import MAX_PUBLIC_OFFSET
 from perf.conftest import largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
 
@@ -28,6 +29,9 @@ SLO_MS = {
     "playlist-detail (largest genre)": 100,
     "genre-playlist-tracks?page_size=100 (largest genre)": 150,
     "artist-genre-counts (Canned Heat)": 150,
+    # Unmeasured placeholders: tighten to ~2x the median once run against the Postgres seed.
+    "song-list?artist (Canned Heat, deepest public page)": 300,
+    "song-list?genre cursor (largest genre)": 300,
 }
 
 
@@ -38,6 +42,16 @@ def _large_playlist(name: str) -> str:
 def _largest_artist_genre_counts() -> str:
     artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
     return reverse("artist-genre-counts", kwargs={"pk": artist.uuid})
+
+
+def _canned_heat_deepest_public_page() -> tuple[str, dict]:
+    artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
+    page_size = 100
+    return reverse("song-list"), {
+        "artist": str(artist.uuid),
+        "page_size": page_size,
+        "page": MAX_PUBLIC_OFFSET // page_size + 1,
+    }
 
 
 PATHS = {
@@ -53,6 +67,11 @@ PATHS = {
         {"page_size": 100},
     ),
     "artist-genre-counts (Canned Heat)": lambda: (_largest_artist_genre_counts(), {}),
+    "song-list?artist (Canned Heat, deepest public page)": _canned_heat_deepest_public_page,
+    "song-list?genre cursor (largest genre)": lambda: (
+        reverse("song-list"),
+        {"genre": str(largest_genre_playlist().criteria_id), "page_size": 100, "with_total": "false"},
+    ),
 }
 
 

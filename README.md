@@ -79,6 +79,7 @@ Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `p
 | `YOUTUBE_API_KEY`        | yes      | —         | YouTube Data API key checking a manually set song video (`PATCH library/songs/{uuid}/`); startup fails without it |
 | `ADMIN_GOOGLE_SUB`       | yes      | —         | Google account `sub` that gets the `admin` role; any other verified Google account is a read-only `viewer` |
 | `DATABASE_URL`           | yes      | —         | Postgres connection string, parsed via `dj-database-url`                                                   |
+| `TRUSTED_PROXY_COUNT`    | yes      | —         | Proxy hops in front of the app (prod and staging: `2`, Cloudflare + Traefik; local: `0`). Throttles key on the client IP that many hops from the end of `X-Forwarded-For` |
 | `DEBUG`                  | no       | `false`   |                                                                                                            |
 | `ALLOWED_HOSTS`          | no       | `""`      | Comma-separated                                                                                            |
 | `GIT_COMMIT`             | no       | —         | Surfaced as `commit` in `/health/`; baked into the image by the build workflow                             |
@@ -104,7 +105,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`) |
+| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`). Non-admin lists need `genre` or `artist` (400 otherwise); `genre` alone needs `withTotal=false` with no `page` (cursor paging); OFFSET paging stops at 10 000 rows (`totalPages` is clamped, deeper pages 400); throttled to 300/min per client (429) |
 | `/v1/curation/lists/`         | The pipeline curation lists: `{name, keyColumns, columns, description}` (admin only) |
 | `/v1/curation/{list}/entries/` | Curation entries of one list (`GET`/`POST`, `{uuid}/` `PATCH`/`DELETE`; admin only). Body `{"row": {<csv column>: value}}`, `row` keys stay snake_case |
 | `/v1/curation/export/`        | Every list as CSV-ready rows keyed by list name, plus `exported_on` (ISO 8601, the export's instant), plain snake_case JSON (`X-API-Key` or admin) |

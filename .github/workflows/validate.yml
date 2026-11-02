@@ -20,6 +20,7 @@ jobs:
       YOUTUBE_API_KEY: mypy-ci-dummy-youtube-key
       DATABASE_URL: sqlite:///mypy-ci.sqlite3
       REDIS_URL: redis://localhost:6379/0
+      TRUSTED_PROXY_COUNT: "0"
     steps:
       - name: Checkout code
         uses: actions/checkout@v5.0.1
