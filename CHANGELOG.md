@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Scene-split guard: a genre whose children include a commercial/underground scene node must have exactly one commercial and one underground child. Curation writes and admin reparents that would add a third child, or a second node of the same scene, are rejected (400 for admin edits). Covered by `test_scene_split.py`.
+
+### Changed
+
+- Bump `the-music-tree-genre-kit` to v0.53.0, whose tree import rejects a scene split that isn't one commercial plus one underground child.
+
+### Fixed
+
+- Core electronic held 26 children on prod instead of its commercial and underground scene nodes. Migration `0088` moves the 24 stray genres under Electronic dance music or Underground electronic (including the manually edited ones the tree import would have kept), and the seed CSV matches. Covered by `test_core_electronic_strays_migration.py`.
+
 ## [14.7.1] - 2026-11-01
 
 ### Changed
