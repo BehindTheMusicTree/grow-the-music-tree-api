@@ -30,6 +30,7 @@ QID_ENTITY_LISTS = frozenset({"entity_additions"})
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
+    "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
@@ -234,6 +235,13 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("entity_id", "start_year", "end_year", "reason"),
         "Start and end year of a cultural entity (BCE negative, no year 0), overriding the sourced dates; a blank "
         "year keeps the sourced one.",
+    ),
+    "region_overrides": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "region_id", "reason"),
+        "Region of a genealogy column's entity, overriding its area-weighted continent: for transcontinental states "
+        "and religions.",
     ),
     "tradition_additions": CurationList(
         "geohistory",

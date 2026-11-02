@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `region_overrides` geohistory curation list (`entity_id`, `region_id`, `reason`): forces the region of a genealogy column's entity, for transcontinental states and religions. `region_id` is restricted to `americas`, `europe`, `africa`, `asia`, `oceania`, `religions`. Required by the pipelines curation ingest, which fails when the list is missing from `curation/export/`. Covered by `test_curation_api.py`.
+
 ### Changed
 
 - Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
