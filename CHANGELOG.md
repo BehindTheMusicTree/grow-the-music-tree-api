@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
+- Stop tracking `.pr-descriptions/` (throwaway PR body drafts) and gitignore it, so they no longer show up as untracked files or get committed.
 
 ### Fixed
 
