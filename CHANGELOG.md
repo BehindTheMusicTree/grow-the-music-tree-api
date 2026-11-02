@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
 
+### Fixed
+
+- `side="pop"` is rejected (400 on edit, import rejected) on children of the Mainstream Pop root, which has no pop/core split. Covered by `test_edit_curation_rules.py` and `test_side_import.py`.
+
 ## [14.8.0] - 2026-11-02
 
 ### Added

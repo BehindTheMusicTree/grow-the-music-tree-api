@@ -255,6 +255,17 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert _rows("canonical_genre_pop_side") == []
 
+    def test_side_to_pop_under_mainstream_pop_root_then_400(self):
+        mainstream = self.model_fixture_factory.create_genre("Mainstream Pop", wikidata_id="Q888010")
+        teen_pop = self.model_fixture_factory.create_genre("Teen pop", wikidata_id="Q888011", parent=mainstream)
+
+        response = self._put_genre(teen_pop.uuid, data={"name": "Teen pop", "side": "pop"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "side" in str(response.json())
+        assert Genre.objects.get(pk=teen_pop.pk).side != "pop"
+        assert _rows("canonical_genre_pop_side") == []
+
     def test_side_to_pop_on_app_created_genre_then_locked_without_rule(self):
         mine = self.model_fixture_factory.create_genre("My pop", parent=self.rock)
 
