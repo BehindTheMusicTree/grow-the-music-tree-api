@@ -43,6 +43,15 @@ class TestCase(AppTestCase):
     def test_public_list_with_text_filter_only_is_rejected_before_any_query(self):
         self._assert_rejected_without_query({"title": "T"})
 
+    def test_public_empty_scope_values_are_rejected_before_any_query(self):
+        self._assert_rejected_without_query({"artist": ""})
+        self._assert_rejected_without_query({"genre": "", "withTotal": "false"})
+
+    def test_public_zero_page_size_is_rejected(self):
+        for params in ({"page_size": 0}, {"page_size": 0, "withTotal": "false", "genre": str(self.genre.uuid)}):
+            response = self._public_get({"artist": str(self.artist.uuid), **params})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, params
+
     def test_admin_list_without_scope_is_allowed(self):
         response = self.api_client.get(path=reverse(self.list_endpoint))
 

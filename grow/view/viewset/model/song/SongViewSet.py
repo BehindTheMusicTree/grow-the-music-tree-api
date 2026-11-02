@@ -51,9 +51,10 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     def _reject_unbounded_list(self) -> None:
         """Public callers can't make Postgres count, sort or skip through the whole catalog."""
         params = self.request.query_params
-        if not any(param in params for param in SCOPE_PARAMS):
+        # An empty value (`artist=`) is ignored by the filter, so it must not count as a scope.
+        if not any(params.get(param) for param in SCOPE_PARAMS):
             raise ParseError("Listing songs requires a `genre` or `artist` filter.")
-        if "artist" not in params and not wants_cursor(self.request):
+        if not params.get("artist") and not wants_cursor(self.request):
             # A genre subtree can be most of the catalog: only the keyset path stays cheap at any depth.
             raise ParseError("Listing a genre's songs requires `withTotal=false` and no `page`.")
 

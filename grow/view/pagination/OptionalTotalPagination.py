@@ -65,8 +65,11 @@ class OptionalTotalPagination(AppPagination):
         self._no_total = wants_no_total(request)
         self._cursor_mode = wants_cursor(request)
         self._public = not is_admin(request)
-        if self._public and not self._cursor_mode:
-            self._reject_deep_offset(request)
+        if self._public:
+            if self.get_page_size(request) < 1:  # page_size=0 would switch pagination off
+                raise ParseError("Invalid page size.")
+            if not self._cursor_mode:
+                self._reject_deep_offset(request)
         if not self._no_total:
             return super().paginate_queryset(queryset, request, view)
         self.request = request
