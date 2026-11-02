@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** the region map no longer stores or serves GeoJSON. The geometry moves to one immutable vector tileset (`regions/<sha256>.pmtiles`) on object storage, referenced by the new `tileset` sha256 of `GET /v1/regions/map/`'s index, so stats and geometry switch atomically. A region map import run now uploads `index.json` only; the merge refuses an index without a valid `tileset`, one still carrying `files`, or any other uploaded path, and keeps a single snapshot. Tested on SQLite and, for the merge, on Postgres.
+
+### Removed
+
+- `GET /v1/regions/map/files/{sha256}/` and the `RegionMapSnapshotFile` table. Migration `0090` drops the table and deletes every stored snapshot and GeoJSON blob (not restored on reverse), so `GET /v1/regions/map/` answers 404 until the pipeline imports its first tileset-based region map.
+
 ### Added
 
 - `region_overrides` geohistory curation list (`entity_id`, `region_id`, `reason`): forces the region of a genealogy column's entity, for transcontinental states and religions. `region_id` is restricted to `americas`, `europe`, `africa`, `asia`, `oceania`, `religions`. Required by the pipelines curation ingest, which fails when the list is missing from `curation/export/`. Covered by `test_curation_api.py`.
