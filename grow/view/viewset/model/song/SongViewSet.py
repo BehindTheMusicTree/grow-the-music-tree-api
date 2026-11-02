@@ -1,8 +1,9 @@
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
-from grow.filtering.set.song.SongFilterSet import SongFilterSet
+from grow.filtering.set.song.SongFilterSet import SCOPE_PARAMS, SongFilterSet
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SEARCH_PAGE_SIZE, SongCurationManager
@@ -22,7 +23,7 @@ from grow.view.pagination.OptionalTotalPagination import (
     wants_cursor,
     wants_no_total,
 )
-from grow.view.permission.IsAdmin import IsAdmin
+from grow.view.permission.IsAdmin import IsAdmin, is_admin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
@@ -30,6 +31,13 @@ from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
+    throttle_scope = "songs-list"
+
+    def get_throttles(self):
+        # Only the public list is throttled; admins and the other actions (search, imports) keep their own limits.
+        if self.action == "list" and not is_admin(self.request):
+            return [ScopedRateThrottle()]
+        return []
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -40,7 +48,19 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             **kwargs,
         )
 
+    def _reject_unbounded_list(self) -> None:
+        """Public callers can't make Postgres count, sort or skip through the whole catalog."""
+        params = self.request.query_params
+        # An empty value (`artist=`) is ignored by the filter, so it must not count as a scope.
+        if not any(params.get(param) for param in SCOPE_PARAMS):
+            raise ParseError("Listing songs requires a `genre` or `artist` filter.")
+        if not params.get("artist") and not wants_cursor(self.request):
+            # A genre subtree can be most of the catalog: only the keyset path stays cheap at any depth.
+            raise ParseError("Listing a genre's songs requires `withTotal=false` and no `page`.")
+
     def list(self, *args, **kwargs):
+        if not is_admin(self.request):
+            self._reject_unbounded_list()
         # Genreless songs are stored for later linking but have no place in the tree.
         queryset = self.get_queryset().filter(genre__isnull=False)
         if wants_cursor(self.request):

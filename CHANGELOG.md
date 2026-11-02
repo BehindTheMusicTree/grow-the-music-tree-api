@@ -15,6 +15,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
+- **Breaking:** `GET library/songs/` is bounded for non-admin callers, before any SQL runs. A list needs a `genre` or `artist` filter (400 otherwise); a `genre`-only list must use cursor paging (`withTotal=false`, no `page`); OFFSET paging stops at 10 000 rows (deeper or non-numeric pages 400, `totalPages` is clamped, `overallTotal` stays exact); and the list is throttled to 300/min per client (429). Admins are exempt. Covered by `test_list_bounds.py`.
+
+### Fixed
+
+- Throttles keyed on the wrong client: `NUM_PROXIES` was unset, so behind Cloudflare and Traefik every client shared one bucket or could dodge it by forging `X-Forwarded-For`. The new required env var `TRUSTED_PROXY_COUNT` (prod and staging `2`, local `0`) sets it. Covered by `test_throttle_ignores_spoofed_leading_forwarded_for_hops` and `test_artist_search_is_throttled`.
 
 ## [14.8.0] - 2026-11-02
 

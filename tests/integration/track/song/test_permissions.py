@@ -8,9 +8,10 @@ class TestCase(AppTestCase):
     list_endpoint = "song-list"
 
     def test_get_without_api_key_then_200_ok(self):
+        artist = self.model_fixture_factory.create_artist("Pink Floyd")
         self.api_client.credentials()
 
-        response = self.api_client.get(path=reverse(self.list_endpoint))
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"artist": str(artist.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
 
