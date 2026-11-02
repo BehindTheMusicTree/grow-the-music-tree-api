@@ -1,16 +1,11 @@
 from django.db import migrations
 
 
-def drop_geometry_blobs(apps, schema_editor):
-    """The geometry now lives in an immutable tileset on object storage: keep only the latest snapshot and its index."""
-    Snapshot = apps.get_model("grow", "RegionMapSnapshot")
-    File = apps.get_model("grow", "RegionMapFile")
-    latest = Snapshot.objects.first()
-    if latest is None:
-        File.objects.all().delete()
-        return
-    Snapshot.objects.exclude(pk=latest.pk).delete()
-    File.objects.exclude(sha256=latest.checksum).delete()
+def drop_geometry_snapshots(apps, schema_editor):
+    """Snapshots in the old format list GeoJSON files and no tileset, and their files are gone: drop them so the index
+    answers 404 until the pipeline imports the first tileset-based region map. Not reversible (data is not restored)."""
+    apps.get_model("grow", "RegionMapSnapshot").objects.all().delete()
+    apps.get_model("grow", "RegionMapFile").objects.all().delete()
 
 
 class Migration(migrations.Migration):
@@ -20,5 +15,5 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.DeleteModel(name="RegionMapSnapshotFile"),
-        migrations.RunPython(drop_geometry_blobs, migrations.RunPython.noop),
+        migrations.RunPython(drop_geometry_snapshots, migrations.RunPython.noop),
     ]

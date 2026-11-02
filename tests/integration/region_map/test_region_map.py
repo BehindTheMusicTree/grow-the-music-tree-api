@@ -223,6 +223,7 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._sync(_parts(), client=self.pipeline) == {"imported": 0, "skipped": 1}
 
         assert RegionMapSnapshot.objects.count() == 1
+        assert RegionMapFile.objects.count() == 1
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("region_map", 1, 1)]
 
     def test_changed_import_recorded_and_linked_to_snapshot(self):

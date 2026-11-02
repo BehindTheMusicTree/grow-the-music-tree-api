@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
-- `GET /v1/regions/map/files/{sha256}/` and the `RegionMapSnapshotFile` table. Migration `0090` drops the table and the stored GeoJSON blobs, keeping only the latest snapshot's index.
+- `GET /v1/regions/map/files/{sha256}/` and the `RegionMapSnapshotFile` table. Migration `0090` drops the table and deletes every stored snapshot and GeoJSON blob (not restored on reverse), so `GET /v1/regions/map/` answers 404 until the pipeline imports its first tileset-based region map.
 
 ### Added
 

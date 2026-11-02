@@ -87,7 +87,12 @@ class RegionMapIndexView(View):
     vector tileset (`regions/<sha256>.pmtiles`) holding the geometry, published by the pipeline to object storage."""
 
     def get(self, request: HttpRequest) -> HttpResponse | HttpResponseNotModified:
-        snapshot = RegionMapSnapshot.objects.first()
-        if snapshot is None:
-            return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
-        return _index_response(request, snapshot.checksum, "no-cache")
+        # A merge that commits between the snapshot read and the file read deletes the file just resolved: read again.
+        for _ in range(2):
+            snapshot = RegionMapSnapshot.objects.first()
+            if snapshot is None:
+                break
+            response = _index_response(request, snapshot.checksum, "no-cache")
+            if response.status_code != 404:
+                return response
+        return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
