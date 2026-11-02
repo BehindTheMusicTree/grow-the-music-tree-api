@@ -4,9 +4,11 @@ import time
 import pytest
 from django.core.cache import cache
 from django.db import connection
+from django.db.models import Count
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.track.Fields import Fields as TrackFields
 
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
@@ -30,7 +32,7 @@ SLO_MS = {
     "genre-playlist-tracks?page_size=100 (largest genre)": 150,
     "artist-genre-counts (Canned Heat)": 150,
     # Unmeasured placeholders: tighten to ~2x the median once run against the Postgres seed.
-    "song-list?artist (Canned Heat, deepest public page)": 300,
+    "song-list?artist (largest artist, deepest public page)": 300,
     "song-list?genre cursor (largest genre)": 300,
 }
 
@@ -44,13 +46,19 @@ def _largest_artist_genre_counts() -> str:
     return reverse("artist-genre-counts", kwargs={"pk": artist.uuid})
 
 
-def _canned_heat_deepest_public_page() -> tuple[str, dict]:
-    artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
+def _largest_artist_deepest_public_page() -> tuple[str, dict]:
+    """Deepest page a public caller may request for the artist with the most songs (capped by their last page)."""
     page_size = 100
+    artist = (
+        Artist.objects.filter(user__isnull=True)
+        .annotate(song_count=Count(TrackFields.TRACKS_OF_ARTIST_RELATED_NAME))
+        .order_by("-song_count")[0]
+    )
+    last_page = -(-artist.song_count // page_size)
     return reverse("song-list"), {
         "artist": str(artist.uuid),
         "page_size": page_size,
-        "page": MAX_PUBLIC_OFFSET // page_size + 1,
+        "page": min(MAX_PUBLIC_OFFSET // page_size + 1, last_page),
     }
 
 
@@ -67,7 +75,7 @@ PATHS = {
         {"page_size": 100},
     ),
     "artist-genre-counts (Canned Heat)": lambda: (_largest_artist_genre_counts(), {}),
-    "song-list?artist (Canned Heat, deepest public page)": _canned_heat_deepest_public_page,
+    "song-list?artist (largest artist, deepest public page)": _largest_artist_deepest_public_page,
     "song-list?genre cursor (largest genre)": lambda: (
         reverse("song-list"),
         {"genre": str(largest_genre_playlist().criteria_id), "page_size": 100, "with_total": "false"},
