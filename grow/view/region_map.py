@@ -18,7 +18,7 @@ from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 
 
 class RegionMapViewSet(viewsets.ViewSet):
-    """Pipeline import of the region map: one full run uploads the index and every GeoJSON file, one line each."""
+    """Pipeline import of the region map: one full run uploads the index, one line."""
 
     authentication_classes = [GoogleIdTokenAuthentication, ApiKeyAuthentication]
 
@@ -61,13 +61,11 @@ def _accepts_gzip(accept_encoding: str) -> bool:
     return False
 
 
-def _file_response(
-    request: HttpRequest, sha256: str, content_type: str, cache_control: str
-) -> HttpResponse | HttpResponseNotModified:
+def _index_response(request: HttpRequest, sha256: str, cache_control: str) -> HttpResponse | HttpResponseNotModified:
     """
     The stored gzip body as-is, inflated only for a client that does not accept gzip. A plain Django view: DRF content
-    negotiation would refuse an `Accept: application/geo+json` request. Each representation has its own ETag, so a
-    cache never revalidates one encoding's bytes with the other's validator.
+    negotiation would refuse an unusual `Accept`. Each representation has its own ETag, so a cache never revalidates
+    one encoding's bytes with the other's validator.
     """
     gzipped = _accepts_gzip(request.headers.get("Accept-Encoding", ""))
     etag = f'"{sha256}-gzip"' if gzipped else f'"{sha256}"'
@@ -78,22 +76,18 @@ def _file_response(
     if body is None:
         return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
     if gzipped:
-        return HttpResponse(bytes(body), content_type=content_type, headers={**headers, "Content-Encoding": "gzip"})
-    return HttpResponse(gzip.decompress(body), content_type=content_type, headers=headers)
+        return HttpResponse(
+            bytes(body), content_type="application/json", headers={**headers, "Content-Encoding": "gzip"}
+        )
+    return HttpResponse(gzip.decompress(body), content_type="application/json", headers=headers)
 
 
 class RegionMapIndexView(View):
-    """The latest region map index, public, revalidated by its checksum. Its `files` map gives each file's URL hash."""
+    """The latest region map index, public, revalidated by its checksum. Its `tileset` is the sha256 of the immutable
+    vector tileset (`regions/<sha256>.pmtiles`) holding the geometry, published by the pipeline to object storage."""
 
     def get(self, request: HttpRequest) -> HttpResponse | HttpResponseNotModified:
         snapshot = RegionMapSnapshot.objects.first()
         if snapshot is None:
             return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
-        return _file_response(request, snapshot.checksum, "application/json", "no-cache")
-
-
-class RegionMapFileView(View):
-    """One region map GeoJSON file by content hash: its URL never changes meaning, so it is cached for good."""
-
-    def get(self, request: HttpRequest, sha256: str) -> HttpResponse | HttpResponseNotModified:
-        return _file_response(request, sha256, "application/geo+json", "public, max-age=31536000, immutable")
+        return _index_response(request, snapshot.checksum, "no-cache")

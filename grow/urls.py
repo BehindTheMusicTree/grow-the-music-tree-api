@@ -26,7 +26,7 @@ from grow.view.pipeline_run import (
     PipelineRunsView,
     PipelineRunView,
 )
-from grow.view.region_map import RegionMapFileView, RegionMapIndexView, RegionMapViewSet
+from grow.view.region_map import RegionMapIndexView, RegionMapViewSet
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import GenreViewSet
@@ -88,11 +88,6 @@ urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genealogy/", GenealogyView.as_view(), name="genealogy"),
     path(f"{settings.API_ROOT_BASE}genealogy/import/", GenealogyImportView.as_view(), name="genealogy-import"),
     path(f"{settings.API_ROOT_BASE}regions/map/", RegionMapIndexView.as_view(), name="region-map-index"),
-    path(
-        f"{settings.API_ROOT_BASE}regions/map/files/<str:sha256>/",
-        RegionMapFileView.as_view(),
-        name="region-map-file",
-    ),
     path(f"{settings.API_ROOT_BASE}pipeline/runs/", PipelineRunsView.as_view(), name="pipeline-runs"),
     path(
         f"{settings.API_ROOT_BASE}pipeline/runs/latest/", PipelineRunLatestView.as_view(), name="pipeline-runs-latest"

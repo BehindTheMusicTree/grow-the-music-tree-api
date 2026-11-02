@@ -3,7 +3,6 @@ import json
 from typing import Any
 
 from django.db import transaction
-from django.db.models import Exists, OuterRef
 
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
@@ -12,13 +11,10 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
-from grow.model.region_map.RegionMapSnapshotFile import RegionMapSnapshotFile
 from grow.region_map.bulk_import.part_loader import SHA256
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 
 INDEX_PATH = "index.json"
-# A client that loaded the previous index keeps finding its files while it renders.
-SNAPSHOTS_KEPT = 2
 # Tradition genres come from the genealogy, not the genre trees, so grow has no `Genre` for them.
 UNRESOLVED_RELATION = "tradition"
 LISTED_MAX = 20
@@ -26,9 +22,10 @@ LISTED_MAX = 20
 
 def merge_region_map_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     """
-    Swaps in the committed run's region map as the new snapshot, in one transaction: its new files stored, the
-    snapshot created, all but the last `SNAPSHOTS_KEPT` snapshots dropped with every file no snapshot lists any more.
-    An index identical to the latest snapshot's is recorded as skipped.
+    Swaps in the committed run's region map index as the only snapshot, in one transaction. The geometry is not stored
+    here: the index references the immutable tileset (`tileset`, a sha256) that the pipeline published to object storage
+    before this commit, so clients flip between geometry and stats atomically with the index. An index identical to the
+    latest snapshot's is recorded as skipped.
     """
     with hold_merge_lock(run_id):
         try:
@@ -53,20 +50,13 @@ def _staged_hashes(run_id: int) -> dict[str, str]:
     return hashes
 
 
-def _check_index(index: Any, files: dict[str, str]) -> None:
+def _check_index(index: Any) -> None:
     if not isinstance(index, dict) or not isinstance(index.get("regions"), list):
         raise ValueError("index must be an object with a regions list")
-    listed = index.get("files")
-    if not isinstance(listed, dict) or not all(
-        isinstance(sha256, str) and SHA256.fullmatch(sha256) for sha256 in listed.values()
-    ):
-        raise ValueError("index files must map each path to its sha256")
-    if missing := listed.keys() - files.keys():
-        raise ValueError(f"index lists files the run did not upload: {_listed(missing)}")
-    if extra := files.keys() - listed.keys():
-        raise ValueError(f"run uploads files the index does not list: {_listed(extra)}")
-    if mismatched := {path for path, sha256 in listed.items() if files[path] != sha256}:
-        raise ValueError(f"index sha256 differs from the uploaded file: {_listed(mismatched)}")
+    if not isinstance(index.get("tileset"), str) or not SHA256.fullmatch(index["tileset"]):
+        raise ValueError("index tileset must be the sha256 of the published tileset")
+    if "files" in index:
+        raise ValueError("index must not list files: the geometry is the tileset")
     item_ids: set[str] = set()
     for region in index["regions"]:
         if not isinstance(region, dict) or not isinstance(region.get("genres"), list):
@@ -81,44 +71,31 @@ def _check_index(index: Any, files: dict[str, str]) -> None:
 
 
 def _merge(run_id: int, record: bool) -> dict[str, Any]:
-    files = _staged_hashes(run_id)
-    if INDEX_PATH not in files:
+    paths = _staged_hashes(run_id)
+    if extra := paths.keys() - {INDEX_PATH}:
+        raise ValueError(f"import run {run_id} uploads files other than {INDEX_PATH}: {_listed(extra)}")
+    if INDEX_PATH not in paths:
         raise ValueError(f"import run {run_id} has no {INDEX_PATH}")
-    checksum = files.pop(INDEX_PATH)
-    index_body = RegionMapFileStaging.objects.get(run_id=run_id, path=INDEX_PATH).body
-    _check_index(json.loads(gzip.decompress(index_body)), files)
+    checksum = paths[INDEX_PATH]
+    staged = RegionMapFileStaging.objects.get(run_id=run_id, path=INDEX_PATH)
+    index = json.loads(gzip.decompress(staged.body))
+    _check_index(index)
+    count = len(index["regions"])
     latest = RegionMapSnapshot.objects.first()
     unchanged = latest is not None and latest.checksum == checksum
     with transaction.atomic():
         run = None
         if record:
             run = ImportRun.objects.create(
-                kind=ImportRun.Kind.REGION_MAP, count=len(files), skipped_count=len(files) if unchanged else None
+                kind=ImportRun.Kind.REGION_MAP, count=count, skipped_count=count if unchanged else None
             )
         if unchanged:
-            return {"imported": 0, "skipped": len(files)}
-        stored = set(
-            RegionMapFile.objects.filter(sha256__in=[checksum, *files.values()]).values_list("sha256", flat=True)
-        )
+            return {"imported": 0, "skipped": count}
         RegionMapFile.objects.bulk_create(
-            [
-                RegionMapFile(sha256=sha256, body=body, size=len(body))
-                for sha256, body in RegionMapFileStaging.objects.filter(run_id=run_id)
-                .exclude(sha256__in=stored)
-                .values_list("sha256", "body")
-                .iterator()
-            ],
-            ignore_conflicts=True,
+            [RegionMapFile(sha256=checksum, body=staged.body, size=len(staged.body))], ignore_conflicts=True
         )
-        # A snapshot re-imported after a newer one moves back to the front instead of colliding on its checksum.
-        RegionMapSnapshot.objects.filter(checksum=checksum).delete()
-        snapshot = RegionMapSnapshot.objects.create(checksum=checksum, import_run=run)
-        RegionMapSnapshotFile.objects.bulk_create(
-            RegionMapSnapshotFile(snapshot=snapshot, path=path, file_id=sha256)
-            for path, sha256 in {INDEX_PATH: checksum, **files}.items()
-        )
-        RegionMapSnapshot.objects.exclude(
-            pk__in=list(RegionMapSnapshot.objects.values_list("pk", flat=True)[:SNAPSHOTS_KEPT])
-        ).delete()
-        RegionMapFile.objects.filter(~Exists(RegionMapSnapshotFile.objects.filter(file=OuterRef("pk")))).delete()
-    return {"imported": len(files), "skipped": 0}
+        # Only the latest index is served; the tilesets it references are immutable and live in object storage.
+        RegionMapSnapshot.objects.all().delete()
+        RegionMapSnapshot.objects.create(checksum=checksum, import_run=run)
+        RegionMapFile.objects.exclude(sha256=checksum).delete()
+    return {"imported": count, "skipped": 0}
