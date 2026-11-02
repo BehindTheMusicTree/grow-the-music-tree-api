@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [14.8.0] - 2026-11-02
+
 ### Added
 
 - Scene-split guard: a genre whose children include a commercial/underground scene node must have exactly one commercial and one underground child. Curation writes and admin reparents that would add a third child, or a second node of the same scene, are rejected (400 for admin edits). Covered by `test_scene_split.py`.
