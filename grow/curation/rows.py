@@ -30,6 +30,8 @@ from grow.curation.lists import (
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_genres"
+MAIN_PARENT_LIST = "main_parent"
+SCENE_LIST = "canonical_genre_scene"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
@@ -194,6 +196,41 @@ def find_other_pop_child_error(
     return f"{root} already has the pop child {other_key.split(KEY_SEPARATOR, 1)[1]}; a root has at most one"
 
 
+def find_scene_split_error(
+    queryset: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None
+) -> str | None:
+    """Why `parsed` would break a scene split, if it would.
+
+    A genre with a scene child is a split: its children are exactly one commercial and one underground scene node.
+    Only curated placements are visible here; the pipeline's Gold stage checks the built tree."""
+    if list_name not in (MAIN_PARENT_LIST, SCENE_LIST):
+        return None
+    others = queryset.exclude(pk=exclude_pk)
+    scenes = dict(others.filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
+    parents = dict(others.filter(list_name=MAIN_PARENT_LIST).values_list("key", "values__parent_item_id"))
+    if list_name == SCENE_LIST:
+        scenes[parsed.key] = parsed.values["scene"]
+    else:
+        parents[parsed.key] = parsed.values["parent_item_id"]
+    parent = parents.get(parsed.key)
+    if parent is None:
+        return None
+    children = [key for key, key_parent in parents.items() if key_parent == parent]
+    scene_children = [key for key in children if key in scenes]
+    if not scene_children:
+        return None
+    stray = next((key for key in children if key not in scenes), None)
+    if stray is not None:
+        return (
+            f"{parent} is split into a commercial and an underground scene, so {stray} can't be its direct child; "
+            "place it under one of the two scenes"
+        )
+    duplicate = next((s for s, count in Counter(scenes[key] for key in scene_children).items() if count > 1), None)
+    if duplicate is not None:
+        return f"{parent} already has a {duplicate} scene child; a split has exactly one of each"
+    return None
+
+
 def find_umbrella_leaf_error(list_name: str, key: str) -> str | None:
     """Why `key` can't be an umbrella, if it can't: a canonical genre without children leaves its songs no sub-genre.
 
@@ -249,6 +286,9 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key)
     if pop_child_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[-1]: pop_child_error})
+    scene_split_error = find_scene_split_error(entries, list_name, parsed)
+    if scene_split_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: scene_split_error})
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
@@ -272,6 +312,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key, exclude_pk)
     if pop_child_error:
         raise RowConflict(pop_child_error)
+    scene_split_error = find_scene_split_error(entries, list_name, parsed, exclude_pk)
+    if scene_split_error:
+        raise RowConflict(scene_split_error)
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
