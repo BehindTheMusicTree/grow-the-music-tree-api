@@ -58,8 +58,10 @@ Public. The genre's modification log, newest first:
 ]
 ```
 
-`action` is one of `created`, `parent_changed`, `renamed`, `excluded`, `deleted`,
-`name_conflict_resolved`, `root_accepted`. `actorPseudo` is the admin's public pseudo, or `null`
+`action` is one of `created`, `parent_changed`, `renamed`, `side_changed`, `excluded`,
+`genre_changed`, `updated`, `deleted`, `name_conflict_resolved`, `root_accepted` (the shared
+`HistoryAction` enum: genres never record `genre_changed` or `updated`, but clients should accept
+every value). `side_changed` carries `core`/`pop` in `oldValue`/`newValue`. `actorPseudo` is the admin's public pseudo, or `null`
 when the pipeline import made the change. No email is ever exposed. Pseudos are set server-side
 with `manage.py set_user_pseudo <email> <pseudo>`.
 
