@@ -14,6 +14,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.DeleteModel(name="RegionMapSnapshotFile"),
+        # Data first: when 0090 is the only pending migration, the pre-rendered state keeps the snapshot's stale
+        # `files` reverse relation after DeleteModel, so the cascade would target the dropped table.
         migrations.RunPython(drop_geometry_snapshots, migrations.RunPython.noop),
+        migrations.DeleteModel(name="RegionMapSnapshotFile"),
     ]

@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Migration `0090` failed with `relation "grow_region_map_snapshot_file" does not exist` when it was the only pending migration and snapshots existed (staging deploys stuck on 14.8.0): it now deletes the snapshots before dropping the table. Covered by `test_region_map_tileset_index.py`.
+
 ## [15.0.0] - 2026-11-03
 
 ### Changed
