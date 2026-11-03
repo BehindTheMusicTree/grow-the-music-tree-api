@@ -15,6 +15,7 @@ wheels/
 # Local scratch files
 .local/
 .github/pr-descriptions/
+.pr-descriptions/
 
 # Claude Code worktrees
 # =============================================================================

@@ -296,6 +296,23 @@ class TestCase(AppTestCase):
         assert ok.json()["row"]["start_year"] == "-3500"
         assert bad.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_region_override_then_region_id_enumerated(self):
+        ok = self._create({"entity_id": "Q12560", "region_id": "asia", "reason": "testing"}, "region_overrides")
+        religion = self._create(
+            {"entity_id": "Q9592", "region_id": "religions", "reason": "testing"}, "region_overrides"
+        )
+        bad = self._create({"entity_id": "Q12561", "region_id": "antarctica", "reason": "testing"}, "region_overrides")
+
+        assert ok.status_code == status.HTTP_201_CREATED
+        assert religion.status_code == status.HTTP_201_CREATED
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_empty_region_overrides_list_present(self):
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["region_overrides"] == []
+        assert list(CURATION_LISTS["region_overrides"].columns) == ["entity_id", "region_id", "reason"]
+
     def test_tradition_lists_then_accept_qids_only(self):
         addition = self._create({"wikidata_id": "Q1234", "reason": "testing"}, "tradition_additions")
         exclusion = self._create({"wikidata_id": "Q1235", "reason": "testing"}, "tradition_exclusions")

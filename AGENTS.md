@@ -50,6 +50,8 @@ uv run manage.py runserver
 
 **Ownership:** `GrowModelViewSet.get_owner` returns `None`, so api-kit scopes every query and created row to canonical data (`user IS NULL`); the concrete models override the kit's `user` FK as nullable. The canonical criteria-less `CriteriaPlaylist` rows (Genreless/Tagless) are created once by migration `0024`, not per user.
 
+**Scene-split invariant:** if any child of a genre has a `scene`, that genre has exactly 2 children, one `commercial` and one `underground` (Core electronic is the canonical case). Never place a genre directly under a scene-split node; place it under one of its scene children. Enforced in three places that must stay in sync: `find_scene_split_error` in `grow/curation/rows.py` (admin and curation writes get a 400/409), `_validate_scene_split` in the genre kit's import, and `_check_scene_splits` in the pipelines Gold stage. Locked (`is_manually_edited`) genres keep their parent on import, so fixing a curation rule alone is not enough; reparent the `Genre` row too (see migration `0088`).
+
 **Custom DRF exception handler** (`the_music_tree_api_kit.view.error.exception_handler.custom_exception_handler`, wired via `REST_FRAMEWORK["EXCEPTION_HANDLER"]`) always converts exceptions to JSON under pytest (`"pytest" in sys.argv[0]`), regardless of `DEBUG`. Unregistered exception types fall through to a generic `{"message": "An internal error occurred"}` response with **no logging of the underlying exception** — if a test gets an unexplained 500, don't trust `caplog`; temporarily instrument the installed package file directly (back it up first) to print the traceback, then revert it before committing anything.
 
 ## Repo conventions (from `CONTRIBUTING.md`)
