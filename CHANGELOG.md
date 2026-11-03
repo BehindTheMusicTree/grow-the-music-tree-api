@@ -12,9 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [15.0.0] - 2026-11-03
+
 ### Changed
 
 - **Breaking:** the region map no longer stores or serves GeoJSON. The geometry moves to one immutable vector tileset (`regions/<sha256>.pmtiles`) on object storage, referenced by the new `tileset` sha256 of `GET /v1/regions/map/`'s index, so stats and geometry switch atomically. A region map import run now uploads `index.json` only; the merge refuses an index without a valid `tileset`, one still carrying `files`, or any other uploaded path, and keeps a single snapshot. Tested on SQLite and, for the merge, on Postgres.
+- Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
+- Stop tracking `.pr-descriptions/` (throwaway PR body drafts) and gitignore it, so they no longer show up as untracked files or get committed.
 
 ### Removed
 
@@ -23,11 +27,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - `region_overrides` geohistory curation list (`entity_id`, `region_id`, `reason`): forces the region of a genealogy column's entity, for transcontinental states and religions. `region_id` is restricted to `americas`, `europe`, `africa`, `asia`, `oceania`, `religions`. Required by the pipelines curation ingest, which fails when the list is missing from `curation/export/`. Covered by `test_curation_api.py`.
-
-### Changed
-
-- Documented the scene-split invariant and where it is enforced in `AGENTS.md`.
-- Stop tracking `.pr-descriptions/` (throwaway PR body drafts) and gitignore it, so they no longer show up as untracked files or get committed.
 
 ### Fixed
 
