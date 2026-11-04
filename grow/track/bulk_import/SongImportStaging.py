@@ -14,6 +14,7 @@ class SongImportStaging(models.Model):
     youtube_unplayable_reason = models.TextField(null=True)
     youtube_view_count = models.PositiveBigIntegerField(null=True)
     genre_name = models.TextField(null=True)
+    genre_wikidata_id = models.TextField(null=True)
     first_release_year = models.PositiveSmallIntegerField(null=True)
 
     class Meta:

@@ -8,6 +8,7 @@ class TraditionSerializer(serializers.Serializer):
     end = serializers.IntegerField(allow_null=True)
     anchor_id = serializers.CharField(allow_null=True)
     in_canonical_tree = serializers.BooleanField()
+    sitelinks = serializers.IntegerField(min_value=0)
 
 
 class GenealogyDocumentSerializer(serializers.Serializer):

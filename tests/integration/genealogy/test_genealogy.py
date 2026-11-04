@@ -14,6 +14,7 @@ TRADITION = {
     "end": None,
     "anchorId": "Q2",
     "inCanonicalTree": True,
+    "sitelinks": 120,
 }
 DOCUMENT = {
     "columns": [{"position": 0, "startYear": 1800}],
@@ -66,6 +67,8 @@ class TestGenealogy(AppTestCase):
             {**DOCUMENT, "columns": {}},
             {**DOCUMENT, "traditions": [{**TRADITION, "label": None}]},
             {**DOCUMENT, "traditions": [{"wikidataId": "Q1"}]},
+            {**DOCUMENT, "traditions": [{k: v for k, v in TRADITION.items() if k != "sitelinks"}]},
+            {**DOCUMENT, "traditions": [{**TRADITION, "sitelinks": -1}]},
             [],
         ):
             assert self.pipeline.post(self.import_url, body, format="json").status_code == status.HTTP_400_BAD_REQUEST

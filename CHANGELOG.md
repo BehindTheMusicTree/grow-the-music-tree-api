@@ -12,6 +12,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [15.1.0] - 2026-11-04
+
+### Added
+
+- Songs import parts accept an optional `genre_wikidata_id` (a Wikidata QID or `LOCAL:` key, else the part is rejected with 400). When it is sent, the merge resolves the song's genre by that id, preferring the canonical tree when both trees hold it. This removes the ambiguity of the labels present in both trees, which grow imports as `"X (Qid)"`. Without it, the genre still resolves by `genre_name`. A sent id that matches no genre leaves the song without a genre and counts as skipped. Migration `0092` adds the staging column. Covered by `test_import_resolves_genre_by_wikidata_id_canonical_first` and `test_import_with_unknown_wikidata_id_ignores_the_name_and_counts_skipped`.
+- `GET genres/<uuid>/` returns `wikidataId` (null for a tag), so a client can link a genre to Wikidata without a second lookup. Covered by the two `wikidata_id` tests in `test_detailed.py`.
+- The region-map import accepts an optional `overviewItemId` per region (a region's "Music of X" genre) and optional `worldChildIds` / `worldZoneIds`; it rejects an `overviewItemId` that is not one of the region's listed genres, and any `childIds` / `zoneIds` / world id that names no region. Indexes without these keys still merge. Covered by three tests in `tests/integration/region_map/test_region_map.py`.
+
+### Changed
+
+- `genealogy/import/` requires an integer `sitelinks` (>= 0) on every tradition (the pipeline's Wikidata sitelinks count, which the genealogy chart uses to rank labels); a snapshot without it is rejected with 400. The stored document keeps the field, so `GET genealogy/` serves it. Covered by `test_invalid_shape_then_400_and_nothing_stored`.
+
+### Improved
+
+- The songs import merge no longer runs the `views_count_song_update` statement trigger on its bulk `grow_song` update (its transition tables have no indexes or statistics: 250 s vs 45 s for 100k rows on staging). The merge computes the same per-playlist `views_count` delta set-wise from `changed_song` and applies it after the update; interactive song edits keep the trigger. Migration `0091` adds the transaction-local `grow.skip_views_count_song_update` guard; the existing Postgres views_count tests cover the invariant.
+
+### Fixed
+
+- `docs/api/genres.md` listed only some history `action` values, leaving out `side_changed` (recorded by the admin side toggle), `genre_changed` and `updated`; clients built from it rejected a genre's history once its side changed. The docs now list the full `HistoryAction` enum, and `test_history_action_docs.py` fails when they drift.
+- Migration `0090` failed with `relation "grow_region_map_snapshot_file" does not exist` when it was the only pending migration and snapshots existed (staging deploys stuck on 14.8.0): it now deletes the snapshots before dropping the table. Covered by `test_region_map_tileset_index.py`.
+
 ## [15.0.0] - 2026-11-03
 
 ### Changed

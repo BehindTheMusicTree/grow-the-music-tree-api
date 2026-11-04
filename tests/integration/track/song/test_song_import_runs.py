@@ -5,6 +5,7 @@ from unittest.mock import ANY, patch
 
 import pytest
 from django.conf import settings
+from django.db import connection
 from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
@@ -283,6 +284,21 @@ class TestImportRunMerge(AppTestCase):
         self._sync([{**SONG, "youtube_view_count": 4}])
         assert self._assert_views_count_matches_rels() == {"Rock": 4}
 
+    def test_view_count_only_change_updates_playlist_and_trigger_is_active_again_after_merge(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": "othervideo1"}
+        self._sync([{**SONG, "youtube_view_count": 10}, {**other, "youtube_view_count": 5}])
+
+        self._sync([{**SONG, "youtube_view_count": 25}], mode="delta")
+
+        assert self._assert_views_count_matches_rels() == {"Rock": 30}
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT current_setting('grow.skip_views_count_song_update', true)")
+            assert cursor.fetchone()[0] != "on"
+        song = Song.objects.get(musicbrainz_recording_id=OTHER_MBID)
+        Song.objects.update_instance(song, actor=None, youtube_view_count=100)
+        assert CriteriaPlaylist.objects.get(criteria=rock).views_count == 125
+
     def test_playlist_views_count_follows_playability_and_video_change(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self._sync([{**SONG, "youtube_view_count": 10}])
@@ -314,6 +330,31 @@ class TestImportRunMerge(AppTestCase):
 
         assert Song.objects.get().genre_id == prog.pk
         assert self._playlist_tracks(prog) == self._playlist_tracks(rock) == ["Comfortably Numb"]
+
+    def test_import_resolves_genre_by_wikidata_id_canonical_first(self):
+        regional = self.model_fixture_factory.create_genre("New Wave", wikidata_id="Q187760", tree_name="regional")
+        canonical = self.model_fixture_factory.create_genre("New Wave (Q187760)", wikidata_id="Q187760")
+        k_pop = self.model_fixture_factory.create_genre("K-pop", wikidata_id="Q213665", tree_name="regional")
+        k_pop_song = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "genre_name": "K-pop"}
+
+        result = self._sync(
+            [
+                {**SONG, "genre_name": "New Wave", "genre_wikidata_id": "Q187760"},
+                {**k_pop_song, "genre_wikidata_id": "Q213665"},
+            ]
+        )
+
+        assert result == {"imported": 2, "skipped": 0, "stepTimings": ANY}
+        assert Song.objects.get(musicbrainz_recording_id=MBID).genre_id == canonical.pk != regional.pk
+        assert Song.objects.get(musicbrainz_recording_id=OTHER_MBID).genre_id == k_pop.pk
+
+    def test_import_with_unknown_wikidata_id_ignores_the_name_and_counts_skipped(self):
+        self.model_fixture_factory.create_genre("Rock", wikidata_id="Q11399")
+
+        result = self._sync([{**SONG, "genre_wikidata_id": "Q999999999"}])
+
+        assert result == {"imported": 1, "skipped": 1, "stepTimings": ANY}
+        assert Song.objects.get().genre is None
 
     def test_reimport_updates_in_place_and_moves_playlists(self):
         rock = self.model_fixture_factory.create_genre("Rock")
@@ -556,6 +597,8 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "youtube_view_count": True}]),
             _gzip_ndjson([{**SONG, "youtube_view_count": 2**63}]),
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
+            _gzip_ndjson([{**SONG, "genre_wikidata_id": "rock"}]),
+            _gzip_ndjson([{**SONG, "genre_wikidata_id": ""}]),
             gzip.compress(b"{not json\n"),
         ]
 
