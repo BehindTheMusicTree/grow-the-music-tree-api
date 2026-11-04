@@ -66,7 +66,7 @@ LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
 
 # RFC 9562 uuidv7, which Postgres only ships from 18: the unix-ms timestamp over a v4's first 6 bytes, version 4 → 7.
 UUID7 = """encode(set_bit(set_bit(overlay(uuid_send(gen_random_uuid())
-        placing substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3) FROM 1 FOR 6),
+        placing substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3) FROM 1 FOR 6),
         52, 1), 53, 1), 'hex')::uuid"""
 
 # Same predicate as TrackManager._is_playable: only playable songs belong to playlists.

@@ -521,13 +521,13 @@ class TestImportRunMerge(AppTestCase):
         history = HistoryEntry.objects.filter(
             content_uuid=Song.objects.get().uuid, action=HistoryAction.GENRE_CHANGED
         ).values_list("uuid", "old_value", "new_value")
-        before = set(history)
+        before = set(history.all())
         started_ms = time.time_ns() // 1_000_000
 
         assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 1
 
         ended_ms = time.time_ns() // 1_000_000
-        [(entry_uuid, old, new)] = set(history) - before
+        [(entry_uuid, old, new)] = set(history.all()) - before
         assert (entry_uuid.version, old, new) == (7, "Rock", "Pop")
         assert started_ms <= int.from_bytes(entry_uuid.bytes[:6]) <= ended_ms
         assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 0
