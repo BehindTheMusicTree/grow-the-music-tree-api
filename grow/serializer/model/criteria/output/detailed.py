@@ -40,12 +40,19 @@ class CriteriaDetailedSerializer(
     children = CriteriaMinimumSerializer(many=True)
     criteria_playlist = CriteriaPlaylistMinimumSerializer()
     name = AppCharField(source=ModelFields.NAME_INTERNAL)
+    wikidata_id = serializers.SerializerMethodField()
+
+    def get_wikidata_id(self, obj) -> str | None:
+        # `wikidata_id` lives on the `Genre` subtype; `obj` may be the base `Criteria` row, and a tag has no genre.
+        genre = getattr(obj, "genre", None)
+        return genre.wikidata_id if genre else None
 
     class Meta:
         model = Criteria
         fields = [
             CriteriaOutputFieldKey.UUID.value,
             CriteriaOutputFieldKey.NAME.value,
+            CriteriaOutputFieldKey.WIKIDATA_ID.value,
             CriteriaOutputFieldKey.SUMMARY.value,
             CriteriaOutputFieldKey.PARENT.value,
             CriteriaOutputFieldKey.ASCENDANTS.value,

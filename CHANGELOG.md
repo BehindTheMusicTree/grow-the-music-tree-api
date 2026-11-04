@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Songs import parts accept an optional `genre_wikidata_id` (a Wikidata QID or `LOCAL:` key, else the part is rejected with 400). When it is sent, the merge resolves the song's genre by that id, preferring the canonical tree when both trees hold it. This removes the ambiguity of the labels present in both trees, which grow imports as `"X (Qid)"`. Without it, the genre still resolves by `genre_name`. A sent id that matches no genre leaves the song without a genre and counts as skipped. Migration `0092` adds the staging column. Covered by `test_import_resolves_genre_by_wikidata_id_canonical_first` and `test_import_with_unknown_wikidata_id_ignores_the_name_and_counts_skipped`.
+- `GET genres/<uuid>/` returns `wikidataId` (null for a tag), so a client can link a genre to Wikidata without a second lookup. Covered by the two `wikidata_id` tests in `test_detailed.py`.
+- The region-map import accepts an optional `overviewItemId` per region (a region's "Music of X" genre) and optional `worldChildIds` / `worldZoneIds`; it rejects an `overviewItemId` that is not one of the region's listed genres, and any `childIds` / `zoneIds` / world id that names no region. Indexes without these keys still merge. Covered by three tests in `tests/integration/region_map/test_region_map.py`.
 
 ### Changed
 
