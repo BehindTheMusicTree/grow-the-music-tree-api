@@ -19,10 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 
 - The songs merge now checks for artist changes only on the tracks in the import run, instead of grouping every track's artists. On a 30k-row delta on staging, the `changed_song` step drops from 289 s to 19 s, with identical output.
+- README lists the sources of the data served by `/v1/*` and their licenses; data derived from MusicBrainz tags stays under CC BY-NC-SA 3.0.
 
 ### Fixed
 
 - Bump `the-music-tree-genre-kit` to v0.53.1: when a genre moves between the canonical and regional trees (heavy metal, Q38848, moving from regional to canonical), the tree import moves the existing genre instead of creating a namesake suffixed `"<name> (<id>)"` and flagged `has_name_conflict` until the other tree's next import. The genre keeps its uuid and song links.
+- Restored the canonical Apache 2.0 license text: a sentence in the "Work" definition had been altered, so GitHub did not recognize the license.
 
 ## [15.1.0] - 2026-11-04
 
