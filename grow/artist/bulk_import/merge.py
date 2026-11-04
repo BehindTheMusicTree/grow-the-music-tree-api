@@ -330,5 +330,5 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
         (imported,) = cursor.fetchone()
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         if record:
-            ImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, count=imported, skipped_count=0)
+            ImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, count=imported, skipped_count=0, step_timings=timings)
     return {"imported": imported, "skipped": 0, "stepTimings": timings}

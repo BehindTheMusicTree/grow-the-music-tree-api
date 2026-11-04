@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - `genre-playlists/tree/` rows carry `songsCount`: every canonical song in the genre's primary subtree, playable or not (`tracksCount` stays playable-only). Stored as `CriteriaPlaylist.direct_songs_count`, maintained by deltas on song create/delete/genre change, genre delete and the bulk import merge (new `update_direct_songs_count` step), and folded into subtree counts at read time. Migration `0093` adds it and `0094` backfills it from one grouped count over the songs (about 31M in prod), in its own transaction so the tree keeps serving: only writes to the playlists wait for the count. Run `manage.py recount_direct_songs_count` once after the deploy switches over, to count the songs the previous release imported while `0094` ran. Tests in `tests/integration/criteria/playlist/test_genre_playlist_songs_count.py` and the Postgres merge tests.
+- Pipeline songs and artists merges store their per-step timings (`[{label, rowcount, ms}]`) on the recorded `ImportRun` (`step_timings`, migration `0096`), so merge cost can be compared across runs with one query instead of reading the worker's logs before they rotate. Covered by the merges' `test_pipeline_commit_recorded_and_admin_not`.
 
 ### Changed
 

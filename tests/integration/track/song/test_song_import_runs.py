@@ -683,6 +683,9 @@ class TestImportRunMerge(AppTestCase):
         self._sync([SONG, unmatched], client=self.pipeline)
 
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("songs", 2, 1)]
+        timings = {step["label"]: step for step in ImportRun.objects.get().step_timings}
+        assert timings["song_import"]["rowcount"] == 2
+        assert {"insert_tracks", "insert_history"} <= timings.keys()
 
     def test_stale_essential_track_removed_from_genre_essentials(self):
         rock = self.model_fixture_factory.create_genre("Rock")

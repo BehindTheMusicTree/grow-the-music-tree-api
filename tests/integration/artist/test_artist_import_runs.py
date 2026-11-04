@@ -417,3 +417,6 @@ class TestImportRunMerge(AppTestCase):
         self._sync([ARTIST], client=self.pipeline)
 
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("artists", 1, 0)]
+        timings = {step["label"]: step for step in ImportRun.objects.get().step_timings}
+        assert timings["artist_import"]["rowcount"] == 1
+        assert timings["delete_orphan_albums"]["ms"] >= 0
