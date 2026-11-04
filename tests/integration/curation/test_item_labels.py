@@ -110,7 +110,7 @@ class TestItemLabels(AppTestCase):
         response = self.api_client.get(path=reverse("curation-lists"))
 
         specs = {lst["name"]: lst["columnSpecs"] for lst in response.json()}
-        assert specs["main_parent"] == [
+        assert specs["canonical_parent"] == [
             {"name": "item_id", "kind": "item_id", "optional": False},
             {"name": "reason", "kind": "text", "optional": False},
             {"name": "parent_item_id", "kind": "item_id", "optional": False},
