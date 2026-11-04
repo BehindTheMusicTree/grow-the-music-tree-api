@@ -331,6 +331,31 @@ class TestImportRunMerge(AppTestCase):
         assert Song.objects.get().genre_id == prog.pk
         assert self._playlist_tracks(prog) == self._playlist_tracks(rock) == ["Comfortably Numb"]
 
+    def test_import_resolves_genre_by_wikidata_id_canonical_first(self):
+        regional = self.model_fixture_factory.create_genre("New Wave", wikidata_id="Q187760", tree_name="regional")
+        canonical = self.model_fixture_factory.create_genre("New Wave (Q187760)", wikidata_id="Q187760")
+        k_pop = self.model_fixture_factory.create_genre("K-pop", wikidata_id="Q213665", tree_name="regional")
+        k_pop_song = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "genre_name": "K-pop"}
+
+        result = self._sync(
+            [
+                {**SONG, "genre_name": "New Wave", "genre_wikidata_id": "Q187760"},
+                {**k_pop_song, "genre_wikidata_id": "Q213665"},
+            ]
+        )
+
+        assert result == {"imported": 2, "skipped": 0, "stepTimings": ANY}
+        assert Song.objects.get(musicbrainz_recording_id=MBID).genre_id == canonical.pk != regional.pk
+        assert Song.objects.get(musicbrainz_recording_id=OTHER_MBID).genre_id == k_pop.pk
+
+    def test_import_with_unknown_wikidata_id_ignores_the_name_and_counts_skipped(self):
+        self.model_fixture_factory.create_genre("Rock", wikidata_id="Q11399")
+
+        result = self._sync([{**SONG, "genre_wikidata_id": "Q999999999"}])
+
+        assert result == {"imported": 1, "skipped": 1, "stepTimings": ANY}
+        assert Song.objects.get().genre is None
+
     def test_reimport_updates_in_place_and_moves_playlists(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
@@ -572,6 +597,8 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "youtube_view_count": True}]),
             _gzip_ndjson([{**SONG, "youtube_view_count": 2**63}]),
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
+            _gzip_ndjson([{**SONG, "genre_wikidata_id": "rock"}]),
+            _gzip_ndjson([{**SONG, "genre_wikidata_id": ""}]),
             gzip.compress(b"{not json\n"),
         ]
 

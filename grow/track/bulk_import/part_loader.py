@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from typing import IO
 
@@ -7,6 +8,7 @@ from rest_framework.exceptions import ValidationError
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
 
 from grow.bulk_import.copy_part import copy_part
+from grow.curation.lists import ITEM_ID_PATTERN
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 TEXT_COLUMNS = (
@@ -17,6 +19,7 @@ TEXT_COLUMNS = (
     "youtube_video_id",
     "youtube_unplayable_reason",
     "genre_name",
+    "genre_wikidata_id",
 )
 COLUMNS = (*TEXT_COLUMNS, "youtube_view_count", "first_release_year")
 REQUIRED = {"musicbrainz_recording_id", "title", "artist"}
@@ -50,6 +53,8 @@ def _row(line_number: int, line: bytes) -> tuple:
             raise ValidationError(f"line {line_number}: {column} is longer than {MAX_LENGTHS[column]}")
     if song.get("youtube_unplayable_reason") not in REASONS | {None}:
         raise ValidationError(f"line {line_number}: unknown youtube_unplayable_reason")
+    if song.get("genre_wikidata_id") is not None and not re.fullmatch(ITEM_ID_PATTERN, song["genre_wikidata_id"]):
+        raise ValidationError(f"line {line_number}: genre_wikidata_id must be a Wikidata QID or LOCAL: key")
     view_count = song.get("youtube_view_count")
     if view_count is not None and (
         not isinstance(view_count, int) or isinstance(view_count, bool) or not 0 <= view_count <= MAX_VIEW_COUNT
