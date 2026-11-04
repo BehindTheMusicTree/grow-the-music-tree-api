@@ -76,21 +76,16 @@ MISSING_FROM_FULL_RUN = "NOT EXISTS (SELECT 1 FROM song_import s WHERE s.track_i
 LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
             SELECT musicbrainz_id FROM grow_bulk_import_deletion WHERE run_id = %(run)s)"""
 
-STEPS = [
-    ("analyze_song_import", "ANALYZE song_import"),
-    # Everything below works on the songs that need a write; the rest of the run only counts toward `stale`. A song
-    # whose credit isn't exactly its one MBID artist is kept: the artist steps resolve it (legacy names, extra credits).
-    (
-        "changed_song",
-        """CREATE TEMP TABLE changed_song AS
+# Everything after this works on the songs that need a write; the rest of the run only counts toward `stale`. A song
+# whose credit isn't exactly its one MBID artist is kept: the artist steps resolve it (legacy names, extra credits).
+CHANGED_SONG = """CREATE TEMP TABLE changed_song AS
     SELECT s.* FROM song_import s
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
     LEFT JOIN (
-        -- Only the run's tracks: grouping every track artist cost minutes on a small delta.
         SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
         FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
-        WHERE ta.track_id IN (SELECT track_id FROM song_import)
+        {run_tracks}
         GROUP BY ta.track_id HAVING count(*) = 1
     ) c ON c.track_id = s.track_id
     WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
@@ -100,8 +95,12 @@ STEPS = [
         OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
         OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
         OR y.first_release_year IS DISTINCT FROM s.first_release_year
-        OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text""",
-    ),
+        OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text"""
+# A delta run groups only its own tracks' artists (minutes saved on every daily run). A full run holds every track, and
+# the same filter there turns the sorted aggregate into a hash aggregate that spills to disk: 580 s became 720 s on 32M.
+DELTA_RUN_TRACKS = "WHERE ta.track_id IN (SELECT track_id FROM song_import)"
+
+STEPS = [
     ("analyze_changed_song", "ANALYZE changed_song"),
     (
         "adopt_legacy_tracks",
@@ -424,6 +423,7 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
 
 def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
+    changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
@@ -433,7 +433,8 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
         if not delta and not cursor.fetchone()[0]:
             # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
             raise ValueError(f"import run {run_id} has no staged songs")
-        timings += run_steps(cursor, [*STEPS, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
+        steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
+        timings += run_steps(cursor, [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
         cursor.execute(
             "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
             " FROM song_import"

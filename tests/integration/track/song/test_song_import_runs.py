@@ -497,6 +497,20 @@ class TestImportRunMerge(AppTestCase):
                     assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
                 self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
 
+    def test_delta_run_compares_artists_of_its_own_tracks_only(self):
+        self.model_fixture_factory.create_genre("Rock")
+        base = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+        assert self._steps(self._sync([base], mode="delta"))["changed_song"] == 0
+        other_artist = "11111111-2222-4333-8444-555555555555"
+        steps = self._steps(self._sync([{**base, "artist_musicbrainz_id": other_artist}], mode="delta"))
+
+        assert steps["changed_song"] == 1
+        assert [a.musicbrainz_artist_id for a in Song.objects.get(musicbrainz_recording_id=MBID).artists.all()] == [
+            uuid.UUID(other_artist)
+        ]
+
     def test_locked_track_keeps_its_genre_and_is_not_carried(self):
         self.model_fixture_factory.create_genre("Rock")
         self._sync([{**SONG, "artist_musicbrainz_id": ARTIST_MBID}])
