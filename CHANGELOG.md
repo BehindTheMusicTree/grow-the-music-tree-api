@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- `genealogy/import/` requires an integer `sitelinks` (>= 0) on every tradition (the pipeline's Wikidata sitelinks count, which the genealogy chart uses to rank labels); a snapshot without it is rejected with 400. The stored document keeps the field, so `GET genealogy/` serves it. Covered by `test_invalid_shape_then_400_and_nothing_stored`.
+
 ### Improved
 
 - The songs import merge no longer runs the `views_count_song_update` statement trigger on its bulk `grow_song` update (its transition tables have no indexes or statistics: 250 s vs 45 s for 100k rows on staging). The merge computes the same per-playlist `views_count` delta set-wise from `changed_song` and applies it after the update; interactive song edits keep the trigger. Migration `0091` adds the transaction-local `grow.skip_views_count_song_update` guard; the existing Postgres views_count tests cover the invariant.
