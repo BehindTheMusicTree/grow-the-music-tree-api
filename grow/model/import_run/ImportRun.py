@@ -17,6 +17,8 @@ class ImportRun(models.Model):
     imported_on = models.DateTimeField(auto_now_add=True)
     count = models.PositiveIntegerField()
     skipped_count = models.PositiveIntegerField(null=True)
+    # Bulk merges only: `[{label, rowcount, ms}]` per SQL step, kept so merge cost can be compared across runs.
+    step_timings = models.JSONField(null=True)
 
     class Meta:
         db_table = "grow_import_run"

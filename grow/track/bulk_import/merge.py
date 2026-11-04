@@ -454,5 +454,7 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
         cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
         cursor.execute(f"DROP TABLE {TEMP_TABLES}")
         if record:
-            ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped)
+            ImportRun.objects.create(
+                kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped, step_timings=timings
+            )
     return {"imported": imported, "skipped": skipped, "stepTimings": timings}
