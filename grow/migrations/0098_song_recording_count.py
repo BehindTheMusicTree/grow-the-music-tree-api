@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('grow', '0096_import_run_step_timings'),
+        ('grow', '0097_three_parent_axes_curation_lists'),
     ]
 
     operations = [
