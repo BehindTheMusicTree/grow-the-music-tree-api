@@ -24,6 +24,8 @@ class Song(KitTrack):
     youtube_view_count = models.PositiveBigIntegerField(null=True, blank=True)
     is_manually_edited = models.BooleanField(default=False)
     first_release_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # MusicBrainz recordings grouped into this song (live versions, remasters, compilations): a popularity signal.
+    recording_count = models.PositiveIntegerField(null=True, blank=True)
 
     objects: TrackManager[Song] = TrackManager()
 
