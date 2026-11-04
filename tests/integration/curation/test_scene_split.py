@@ -9,7 +9,7 @@ COMMERCIAL = "Q777001"
 UNDERGROUND = "LOCAL:split-underground"
 
 
-def _main_parent(item_id: str, parent: str) -> dict[str, str]:
+def _canonical_parent(item_id: str, parent: str) -> dict[str, str]:
     return {"item_id": item_id, "parent_item_id": parent, "exclude_other_parents": "true", "reason": "r"}
 
 
@@ -24,29 +24,29 @@ class TestCase(GenreTestCase):
         for item_id, scene in ((COMMERCIAL, "commercial"), (UNDERGROUND, "underground")):
             CurationEntry.objects.upsert("canonical_genre_scene", _scene(item_id, scene))
         for item_id in (COMMERCIAL, UNDERGROUND):
-            CurationEntry.objects.upsert("main_parent", _main_parent(item_id, SPLIT))
+            CurationEntry.objects.upsert("canonical_parent", _canonical_parent(item_id, SPLIT))
 
-    def test_main_parent_directly_under_split_then_invalid_row(self):
+    def test_canonical_parent_directly_under_split_then_invalid_row(self):
         with self.assertRaises(InvalidRow) as raised:
-            CurationEntry.objects.upsert("main_parent", _main_parent("Q777002", SPLIT))
+            CurationEntry.objects.upsert("canonical_parent", _canonical_parent("Q777002", SPLIT))
 
         assert "can't be its direct child" in raised.exception.errors["item_id"]
 
-    def test_main_parent_under_a_scene_then_created(self):
-        assert CurationEntry.objects.upsert("main_parent", _main_parent("Q777002", COMMERCIAL)) == "created"
+    def test_canonical_parent_under_a_scene_then_created(self):
+        assert CurationEntry.objects.upsert("canonical_parent", _canonical_parent("Q777002", COMMERCIAL)) == "created"
 
     def test_second_scene_node_of_same_scene_then_invalid_row(self):
         CurationEntry.objects.upsert("canonical_genre_scene", _scene("Q777003", "commercial"))
 
         with self.assertRaises(InvalidRow) as raised:
-            CurationEntry.objects.upsert("main_parent", _main_parent("Q777003", SPLIT))
+            CurationEntry.objects.upsert("canonical_parent", _canonical_parent("Q777003", SPLIT))
 
         assert "already has a commercial scene child" in raised.exception.errors["item_id"]
 
     def test_scene_on_third_child_of_split_then_invalid_row(self):
         CurationEntry.objects.create(
             user=None,
-            list_name="main_parent",
+            list_name="canonical_parent",
             key="Q777004",
             values={"parent_item_id": SPLIT, "exclude_other_parents": True},
             reason="r",
@@ -76,4 +76,4 @@ class TestCase(GenreTestCase):
         response = self._put_genre(genre.uuid, data={"name": "Rave", "parent": str(split.uuid)})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert not CurationEntry.objects.filter(user=None, list_name="main_parent", key="Q777005").exists()
+        assert not CurationEntry.objects.filter(user=None, list_name="canonical_parent", key="Q777005").exists()

@@ -24,7 +24,8 @@ def _rules(genre, actions: set[str], parent) -> list[tuple[str, dict[str, str]]]
         and not (genre.is_excluded or parent.is_excluded)
     ):
         row = {**item, "reason": REASON}
-        rules.append(("main_parent", {**row, "parent_item_id": parent.wikidata_id, "exclude_other_parents": "true"}))
+        # `main_parent` until 0096: this already runs on the live curation helpers, so it follows their list names.
+        rules.append(("canonical_parent", {**row, "parent_item_id": parent.wikidata_id, "exclude_other_parents": "true"}))
     if "excluded" in actions and genre.is_excluded:
         # The exclusion's category was never recorded: out_of_scope_genres is the catch-all.
         rules.append(("out_of_scope_genres", {**item, "reason": REASON}))

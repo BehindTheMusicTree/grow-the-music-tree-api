@@ -115,17 +115,28 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "display_label", "reason"),
         "Explicit display label for an item, overriding sentence-casing.",
     ),
-    "main_parent": _item_list(
-        "Forced main parent of an item, optionally dropping its other parents.",
+    "canonical_overrides": _item_list(
+        "Keeps a genre canonical although a parent is regional; its own regional sources are ignored."
+    ),
+    "canonical_parent": _item_list(
+        "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
         "parent_item_id",
         "exclude_other_parents",
     ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
-    "regional_overrides": _item_list(
-        "Maps a regionally specific genre to its `music of <place>` overview item.",
-        "overview_item_id",
+    "regional_genre_parent": _item_list(
+        "Forced regional parent genre (not an overview) of an item, optionally dropping its other regional genre "
+        "parents.",
+        "parent_item_id",
         "exclude_other_parents",
+    ),
+    "regional_overviews": CurationList(
+        "wikidata",
+        ("item_id", "overview_item_id"),
+        ("item_id", "reason", "overview_item_id", "exclude_other_parents"),
+        "Adds a `music of <place>` overview item as a regional parent of an item; `exclude_other_parents` keeps only "
+        "the curated overviews.",
     ),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
@@ -288,5 +299,9 @@ EXCLUDED_GENRE_LISTS = {
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
 
-PARENT_RULE_COLUMNS = {"main_parent": "parent_item_id", "regional_overrides": "overview_item_id"}
+PARENT_RULE_COLUMNS = {
+    "canonical_parent": "parent_item_id",
+    "regional_genre_parent": "parent_item_id",
+    "regional_overviews": "overview_item_id",
+}
 """Lists moving an item under another: the pipeline fails on such a rule once either item is pruned."""

@@ -30,7 +30,9 @@ from grow.curation.lists import (
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_genres"
-MAIN_PARENT_LIST = "main_parent"
+CANONICAL_PARENT_LIST = "canonical_parent"
+REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
+REGIONAL_OVERVIEWS_LIST = "regional_overviews"
 SCENE_LIST = "canonical_genre_scene"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
@@ -203,11 +205,11 @@ def find_scene_split_error(
 
     A genre with a scene child is a split: its children are exactly one commercial and one underground scene node.
     Only curated placements are visible here; the pipeline's Gold stage checks the built tree."""
-    if list_name not in (MAIN_PARENT_LIST, SCENE_LIST):
+    if list_name not in (CANONICAL_PARENT_LIST, SCENE_LIST):
         return None
     others = queryset.exclude(pk=exclude_pk)
     scenes = dict(others.filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
-    parents = dict(others.filter(list_name=MAIN_PARENT_LIST).values_list("key", "values__parent_item_id"))
+    parents = dict(others.filter(list_name=CANONICAL_PARENT_LIST).values_list("key", "values__parent_item_id"))
     if list_name == SCENE_LIST:
         scenes[parsed.key] = parsed.values["scene"]
     else:
