@@ -106,7 +106,7 @@ def merge_parent_lists(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('grow', '0095_history_entry_content_index'),
+        ('grow', '0096_import_run_step_timings'),
     ]
 
     operations = [

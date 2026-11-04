@@ -5,7 +5,7 @@ from django.db.migrations.loader import MigrationLoader
 
 from tests.utils.AppTestCase import AppTestCase
 
-MIGRATION = "0096_three_parent_axes_curation_lists"
+MIGRATION = "0097_three_parent_axes_curation_lists"
 migration_module = import_module(f"grow.migrations.{MIGRATION}")
 NASHEED = "Q783874"
 ISLAMIC_MUSIC = "Q1482325"
