@@ -87,8 +87,10 @@ STEPS = [
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
     LEFT JOIN (
+        -- Only the run's tracks: grouping every track artist cost minutes on a small delta.
         SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
         FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
+        WHERE ta.track_id IN (SELECT track_id FROM song_import)
         GROUP BY ta.track_id HAVING count(*) = 1
     ) c ON c.track_id = s.track_id
     WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
