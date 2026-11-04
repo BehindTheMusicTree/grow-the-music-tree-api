@@ -3,17 +3,18 @@ from typing import Any
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
-from grow.artist.search_cache import invalidate_search_cache
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.merge_lock import hold_merge_lock
 from grow.bulk_import.run_steps import run_steps
 from grow.model.import_run.ImportRun import ImportRun
+from grow.search.cache import invalidate_search_cache
+from grow.song_search import projection
 
 TEMP_TABLES = (
     "artist_import, run_artist, membership_import, link_import, alias_import, release_group_row, "
     "release_group_import, credit_import, run_album, desired_membership, desired_link, desired_alias, "
-    "desired_album_artist, stale_artist"
+    "desired_album_artist, stale_artist, renamed_artist"
 )
 
 YEAR = "(({0})::int)"
@@ -87,6 +88,13 @@ EXPANDED_STEPS = [
 
 # MBIDs are resolved to uuids once, here; the diff steps join these maps.
 RESOLVE_STEPS = [
+    # Song search documents hold artist names: the renamed artists' songs are re-projected once the names are written.
+    (
+        "renamed_artist",
+        """CREATE TEMP TABLE renamed_artist AS
+    SELECT a.uuid FROM grow_artist a JOIN artist_import i ON a.musicbrainz_artist_id = i.mbid
+    WHERE a.name IS DISTINCT FROM i.name""",
+    ),
     (
         "update_artists",
         """UPDATE grow_artist a SET
@@ -99,6 +107,13 @@ RESOLVE_STEPS = [
             a.image_page_url, a.image_author, a.image_license, a.image_license_url) IS DISTINCT FROM
         (i.name, i.type, i.country, i.begin_year, i.end_year, i.ended, i.disambiguation, i.image_url,
             i.image_page_url, i.image_author, i.image_license, i.image_license_url)""",
+    ),
+    (
+        "upsert_song_search",
+        projection.upsert(
+            "SELECT ta.track_id FROM the_music_tree_genre_kit_track_artists ta"
+            " JOIN renamed_artist r ON r.uuid = ta.artist_id"
+        ),
     ),
     (
         "insert_artists",

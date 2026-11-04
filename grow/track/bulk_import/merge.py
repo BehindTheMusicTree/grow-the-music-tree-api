@@ -11,6 +11,8 @@ from grow.bulk_import.run_steps import run_steps
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
+from grow.search.cache import invalidate_search_cache
+from grow.song_search import projection
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -259,6 +261,8 @@ STEPS = [
     WHERE NOT EXISTS (SELECT 1 FROM current_artist c WHERE c.track_id = d.track_id AND c.artist_id = d.artist_id)
     ORDER BY d.track_id""",
     ),
+    # Every new, changed or re-credited song, once its track, song and artist rows hold their final values.
+    ("upsert_song_search", projection.upsert("SELECT track_id FROM changed_song")),
 ]
 
 AFTER_STALE_STEPS = [
@@ -304,6 +308,7 @@ AFTER_STALE_STEPS = [
         "delete_stale_track_artists",
         "DELETE FROM the_music_tree_genre_kit_track_artists WHERE track_id IN (SELECT track_id FROM stale)",
     ),
+    ("delete_song_search", projection.delete("SELECT track_id FROM stale")),
     ("delete_stale_songs", "DELETE FROM grow_song WHERE track_id IN (SELECT track_id FROM stale)"),
     ("delete_stale_tracks", "DELETE FROM the_music_tree_genre_kit_track WHERE uuid IN (SELECT track_id FROM stale)"),
     # Each genre's playlists: its own and every primary ascendant's; genreless songs get the genreless playlist.
@@ -427,7 +432,9 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     }
     with hold_merge_lock(run_id):
         try:
-            return _merge(run_id, params, record)
+            result = _merge(run_id, params, record)
+            invalidate_search_cache()
+            return result
         finally:
             # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
             SongImportStaging.objects.filter(run_id=run_id).delete()

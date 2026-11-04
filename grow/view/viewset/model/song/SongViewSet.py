@@ -1,18 +1,19 @@
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
-from grow.model.song.SongCurationManager import SEARCH_PAGE_SIZE, SongCurationManager
-from grow.serializer.model.song.input import (
-    SongAssignGenreSerializer,
-    SongSearchQuerySerializer,
-    SongYoutubePatchSerializer,
-)
+from grow.model.song.SongCurationManager import SongCurationManager
+from grow.model.song_search.SongSearch import SongSearch
+from grow.search.cache import SearchCache, get_cached_search, set_cached_search
+from grow.serializer.model.song.input import SongAssignGenreSerializer, SongYoutubePatchSerializer
 from grow.serializer.model.song.output.detailed import SongDetailedSerializer
-from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
+from grow.serializer.model.song.output.full import SongFullSerializer
+from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -30,13 +31,14 @@ from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
+    throttle_scope = "song-search"
 
     def __init__(self, **kwargs):
         super().__init__(
             model_class=Song,
             filterset_class=SongFilterSet,
             simple_serializer_class=SongDetailedSerializer,
-            detailed_serializer_class=SongDetailedSerializer,
+            detailed_serializer_class=SongFullSerializer,
             **kwargs,
         )
 
@@ -67,7 +69,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         if unknown:
             raise ValidationError(dict.fromkeys(sorted(unknown), "Not editable"))
         updated = SongCurationManager().update_youtube(song, serializer.validated_data, request.user)
-        return Response(SongDetailedSerializer(updated, context=self.get_serializer_context()).data)
+        return Response(self._get_detailed_serializer(updated).data)
 
     @action(detail=False, methods=["post"], url_path="assign-genre", permission_classes=[IsAdmin])
     def assign_genre(self, request):
@@ -78,18 +80,24 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         )
         return Response({"previous": previous})
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAdmin])
+    @action(
+        detail=False,
+        methods=["get"],
+        authentication_classes=[],
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+    )
     def search(self, request):
         query = SongSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        page = list(
-            SongCurationManager.search(params["q"], params["genreless"], params["cursor"])[: SEARCH_PAGE_SIZE + 1]
-        )
-        has_more = len(page) > SEARCH_PAGE_SIZE
-        page = page[:SEARCH_PAGE_SIZE]
-        results = SongWithoutPlaylistsSerializer(page, many=True, context=self.get_serializer_context()).data
-        return Response({"results": results, "next": str(page[-1].uuid) if has_more else None})
+        cache_params = (params["limit"], params["genre"], params["playable"])
+        payload = get_cached_search(SearchCache.SONGS, params["q"], cache_params)
+        if payload is None:
+            songs = SongSearch.objects.search(params["q"], params["limit"], params["genre"], params["playable"])
+            payload = SongSearchResultSerializer(songs, many=True).data
+            set_cached_search(SearchCache.SONGS, params["q"], cache_params, payload)
+        return Response(payload)
 
     (
         create_import_run,

@@ -213,6 +213,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def _on_before_delete(self, instance: Genre, *, actor: Any = None) -> None:
+        from grow.model.song.Song import Song
+        from grow.model.song_search.SongSearch import SongSearch
+
         # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
         moved = (
             type(instance.criteria_playlist)
@@ -221,9 +224,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if instance.user_id is None
             else 0
         )
+        # A root's songs become genreless, which changes their search rank; elsewhere they keep a genre.
+        genreless = [] if instance.parent_id else list(Song.objects.filter(genre=instance).values_list("pk", flat=True))
         super()._on_before_delete(instance, actor=actor)
         if moved:
             adjust_direct_songs_count(instance.parent_id, moved)
+        SongSearch.objects.refresh(genreless)
 
     @transaction.atomic
     def exclude_instance(self, instance: Genre, category: str, actor: Any = None) -> Genre:
