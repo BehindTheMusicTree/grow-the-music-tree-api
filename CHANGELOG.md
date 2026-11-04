@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Bump `the-music-tree-genre-kit` to v0.53.1: when a genre moves between the canonical and regional trees (heavy metal, Q38848, moving from regional to canonical), the tree import moves the existing genre instead of creating a namesake suffixed `"<name> (<id>)"` and flagged `has_name_conflict` until the other tree's next import. The genre keeps its uuid and song links.
+
 ## [15.1.0] - 2026-11-04
 
 ### Added
