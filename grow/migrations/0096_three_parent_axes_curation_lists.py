@@ -8,6 +8,7 @@ OLD_OVERVIEW_LIST = "regional_overrides"
 CANONICAL_PARENT_LIST = "canonical_parent"
 REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
 REGIONAL_OVERVIEWS_LIST = "regional_overviews"
+CANONICAL_OVERRIDES_LIST = "canonical_overrides"
 
 # `main_parent` rows whose parent is a regional genre on staging (2026-11-04), frozen so this migration never
 # depends on a pipeline run: item_id -> parent_item_id.
@@ -78,6 +79,30 @@ def split_parent_lists(apps, schema_editor):
         entry.save(update_fields=["list_name", "key", "values"])
 
 
+def merge_parent_lists(apps, schema_editor):
+    """Fails on the `(list_name, key)` constraint once an item has rules on both parent axes or several overviews,
+    which the old lists can't hold."""
+    CurationEntry = apps.get_model("grow", "CurationEntry")
+    CurationReviewItem = apps.get_model("grow", "CurationReviewItem")
+
+    CurationEntry.objects.filter(list_name=CANONICAL_OVERRIDES_LIST).delete()
+    CurationReviewItem.objects.filter(list_name=CANONICAL_OVERRIDES_LIST).delete()
+    for model in (CurationEntry, CurationReviewItem):
+        model.objects.filter(list_name__in=(CANONICAL_PARENT_LIST, REGIONAL_GENRE_PARENT_LIST)).update(
+            list_name=OLD_PARENT_LIST
+        )
+    for review in CurationReviewItem.objects.filter(list_name=REGIONAL_OVERVIEWS_LIST):
+        review.list_name = OLD_OVERVIEW_LIST
+        review.key = review.key.split(KEY_SEPARATOR)[0]
+        review.save(update_fields=["list_name", "key"])
+    for entry in CurationEntry.objects.filter(list_name=REGIONAL_OVERVIEWS_LIST):
+        item_id, overview_item_id = entry.key.split(KEY_SEPARATOR)
+        entry.list_name = OLD_OVERVIEW_LIST
+        entry.key = item_id
+        entry.values = {**entry.values, "overview_item_id": overview_item_id}
+        entry.save(update_fields=["list_name", "key", "values"])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -95,5 +120,5 @@ class Migration(migrations.Migration):
             name='list_name',
             field=models.CharField(choices=[('accepted_canonical_roots', 'accepted_canonical_roots'), ('canonical_parent_additions', 'canonical_parent_additions'), ('capitalized_words', 'capitalized_words'), ('duplicate_genres', 'duplicate_genres'), ('indigenous_to_exclusions', 'indigenous_to_exclusions'), ('label_overrides', 'label_overrides'), ('canonical_overrides', 'canonical_overrides'), ('canonical_parent', 'canonical_parent'), ('out_of_scope_genres', 'out_of_scope_genres'), ('overview_reclassifications', 'overview_reclassifications'), ('regional_genre_parent', 'regional_genre_parent'), ('regional_overviews', 'regional_overviews'), ('regional_overview_additions', 'regional_overview_additions'), ('technique_genres', 'technique_genres'), ('theme_genres', 'theme_genres'), ('non_stylistic_genres', 'non_stylistic_genres'), ('umbrella_genres', 'umbrella_genres'), ('canonical_genre_scene', 'canonical_genre_scene'), ('accepted_non_genre_tags', 'accepted_non_genre_tags'), ('canonical_genre_pop_side', 'canonical_genre_pop_side'), ('genre_alias', 'genre_alias'), ('genre_disambiguation', 'genre_disambiguation'), ('genre_disambiguation_context', 'genre_disambiguation_context'), ('secondary_parents', 'secondary_parents'), ('song_genre', 'song_genre'), ('recording_youtube_video', 'recording_youtube_video'), ('essential_songs', 'essential_songs'), ('summary_overrides', 'summary_overrides'), ('genre_precedence', 'genre_precedence'), ('entity_additions', 'entity_additions'), ('entity_exclusions', 'entity_exclusions'), ('entity_membership_overrides', 'entity_membership_overrides'), ('entity_time_span_overrides', 'entity_time_span_overrides'), ('region_overrides', 'region_overrides'), ('tradition_additions', 'tradition_additions'), ('tradition_exclusions', 'tradition_exclusions'), ('tradition_placement_overrides', 'tradition_placement_overrides'), ('tradition_link_overrides', 'tradition_link_overrides')], max_length=64),
         ),
-        migrations.RunPython(split_parent_lists, migrations.RunPython.noop),
+        migrations.RunPython(split_parent_lists, merge_parent_lists),
     ]

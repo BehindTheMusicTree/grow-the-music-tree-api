@@ -85,3 +85,23 @@ class TestCase(AppTestCase):
             ("regional_genre_parent", NASHEED),
             ("regional_overviews", "Q888002\tQ888003"),
         ]
+
+    def test_reverse_then_old_lists_back(self):
+        self._parent(NASHEED, ISLAMIC_MUSIC)
+        self.entries.create(
+            user=None,
+            list_name="regional_overrides",
+            key="Q888002",
+            values={"overview_item_id": "Q888003", "exclude_other_parents": False},
+            reason="r",
+        )
+        self._review("regional_overrides", "Q888002", "overview_item_id")
+        self._migrate()
+
+        migration_module.merge_parent_lists(self.apps, None)
+
+        assert self.entries.get(key=NASHEED).list_name == "main_parent"
+        entry = self.entries.get(key="Q888002")
+        assert entry.list_name == "regional_overrides"
+        assert entry.values == {"exclude_other_parents": False, "overview_item_id": "Q888003"}
+        assert list(self.reviews.values_list("list_name", "key")) == [("regional_overrides", "Q888002")]
