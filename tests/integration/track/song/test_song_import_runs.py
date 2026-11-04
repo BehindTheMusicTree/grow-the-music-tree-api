@@ -5,6 +5,7 @@ from unittest.mock import ANY, patch
 
 import pytest
 from django.conf import settings
+from django.db import connection
 from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
@@ -282,6 +283,21 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([{**SONG, "youtube_view_count": 4}])
         assert self._assert_views_count_matches_rels() == {"Rock": 4}
+
+    def test_view_count_only_change_updates_playlist_and_trigger_is_active_again_after_merge(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": "othervideo1"}
+        self._sync([{**SONG, "youtube_view_count": 10}, {**other, "youtube_view_count": 5}])
+
+        self._sync([{**SONG, "youtube_view_count": 25}], mode="delta")
+
+        assert self._assert_views_count_matches_rels() == {"Rock": 30}
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT current_setting('grow.skip_views_count_song_update', true)")
+            assert cursor.fetchone()[0] != "on"
+        song = Song.objects.get(musicbrainz_recording_id=OTHER_MBID)
+        Song.objects.update_instance(song, actor=None, youtube_view_count=100)
+        assert CriteriaPlaylist.objects.get(criteria=rock).views_count == 125
 
     def test_playlist_views_count_follows_playability_and_video_change(self):
         rock = self.model_fixture_factory.create_genre("Rock")

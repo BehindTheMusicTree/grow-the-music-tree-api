@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Improved
+
+- The songs import merge no longer runs the `views_count_song_update` statement trigger on its bulk `grow_song` update (its transition tables have no indexes or statistics: 250 s vs 45 s for 100k rows on staging). The merge computes the same per-playlist `views_count` delta set-wise from `changed_song` and applies it after the update; interactive song edits keep the trigger. Migration `0091` adds the transaction-local `grow.skip_views_count_song_update` guard; the existing Postgres views_count tests cover the invariant.
+
 ### Fixed
 
 - `docs/api/genres.md` listed only some history `action` values, leaving out `side_changed` (recorded by the admin side toggle), `genre_changed` and `updated`; clients built from it rejected a genre's history once its side changed. The docs now list the full `HistoryAction` enum, and `test_history_action_docs.py` fails when they drift.
