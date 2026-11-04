@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- The songs merge now checks for artist changes only on the tracks in the import run, instead of grouping every track's artists. On a 30k-row delta on staging, the `changed_song` step drops from 289 s to 19 s, with identical output.
+- On delta runs, the songs merge now checks for artist changes only on the tracks in the import run, instead of grouping every track's artists. On a 30k-row delta on staging, the `changed_song` step drops from 289 s to 19 s, with identical output. Full runs keep the unfiltered query: on 32M songs, the filter made the step slower (580 s became 720 s, and 1,216 s with `work_mem` at 256 MB). Covered by `test_delta_run_compares_artists_of_its_own_tracks_only`.
 
 ### Fixed
 
