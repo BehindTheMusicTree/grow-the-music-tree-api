@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `genre-playlists/tree/` rows carry `songsCount`: every canonical song in the genre's primary subtree, playable or not (`tracksCount` stays playable-only). Stored as `CriteriaPlaylist.direct_songs_count`, maintained by deltas on song create/delete/genre change, genre delete and the bulk import merge (new `update_direct_songs_count` step), and folded into subtree counts at read time. Migration `0093` backfills it from one grouped count over the songs (about 31M in prod, expected tens of seconds). Tests in `tests/integration/criteria/playlist/test_genre_playlist_songs_count.py` and the Postgres merge tests.
+
 ### Changed
 
 - The songs merge now checks for artist changes only on the tracks in the import run, instead of grouping every track's artists. On a 30k-row delta on staging, the `changed_song` step drops from 289 s to 19 s, with identical output.

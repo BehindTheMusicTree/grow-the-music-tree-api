@@ -13,6 +13,7 @@ from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, find_parent_rule, l
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
+from grow.track.direct_songs_count import adjust_direct_songs_count
 
 from ...CriteriaManager import CriteriaManager
 
@@ -209,6 +210,20 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         super().delete_instance(instance, actor=actor)
         if was_required_root:
             self.assert_required_roots_present(user)
+
+    @transaction.atomic
+    def _on_before_delete(self, instance: Genre, *, actor: Any = None) -> None:
+        # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
+        moved = (
+            type(instance.criteria_playlist)
+            .objects.values_list("direct_songs_count", flat=True)
+            .get(pk=instance.criteria_playlist.pk)
+            if instance.user_id is None
+            else 0
+        )
+        super()._on_before_delete(instance, actor=actor)
+        if moved:
+            adjust_direct_songs_count(instance.parent_id, moved)
 
     @transaction.atomic
     def exclude_instance(self, instance: Genre, category: str, actor: Any = None) -> Genre:

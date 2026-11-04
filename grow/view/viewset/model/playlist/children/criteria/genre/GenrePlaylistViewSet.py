@@ -17,6 +17,7 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotatio
 from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
 
 from grow.model.criteria.Criteria import Criteria
+from grow.model.criteria.lineage_rel.fold_into_ascendants import fold_into_ascendants
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
@@ -41,31 +42,36 @@ def _tree_rows(queryset) -> list[dict]:
     """CriteriaPlaylistSimpleSerializer's output from plain .values() rows: hydrating ~1.7k model graphs cost ~2s."""
     additional = _parents_by_child(Criteria.additional_primary_parents)
     secondary = _parents_by_child(Criteria.secondary_parents)
+    playlists = list(
+        queryset.annotate(tracks_count=tracks_count_annotation()).values(
+            "uuid",
+            "created_on",
+            "updated_on",
+            "tracks_count",
+            "views_count",
+            "direct_songs_count",
+            "criteria_id",
+            "criteria__uuid",
+            "criteria___name",
+            "criteria__created_on",
+            "criteria__summary",
+            "criteria__tree_name",
+            "criteria__parent_id",
+            "criteria__parent__uuid",
+            "criteria__parent___name",
+            "criteria__parent__criteria_playlist__uuid",
+            "criteria__root___name",
+            "criteria__root__criteria_playlist__uuid",
+            "criteria__genre__side",
+            "criteria__genre__wikidata_id",
+            "criteria__genre__is_unaccepted_root",
+            "criteria__genre__is_umbrella",
+            "criteria__genre__scene",
+        )
+    )
+    songs_counts = fold_into_ascendants({r["criteria_id"]: [r["direct_songs_count"]] for r in playlists})
     rows = []
-    for r in queryset.annotate(tracks_count=tracks_count_annotation()).values(
-        "uuid",
-        "created_on",
-        "updated_on",
-        "tracks_count",
-        "views_count",
-        "criteria_id",
-        "criteria__uuid",
-        "criteria___name",
-        "criteria__created_on",
-        "criteria__summary",
-        "criteria__tree_name",
-        "criteria__parent_id",
-        "criteria__parent__uuid",
-        "criteria__parent___name",
-        "criteria__parent__criteria_playlist__uuid",
-        "criteria__root___name",
-        "criteria__root__criteria_playlist__uuid",
-        "criteria__genre__side",
-        "criteria__genre__wikidata_id",
-        "criteria__genre__is_unaccepted_root",
-        "criteria__genre__is_umbrella",
-        "criteria__genre__scene",
-    ):
+    for r in playlists:
         criteria_id = r["criteria_id"]
         name = r["criteria___name"] if criteria_id else CriterialessPlaylistNames.GENRE
         criteria = parent = None
@@ -97,6 +103,7 @@ def _tree_rows(queryset) -> list[dict]:
                 "root": root,
                 "tracks_count": r["tracks_count"],
                 "views_count": r["views_count"],
+                "songs_count": songs_counts[criteria_id][0],
                 "is_unaccepted_root": bool(r["criteria__genre__is_unaccepted_root"]),
                 "is_umbrella": bool(r["criteria__genre__is_umbrella"]),
                 "scene": r["criteria__genre__scene"],
