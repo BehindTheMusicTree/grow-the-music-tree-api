@@ -27,6 +27,15 @@ def recount_direct_songs_count(song_model: Any, playlist_model: Any) -> None:
     playlist_model.objects.bulk_update(playlists, ["direct_songs_count"], batch_size=500)
 
 
+def recount_direct_songs_count_holding_writers(song_model: Any, playlist_model: Any, connection: Any) -> None:
+    """The recount, with writers to the playlists held off (on Postgres) until the caller's transaction ends: an import
+    merge's delta committed mid-count would otherwise be overwritten by the older count. Readers are not blocked."""
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute("LOCK TABLE grow_criteria_playlist IN SHARE ROW EXCLUSIVE MODE")
+    recount_direct_songs_count(song_model, playlist_model)
+
+
 def on_track_deleted(sender: type[Track], instance: Track, **kwargs: Any) -> None:
     if instance.user_id is None:
         adjust_direct_songs_count(instance.genre_id, -1)
