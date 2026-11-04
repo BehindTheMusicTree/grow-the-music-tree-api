@@ -1,5 +1,6 @@
 import gzip
 import json
+import time
 import uuid
 from unittest.mock import ANY, patch
 
@@ -16,6 +17,8 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.artist.Artist import Artist
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
@@ -489,6 +492,8 @@ class TestImportRunMerge(AppTestCase):
                 )
 
                 assert steps["changed_song"] == 1
+                # Only an artist change re-syncs track artists: an unchanged MBID would re-sync to the same artist.
+                assert steps["current_artist"] == steps["desired_artist"] == (1 if name == "artist" else 0)
                 changed = Song.objects.get(musicbrainz_recording_id=MBID)
                 assert Song.objects.exclude(pk=changed.pk).get().title == "Other"
                 if name == "genre":
@@ -496,6 +501,36 @@ class TestImportRunMerge(AppTestCase):
                 if name == "artist":
                     assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
                 self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+    def test_track_with_an_extra_artist_is_resynced_to_its_one_mbid_artist(self):
+        self.model_fixture_factory.create_genre("Rock")
+        song = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        self._sync([song])
+        Song.objects.get().artists.add(self.model_fixture_factory.create_artist("Roger Waters"))
+
+        steps = self._steps(self._sync([song]))
+
+        assert steps["changed_song"] == steps["delete_track_artists"] == 1
+        assert [a.musicbrainz_artist_id for a in Song.objects.get().artists.all()] == [uuid.UUID(ARTIST_MBID)]
+
+    def test_genre_change_writes_one_time_ordered_history_entry_and_unchanged_rerun_none(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Pop")
+        changed = {**SONG, "genre_name": "Pop"}
+        self._sync([SONG])
+        history = HistoryEntry.objects.filter(
+            content_uuid=Song.objects.get().uuid, action=HistoryAction.GENRE_CHANGED
+        ).values_list("uuid", "old_value", "new_value")
+        before = set(history)
+        started_ms = time.time_ns() // 1_000_000
+
+        assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 1
+
+        ended_ms = time.time_ns() // 1_000_000
+        [(entry_uuid, old, new)] = set(history) - before
+        assert (entry_uuid.version, old, new) == (7, "Rock", "Pop")
+        assert started_ms <= int.from_bytes(entry_uuid.bytes[:6]) <= ended_ms
+        assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 0
 
     def test_delta_run_compares_artists_of_its_own_tracks_only(self):
         self.model_fixture_factory.create_genre("Rock")

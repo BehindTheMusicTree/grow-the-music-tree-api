@@ -1,3 +1,5 @@
+from uuid import uuid7
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -9,10 +11,14 @@ from .Fields import Fields
 from .HistoryAction import HistoryAction
 from .HistoryEntryManager import HistoryEntryManager
 
+CONTENT_INDEX = "grow_history_content_idx"
+
 
 class HistoryEntry(PrivateUniqueResource):
     """Actor+timestamp+action log entry for a genre or track edit. Written by manager hooks, never by API writes."""
 
+    # Time-ordered, like the song merge's bulk inserts: new entries append to the pkey btree instead of a random page.
+    uuid = models.UUIDField(primary_key=True, default=uuid7, editable=False, unique=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
     )
@@ -36,7 +42,8 @@ class HistoryEntry(PrivateUniqueResource):
         verbose_name = "History Entry"
         verbose_name_plural = "History Entries"
         indexes = [
-            models.Index(fields=[Fields.USER, Fields.CONTENT_TYPE, Fields.CONTENT_UUID]),
+            # Serves an item's history (filtered on content, newest first) and the curation sync's content-type count.
+            models.Index(fields=[Fields.CONTENT_TYPE, Fields.CONTENT_UUID, Fields.CREATED_ON], name=CONTENT_INDEX),
         ]
 
     def __str__(self) -> str:

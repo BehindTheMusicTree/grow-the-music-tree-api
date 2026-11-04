@@ -64,6 +64,11 @@ LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
     ON m.genre_wikidata_id IS NULL AND lower(c.name) = lower(m.genre_name) AND c.user_id IS NOT DISTINCT FROM %(user)s
 """
 
+# RFC 9562 uuidv7, which Postgres only ships from 18: the unix-ms timestamp over a v4's first 6 bytes, version 4 → 7.
+UUID7 = """encode(set_bit(set_bit(overlay(uuid_send(gen_random_uuid())
+        placing substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3) FROM 1 FOR 6),
+        52, 1), 53, 1), 'hex')::uuid"""
+
 # Same predicate as TrackManager._is_playable: only playable songs belong to playlists.
 PLAYABLE = "{0}.youtube_video_id IS NOT NULL AND {0}.youtube_unplayable_reason IS NULL"
 
@@ -77,9 +82,11 @@ LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
             SELECT musicbrainz_id FROM grow_bulk_import_deletion WHERE run_id = %(run)s)"""
 
 # Everything after this works on the songs that need a write; the rest of the run only counts toward `stale`. A song
-# whose credit isn't exactly its one MBID artist is kept: the artist steps resolve it (legacy names, extra credits).
+# whose credit isn't exactly its one MBID artist is kept and flagged `artist_changed`: the artist steps resolve it
+# (legacy names, extra credits). Unflagged songs skip them: an MBID is unique, so they would re-sync to the same artist.
 CHANGED_SONG = """CREATE TEMP TABLE changed_song AS
-    SELECT s.* FROM song_import s
+    SELECT s.*, s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text AS artist_changed
+    FROM song_import s
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
     LEFT JOIN (
@@ -212,7 +219,7 @@ STEPS = [
         WHERE a.name = n.artist AND a.musicbrainz_artist_id IS NULL AND a.user_id IS NOT DISTINCT FROM %(user)s
     )""",
     ),
-    # Every run re-syncs track artists, so upstream artist corrections reach existing tracks.
+    # Upstream artist corrections reach existing tracks: every flagged song's track artists are re-synced.
     (
         "desired_artist",
         """CREATE TEMP TABLE desired_artist AS
@@ -222,7 +229,8 @@ STEPS = [
         -- An MBID-less song never borrows an MBID artist's name: a namesake would be credited.
         SELECT DISTINCT ON (name) uuid, name FROM grow_artist
         WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
-    ) n ON s.artist_mbid IS NULL AND n.name = s.artist""",
+    ) n ON s.artist_mbid IS NULL AND n.name = s.artist
+    WHERE s.artist_changed""",
     ),
     ("analyze_desired_artist", "ANALYZE desired_artist"),
     # One scan of the track artists; the delete and insert below then only diff the two temp tables.
@@ -230,7 +238,7 @@ STEPS = [
         "current_artist",
         """CREATE TEMP TABLE current_artist AS
     SELECT ta.id, ta.track_id, ta.artist_id FROM the_music_tree_genre_kit_track_artists ta
-    JOIN changed_song s ON s.track_id = ta.track_id""",
+    JOIN changed_song s ON s.track_id = ta.track_id WHERE s.artist_changed""",
     ),
     ("analyze_current_artist", "ANALYZE current_artist"),
     (
@@ -369,15 +377,17 @@ AFTER_STALE_STEPS = [
             AND r.position IS NOT NULL AND NOT EXISTS (SELECT 1 FROM new_rel x WHERE x.id = r.id)
     ) o WHERE r.id = o.id AND r.position IS DISTINCT FROM o.position""",
     ),
+    # Time-ordered ids append to the pkey btree instead of evicting a random index page per row, as uuid4 did.
     (
         "insert_history",
-        """INSERT INTO grow_history_entry
+        f"""INSERT INTO grow_history_entry
         (uuid, created_on, object_pk, action, old_value, new_value, content_type_id, user_id, actor_id)
-    SELECT gen_random_uuid(), now(), c.track_id, %(genre_changed)s, o.name, n.name, %(content_type)s, %(user)s, NULL
+    SELECT {UUID7}, now(), c.track_id, %(genre_changed)s, o.name, n.name, %(content_type)s, %(user)s, NULL
     FROM track_change c
     LEFT JOIN grow_criteria o ON o.uuid = c.old_genre_id
     LEFT JOIN grow_criteria n ON n.uuid = c.new_genre_id
-    WHERE c.old_genre_id IS DISTINCT FROM c.new_genre_id""",
+    WHERE c.old_genre_id IS DISTINCT FROM c.new_genre_id
+    ORDER BY c.track_id""",
     ),
     # Ranks artist search results; only artists whose tracks this run touched are recounted.
     (
@@ -398,8 +408,8 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
     Merges a committed run's staged songs into the owner's `Song`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
     keep their genre and are never deleted, every other track missing from the run is deleted (a `delta` run instead deletes only the tracks it lists), and genre-playlist
-    rels follow genre and playability changes, holding playable songs only. Track artists are re-synced: matched
-    on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
+    rels follow genre and playability changes, holding playable songs only. Track artists not exactly the song's one
+    MBID artist are re-synced: matched on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
     artists import, which owns their lifecycle. The genre resolves by `genre_wikidata_id` (the
     canonical genre when the QID is in both trees), else by name when no QID is sent; an unresolved genre is stored
     as a null genre and counted as skipped.
