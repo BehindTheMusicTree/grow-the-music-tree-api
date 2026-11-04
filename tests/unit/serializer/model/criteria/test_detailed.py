@@ -83,3 +83,18 @@ class TestCase(AppTestCase):
         data = CriteriaDetailedSerializer(base_instance).data
 
         assert data["essential_songs"] == []
+
+    def test_serializes_wikidata_id_of_a_genre(self):
+        genre = self.model_fixture_factory.create_genre("Electronic", wikidata_id="Q9778")
+        base_instance = Criteria.objects.get(uuid=genre.uuid)
+
+        data = CriteriaDetailedSerializer(base_instance).data
+
+        assert data["wikidata_id"] == "Q9778"
+
+    def test_serializes_wikidata_id_as_none_for_tag(self):
+        tag = self.model_fixture_factory.create_tag("Live")
+
+        data = CriteriaDetailedSerializer(tag).data
+
+        assert data["wikidata_id"] is None
