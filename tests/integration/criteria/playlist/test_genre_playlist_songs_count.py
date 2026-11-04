@@ -1,5 +1,8 @@
+from io import StringIO
+
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.core.management import call_command
 from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.criteria.playlist.CriterialessPlaylistNames import CriterialessPlaylistNames
@@ -140,3 +143,9 @@ class TestCase(AppTestCase):
 
         assert self.stored()[CriterialessPlaylistNames.GENRE] == 1
         self.assert_exact()
+
+    def test_recount_command_repairs_a_drifted_count(self):
+        self.factory.create_song(title="Punk song", genre=self.punk)
+        GenrePlaylist.objects.filter(criteria=self.punk).update(direct_songs_count=0)
+        call_command("recount_direct_songs_count", stdout=StringIO())
+        assert self.stored()["Punk"] == 1
