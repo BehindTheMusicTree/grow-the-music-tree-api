@@ -24,6 +24,14 @@ Each playlist (here, in Retrieve, and in `{base}tree/`) carries `tracksCount`, i
 cover the whole primary subtree. The database keeps `viewsCount` current, so it moves with every import,
 curation edit and deletion.
 
+#### Tree
+
+`GET {base}tree/?treeName=canonical|regional`
+
+Every genre playlist of the tree, with `tracksCount` and `viewsCount` as above, plus `songsCount` (all
+canonical songs in the primary subtree, playable or not: what `library/songs/?genre=<uuid>` lists). In the canonical tree,
+the Genreless playlist's `songsCount` is the songs without a genre.
+
 #### Retrieve
 
 `GET {base}{id}/`

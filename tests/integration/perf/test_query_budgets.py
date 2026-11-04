@@ -135,7 +135,7 @@ def test_query_count_is_constant_and_within_budget(endpoint):
     assert many_rows <= BUDGETS[endpoint]
 
 
-TREE_BUDGETS = {"cold": 4, "warm": 1, "not-modified": 1}
+TREE_BUDGETS = {"cold": 5, "warm": 1, "not-modified": 1}
 
 
 def _count_tree_queries(**headers) -> int:

@@ -21,6 +21,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
+from grow.track.direct_songs_count import recount_direct_songs_count
 from tests.utils.AppTestCase import AppTestCase
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
@@ -684,3 +685,61 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([{**playable, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
         assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 0
+
+    def _direct_songs_counts(self) -> dict:
+        return dict(GenrePlaylist.objects.filter(user=None).values_list("criteria_id", "direct_songs_count"))
+
+    def _assert_direct_songs_counts_exact(self) -> dict:
+        stored = self._direct_songs_counts()
+        recount_direct_songs_count(Song, GenrePlaylist)
+        assert stored == self._direct_songs_counts()
+        return stored
+
+    def test_direct_songs_count_follows_new_moved_and_unplayable_songs(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": None}
+        nameless = {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Nameless", "genre_name": None}
+
+        self._sync([SONG, other, nameless])
+        counts = self._assert_direct_songs_counts_exact()
+        assert (counts[rock.pk], counts[pop.pk], counts[None]) == (2, 0, 1)
+
+        self._sync([{**SONG, "youtube_unplayable_reason": "private"}, other, nameless])
+        assert self._assert_direct_songs_counts_exact()[rock.pk] == 2
+
+        self._sync([{**SONG, "genre_name": "Pop"}, other, {**nameless, "genre_name": "Rock"}])
+        counts = self._assert_direct_songs_counts_exact()
+        assert (counts[rock.pk], counts[pop.pk], counts[None]) == (2, 1, 0)
+
+    def test_direct_songs_count_drops_stale_songs_but_keeps_locked_ones(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        self.model_fixture_factory.create_song(title="Locked", genre=pop, is_manually_edited=True)
+        self.model_fixture_factory.create_song(title="Stale", genre=rock, youtube_video_id="stalevideo1")
+        self.model_fixture_factory.create_song(title="Stale unplayable", genre=rock, youtube_video_id=None)
+
+        self._sync([SONG])
+
+        counts = self._assert_direct_songs_counts_exact()
+        assert (counts[rock.pk], counts[pop.pk]) == (1, 1)
+
+    def test_direct_songs_count_with_delta_run_and_deletions(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        self._sync([SONG, {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": None}])
+
+        self._sync([{**SONG, "genre_name": "Pop"}], mode="delta", deleted=(OTHER_MBID,))
+
+        counts = self._assert_direct_songs_counts_exact()
+        assert (counts[rock.pk], counts[pop.pk]) == (0, 1)
+
+    def test_direct_songs_count_counts_an_adopted_legacy_song_once(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_song(
+            title="Legacy", genre=rock, youtube_video_id=SONG["youtube_video_id"], musicbrainz_recording_id=None
+        )
+
+        self._sync([SONG])
+
+        assert self._assert_direct_songs_counts_exact()[rock.pk] == 1

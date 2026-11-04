@@ -4,7 +4,7 @@ from django.db.models import Count, Q
 from rest_framework.exceptions import NotFound
 
 from grow.model.artist.Artist import Artist
-from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
+from grow.model.criteria.lineage_rel.fold_into_ascendants import fold_into_ascendants
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.playable import PLAYABLE
 from grow.model.song.Song import Song
@@ -32,13 +32,7 @@ def artist_genre_counts(artist_id: str) -> list[dict]:
             raise NotFound
         return []
 
-    folded = {genre: counts[:] for genre, counts in own.items()}
-    genres = [genre for genre in own if genre is not None]
-    for descendant, ascendant in CriteriaLineageRel.objects.filter(
-        user__isnull=True, descendant__in=genres
-    ).values_list("descendant", "ascendant"):
-        for index, count in enumerate(own[descendant]):
-            folded.setdefault(ascendant, [0, 0])[index] += count
+    folded = fold_into_ascendants(own)
 
     wanted = Q(criteria__in=[genre for genre in folded if genre is not None])
     if None in folded:
