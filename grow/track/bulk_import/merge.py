@@ -13,7 +13,9 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
-TEMP_TABLES = "song_import, changed_song, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist, count_artist"
+SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
+
+TEMP_TABLES = "song_import, changed_song, views_delta, genre_playlist, genreless_playlist, track_change, desired_rel, new_rel, touched_playlist, stale, desired_artist, current_artist, count_artist"
 
 # One song per MBID (a re-uploaded part's latest copy wins), matched to the owner's track by MBID, else a legacy
 # MBID-less track adopted by video id (one song per video), else a new track id.
@@ -118,6 +120,19 @@ STEPS = [
     FROM changed_song s WHERE t.uuid = s.track_id AND NOT s.is_new
         AND (t.title IS DISTINCT FROM s.title OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id))""",
     ),
+    # The grow_song statement trigger is skipped for the whole merge (see `_merge`): its unindexed transition tables
+    # made it cost minutes per 100k rows. The same per-playlist delta is taken here from the old values and applied
+    # right after the update, before any rel changes, exactly when the trigger would have run.
+    (
+        "views_delta",
+        """CREATE TEMP TABLE views_delta AS
+    SELECT r.playlist_id, sum(coalesce(s.youtube_view_count, 0) - coalesce(y.youtube_view_count, 0)) AS v
+    FROM changed_song s
+    JOIN grow_song y ON y.track_id = s.track_id
+    JOIN the_music_tree_genre_kit_track_playlist_rel r ON r.track_id = s.track_id
+    WHERE NOT s.is_new AND s.youtube_view_count IS DISTINCT FROM y.youtube_view_count
+    GROUP BY r.playlist_id""",
+    ),
     (
         "update_songs",
         """UPDATE grow_song y SET
@@ -128,6 +143,11 @@ STEPS = [
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
             OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
             OR y.first_release_year IS DISTINCT FROM s.first_release_year)""",
+    ),
+    (
+        "apply_views_delta",
+        """UPDATE grow_criteria_playlist cp SET views_count = cp.views_count + d.v
+    FROM views_delta d WHERE cp.playlist_id = d.playlist_id AND d.v <> 0""",
     ),
     # Key order fills the pkey/track_id btrees sequentially instead of evicting a random index page per row.
     (
@@ -380,6 +400,7 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
         cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
+        cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)
         cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
         if not delta and not cursor.fetchone()[0]:
@@ -390,6 +411,8 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
             "SELECT count(*), count(*) FILTER (WHERE genre_name IS NOT NULL AND genre_id IS NULL) FROM song_import"
         )
         imported, skipped = cursor.fetchone()
+        # Transaction-local, but a caller's outer transaction (tests) would otherwise keep it set past the merge.
+        cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
         cursor.execute(f"DROP TABLE {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped)
