@@ -29,5 +29,5 @@ def reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("grow", "0099_song_search")]
+    dependencies = [("grow", "0100_forced_canonical_genres_list")]
     operations = [migrations.RunPython(replace, reverse)]

@@ -15,7 +15,7 @@ from grow.model.artist.Artist import Artist
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_search_norm_migration_preserves_results_and_dependencies():
-    migration = importlib.import_module("grow.migrations.0100_qualify_search_norm")
+    migration = importlib.import_module("grow.migrations.0101_qualify_search_norm")
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT pg_get_userbyid(proowner), proacl FROM pg_proc WHERE oid = 'public.grow_search_norm(text)'::regprocedure"
@@ -101,7 +101,7 @@ def test_custom_archive_restores_generated_artist_columns(tmp_path):
                 ).fetchone()[0]
                 == 2
             )
-        migration = importlib.import_module("grow.migrations.0100_qualify_search_norm")
+        migration = importlib.import_module("grow.migrations.0101_qualify_search_norm")
         try:
             with connection.schema_editor() as editor:
                 migration.reverse(None, editor)

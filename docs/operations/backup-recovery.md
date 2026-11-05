@@ -1,6 +1,6 @@
 # Recovering legacy Grow backups
 
-Backups made before migration 0100 contain a search function whose unqualified dictionary reference can prevent ordinary `pg_restore` from creating the artist tables. Restoring such an archive requires the manual procedure below. The monthly drill must use an ordinary restore, not this procedure. Migration 0100 only fixes new dumps; it cannot change an existing archive. Reversing it restores the defective definition and should not be the default response to an application rollback.
+Backups made before migration 0101 contain a search function whose unqualified dictionary reference can prevent ordinary `pg_restore` from creating the artist tables. Restoring such an archive requires the manual procedure below. The monthly drill must use an ordinary restore, not this procedure. Migration 0100 only fixes new dumps; it cannot change an existing archive. Reversing it restores the defective definition and should not be the default response to an application rollback.
 
 Use a pinned, downloaded custom-format archive and a verified empty **disposable** database. Do not use `scripts/restore-prod-db.sh` for a legacy archive: it replaces the local schema before restoring. Protect the download and temporary lists, and do not modify the original object or archive. Record the object key, R2 timestamp and size, SHA-256, client and server versions, and the historical function definition in the recovery record. Confirm available disk space and archive identity before proceeding.
 
@@ -56,4 +56,4 @@ Run the SQL using `psql -v ON_ERROR_STOP=1 "$DEST"`, then restore the remainder 
 
 Verify artist and alias row counts against the expected source counts, stored folded names against `public.grow_search_norm`, and expected indexes and their `pg_index.indisvalid` state. Check constraints and record separately any pre-existing `NOT VALID` constraints and any unexpected missing or invalid constraints. Verify a schema-qualified normalization call with an empty `search_path`. Record counts, checks, versions, timing and cleanup. Preserve the evidence and remove only scratch resources created for this recovery.
 
-If the recovered database is subsequently brought under Django management, apply migration 0100 through the normal migration process as a separate action. Do not alter migration history to claim it was already applied during this recovery.
+If the recovered database is subsequently brought under Django management, apply migration 0101 through the normal migration process as a separate action. Do not alter migration history to claim it was already applied during this recovery.
