@@ -24,7 +24,17 @@ class TrackManager(AbstractTrackManager[T]):
             instance = super().create(actor=actor, **kwargs)
             if instance.user_id is None:
                 adjust_direct_songs_count(instance.genre_id, 1)
+            self._refresh_search(instance)
         return instance
+
+    def _on_updated(self, old_instance: T, updated_instance: T) -> None:
+        self._refresh_search(updated_instance)
+
+    @staticmethod
+    def _refresh_search(instance: T) -> None:
+        from grow.model.song_search.SongSearch import SongSearch
+
+        SongSearch.objects.refresh([instance.pk])
 
     def _on_track_genre_changed(self, instance: T, *, old_genre, actor: Any = None) -> None:
         if instance.user_id is None:

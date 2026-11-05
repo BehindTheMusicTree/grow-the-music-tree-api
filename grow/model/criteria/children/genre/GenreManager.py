@@ -9,7 +9,7 @@ from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.lists import EXCLUDED_GENRE_LISTS
-from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, find_parent_rule, lock_writes
+from grow.curation.rows import CANONICAL_PARENT_LIST, KEY_SEPARATOR, POP_SIDE_LIST, find_parent_rule, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -63,13 +63,13 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         upsert_admin_rule(list_name, row, actor)
 
     def _reparent_rule(self, instance: Genre) -> dict[str, str]:
-        """The `main_parent` row for an admin reparent, or a 400 when no curation list can express it."""
+        """The `canonical_parent` row for an admin reparent, or a 400 when no curation list can express it."""
         parent_item_id, parent_excluded = self.filter(pk=instance.parent_id).values_list(
             "wikidata_id", "is_excluded"
         ).first() or (None, False)
         if instance.tree_name != CriteriaTreeName.CANONICAL:
-            # The new parent may be a regional overview (`regional_overrides`) or a genre (`main_parent`),
-            # which grow can't tell apart, and `secondary_parents` adds an edge rather than moving one.
+            # The new parent may be a regional overview (`regional_overviews`) or a regional genre
+            # (`regional_genre_parent`), which grow can't tell apart.
             message = "Regional genres can't be reparented here; edit the regional curation lists instead"
         elif instance.parent_id is None:
             message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
@@ -100,7 +100,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         if actor is not None:
             if self._is_wikidata_item(instance):
-                self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
+                self._upsert_rule(instance, CANONICAL_PARENT_LIST, actor, **self._reparent_rule(instance))
             if instance.parent_id is not None:
                 instance.is_unaccepted_root = False
                 instance.save(update_fields=["is_unaccepted_root"])
@@ -129,16 +129,16 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 was_secondary = was_secondary or field == "secondary_parents"
         return was_secondary
 
-    def _drop_secondary_add_rule(self, instance: Genre, main_parent_pk: Any, actor: Any) -> None:
+    def _drop_secondary_add_rule(self, instance: Genre, anchor_parent_pk: Any, actor: Any) -> None:
         """The `add` rule of an edge that became the main parent would make gold raise on the duplicate. A `remove`
         rule is kept, it applies again if the main parent later moves away."""
-        main_parent_item_id = self.filter(pk=main_parent_pk).values_list("wikidata_id", flat=True).first()
-        if instance.wikidata_id is None or main_parent_item_id is None:
+        anchor_parent_item_id = self.filter(pk=anchor_parent_pk).values_list("wikidata_id", flat=True).first()
+        if instance.wikidata_id is None or anchor_parent_item_id is None:
             return
         entries = CurationEntry.objects.filter(
             user=None,
             list_name="secondary_parents",
-            key=KEY_SEPARATOR.join((instance.wikidata_id, main_parent_item_id)),
+            key=KEY_SEPARATOR.join((instance.wikidata_id, anchor_parent_item_id)),
             values__action="add",
         )
         for entry in entries:
@@ -213,6 +213,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def _on_before_delete(self, instance: Genre, *, actor: Any = None) -> None:
+        from grow.model.song.Song import Song
+        from grow.model.song_search.SongSearch import SongSearch
+
         # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
         moved = (
             type(instance.criteria_playlist)
@@ -221,9 +224,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if instance.user_id is None
             else 0
         )
+        # A root's songs become genreless, which changes their search rank; elsewhere they keep a genre.
+        genreless = [] if instance.parent_id else list(Song.objects.filter(genre=instance).values_list("pk", flat=True))
         super()._on_before_delete(instance, actor=actor)
         if moved:
             adjust_direct_songs_count(instance.parent_id, moved)
+        SongSearch.objects.refresh(genreless)
 
     @transaction.atomic
     def exclude_instance(self, instance: Genre, category: str, actor: Any = None) -> Genre:

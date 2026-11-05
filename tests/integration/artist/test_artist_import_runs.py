@@ -23,6 +23,8 @@ from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.song_search.SongSearch import SongSearch
+from grow.song_search.rebuild import rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
 
 BAND = "83d91898-7763-47d7-b03b-b92132375c47"
@@ -226,6 +228,20 @@ class TestImportRunMerge(AppTestCase):
 
         assert Album.objects.get().name == title
 
+    def test_rename_rederives_credited_songs_search_document(self):
+        self._sync([ARTIST, PERSON])
+        song = self.model_fixture_factory.create_song("Money", None)
+        song.artists.add(Artist.objects.get(musicbrainz_artist_id=BAND))
+        rebuild_song_search()
+
+        steps = {
+            t["label"]: t["rowcount"] for t in self._sync([{**ARTIST, "name": "The Pink Floyd"}, PERSON])["stepTimings"]
+        }
+
+        assert steps["renamed_artist"] == steps["upsert_song_search"] == 1
+        assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+        assert [s.pk for s in SongSearch.objects.search("the pink money", 8)] == [song.pk]
+
     def test_reimport_updates_in_place_and_resyncs_links(self):
         self._sync([ARTIST, PERSON])
         band_uuid = Artist.objects.get(musicbrainz_artist_id=BAND).uuid
@@ -417,3 +433,6 @@ class TestImportRunMerge(AppTestCase):
         self._sync([ARTIST], client=self.pipeline)
 
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("artists", 1, 0)]
+        timings = {step["label"]: step for step in ImportRun.objects.get().step_timings}
+        assert timings["artist_import"]["rowcount"] == 1
+        assert timings["delete_orphan_albums"]["ms"] >= 0

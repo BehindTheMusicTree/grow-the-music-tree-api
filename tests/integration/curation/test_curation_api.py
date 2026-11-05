@@ -101,9 +101,9 @@ class TestCase(AppTestCase):
     def test_entries_then_labels_for_every_item_id_column(self):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
-        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "main_parent")
+        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "canonical_parent")
 
-        response = self.api_client.get(path=self._entries_url("main_parent"), data={"q": "Q99999999"})
+        response = self.api_client.get(path=self._entries_url("canonical_parent"), data={"q": "Q99999999"})
 
         labels = response.json()["labels"]
 
@@ -114,7 +114,7 @@ class TestCase(AppTestCase):
         self._create(ITEM)
         self._create(
             {**ITEM, "item_id": "Q999999992", "parent_item_id": "Q999999991", "exclude_other_parents": False},
-            "main_parent",
+            "canonical_parent",
         )
         row = {
             "item_id": "Q999999993",
@@ -128,7 +128,7 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert [(r["listName"], r["row"]["item_id"]) for r in response.json()["results"]] == [
-            ("main_parent", "Q999999992"),
+            ("canonical_parent", "Q999999992"),
             ("secondary_parents", "Q999999993"),
             ("theme_genres", "Q999999991"),
         ]
@@ -204,7 +204,7 @@ class TestCase(AppTestCase):
     def test_bool_column_then_coerced(self):
         row = {**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": "true"}
 
-        response = self._create(row, "main_parent")
+        response = self._create(row, "canonical_parent")
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"]["exclude_other_parents"] is True
@@ -393,13 +393,13 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_then_csv_rows_snake_case(self):
-        self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "main_parent")
+        self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "canonical_parent")
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
         assert set(export) == {*CURATION_LISTS, "exported_on"}
-        row = next(r for r in export["main_parent"] if r["item_id"] == ITEM["item_id"])
-        assert list(row) == list(CURATION_LISTS["main_parent"].columns)
+        row = next(r for r in export["canonical_parent"] if r["item_id"] == ITEM["item_id"])
+        assert list(row) == list(CURATION_LISTS["canonical_parent"].columns)
         assert row["exclude_other_parents"] == ""
 
     def test_local_item_id_then_accepted(self):

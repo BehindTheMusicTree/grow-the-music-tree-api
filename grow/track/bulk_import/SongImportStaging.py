@@ -16,6 +16,7 @@ class SongImportStaging(models.Model):
     genre_name = models.TextField(null=True)
     genre_wikidata_id = models.TextField(null=True)
     first_release_year = models.PositiveSmallIntegerField(null=True)
+    recording_count = models.PositiveIntegerField(null=True)
 
     class Meta:
         db_table = "grow_song_import_staging"

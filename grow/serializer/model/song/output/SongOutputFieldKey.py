@@ -19,3 +19,5 @@ class SongOutputFieldKey(StrEnum):
     YOUTUBE_VIDEO_ID = "youtube_video_id"  # legacy, superseded by YOUTUBE_VIDEO
     MUSICBRAINZ_RECORDING_ID = "musicbrainz_recording_id"
     YOUTUBE_UNPLAYABLE_REASON = "youtube_unplayable_reason"  # legacy, superseded by YOUTUBE_VIDEO
+    FIRST_RELEASE_YEAR = "first_release_year"
+    ESSENTIAL_GENRES = "essential_genres"

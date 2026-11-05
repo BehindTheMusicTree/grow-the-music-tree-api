@@ -18,12 +18,6 @@ def recreate_playlist_triggers(apps, schema_editor):
         schema_editor.execute(sql)
 
 
-def backfill(apps, schema_editor):
-    from grow.track.direct_songs_count import recount_direct_songs_count
-
-    recount_direct_songs_count(apps.get_model("grow", "Song"), apps.get_model("grow", "CriteriaPlaylist"))
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("grow", "0092_song_import_staging_genre_wikidata_id"),
@@ -37,5 +31,4 @@ class Migration(migrations.Migration):
             field=models.IntegerField(default=0, db_default=0),
         ),
         migrations.RunPython(recreate_playlist_triggers, drop_views_count_triggers),
-        migrations.RunPython(backfill, migrations.RunPython.noop),
     ]

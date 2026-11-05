@@ -37,11 +37,11 @@ class TestCase(GenreTestCase):
 
         assert [r["display_label"] for r in _rows("label_overrides")] == ["Punk music"]
 
-    def test_canonical_reparent_then_main_parent(self):
+    def test_canonical_reparent_then_canonical_parent(self):
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
-        assert _rows("main_parent") == [
+        assert _rows("canonical_parent") == [
             {
                 "item_id": "Q888002",
                 "reason": REASON,
@@ -109,7 +109,7 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert Genre.objects.get(pk=punk.pk).parent_id == self.rock.pk
-        assert _rows("main_parent") == []
+        assert _rows("canonical_parent") == []
 
     def test_reparent_under_app_created_genre_then_400(self):
         local = self.model_fixture_factory.create_genre("Local genre")
@@ -183,7 +183,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert _rows("main_parent") == []
+        assert _rows("canonical_parent") == []
 
     def test_exclude_genre_referenced_by_parent_rule_then_400(self):
         self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
@@ -192,7 +192,7 @@ class TestCase(GenreTestCase):
             response = self._post_genre_exclude(genre.uuid, "theme")
 
             assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "main_parent" in str(response.json())
+            assert "canonical_parent" in str(response.json())
             assert not Genre.objects.get(pk=genre.pk).is_excluded
 
     def test_exclude_unknown_genre_then_404(self):

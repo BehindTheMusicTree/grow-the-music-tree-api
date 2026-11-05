@@ -1,5 +1,6 @@
 import gzip
 import json
+import time
 import uuid
 from unittest.mock import ANY, patch
 
@@ -16,10 +17,14 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.artist.Artist import Artist
+from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
+from grow.model.song_search.SongSearch import SongSearch
+from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.track.direct_songs_count import recount_direct_songs_count
 from tests.utils.AppTestCase import AppTestCase
@@ -250,6 +255,32 @@ class TestImportRunMerge(AppTestCase):
 
         assert counts() == {uuid.UUID(MBID): 2**40, uuid.UUID(OTHER_MBID): 7}
 
+    def test_recording_count_imported_updated_and_nullable(self):
+        self.model_fixture_factory.create_genre("Rock")
+        without_count = {**SONG, "musicbrainz_recording_id": OTHER_MBID}
+
+        self._sync([{**SONG, "recording_count": 12}, without_count])
+
+        def counts():
+            return dict(Song.objects.values_list("musicbrainz_recording_id", "recording_count"))
+
+        assert counts() == {uuid.UUID(MBID): 12, uuid.UUID(OTHER_MBID): None}
+
+        self._sync([{**SONG, "recording_count": None}, {**without_count, "recording_count": 2**31 - 1}])
+
+        assert counts() == {uuid.UUID(MBID): None, uuid.UUID(OTHER_MBID): 2**31 - 1}
+
+    def test_delta_run_changing_only_recording_count_updates_that_song(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "recording_count": 2}
+        self._sync([{**SONG, "recording_count": 3}, other])
+
+        steps = self._steps(self._sync([{**SONG, "recording_count": 40}], mode="delta"))
+
+        assert steps["changed_song"] == steps["update_songs"] == 1
+        assert steps["update_tracks"] == 0
+        assert dict(Song.objects.values_list("title", "recording_count")) == {"Comfortably Numb": 40, "Other": 2}
+
     def _assert_views_count_matches_rels(self) -> dict[str, int]:
         def label(playlist: CriteriaPlaylist) -> str:
             return playlist.criteria.genre.name if playlist.criteria else "Genreless"
@@ -466,6 +497,24 @@ class TestImportRunMerge(AppTestCase):
         assert steps["update_tracks"] == steps["update_songs"] == steps["insert_track_artists"] == 0
         assert self._playlist_tracks(rock) == before
 
+    def test_merges_keep_song_search_in_sync(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
+        rebuild_song_search()
+        no_drift = {"missing": 0, "orphaned": 0, "stale": 0}
+
+        self._sync([SONG, other])
+        assert SongSearch.objects.count() == 2 and SongSearch.objects.drift() == no_drift
+
+        steps = self._steps(self._sync([SONG, other]))
+        assert steps["upsert_song_search"] == 0
+
+        self._sync([{**SONG, "title": "Comfortably Numb (Live)", "artist": "Roger Waters", "genre_name": None}])
+        assert SongSearch.objects.count() == 1 and SongSearch.objects.drift() == no_drift
+        (row,) = SongSearch.objects.all()
+        assert (row.title_key, row.has_genre) == ("comfortably numb live", False)
+        assert [s.title for s in SongSearch.objects.search("waters numb", 8)] == ["Comfortably Numb (Live)"]
+
     def test_single_change_of_each_kind_is_the_only_one_carried(self):
         self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
@@ -478,6 +527,7 @@ class TestImportRunMerge(AppTestCase):
             "playability": {"youtube_unplayable_reason": "private"},
             "year": {"first_release_year": 1979},
             "views": {"youtube_view_count": 7},
+            "recordings": {"recording_count": 5},
             "artist": {"artist_musicbrainz_id": other_artist, "artist": "Roger Waters"},
         }
         for name, change in changes.items():
@@ -489,6 +539,8 @@ class TestImportRunMerge(AppTestCase):
                 )
 
                 assert steps["changed_song"] == 1
+                # Only an artist change re-syncs track artists: an unchanged MBID would re-sync to the same artist.
+                assert steps["current_artist"] == steps["desired_artist"] == (1 if name == "artist" else 0)
                 changed = Song.objects.get(musicbrainz_recording_id=MBID)
                 assert Song.objects.exclude(pk=changed.pk).get().title == "Other"
                 if name == "genre":
@@ -496,6 +548,50 @@ class TestImportRunMerge(AppTestCase):
                 if name == "artist":
                     assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
                 self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+    def test_track_with_an_extra_artist_is_resynced_to_its_one_mbid_artist(self):
+        self.model_fixture_factory.create_genre("Rock")
+        song = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        self._sync([song])
+        Song.objects.get().artists.add(self.model_fixture_factory.create_artist("Roger Waters"))
+
+        steps = self._steps(self._sync([song]))
+
+        assert steps["changed_song"] == steps["delete_track_artists"] == 1
+        assert [a.musicbrainz_artist_id for a in Song.objects.get().artists.all()] == [uuid.UUID(ARTIST_MBID)]
+
+    def test_genre_change_writes_one_time_ordered_history_entry_and_unchanged_rerun_none(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Pop")
+        changed = {**SONG, "genre_name": "Pop"}
+        self._sync([SONG])
+        history = HistoryEntry.objects.filter(
+            content_uuid=Song.objects.get().uuid, action=HistoryAction.GENRE_CHANGED
+        ).values_list("uuid", "old_value", "new_value")
+        before = set(history.all())
+        started_ms = time.time_ns() // 1_000_000
+
+        assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 1
+
+        ended_ms = time.time_ns() // 1_000_000
+        [(entry_uuid, old, new)] = set(history.all()) - before
+        assert (entry_uuid.version, old, new) == (7, "Rock", "Pop")
+        assert started_ms <= int.from_bytes(entry_uuid.bytes[:6]) <= ended_ms
+        assert self._steps(self._sync([changed], mode="delta"))["insert_history"] == 0
+
+    def test_delta_run_compares_artists_of_its_own_tracks_only(self):
+        self.model_fixture_factory.create_genre("Rock")
+        base = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
+
+        assert self._steps(self._sync([base], mode="delta"))["changed_song"] == 0
+        other_artist = "11111111-2222-4333-8444-555555555555"
+        steps = self._steps(self._sync([{**base, "artist_musicbrainz_id": other_artist}], mode="delta"))
+
+        assert steps["changed_song"] == 1
+        assert [a.musicbrainz_artist_id for a in Song.objects.get(musicbrainz_recording_id=MBID).artists.all()] == [
+            uuid.UUID(other_artist)
+        ]
 
     def test_locked_track_keeps_its_genre_and_is_not_carried(self):
         self.model_fixture_factory.create_genre("Rock")
@@ -600,6 +696,13 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
             _gzip_ndjson([{**SONG, "genre_wikidata_id": "rock"}]),
             _gzip_ndjson([{**SONG, "genre_wikidata_id": ""}]),
+            _gzip_ndjson([{**SONG, "recording_count": 0}]),
+            _gzip_ndjson([{**SONG, "recording_count": "3"}]),
+            _gzip_ndjson([{**SONG, "recording_count": True}]),
+            _gzip_ndjson([{**SONG, "recording_count": 2**31}]),
+            _gzip_ndjson([{**SONG, "recording_count": -1}]),
+            _gzip_ndjson([{**SONG, "recording_count": 1.5}]),
+            _gzip_ndjson([{**SONG, "recording_count": 3.0}]),
             gzip.compress(b"{not json\n"),
         ]
 
@@ -634,6 +737,9 @@ class TestImportRunMerge(AppTestCase):
         self._sync([SONG, unmatched], client=self.pipeline)
 
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("songs", 2, 1)]
+        timings = {step["label"]: step for step in ImportRun.objects.get().step_timings}
+        assert timings["song_import"]["rowcount"] == 2
+        assert {"insert_tracks", "insert_history"} <= timings.keys()
 
     def test_stale_essential_track_removed_from_genre_essentials(self):
         rock = self.model_fixture_factory.create_genre("Rock")

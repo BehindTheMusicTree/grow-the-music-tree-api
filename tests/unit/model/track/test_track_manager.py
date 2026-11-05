@@ -19,6 +19,7 @@ class TestCase(AppTestCase):
         assert entry.actor is None
         assert entry.old_value == "Rock"
         assert entry.new_value == "Pop"
+        assert entry.uuid.version == 7
 
     def test_update_instance_genre_change_with_actor_locks_and_logs_admin_history(self):
         rock = self.model_fixture_factory.create_genre(name="Rock")
