@@ -338,10 +338,10 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
 
 
 def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
-    """Upserts each list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
+    """Upserts each list from `<list_name>.csv` in `directory`. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
     for list_name, curation_list in CURATION_LISTS.items():
-        path = directory / f"manual_{list_name}.csv"
+        path = directory / f"{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if tuple(reader.fieldnames or ()) != curation_list.columns:
