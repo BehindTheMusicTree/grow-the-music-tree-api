@@ -19,8 +19,8 @@ def rebuild_song_search(*, only_if_not_ready: bool = False) -> int | None:
     """
     Fills a fresh copy of the projection from the source tables and swaps it in, then marks search ready. Returns the
     row count, or None when `only_if_not_ready` is set and the projection was already built (the lock serializes
-    concurrent builds, so duplicate queued builds are no-ops). Searches keep reading the old table until the swap; merges and ORM writes wait for it, then land in the
-    new table, so no change made during the rebuild is lost.
+    concurrent builds, so duplicate queued builds are no-ops). Searches keep reading the old table until the swap;
+    merges and ORM writes wait for it, then land in the new table, so no change made during the rebuild is lost.
     """
     if connection.vendor != "postgresql":
         raise RuntimeError("The song search projection is Postgres-only")
@@ -79,4 +79,9 @@ def queue_song_search_build() -> None:
     if connection.vendor != "postgresql":
         return
     logger.info("Song search projection not built: queueing its bulk build")
-    async_task(rebuild_song_search, only_if_not_ready=True, group=BUILD_GROUP)
+    try:
+        async_task(rebuild_song_search, only_if_not_ready=True, group=BUILD_GROUP)
+    except Exception:
+        # Called after the merge committed: failing the task would report merged data as failed. The projection stays
+        # unbuilt, and the next merge queues the build again.
+        logger.exception("Could not queue the song search build")

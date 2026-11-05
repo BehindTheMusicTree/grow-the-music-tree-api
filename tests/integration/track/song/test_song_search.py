@@ -16,7 +16,7 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.serializer.model.song.search import SEARCH_LIMIT_MAX
-from grow.song_search.rebuild import rebuild_song_search
+from grow.song_search.rebuild import queue_song_search_build, rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -277,3 +277,13 @@ class TestSongSearch(AppTestCase):
             cursor.execute("UPDATE grow_song_search SET rank_score = -1 WHERE track_id = %s", [song.pk])
         with pytest.raises(CommandError):
             call_command("rebuild_song_search", "--check")
+
+
+@pytest.mark.postgres
+class TestQueueSongSearchBuild(AppTestCase):
+    def test_queueing_failure_is_logged_not_raised(self):
+        with (
+            patch("grow.song_search.rebuild.async_task", side_effect=ConnectionError("redis down")),
+            self.assertLogs("grow.bulk_import", level="ERROR"),
+        ):
+            queue_song_search_build()
