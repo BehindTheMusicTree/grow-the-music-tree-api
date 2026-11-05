@@ -87,6 +87,17 @@ def bulk_import_run_actions(
             raise ValidationError("import run is already committed")
         return run
 
+    def enqueue(run: BulkImportRun, attempt: ImportAttempt) -> None:
+        try:
+            async_task(merge, run.pk, run.user_id, run.record, group=attempt.task_id, attempt_id=attempt.pk)
+        except Exception:
+            ImportAttempt.objects.filter(pk=attempt.pk).update(
+                state=ImportAttempt.State.FAILED,
+                error="Could not enqueue import; see API logs",
+                finished_at=timezone.now(),
+            )
+            raise
+
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
@@ -150,17 +161,8 @@ def bulk_import_run_actions(
                 raise ValidationError("import run is already committed")
             run.user_id, run.record = user_id, record
             attempt = queue_attempt(run)
-        task_id = f"{GROUP_PREFIX}{run.pk}"
-        try:
-            async_task(merge, run.pk, user_id, record, group=task_id, attempt_id=attempt.pk)
-        except Exception:
-            ImportAttempt.objects.filter(pk=attempt.pk).update(
-                state=ImportAttempt.State.FAILED,
-                error="Could not enqueue import; see API logs",
-                finished_at=timezone.now(),
-            )
-            raise
-        return Response({"task_id": task_id}, status=status.HTTP_202_ACCEPTED)
+        enqueue(run, attempt)
+        return Response({"task_id": attempt.task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
     def import_run_status(self, request, task_id=None):
@@ -176,7 +178,7 @@ def bulk_import_run_actions(
             retry = reconcile(attempt)
             if retry is not None:
                 run = BulkImportRun.objects.get(pk=retry.run_id)
-                async_task(merge, run.pk, run.user_id, run.record, group=task_id, attempt_id=retry.pk)
+                enqueue(run, retry)
                 return Response({"status": "pending", "progress": progress_payload(retry)})
             attempt = (
                 ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
@@ -196,7 +198,7 @@ def bulk_import_run_actions(
                 lost = claim_lost_merge(int(task_id[len(GROUP_PREFIX) :]), kind)
                 if lost is not None:
                     attempt = queue_attempt(lost)
-                    async_task(merge, lost.pk, lost.user_id, lost.record, group=task_id, attempt_id=attempt.pk)
+                    enqueue(lost, attempt)
             return Response({"status": "pending"})
         if task.success:
             return Response({"status": "success", "result": task.result})

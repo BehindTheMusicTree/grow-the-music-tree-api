@@ -62,3 +62,29 @@ class TestProgressStatus(AppTestCase):
         attempt = ImportAttempt.objects.filter(run_id=self.run.pk).latest("attempt")
         assert attempt.state == "failed"
         assert "enqueue" in attempt.error
+
+    def test_recovery_enqueue_failure_is_durable(self):
+        retry = queue_attempt(self.run)
+        with (
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.reconcile", return_value=retry),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")),
+        ):
+            response = self.api_client.get(self.path)
+        assert response.status_code == 500
+        retry.refresh_from_db()
+        assert retry.state == "failed"
+        assert retry.finished_at is not None
+        assert "enqueue" in retry.error
+        assert self.api_client.get(self.path).json()["status"] == "failed"
+
+    def test_legacy_recovery_enqueue_failure_is_durable(self):
+        ImportAttempt.objects.all().delete()
+        with (
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.claim_lost_merge", return_value=self.run),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")),
+        ):
+            response = self.api_client.get(self.path)
+        assert response.status_code == 500
+        attempt = ImportAttempt.objects.get(run_id=self.run.pk)
+        assert attempt.state == "failed"
+        assert self.api_client.get(self.path).json()["status"] == "failed"
