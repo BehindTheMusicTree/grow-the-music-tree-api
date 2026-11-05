@@ -22,7 +22,10 @@ from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.copy_part import copy_part
+from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.lifecycle import queue_attempt
 from grow.bulk_import.merge_lock import claim_lost_merge
+from grow.bulk_import.status import progress_payload, reconcile
 from grow.model.import_run.ImportRun import ImportRun
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -140,25 +143,63 @@ def bulk_import_run_actions(
         run = uncommitted_run(run_id)
         owner = get_request_owner(request)
         user_id, record = owner and owner.pk, request.auth.role == "pipeline"
-        if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
-            committed_on=timezone.now(), user_id=user_id, record=record
-        ):
-            raise ValidationError("import run is already committed")
+        with transaction.atomic():
+            if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
+                committed_on=timezone.now(), user_id=user_id, record=record
+            ):
+                raise ValidationError("import run is already committed")
+            run.user_id, run.record = user_id, record
+            attempt = queue_attempt(run)
         task_id = f"{GROUP_PREFIX}{run.pk}"
-        async_task(merge, run.pk, user_id, record, group=task_id)
+        try:
+            async_task(merge, run.pk, user_id, record, group=task_id, attempt_id=attempt.pk)
+        except Exception:
+            ImportAttempt.objects.filter(pk=attempt.pk).update(
+                state=ImportAttempt.State.FAILED,
+                error="Could not enqueue import; see API logs",
+                finished_at=timezone.now(),
+            )
+            raise
         return Response({"task_id": task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
     def import_run_status(self, request, task_id=None):
+        privileged = request.auth is not None and request.auth.role in {"admin", "pipeline"}
+        attempt = ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
+        if attempt is not None:
+            if not privileged:
+                if attempt.state == ImportAttempt.State.SUCCEEDED:
+                    return Response({"status": "success", "result": attempt.result})
+                if attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
+                    return Response({"status": "failed", "error": "Import failed"})
+                return Response({"status": "pending"})
+            retry = reconcile(attempt)
+            if retry is not None:
+                run = BulkImportRun.objects.get(pk=retry.run_id)
+                async_task(merge, run.pk, run.user_id, run.record, group=task_id, attempt_id=retry.pk)
+                return Response({"status": "pending", "progress": progress_payload(retry)})
+            attempt = (
+                ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
+            )
+            payload = {"status": "pending", "progress": progress_payload(attempt)}
+            if attempt.state == ImportAttempt.State.SUCCEEDED:
+                payload.update(status="success", result=attempt.result)
+            elif attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
+                payload.update(status="failed", error=attempt.error)
+            return Response(payload)
+        # Retain the legacy task contract, scoped to this endpoint's merge function.
         task = Task.objects.filter(group=task_id).order_by("-stopped").first()
+        if task is not None and task.func != f"{merge.__module__}.{merge.__name__}":
+            task = None
         if task is None:
-            if task_id.startswith(GROUP_PREFIX) and task_id[len(GROUP_PREFIX) :].isdigit():
+            if privileged and task_id.startswith(GROUP_PREFIX) and task_id[len(GROUP_PREFIX) :].isdigit():
                 lost = claim_lost_merge(int(task_id[len(GROUP_PREFIX) :]), kind)
                 if lost is not None:
-                    async_task(merge, lost.pk, lost.user_id, lost.record, group=task_id)
+                    attempt = queue_attempt(lost)
+                    async_task(merge, lost.pk, lost.user_id, lost.record, group=task_id, attempt_id=attempt.pk)
             return Response({"status": "pending"})
         if task.success:
             return Response({"status": "success", "result": task.result})
-        return Response({"status": "failed", "error": str(task.result)})
+        return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
 
     return create_import_run, upload_import_run_part, upload_import_run_deletions, commit_import_run, import_run_status
