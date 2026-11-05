@@ -1,5 +1,8 @@
+import logging
+
 from django.db import connection, transaction
 from django.utils import timezone
+from django_q.tasks import async_task
 
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.search.cache import SearchCache, invalidate_search_cache
@@ -7,12 +10,16 @@ from grow.song_search.projection import COLUMNS, PROJECTION, TABLE
 
 NEW_TABLE = f"{TABLE}_new"
 NEW_SUFFIX = "_new"
+BUILD_GROUP = "song-search-build"
+
+logger = logging.getLogger("grow.bulk_import")
 
 
-def rebuild_song_search() -> int:
+def rebuild_song_search(*, only_if_not_ready: bool = False) -> int | None:
     """
     Fills a fresh copy of the projection from the source tables and swaps it in, then marks search ready. Returns the
-    row count. Searches keep reading the old table until the swap; merges and ORM writes wait for it, then land in the
+    row count, or None when `only_if_not_ready` is set and the projection was already built (the lock serializes
+    concurrent builds, so duplicate queued builds are no-ops). Searches keep reading the old table until the swap; merges and ORM writes wait for it, then land in the
     new table, so no change made during the rebuild is lost.
     """
     if connection.vendor != "postgresql":
@@ -24,6 +31,8 @@ def rebuild_song_search() -> int:
             "SELECT conname FROM pg_constraint WHERE conrelid = %s::regclass AND contype = 'p'",
             [TABLE],
         )
+        if only_if_not_ready and SongSearchState.load().ready:
+            return None
         (primary_key,) = cursor.fetchone()
         cursor.execute(
             "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename = %s"
@@ -63,3 +72,11 @@ def _retarget(definition: str, name: str) -> str:
     if start < 0 or using < 0 or definition[start + len(prefix) : using].rsplit(".", 1)[-1] != TABLE:
         raise RuntimeError(f"Unexpected index definition: {definition}")
     return f"{definition[:start]}INDEX {name}{NEW_SUFFIX} ON {NEW_TABLE}{definition[using:]}"
+
+
+def queue_song_search_build() -> None:
+    """Queues the bulk build in its own task, so it gets a full task timeout apart from the merge that asked for it."""
+    if connection.vendor != "postgresql":
+        return
+    logger.info("Song search projection not built: queueing its bulk build")
+    async_task(rebuild_song_search, only_if_not_ready=True, group=BUILD_GROUP)

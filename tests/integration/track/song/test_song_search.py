@@ -70,6 +70,13 @@ class TestSongSearch(AppTestCase):
         assert response.status_code == status.HTTP_200_OK, response.content
         return [item["title"] for item in response.data]
 
+    def test_rebuild_only_if_not_ready_is_a_noop_once_built(self):
+        assert rebuild_song_search(only_if_not_ready=True) == 0
+        rebuilt_on = SongSearchState.load().rebuilt_on
+
+        assert rebuild_song_search(only_if_not_ready=True) is None
+        assert SongSearchState.load().rebuilt_on == rebuilt_on
+
     def test_not_rebuilt_yet_then_503(self):
         self.song("Comfortably Numb", "Pink Floyd")
 
