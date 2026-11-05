@@ -33,7 +33,7 @@ docker compose exec -T db pg_restore -f /dev/null <"$dump_file"
 # pg_restore --clean only drops objects in the dump: tables from local migrations prod hasn't run yet would survive
 # and make migrate fail with "already exists", so start from an empty schema.
 docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
-docker compose exec -T db sh -c 'pg_restore --clean --if-exists --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <"$dump_file"
+docker compose exec -T db sh -c 'pg_restore --exit-on-error --clean --if-exists --no-owner --no-privileges -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <"$dump_file"
 # start-server.sh applies this branch's migrations on top of prod's schema.
 docker compose up -d --wait api worker
 echo "Restored ${latest_object}"

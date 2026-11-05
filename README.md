@@ -67,6 +67,8 @@ uv run manage.py runserver
 RCLONE_CONFIG=~/.config/rclone/gtmt-backup.conf R2_BACKUP_BUCKET_NAME=btmt-backups ./scripts/restore-prod-db.sh
 ```
 
+**Legacy archives:** this script erases the local schema before restoring. Use the [legacy recovery procedure](docs/operations/backup-recovery.md) for backups made before migration 0100.
+
 Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `pg_dump` to Cloudflare R2), then restarts `api`/`worker`, which apply the current branch's migrations. Includes admin curation that the pipeline Gold exports in `perf/fixtures/` lack. The dump holds only the public canonical dataset, so it is safe on a laptop. Requires [rclone](https://rclone.org/) and a config with an `[r2]` remote (`type = s3`, `provider = Cloudflare`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`) using a **read-only** R2 token scoped to the backup bucket, not the VPS's read/write one. Token setup: infrastructure's [`docs/guides/cloudflare-r2-backup-setup.md` § 5](https://github.com/BehindTheMusicTree/infrastructure/blob/main/docs/guides/cloudflare-r2-backup-setup.md#5-local-dev-read-only-token-prod-db-restore).
 
 ## Environment variables
