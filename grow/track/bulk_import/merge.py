@@ -84,15 +84,19 @@ LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
 # Everything after this works on the songs that need a write; the rest of the run only counts toward `stale`. A song
 # whose credit isn't exactly its one MBID artist is kept and flagged `artist_changed`: the artist steps resolve it
 # (legacy names, extra credits). Unflagged songs skip them: an MBID is unique, so they would re-sync to the same artist.
-CHANGED_SONG = """CREATE TEMP TABLE changed_song AS
-    SELECT s.*, s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text AS artist_changed
+# The stored genre, playability and view count are carried along (`stored_*`, null-filled for songs without a row) so
+# the capture steps below don't look the same two tables up again.
+CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
+    SELECT s.*, s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text AS artist_changed,
+        t.uuid IS NOT NULL AND y.track_id IS NOT NULL AS is_stored, t.genre_id AS stored_genre_id,
+        {PLAYABLE.format("y")} AS stored_playable, y.youtube_view_count AS stored_view_count
     FROM song_import s
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
     LEFT JOIN (
         SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
         FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
-        {run_tracks}
+        {{run_tracks}}
         GROUP BY ta.track_id HAVING count(*) = 1
     ) c ON c.track_id = s.track_id
     WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
@@ -121,13 +125,11 @@ STEPS = [
         "capture_track_change",
         f"""CREATE TEMP TABLE track_change AS
     SELECT * FROM (
-        SELECT s.track_id, t.genre_id AS old_genre_id,
-            CASE WHEN s.is_locked THEN t.genre_id ELSE s.genre_id END AS new_genre_id,
-            {PLAYABLE.format("y")} AS was_playable, {PLAYABLE.format("s")} AS is_playable
+        SELECT s.track_id, s.stored_genre_id AS old_genre_id,
+            CASE WHEN s.is_locked THEN s.stored_genre_id ELSE s.genre_id END AS new_genre_id,
+            s.stored_playable AS was_playable, {PLAYABLE.format("s")} AS is_playable
         FROM changed_song s
-        JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
-        JOIN grow_song y ON y.track_id = s.track_id
-        WHERE NOT s.is_new
+        WHERE NOT s.is_new AND s.is_stored
     ) c WHERE old_genre_id IS DISTINCT FROM new_genre_id OR was_playable IS DISTINCT FROM is_playable""",
     ),
     (
@@ -143,11 +145,10 @@ STEPS = [
     (
         "views_delta",
         """CREATE TEMP TABLE views_delta AS
-    SELECT r.playlist_id, sum(coalesce(s.youtube_view_count, 0) - coalesce(y.youtube_view_count, 0)) AS v
+    SELECT r.playlist_id, sum(coalesce(s.youtube_view_count, 0) - coalesce(s.stored_view_count, 0)) AS v
     FROM changed_song s
-    JOIN grow_song y ON y.track_id = s.track_id
     JOIN the_music_tree_genre_kit_track_playlist_rel r ON r.track_id = s.track_id
-    WHERE NOT s.is_new AND s.youtube_view_count IS DISTINCT FROM y.youtube_view_count
+    WHERE NOT s.is_new AND s.is_stored AND s.youtube_view_count IS DISTINCT FROM s.stored_view_count
     GROUP BY r.playlist_id""",
     ),
     (
