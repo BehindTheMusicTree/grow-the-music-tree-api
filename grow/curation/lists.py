@@ -115,8 +115,8 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "display_label", "reason"),
         "Explicit display label for an item, overriding sentence-casing.",
     ),
-    "canonical_overrides": _item_list(
-        "Keeps a genre canonical although a parent is regional; its own regional sources are ignored."
+    "forced_canonical_genres": _item_list(
+        "Genres kept canonical although a parent is regional; their own regional sources are ignored."
     ),
     "canonical_parent": _item_list(
         "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",

@@ -8,7 +8,7 @@ from grow.model.curation.CurationEntry import CurationEntry
 
 
 class Command(BaseCommand):
-    help = "Upsert every curation list from the manual_<list_name>.csv files in a directory."
+    help = "Upsert every curation list from the <list_name>.csv files in a directory."
 
     def add_arguments(self, parser):
         parser.add_argument("directory", type=Path)
