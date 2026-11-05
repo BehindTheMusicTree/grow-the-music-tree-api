@@ -27,7 +27,7 @@ def _drop_postgres_indexes(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('grow', '0097_song_recording_count'),
+        ('grow', '0098_song_recording_count'),
     ]
 
     operations = [

@@ -266,9 +266,9 @@ class TestImportRunMerge(AppTestCase):
 
         assert counts() == {uuid.UUID(MBID): 12, uuid.UUID(OTHER_MBID): None}
 
-        self._sync([SONG, {**without_count, "recording_count": 1}])
+        self._sync([{**SONG, "recording_count": None}, {**without_count, "recording_count": 2**31 - 1}])
 
-        assert counts() == {uuid.UUID(MBID): None, uuid.UUID(OTHER_MBID): 1}
+        assert counts() == {uuid.UUID(MBID): None, uuid.UUID(OTHER_MBID): 2**31 - 1}
 
     def test_delta_run_changing_only_recording_count_updates_that_song(self):
         self.model_fixture_factory.create_genre("Rock")
@@ -700,6 +700,9 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**SONG, "recording_count": "3"}]),
             _gzip_ndjson([{**SONG, "recording_count": True}]),
             _gzip_ndjson([{**SONG, "recording_count": 2**31}]),
+            _gzip_ndjson([{**SONG, "recording_count": -1}]),
+            _gzip_ndjson([{**SONG, "recording_count": 1.5}]),
+            _gzip_ndjson([{**SONG, "recording_count": 3.0}]),
             gzip.compress(b"{not json\n"),
         ]
 
