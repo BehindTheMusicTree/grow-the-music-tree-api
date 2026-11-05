@@ -19,7 +19,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 
 def _read_csv(list_name: str, directory=SEED_DIR) -> list[dict[str, str]]:
-    with (directory / f"manual_{list_name}.csv").open(newline="", encoding="utf-8") as f:
+    with (directory / f"{list_name}.csv").open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
@@ -30,7 +30,7 @@ def _key(list_name: str, row: dict[str, str]) -> tuple[str, ...]:
 class TestCase(AppTestCase):
     def test_seed_csv_headers_match_registry(self):
         for list_name, curation_list in CURATION_LISTS.items():
-            with (SEED_DIR / f"manual_{list_name}.csv").open(newline="", encoding="utf-8") as f:
+            with (SEED_DIR / f"{list_name}.csv").open(newline="", encoding="utf-8") as f:
                 assert tuple(next(csv.reader(f))) == curation_list.columns, list_name
 
     def test_migration_seed_then_export_equals_csvs(self):
@@ -70,16 +70,16 @@ class TestCase(AppTestCase):
     def test_import_command_bad_row_then_error_and_rollback(self):
         with tempfile.TemporaryDirectory() as d:
             directory = Path(d)
-            for path in SEED_DIR.glob("manual_*.csv"):
+            for path in SEED_DIR.glob("*.csv"):
                 shutil.copy(path, directory)
-            with (directory / "manual_theme_genres.csv").open("a", encoding="utf-8") as f:
+            with (directory / "theme_genres.csv").open("a", encoding="utf-8") as f:
                 f.write("bad-id,label,reason\n")
             total = CurationEntry.objects.count()
 
             try:
                 call_command("import_curation_csvs", str(directory), stdout=StringIO())
             except CommandError as e:
-                assert "manual_theme_genres.csv" in str(e)
+                assert "theme_genres.csv" in str(e)
             else:
                 raise AssertionError("expected CommandError")
 
