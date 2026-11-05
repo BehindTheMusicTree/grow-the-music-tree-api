@@ -130,7 +130,8 @@ def to_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dic
     """The entry back as a row in CSV column order, booleans kept as booleans."""
     curation_list = CURATION_LISTS[list_name]
     fields = {**dict(zip(curation_list.key, key.split(KEY_SEPARATOR), strict=True)), **values, "reason": reason}
-    return {c: fields[c] for c in curation_list.columns}
+    # An optional column added to a list after its entries were stored has no stored value.
+    return {c: fields.get(c, "") if c in OPTIONAL_COLUMNS else fields[c] for c in curation_list.columns}
 
 
 def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dict[str, str]:
