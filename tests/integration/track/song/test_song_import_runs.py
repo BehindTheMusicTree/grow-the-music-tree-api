@@ -23,6 +23,8 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
+from grow.model.song_search.SongSearch import SongSearch
+from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.track.direct_songs_count import recount_direct_songs_count
 from tests.utils.AppTestCase import AppTestCase
@@ -494,6 +496,24 @@ class TestImportRunMerge(AppTestCase):
         assert steps["changed_song"] == 0
         assert steps["update_tracks"] == steps["update_songs"] == steps["insert_track_artists"] == 0
         assert self._playlist_tracks(rock) == before
+
+    def test_merges_keep_song_search_in_sync(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
+        rebuild_song_search()
+        no_drift = {"missing": 0, "orphaned": 0, "stale": 0}
+
+        self._sync([SONG, other])
+        assert SongSearch.objects.count() == 2 and SongSearch.objects.drift() == no_drift
+
+        steps = self._steps(self._sync([SONG, other]))
+        assert steps["upsert_song_search"] == 0
+
+        self._sync([{**SONG, "title": "Comfortably Numb (Live)", "artist": "Roger Waters", "genre_name": None}])
+        assert SongSearch.objects.count() == 1 and SongSearch.objects.drift() == no_drift
+        (row,) = SongSearch.objects.all()
+        assert (row.title_key, row.has_genre) == ("comfortably numb live", False)
+        assert [s.title for s in SongSearch.objects.search("waters numb", 8)] == ["Comfortably Numb (Live)"]
 
     def test_single_change_of_each_kind_is_the_only_one_carried(self):
         self.model_fixture_factory.create_genre("Rock")

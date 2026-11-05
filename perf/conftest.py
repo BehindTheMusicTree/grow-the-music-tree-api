@@ -14,6 +14,8 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.song_search.SongSearchState import SongSearchState
+from grow.song_search.rebuild import rebuild_song_search
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.curation_export import export_curation
 
@@ -90,3 +92,9 @@ def django_db_setup(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
         if not Genre.objects.exists():  # --reuse-db keeps the seed across runs
             _seed()
+        # Checked apart from the seed: a database reused from before song search existed still needs its first build.
+        if not SongSearchState.load().ready:
+            start = time.perf_counter()
+            rows = rebuild_song_search()
+            label = f"song search rebuild ({rows} songs)"
+            print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
