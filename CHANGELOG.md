@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Song and artist imports no longer maintain the song search projection while it is unbuilt; grow queues one bulk build (`song-search-build` task, its own timeout) after the import instead, so a first full sync fits the task timeout. The merges take a ROW EXCLUSIVE lock on `grow_song_search` before reading `ready`, which serializes them with the rebuild; `rebuild_song_search(only_if_not_ready=True)` makes duplicate queued builds no-ops. Tests in the song and artist import run tests and `test_song_search.py`.
 - Qualify search normalization dependencies so PostgreSQL can restore generated artist columns with an empty search path.
 
 ### Added
