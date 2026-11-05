@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The songs merge re-syncs track artists only for songs whose artist can have changed: a track whose one artist already has the staged MBID is skipped, since the MBID is unique and the re-sync would write the same artist. On staging run 68 (212k songs, no artist change), `current_artist` read every changed song's track artists for 80 s. Tracks with several artists, no artist, or an MBID-less song are still re-synced. Covered by the merge's single-change tests and `test_track_with_an_extra_artist_is_resynced_to_its_one_mbid_artist`.
 - History entries get time-ordered (UUIDv7) ids, both from the ORM and from the songs merge's `insert_history` step, so new rows append to the primary-key index instead of writing a random page each. Run 68 spent 230 s inserting 190k entries. A rolled-back benchmark of 190k entries on staging read 2.5k pages instead of 14k with a warm cache and 139k cold. Its uuid4 insert took 749 s cold and 21 s warm; with UUIDv7 and the index swap below, it took 4–8 s.
 - Migration `0095` replaces the unused `(user_id, content_type_id, object_pk)` history index (1 GB on staging, never scanned) with `(content_type_id, object_pk, created_on)`, built `CONCURRENTLY`. An item's `history/` endpoint now reads it instead of scanning the whole table (3.2 s cold on staging's 17M entries).
+- README lists the sources of the data served by `/v1/*` and their licenses; data derived from MusicBrainz tags stays under CC BY-NC-SA 3.0.
 
 ### Removed
 
@@ -34,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - Bump `the-music-tree-genre-kit` to v0.53.1: when a genre moves between the canonical and regional trees (heavy metal, Q38848, moving from regional to canonical), the tree import moves the existing genre instead of creating a namesake suffixed `"<name> (<id>)"` and flagged `has_name_conflict` until the other tree's next import. The genre keeps its uuid and song links.
+- Restored the canonical Apache 2.0 license text: a sentence in the "Work" definition had been altered, so GitHub did not recognize the license.
 
 ## [15.1.0] - 2026-11-04
 

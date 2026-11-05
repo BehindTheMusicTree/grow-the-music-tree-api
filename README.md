@@ -18,6 +18,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
   - [API](#api)
   - [Tests](#tests)
 - [Performance](#performance)
+  - [Data sources and licenses](#data-sources-and-licenses)
   - [License](#license)
 
 ## Features
@@ -160,6 +161,22 @@ for f in 1_canonical_genre_tree 1_regional_genre_tree 2_songs; do
   scp <vps>:/home/btmt-deploy/music-tree-pipelines-prod/data/gold/$f.json perf/fixtures/ && gzip -9f perf/fixtures/$f.json
 done
 ```
+
+## Data sources and licenses
+
+The code in this repository is licensed under Apache 2.0. The data served by the `/v1/*` endpoints is produced by [the-music-tree-pipelines](https://github.com/BehindTheMusicTree/the-music-tree-pipelines) and keeps the license of its source:
+
+| Source | Used for | License |
+|---|---|---|
+| [MusicBrainz](https://musicbrainz.org) core data | Artists, recordings, genre entities | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| [MusicBrainz](https://musicbrainz.org) supplementary data | Recording tags, from which song ↔ genre associations are derived | [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/) |
+| [Wikidata](https://www.wikidata.org) | Genre taxonomy, aliases, artist image references | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| [Wikimedia Commons](https://commons.wikimedia.org) | Artist images | Per-file license; author and license travel with each image |
+| [YouTube Data API](https://developers.google.com/youtube/v3) | Video candidates and playability | [YouTube API Services Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service) |
+| [Glottolog CLDF](https://github.com/glottolog/glottolog-cldf) | Languoids for the cultural-entity backbone and region maps | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [Natural Earth](https://www.naturalearthdata.com) | Admin boundaries and map background layers | Public domain |
+
+Data derived from MusicBrainz tags remains subject to CC BY-NC-SA 3.0: credit MusicBrainz, non-commercial use only, share-alike. See the [MusicBrainz data license](https://musicbrainz.org/doc/About/Data_License).
 
 ## License
 
