@@ -1,6 +1,6 @@
 # Recovering legacy Grow backups
 
-Backups made before migration 0101 contain a search function whose unqualified dictionary reference can prevent ordinary `pg_restore` from creating the artist tables. Restoring such an archive requires the manual procedure below. The monthly drill must use an ordinary restore, not this procedure. Migration 0100 only fixes new dumps; it cannot change an existing archive. Reversing it restores the defective definition and should not be the default response to an application rollback.
+Backups made before migration 0101 contain a search function whose unqualified dictionary reference can prevent ordinary `pg_restore` from creating the artist tables. Restoring such an archive requires the manual procedure below. The monthly drill must use an ordinary restore, not this procedure. Migration 0101 only fixes new dumps; it cannot change an existing archive. Reversing it restores the defective definition and should not be the default response to an application rollback.
 
 Use a pinned, downloaded custom-format archive and a verified empty **disposable** database. Do not use `scripts/restore-prod-db.sh` for a legacy archive: it replaces the local schema before restoring. Protect the download and temporary lists, and do not modify the original object or archive. Record the object key, R2 timestamp and size, SHA-256, client and server versions, and the historical function definition in the recovery record. Confirm available disk space and archive identity before proceeding.
 
