@@ -26,7 +26,6 @@ trap 'rm -f "$dump_file"' EXIT
 echo "Fetching ${latest_object}"
 rclone copyto "r2:${R2_BACKUP_BUCKET_NAME}/${latest_object}" "$dump_file"
 
-docker compose stop api worker
 docker compose up -d --wait db
 # Read the whole dump before wiping anything, so a truncated or non-archive file fails with the local DB intact.
 docker compose exec -T db pg_restore -f /dev/null <"$dump_file"
@@ -36,6 +35,7 @@ if [[ "$function_sql" != *"public.unaccent("* || "$function_sql" != *"'public.un
   echo "Archive does not contain the qualified search function; see docs/operations/backup-recovery.md" >&2
   exit 1
 fi
+docker compose stop api worker
 # pg_restore --clean only drops objects in the dump: tables from local migrations prod hasn't run yet would survive
 # and make migrate fail with "already exists", so start from an empty schema.
 docker compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"'
