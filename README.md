@@ -104,7 +104,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`) |
+| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`; detail adds `firstReleaseYear` and `essentialGenres`). `search/?q=&limit=&genre=any\|with\|without&playable=` is the public ranked typeahead over titles and artist names, 503 until `manage.py rebuild_song_search` has run once ([`docs/api/songs.md`](docs/api/songs.md)) |
 | `/v1/curation/lists/`         | The pipeline curation lists: `{name, keyColumns, columns, description}` (admin only) |
 | `/v1/curation/{list}/entries/` | Curation entries of one list (`GET`/`POST`, `{uuid}/` `PATCH`/`DELETE`; admin only). Body `{"row": {<csv column>: value}}`, `row` keys stay snake_case |
 | `/v1/curation/export/`        | Every list as CSV-ready rows keyed by list name, plus `exported_on` (ISO 8601, the export's instant), plain snake_case JSON (`X-API-Key` or admin) |

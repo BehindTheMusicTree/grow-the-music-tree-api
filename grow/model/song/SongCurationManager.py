@@ -1,4 +1,3 @@
-import uuid as uuid_lib
 from typing import Any
 
 from django.db import transaction
@@ -15,7 +14,6 @@ from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.song.Song import Song
 from grow.youtube import YoutubeLookupError, fetch_unplayable_reason
 
-SEARCH_PAGE_SIZE = 50
 LINK_SUGGESTIONS_LIMIT = 50
 
 
@@ -109,17 +107,6 @@ class SongCurationManager:
         updated.is_manually_edited = True
         updated.save(update_fields=["is_manually_edited"])
         return updated
-
-    @staticmethod
-    def search(query: str, genreless: bool, cursor: uuid_lib.UUID | None) -> QuerySet[Song]:
-        queryset = Song.objects.all()
-        if query:
-            queryset = queryset.filter(Q(title__icontains=query) | Q(artists___name__icontains=query)).distinct()
-        if genreless:
-            queryset = queryset.filter(genre__isnull=True)
-        if cursor is not None:
-            queryset = queryset.filter(uuid__gt=cursor)
-        return queryset.order_by("uuid")
 
     @staticmethod
     def link_suggestions(genre: Genre) -> QuerySet[Song]:

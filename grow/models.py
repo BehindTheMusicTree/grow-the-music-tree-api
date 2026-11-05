@@ -31,6 +31,8 @@ from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.model.song.Song import Song
+from grow.model.song_search.SongSearch import SongSearch
+from grow.model.song_search.SongSearchState import SongSearchState
 from grow.model.user.UserProfile import UserProfile
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -65,6 +67,8 @@ __all__ = [
     "RegionMapSnapshot",
     "Song",
     "SongImportStaging",
+    "SongSearch",
+    "SongSearchState",
     "Tag",
     "TagPlaylist",
     "Track",

@@ -207,34 +207,6 @@ class TestCase(AppTestCase):
             status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    def test_search_then_genreless_filter_and_cursor(self):
-        rock = self._rock()
-        artist = self.model_fixture_factory.create_artist("Nirvana")
-        loose = self._song("Lithium", None)
-        loose.artists.add(artist)
-        self._song("Lithium Tree", rock, "33333333-3333-4333-8333-333333333333")
-
-        everything = self.api_client.get(reverse("song-search"), {"q": "lithium"}).json()
-        genreless = self.api_client.get(reverse("song-search"), {"q": "nirvana", "genreless": "true"}).json()
-
-        assert len(everything["results"]) == 2
-        assert [r["uuid"] for r in genreless["results"]] == [str(loose.uuid)]
-        assert genreless["next"] is None
-
-    def test_search_cursor_then_pages(self):
-        for i in range(51):
-            self.model_fixture_factory.create_song(f"Bulk {i}", None)
-
-        first = self.api_client.get(reverse("song-search"), {"genreless": "true"}).json()
-        second = self.api_client.get(reverse("song-search"), {"genreless": "true", "cursor": first["next"]}).json()
-
-        assert len(first["results"]) == 50
-        assert len(second["results"]) == 1
-        assert second["next"] is None
-
-    def test_search_then_401_and_403(self):
-        self._forbidden_and_unauthorized("get", reverse("song-search"))
-
     def test_link_suggestions_then_sorted_by_shared_artists(self):
         rock = self._rock()
         a1, a2 = self.model_fixture_factory.create_artist("A1"), self.model_fixture_factory.create_artist("A2")
