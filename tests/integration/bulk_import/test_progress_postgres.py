@@ -23,13 +23,13 @@ from grow.track.bulk_import.SongImportStaging import SongImportStaging
 pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
 
 
-def wait_for(predicate):
-    deadline = time.monotonic() + 5
+def wait_for(predicate, timeout=5):
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if value := predicate():
             return value
         time.sleep(0.01)
-    raise AssertionError("condition was not visible within 5 seconds")
+    raise AssertionError(f"condition was not visible within {timeout} seconds")
 
 
 def attempt_step(attempt_id):
@@ -181,14 +181,20 @@ execute_merge(int(sys.argv[1]), int(sys.argv[2]), SongImportStaging, merge, paus
             "POSTGRES_TEST_DATABASE_URL": database_url,
         },
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
     )
     try:
-        wait_for(lambda: attempt_step(attempt.pk) == ("invalidate_cache" if after_commit else "waiting_for_kill"))
+        # A fresh Django interpreter needs more time than an event from an already running reporter.
+        def reached_pause():
+            if process.poll() is not None:
+                raise AssertionError(f"worker exited before pause: {process.communicate()[1].decode()}")
+            return attempt_step(attempt.pk) == ("invalidate_cache" if after_commit else "waiting_for_kill")
+
+        wait_for(reached_pause, timeout=30)
         attempt.refresh_from_db()
     finally:
         process.kill()
-        process.wait(timeout=5)
+        process.communicate(timeout=5)
     wait_for(lambda: sql_activity(attempt).get("session_present") is False)
     retry = reconcile(attempt)
     attempt.refresh_from_db()
