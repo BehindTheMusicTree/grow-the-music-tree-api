@@ -282,6 +282,26 @@ class TestCase(AppTestCase):
         assert ok.status_code == status.HTTP_201_CREATED
         assert glottocode.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_entity_additions_then_entity_kind_optional_and_enumerated(self):
+        blank = self._create({"entity_id": "Q141814080", "reason": "testing"}, "entity_additions")
+        zone = self._create(
+            {"entity_id": "Q7057805", "entity_kind": "cultural_region", "reason": "testing"}, "entity_additions"
+        )
+        bad = self._create({"entity_id": "Q128011", "entity_kind": "country", "reason": "testing"}, "entity_additions")
+
+        assert blank.status_code == status.HTTP_201_CREATED
+        assert blank.json()["row"]["entity_kind"] == ""
+        assert zone.status_code == status.HTTP_201_CREATED
+        assert zone.json()["row"]["entity_kind"] == "cultural_region"
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_entity_addition_stored_without_entity_kind_has_blank_kind(self):
+        CurationEntry.objects.create(list_name="entity_additions", key="Q141814080", values={}, reason="legacy")
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["entity_additions"] == [{"entity_id": "Q141814080", "entity_kind": "", "reason": "legacy"}]
+
     def test_time_span_override_then_years_optional_integers(self):
         ok = self._create(
             {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
