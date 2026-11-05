@@ -16,9 +16,17 @@ def _forwards(apps, schema_editor):
         return
     # An inline CHECK would scan grow_song (~31M rows) under ACCESS EXCLUSIVE, blocking every song read. Each statement
     # commits on its own: the column and the NOT VALID check are catalog-only, and VALIDATE scans under
-    # SHARE UPDATE EXCLUSIVE, which lets reads and writes through.
-    schema_editor.execute("ALTER TABLE grow_song ADD COLUMN recording_count integer NULL")
-    schema_editor.execute(f"ALTER TABLE grow_song ADD CONSTRAINT {CHECK} CHECK (recording_count >= 0) NOT VALID")
+    # SHARE UPDATE EXCLUSIVE, which lets reads and writes through. Each step is idempotent, so a migrate interrupted
+    # midway can simply be re-run.
+    # The catalog-only steps still queue for ACCESS EXCLUSIVE: behind a long merge, every song read would queue behind
+    # them, so they give up instead and the deploy is retried.
+    schema_editor.execute("SET lock_timeout = '5s'")
+    try:
+        schema_editor.execute("ALTER TABLE grow_song ADD COLUMN IF NOT EXISTS recording_count integer NULL")
+        schema_editor.execute(f"ALTER TABLE grow_song DROP CONSTRAINT IF EXISTS {CHECK}")
+        schema_editor.execute(f"ALTER TABLE grow_song ADD CONSTRAINT {CHECK} CHECK (recording_count >= 0) NOT VALID")
+    finally:
+        schema_editor.execute("RESET lock_timeout")
     schema_editor.execute(f"ALTER TABLE grow_song VALIDATE CONSTRAINT {CHECK}")
 
 
