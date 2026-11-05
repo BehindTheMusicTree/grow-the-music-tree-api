@@ -24,5 +24,5 @@ class SongSearch(models.Model):
 
     class Meta:
         db_table = "grow_song_search"
-        # The GIN index on `document` and the `title_key COLLATE "C"` index are Postgres-only (migration 0098).
+        # The GIN index on `document` and the `title_key COLLATE "C"` index are Postgres-only (migration 0099).
         indexes = [models.Index(fields=["-rank_score", "track"], name="grow_song_search_rank_idx")]

@@ -10,6 +10,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.throttling import ScopedRateThrottle
 
+from grow.model.album.Album import Album
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
@@ -128,6 +129,14 @@ class TestSongSearch(AppTestCase):
 
         assert self.titles("numb") == ["Numb", "Numb Remix", "Comfortably Numb"]
 
+    def test_title_prefix_kept_past_many_more_popular_word_matches(self):
+        for i in range(9):
+            self.song(f"Hit {i}", "Love Band", recording_count=200, youtube_view_count=10**9)
+        self.song("Lovesick", genre=None, youtube_video_id=None)
+        rebuild_song_search()
+
+        assert self.titles("love", limit=2)[0] == "Lovesick"
+
     def test_rank_puts_genre_then_playable_first(self):
         self.song("Lithium Genreless", genre=None)
         self.song("Lithium Unplayable", youtube_video_id=None)
@@ -197,6 +206,21 @@ class TestSongSearch(AppTestCase):
         with self.captureOnCommitCallbacks(execute=True):
             Song.objects.update_instance(song, title="Numb")
         assert self.titles("numb") == ["Numb"]
+
+    def test_cached_until_a_song_delete(self):
+        album = self.factory.create_album("Meteora")
+        self.song("Numb Album Cut", album=album)
+        song = self.song("Numb")
+        rebuild_song_search()
+        assert self.titles("numb") == ["Numb", "Numb Album Cut"]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            Song.objects.delete_instance(song)
+        assert self.titles("numb") == ["Numb Album Cut"]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            Album.objects.delete_instance(album)
+        assert self.titles("numb") == []
 
     def test_orm_writes_keep_projection_in_sync(self):
         song = self.song("Comfortably Numb", "Pink Floyd")

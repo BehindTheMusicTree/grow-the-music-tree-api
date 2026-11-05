@@ -16,8 +16,6 @@ if TYPE_CHECKING:
     from grow.model.song_search.SongSearch import SongSearch
 
 STATEMENT_TIMEOUT = "3s"
-# The token tier is over-fetched so the exact and prefix title matches it holds can still be promoted past the limit.
-TOKEN_TIER_HEADROOM = 4
 
 
 class GenreFilter(StrEnum):
@@ -63,14 +61,18 @@ class SongSearchManager(models.Manager["SongSearch"]):
                     SELECT track_id, rank_score, 2 AS tier FROM {TABLE}
                     WHERE title_key COLLATE "C" = %(folded)s{filters}
                     ORDER BY rank_score DESC, track_id LIMIT %(limit)s
+                ), prefix AS (
+                    SELECT track_id, rank_score, 1 AS tier FROM {TABLE}
+                    WHERE title_key COLLATE "C" LIKE %(prefix)s{filters}
+                    ORDER BY rank_score DESC, track_id LIMIT %(limit)s
                 ), tokens AS (
-                    SELECT track_id, rank_score,
-                        CASE WHEN title_key COLLATE "C" LIKE %(prefix)s THEN 1 ELSE 0 END AS tier
-                    FROM {TABLE}
+                    SELECT track_id, rank_score, 0 AS tier FROM {TABLE}
                     WHERE document @@ to_tsquery('simple', %(tsquery)s){filters}
-                    ORDER BY rank_score DESC, track_id LIMIT %(headroom)s
+                    ORDER BY rank_score DESC, track_id LIMIT %(limit)s
                 )
-                SELECT track_id FROM (SELECT * FROM exact UNION ALL SELECT * FROM tokens) found
+                SELECT track_id FROM (
+                    SELECT * FROM exact UNION ALL SELECT * FROM prefix UNION ALL SELECT * FROM tokens
+                ) found
                 GROUP BY track_id ORDER BY max(tier) DESC, max(rank_score) DESC, track_id LIMIT %(limit)s""",
                 {
                     **params,
@@ -79,7 +81,6 @@ class SongSearchManager(models.Manager["SongSearch"]):
                     "prefix": folded + "%",
                     "tsquery": " & ".join(f"'{token}':*" for token in tokens),
                     "limit": limit,
-                    "headroom": limit * TOKEN_TIER_HEADROOM,
                 },
             )
             track_ids = [row[0] for row in cursor.fetchall()]

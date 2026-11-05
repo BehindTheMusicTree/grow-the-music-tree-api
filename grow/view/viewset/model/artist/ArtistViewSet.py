@@ -10,7 +10,7 @@ from grow.artist.genre_counts import artist_genre_counts
 from grow.filtering.set.artist.ArtistFilterSet import ArtistFilterSet
 from grow.model.artist.Artist import Artist
 from grow.model.import_run.ImportRun import ImportRun
-from grow.search.cache import SearchCache, get_cached_search, set_cached_search
+from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.artist.detailed import ArtistDetailedSerializer
 from grow.serializer.model.artist.search import ArtistSearchQuerySerializer, ArtistSearchResultSerializer
 from grow.serializer.model.artist.simple import ArtistSimpleSerializer
@@ -50,10 +50,12 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
         query = ArtistSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         q, limit = query.validated_data["q"], query.validated_data["limit"]
-        payload = get_cached_search(SearchCache.ARTISTS, q, (limit,))
-        if payload is None:
-            payload = ArtistSearchResultSerializer(Artist.objects.search(q, limit), many=True).data
-            set_cached_search(SearchCache.ARTISTS, q, (limit,), payload)
+        payload = cached_search(
+            SearchCache.ARTISTS,
+            q,
+            (limit,),
+            lambda: ArtistSearchResultSerializer(Artist.objects.search(q, limit), many=True).data,
+        )
         return Response(payload)
 
     @action(

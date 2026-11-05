@@ -70,8 +70,8 @@ Error responses:
 
 Search reads `grow_song_search`, a projection of the songs (title and artist words, genre and playable flags, rank).
 The songs and artists merges keep it current in the same transaction, and so do the song and genre ORM writes.
-`manage.py rebuild_song_search` rebuilds it from scratch and swaps it in. Searches keep being served while it runs;
-writes wait for it. `manage.py rebuild_song_search --check` prints the `missing`, `orphaned` and `stale` row counts and
+`manage.py rebuild_song_search` rebuilds it from scratch and swaps it in. Searches keep being served while it runs,
+but song, artist and genre writes wait for it, imports included: run it outside the nightly pipeline window. `manage.py rebuild_song_search --check` prints the `missing`, `orphaned` and `stale` row counts and
 fails if any of them is non-zero.
 
 #### Import

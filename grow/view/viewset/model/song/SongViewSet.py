@@ -9,7 +9,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
 from grow.model.song_search.SongSearch import SongSearch
-from grow.search.cache import SearchCache, get_cached_search, set_cached_search
+from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.song.input import SongAssignGenreSerializer, SongYoutubePatchSerializer
 from grow.serializer.model.song.output.detailed import SongDetailedSerializer
 from grow.serializer.model.song.output.full import SongFullSerializer
@@ -91,12 +91,17 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         query = SongSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        cache_params = (params["limit"], params["genre"], params["playable"])
-        payload = get_cached_search(SearchCache.SONGS, params["q"], cache_params)
-        if payload is None:
-            songs = SongSearch.objects.search(params["q"], params["limit"], params["genre"], params["playable"])
-            payload = SongSearchResultSerializer(songs, many=True).data
-            set_cached_search(SearchCache.SONGS, params["q"], cache_params, payload)
+        payload = cached_search(
+            SearchCache.SONGS,
+            params["q"],
+            (params["limit"], params["genre"], params["playable"]),
+            lambda: (
+                SongSearchResultSerializer(
+                    SongSearch.objects.search(params["q"], params["limit"], params["genre"], params["playable"]),
+                    many=True,
+                ).data
+            ),
+        )
         return Response(payload)
 
     (
