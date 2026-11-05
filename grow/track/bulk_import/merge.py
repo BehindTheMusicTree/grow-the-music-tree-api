@@ -13,6 +13,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
+from grow.song_search.rebuild import queue_song_search_build
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -433,12 +434,22 @@ def merge_song_import_run(
         "genre_type": CriteriaTypePks.GENRE.value,
         "content_type": ContentType.objects.get_for_model(Song).pk,
     }
-    return execute_merge(
-        run_id, attempt_id, SongImportStaging, lambda: _merge(run_id, params, record), invalidate_search_cache
-    )
+    live = False
+
+    def merge() -> dict[str, Any]:
+        nonlocal live
+        result, live = _merge(run_id, params, record)
+        return result
+
+    def after_commit() -> None:
+        invalidate_search_cache()
+        if not live:
+            queue_song_search_build()
+
+    return execute_merge(run_id, attempt_id, SongImportStaging, merge, after_commit)
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
+def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], bool]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
@@ -446,6 +457,8 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
         with report_step("prepare_tables"):
             cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+        with report_step("lock_search_projection"):
+            live = projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)
         with report_step("validate_staging"):
             cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
@@ -453,7 +466,10 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
                 # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
                 raise ValueError(f"import run {run_id} has no staged songs")
         steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
-        timings += run_steps(cursor, [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
+        steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS]
+        if not live:
+            steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]
+        timings += run_steps(cursor, steps, params)
         with report_step("final_count_and_tables"):
             cursor.execute(
                 "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
@@ -467,4 +483,4 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
             ImportRun.objects.create(
                 kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped, step_timings=timings
             )
-    return {"imported": imported, "skipped": skipped, "stepTimings": timings}
+    return {"imported": imported, "skipped": skipped, "stepTimings": timings}, live

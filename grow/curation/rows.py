@@ -29,7 +29,7 @@ from grow.curation.lists import (
 
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
-UMBRELLA_LIST = "umbrella_genres"
+UMBRELLA_LIST = "umbrella_stylistic_genres"
 CANONICAL_PARENT_LIST = "canonical_parent"
 REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
 REGIONAL_OVERVIEWS_LIST = "regional_overviews"
@@ -130,7 +130,8 @@ def to_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dic
     """The entry back as a row in CSV column order, booleans kept as booleans."""
     curation_list = CURATION_LISTS[list_name]
     fields = {**dict(zip(curation_list.key, key.split(KEY_SEPARATOR), strict=True)), **values, "reason": reason}
-    return {c: fields[c] for c in curation_list.columns}
+    # An optional column added to a list after its entries were stored has no stored value.
+    return {c: fields.get(c, "") if c in OPTIONAL_COLUMNS else fields[c] for c in curation_list.columns}
 
 
 def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dict[str, str]:

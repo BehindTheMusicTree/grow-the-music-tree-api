@@ -31,12 +31,13 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
+    "entity_additions": {"entity_kind": ("cultural_region", "macro_region")},
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default"})
 OPTIONAL_COLUMNS = frozenset(
-    {"genre_item_id", "entity_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
+    {"genre_item_id", "entity_id", "entity_kind", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
 )
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
@@ -141,11 +142,11 @@ CURATION_LISTS: dict[str, CurationList] = {
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
-    "non_stylistic_genres": _item_list(
+    "umbrella_non_stylistic_genres": _item_list(
         "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as canonical nodes, "
         "dropped."
     ),
-    "umbrella_genres": _item_list(
+    "umbrella_stylistic_genres": _item_list(
         "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
         source="gold",
     ),
@@ -225,8 +226,9 @@ CURATION_LISTS: dict[str, CurationList] = {
     "entity_additions": CurationList(
         "geohistory",
         ("entity_id",),
-        ("entity_id", "reason"),
-        "Wikidata items ingested as cultural entities although no bulk class covers them.",
+        ("entity_id", "entity_kind", "reason"),
+        "Wikidata items ingested as cultural entities although no bulk class covers them; a blank `entity_kind` "
+        "keeps them undrawn, `cultural_region` or `macro_region` makes them a map zone.",
     ),
     "entity_exclusions": CurationList(
         "geohistory",

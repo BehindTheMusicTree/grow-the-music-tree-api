@@ -24,6 +24,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
+from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.track.direct_songs_count import recount_direct_songs_count
@@ -514,6 +515,28 @@ class TestImportRunMerge(AppTestCase):
         (row,) = SongSearch.objects.all()
         assert (row.title_key, row.has_genre) == ("comfortably numb live", False)
         assert [s.title for s in SongSearch.objects.search("waters numb", 8)] == ["Comfortably Numb (Live)"]
+
+    def test_unbuilt_projection_is_built_in_bulk_after_the_merge(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
+
+        result = self._sync([SONG, other])
+
+        assert not {"upsert_song_search", "delete_song_search"} & {t["label"] for t in result["stepTimings"]}
+        assert SongSearchState.load().ready
+        assert SongSearch.objects.count() == 2
+        assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+
+    def test_bulk_build_is_queued_only_when_the_projection_is_not_built(self):
+        self.model_fixture_factory.create_genre("Rock")
+        with patch("grow.song_search.rebuild.async_task") as queued:
+            self._sync([SONG])
+            queued.assert_called_once()
+            assert queued.call_args.kwargs["only_if_not_ready"] is True
+            rebuild_song_search()
+            queued.reset_mock()
+            self._sync([SONG, {**SONG, "musicbrainz_recording_id": OTHER_MBID}])
+            queued.assert_not_called()
 
     def test_single_change_of_each_kind_is_the_only_one_carried(self):
         self.model_fixture_factory.create_genre("Rock")

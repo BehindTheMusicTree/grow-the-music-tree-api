@@ -37,6 +37,17 @@ LEFT JOIN LATERAL (
 ) a ON true"""
 
 
+def lock_if_live(cursor) -> bool:
+    """
+    Whether the projection is built (`ready`), taking a ROW EXCLUSIVE lock on it first. The lock conflicts with the
+    rebuild's EXCLUSIVE one, so a merge and a rebuild serialize: a merge locking first makes the rebuild wait and then
+    see its songs; a rebuild locking first makes the merge wait for the swap and read `ready = true`. Postgres-only.
+    """
+    cursor.execute(f"LOCK TABLE {TABLE} IN ROW EXCLUSIVE MODE")
+    cursor.execute("SELECT coalesce((SELECT ready FROM grow_song_search_state WHERE id = 1), false)")
+    return bool(cursor.fetchone()[0])
+
+
 def upsert(track_ids_sql: str, table: str = TABLE) -> str:
     """Upserts the projection of the songs whose id `track_ids_sql` (a subquery) selects; unchanged rows are not
     rewritten, so a nightly run leaves no dead tuples for the songs it didn't touch."""

@@ -10,6 +10,7 @@ from grow.bulk_import.run_steps import run_steps
 from grow.model.import_run.ImportRun import ImportRun
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
+from grow.song_search.rebuild import queue_song_search_build
 
 TEMP_TABLES = (
     "artist_import, run_artist, membership_import, link_import, alias_import, release_group_row, "
@@ -320,16 +321,22 @@ def merge_artist_import_run(
     from the run (a `delta` run: only the artists it lists) deleted once nothing credits it. Run after the songs import so
     song artists already carry their MBID.
     """
-    return execute_merge(
-        run_id,
-        attempt_id,
-        ArtistImportStaging,
-        lambda: _merge(run_id, {"run": run_id, "user": user_id}, record),
-        invalidate_search_cache,
-    )
+    live = False
+
+    def merge() -> dict[str, Any]:
+        nonlocal live
+        result, live = _merge(run_id, {"run": run_id, "user": user_id}, record)
+        return result
+
+    def after_commit() -> None:
+        invalidate_search_cache()
+        if not live:
+            queue_song_search_build()
+
+    return execute_merge(run_id, attempt_id, ArtistImportStaging, merge, after_commit)
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
+def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], bool]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     with transaction.atomic(), connection.cursor() as cursor:
         with report_step("prepare_tables"):
@@ -339,13 +346,16 @@ def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
             if not delta and not cursor.fetchone()[0]:
                 # Artists missing from the run are deleted, so an empty run would wipe every uncredited artist.
                 raise ValueError(f"import run {run_id} has no staged artists")
-        timings = run_steps(
-            cursor, [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)], params
-        )
+        with report_step("lock_search_projection"):
+            live = projection.lock_if_live(cursor)
+        steps = [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)]
+        if not live:
+            steps = [step for step in steps if step[0] != "upsert_song_search"]
+        timings = run_steps(cursor, steps, params)
         with report_step("final_count_and_tables"):
             cursor.execute("SELECT count(*) FROM run_artist")
             (imported,) = cursor.fetchone()
             cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(kind=ImportRun.Kind.ARTISTS, count=imported, skipped_count=0, step_timings=timings)
-    return {"imported": imported, "skipped": 0, "stepTimings": timings}
+    return {"imported": imported, "skipped": 0, "stepTimings": timings}, live
