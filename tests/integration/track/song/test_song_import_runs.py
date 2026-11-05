@@ -253,6 +253,32 @@ class TestImportRunMerge(AppTestCase):
 
         assert counts() == {uuid.UUID(MBID): 2**40, uuid.UUID(OTHER_MBID): 7}
 
+    def test_recording_count_imported_updated_and_nullable(self):
+        self.model_fixture_factory.create_genre("Rock")
+        without_count = {**SONG, "musicbrainz_recording_id": OTHER_MBID}
+
+        self._sync([{**SONG, "recording_count": 12}, without_count])
+
+        def counts():
+            return dict(Song.objects.values_list("musicbrainz_recording_id", "recording_count"))
+
+        assert counts() == {uuid.UUID(MBID): 12, uuid.UUID(OTHER_MBID): None}
+
+        self._sync([{**SONG, "recording_count": None}, {**without_count, "recording_count": 2**31 - 1}])
+
+        assert counts() == {uuid.UUID(MBID): None, uuid.UUID(OTHER_MBID): 2**31 - 1}
+
+    def test_delta_run_changing_only_recording_count_updates_that_song(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "recording_count": 2}
+        self._sync([{**SONG, "recording_count": 3}, other])
+
+        steps = self._steps(self._sync([{**SONG, "recording_count": 40}], mode="delta"))
+
+        assert steps["changed_song"] == steps["update_songs"] == 1
+        assert steps["update_tracks"] == 0
+        assert dict(Song.objects.values_list("title", "recording_count")) == {"Comfortably Numb": 40, "Other": 2}
+
     def _assert_views_count_matches_rels(self) -> dict[str, int]:
         def label(playlist: CriteriaPlaylist) -> str:
             return playlist.criteria.genre.name if playlist.criteria else "Genreless"
@@ -481,6 +507,7 @@ class TestImportRunMerge(AppTestCase):
             "playability": {"youtube_unplayable_reason": "private"},
             "year": {"first_release_year": 1979},
             "views": {"youtube_view_count": 7},
+            "recordings": {"recording_count": 5},
             "artist": {"artist_musicbrainz_id": other_artist, "artist": "Roger Waters"},
         }
         for name, change in changes.items():
@@ -649,6 +676,13 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{k: v for k, v in SONG.items() if k != "first_release_year"}]),
             _gzip_ndjson([{**SONG, "genre_wikidata_id": "rock"}]),
             _gzip_ndjson([{**SONG, "genre_wikidata_id": ""}]),
+            _gzip_ndjson([{**SONG, "recording_count": 0}]),
+            _gzip_ndjson([{**SONG, "recording_count": "3"}]),
+            _gzip_ndjson([{**SONG, "recording_count": True}]),
+            _gzip_ndjson([{**SONG, "recording_count": 2**31}]),
+            _gzip_ndjson([{**SONG, "recording_count": -1}]),
+            _gzip_ndjson([{**SONG, "recording_count": 1.5}]),
+            _gzip_ndjson([{**SONG, "recording_count": 3.0}]),
             gzip.compress(b"{not json\n"),
         ]
 

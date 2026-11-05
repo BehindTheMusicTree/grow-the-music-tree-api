@@ -24,7 +24,7 @@ CREATE TEMP TABLE song_import AS
 WITH staged AS (
     SELECT DISTINCT ON (musicbrainz_recording_id)
         musicbrainz_recording_id AS mbid, title, artist, artist_musicbrainz_id AS artist_mbid, youtube_video_id,
-        youtube_unplayable_reason, youtube_view_count, genre_name, genre_wikidata_id, first_release_year
+        youtube_unplayable_reason, youtube_view_count, genre_name, genre_wikidata_id, first_release_year, recording_count
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
 ), matched AS (
@@ -51,7 +51,7 @@ WITH staged AS (
     ORDER BY g.wikidata_id, c.tree_name <> 'canonical', c.uuid
 )
 SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.youtube_view_count,
-    m.genre_name, m.genre_wikidata_id, m.first_release_year, COALESCE(q.uuid, c.uuid) AS genre_id,
+    m.genre_name, m.genre_wikidata_id, m.first_release_year, m.recording_count, COALESCE(q.uuid, c.uuid) AS genre_id,
     COALESCE(m.track_id, a.track_id, gen_random_uuid()) AS track_id,
     m.track_id IS NULL AND a.track_id IS NULL AS is_new,
     a.track_id IS NOT NULL AS is_adopted,
@@ -102,6 +102,7 @@ CHANGED_SONG = """CREATE TEMP TABLE changed_song AS
         OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
         OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
         OR y.first_release_year IS DISTINCT FROM s.first_release_year
+        OR y.recording_count IS DISTINCT FROM s.recording_count
         OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text"""
 # A delta run groups only its own tracks' artists (minutes saved on every daily run). A full run holds every track, and
 # the same filter there turns the sorted aggregate into a hash aggregate that spills to disk: 580 s became 720 s on 32M.
@@ -153,12 +154,14 @@ STEPS = [
         "update_songs",
         """UPDATE grow_song y SET
         youtube_video_id = s.youtube_video_id, youtube_unplayable_reason = s.youtube_unplayable_reason,
-        youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year
+        youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year,
+        recording_count = s.recording_count
     FROM changed_song s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
             OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
-            OR y.first_release_year IS DISTINCT FROM s.first_release_year)""",
+            OR y.first_release_year IS DISTINCT FROM s.first_release_year
+            OR y.recording_count IS DISTINCT FROM s.recording_count)""",
     ),
     (
         "apply_views_delta",
@@ -176,8 +179,9 @@ STEPS = [
         "insert_songs",
         """INSERT INTO grow_song
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
-            musicbrainz_recording_id, first_release_year)
-    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year
+            musicbrainz_recording_id, first_release_year, recording_count)
+    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year,
+        recording_count
     FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
