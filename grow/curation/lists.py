@@ -141,11 +141,11 @@ CURATION_LISTS: dict[str, CurationList] = {
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
-    "non_stylistic_genres": _item_list(
+    "umbrella_non_stylistic_genres": _item_list(
         "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as canonical nodes, "
         "dropped."
     ),
-    "umbrella_genres": _item_list(
+    "umbrella_stylistic_genres": _item_list(
         "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
         source="gold",
     ),
