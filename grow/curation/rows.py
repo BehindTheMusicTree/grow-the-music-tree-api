@@ -29,7 +29,7 @@ from grow.curation.lists import (
 
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
-UMBRELLA_LIST = "umbrella_genres"
+UMBRELLA_LIST = "umbrella_stylistic_genres"
 CANONICAL_PARENT_LIST = "canonical_parent"
 REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
 REGIONAL_OVERVIEWS_LIST = "regional_overviews"
