@@ -44,6 +44,27 @@ class TestCase(AppTestCase):
         assert set(lists) == set(CURATION_LISTS)
         assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
 
+    def test_place_relation_override_round_trip(self):
+        name = "place_relation_overrides"
+        row = {"child_entity_id": "Q145", "parent_entity_id": "Q161885", "extent": "partial", "reason": "overlap"}
+        for invalid in (
+            {**row, "extent": "unknown"},
+            {**row, "reason": " "},
+            {**row, "child_entity_id": "bad"},
+            {**row, "parent_entity_id": row["child_entity_id"]},
+        ):
+            assert self._create(invalid, name).status_code == status.HTTP_400_BAD_REQUEST
+
+        created = self._create(row, name)
+        assert created.status_code == status.HTTP_201_CREATED
+        assert self._create(row, name).status_code == status.HTTP_400_BAD_REQUEST
+        url = self._entry_url(created.json()["uuid"], name)
+        updated = self.api_client.patch(url, {"row": {"extent": "reject"}}, format="json")
+        assert updated.status_code == status.HTTP_200_OK
+        assert self.api_client.get(path=reverse("curation-export")).json()[name] == [{**row, "extent": "reject"}]
+        assert self.api_client.delete(url).status_code == status.HTTP_204_NO_CONTENT
+        assert self.api_client.get(path=reverse("curation-export")).json()[name] == []
+
     def test_create_then_row_snake_case_and_history(self):
         response = self._create(ITEM)
 

@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Add the `place_relation_overrides` curation list for explicit spatial relation decisions, exported for geohistory.
+
 - Persist selected-video regional policies and expose trusted-country playback availability, filtering playlists and search before pagination. Add a no-store playback context endpoint and preserve curated video choices during pipeline imports.
 
 - `entity_additions` accepts `entity_kind` `city`: a curated item that becomes a point on the region map under its administrative unit, for cities claimed by a genre. Must ship before any city curation. Test in `tests/integration/curation/test_curation_api.py`.

@@ -28,6 +28,7 @@ TRADITION_ID_COLUMNS = frozenset({"wikidata_id", "from_wikidata_id", "to_wikidat
 QID_ENTITY_LISTS = frozenset({"entity_additions"})
 """Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
@@ -241,6 +242,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("child_entity_id", "parent_entity_id"),
         ("child_entity_id", "parent_entity_id", "action", "reason"),
         "Membership edges of a cultural entity: `add` adds a parent, `remove` drops one.",
+    ),
+    "place_relation_overrides": CurationList(
+        "geohistory",
+        ("child_entity_id", "parent_entity_id"),
+        ("child_entity_id", "parent_entity_id", "extent", "reason"),
+        "Spatial relation between two entities, overriding the resolved extent.",
     ),
     "entity_time_span_overrides": CurationList(
         "geohistory",
