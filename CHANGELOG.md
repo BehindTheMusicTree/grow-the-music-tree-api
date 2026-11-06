@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `entity_additions` accepts `entity_kind` `city`: a curated item that becomes a point on the region map under its administrative unit, for cities claimed by a genre. Must ship before any city curation. Test in `tests/integration/curation/test_curation_api.py`.
 - Durable per-attempt progress for staged songs, artists and region-map imports, with independent heartbeats, SQL wait diagnostics and atomic commit receipts to prevent replay after worker loss. Authenticated status callers receive the additive `progress` contract; rollback, commit/cleanup failures and PostgreSQL concurrency are covered by tests.
 
 - `entity_additions` accepts an optional `entity_kind` (`cultural_region` or `macro_region`; blank keeps the item undrawn, as before): a curated item can become a map zone whose footprint comes from `entity_membership_overrides`. Entries stored before the column existed export a blank `entity_kind`, so no migration is needed. Merge with the matching pipelines change. Tests in `tests/integration/curation/test_curation_api.py`.

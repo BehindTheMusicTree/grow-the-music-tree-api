@@ -287,8 +287,11 @@ class TestCase(AppTestCase):
         zone = self._create(
             {"entity_id": "Q7057805", "entity_kind": "cultural_region", "reason": "testing"}, "entity_additions"
         )
+        city = self._create({"entity_id": "Q12345", "entity_kind": "city", "reason": "testing"}, "entity_additions")
         bad = self._create({"entity_id": "Q128011", "entity_kind": "country", "reason": "testing"}, "entity_additions")
 
+        assert city.status_code == status.HTTP_201_CREATED
+        assert city.json()["row"]["entity_kind"] == "city"
         assert blank.status_code == status.HTTP_201_CREATED
         assert blank.json()["row"]["entity_kind"] == ""
         assert zone.status_code == status.HTTP_201_CREATED
