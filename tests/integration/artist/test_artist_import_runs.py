@@ -24,6 +24,7 @@ from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song_search.SongSearch import SongSearch
+from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
 
@@ -175,10 +176,11 @@ class TestImportRunMerge(AppTestCase):
         BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
 
         assert self.api_client.get(path=status_path).data["status"] == "pending"
-        assert self.api_client.get(path=status_path).data == {
-            "status": "success",
-            "result": {"imported": 1, "skipped": 0, "stepTimings": ANY},
-        }
+        response = self.api_client.get(path=status_path).data
+        assert response["status"] == "success"
+        assert response["result"] == {"imported": 1, "skipped": 0, "stepTimings": ANY}
+        assert response["progress"]["attempt"] == 2
+        assert response["progress"]["state"] == "succeeded"
         assert Artist.objects.filter(musicbrainz_artist_id=BAND).exists()
 
     def test_status_leaves_queued_merge_alone(self):
@@ -239,6 +241,19 @@ class TestImportRunMerge(AppTestCase):
         }
 
         assert steps["renamed_artist"] == steps["upsert_song_search"] == 1
+        assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+        assert [s.pk for s in SongSearch.objects.search("the pink money", 8)] == [song.pk]
+
+    def test_rename_with_unbuilt_projection_skips_the_row_by_row_step_and_builds_in_bulk(self):
+        with mock.patch("grow.artist.bulk_import.merge.queue_song_search_build"):  # the first sync would build it
+            self._sync([ARTIST, PERSON])
+        song = self.model_fixture_factory.create_song("Money", None)
+        song.artists.add(Artist.objects.get(musicbrainz_artist_id=BAND))
+
+        labels = {t["label"] for t in self._sync([{**ARTIST, "name": "The Pink Floyd"}, PERSON])["stepTimings"]}
+
+        assert "upsert_song_search" not in labels
+        assert SongSearchState.load().ready
         assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
         assert [s.pk for s in SongSearch.objects.search("the pink money", 8)] == [song.pk]
 

@@ -3,7 +3,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from django.db import connection
-from django.utils import timezone
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 
@@ -15,7 +14,7 @@ IMPORT_LOCK_KEY = 0x696D7072  # pg advisory lock namespace, "impr"; the run id i
 @contextmanager
 def hold_merge_lock(run_id: int) -> Iterator[None]:
     """
-    Holds a session advisory lock on the run for the whole merge and stamps `started_on`. A worker killed mid-merge
+    Holds a session advisory lock on the run for the whole merge. A worker killed mid-merge
     (e.g. a redeploy) drops its connection and with it the lock, which is how `merge_was_lost` tells a dead merge
     from a running one.
     """
@@ -25,7 +24,6 @@ def hold_merge_lock(run_id: int) -> Iterator[None]:
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_advisory_lock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
     try:
-        BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
         yield
     finally:
         with connection.cursor() as cursor:
@@ -47,8 +45,10 @@ def claim_lost_merge(run_id: int, kind: str) -> BulkImportRun | None:
         (free,) = cursor.fetchone()
         if not free:
             return None
-        cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
-    if not BulkImportRun.objects.filter(pk=run_id, started_on=run.started_on).update(started_on=None):
-        return None
+        try:
+            if not BulkImportRun.objects.filter(pk=run_id, started_on=run.started_on).update(started_on=None):
+                return None
+        finally:
+            cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
     logger.warning("import run %s: merge lost to a worker restart, enqueueing it again", run_id)
     return run

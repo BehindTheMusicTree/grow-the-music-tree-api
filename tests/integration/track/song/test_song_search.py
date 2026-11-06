@@ -17,7 +17,7 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.serializer.model.song.search import SEARCH_LIMIT_MAX
-from grow.song_search.rebuild import rebuild_song_search
+from grow.song_search.rebuild import queue_song_search_build, rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -70,6 +70,13 @@ class TestSongSearch(AppTestCase):
         response = self.search(q, **params)
         assert response.status_code == status.HTTP_200_OK, response.content
         return [item["title"] for item in response.data]
+
+    def test_rebuild_only_if_not_ready_is_a_noop_once_built(self):
+        assert rebuild_song_search(only_if_not_ready=True) == 0
+        rebuilt_on = SongSearchState.load().rebuilt_on
+
+        assert rebuild_song_search(only_if_not_ready=True) is None
+        assert SongSearchState.load().rebuilt_on == rebuilt_on
 
     def test_not_rebuilt_yet_then_503(self):
         self.song("Comfortably Numb", "Pink Floyd")
@@ -292,3 +299,13 @@ class TestSongSearch(AppTestCase):
             cursor.execute("UPDATE grow_song_search SET rank_score = -1 WHERE track_id = %s", [song.pk])
         with pytest.raises(CommandError):
             call_command("rebuild_song_search", "--check")
+
+
+@pytest.mark.postgres
+class TestQueueSongSearchBuild(AppTestCase):
+    def test_queueing_failure_is_logged_not_raised(self):
+        with (
+            patch("grow.song_search.rebuild.async_task", side_effect=ConnectionError("redis down")),
+            self.assertLogs("grow.bulk_import", level="ERROR"),
+        ):
+            queue_song_search_build()

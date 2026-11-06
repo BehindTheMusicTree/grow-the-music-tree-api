@@ -5,6 +5,7 @@ from the_music_tree_genre_kit.track.Track import Track
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
@@ -57,6 +58,8 @@ __all__ = [
     "GenrePlaylist",
     "GenreTreeVersion",
     "HistoryEntry",
+    "ImportAttempt",
+    "ImportReceipt",
     "ImportRun",
     "ManualPlaylist",
     "PipelineRunRequest",

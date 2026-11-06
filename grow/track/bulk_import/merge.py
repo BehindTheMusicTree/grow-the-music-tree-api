@@ -4,15 +4,16 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
-from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
-from grow.bulk_import.merge_lock import hold_merge_lock
+from grow.bulk_import.lifecycle import execute_merge
+from grow.bulk_import.progress import report_step
 from grow.bulk_import.run_steps import run_steps
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
+from grow.song_search.rebuild import queue_song_search_build
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -420,7 +421,9 @@ AFTER_STALE_STEPS = [
 ]
 
 
-def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
+def merge_song_import_run(
+    run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
+) -> dict[str, Any]:
     """
     Merges a committed run's staged songs into the owner's `Song`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
@@ -438,42 +441,53 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         "genre_type": CriteriaTypePks.GENRE.value,
         "content_type": ContentType.objects.get_for_model(Song).pk,
     }
-    with hold_merge_lock(run_id):
-        try:
-            result = _merge(run_id, params, record)
-            invalidate_search_cache()
-            return result
-        finally:
-            # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
-            SongImportStaging.objects.filter(run_id=run_id).delete()
-            BulkImportDeletion.objects.filter(run_id=run_id).delete()
-            BulkImportRun.objects.filter(pk=run_id).delete()
+    live = False
+
+    def merge() -> dict[str, Any]:
+        nonlocal live
+        result, live = _merge(run_id, params, record)
+        return result
+
+    def after_commit() -> None:
+        invalidate_search_cache()
+        if not live:
+            queue_song_search_build()
+
+    return execute_merge(run_id, attempt_id, SongImportStaging, merge, after_commit)
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
+def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], bool]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
     changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
-        cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
+        with report_step("prepare_tables"):
+            cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+        with report_step("lock_search_projection"):
+            live = projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)
-        cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
-        if not delta and not cursor.fetchone()[0]:
-            # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
-            raise ValueError(f"import run {run_id} has no staged songs")
+        with report_step("validate_staging"):
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
+            if not delta and not cursor.fetchone()[0]:
+                # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
+                raise ValueError(f"import run {run_id} has no staged songs")
         steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
-        timings += run_steps(cursor, [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
-        cursor.execute(
-            "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
-            " FROM song_import"
-        )
-        imported, skipped = cursor.fetchone()
-        # Transaction-local, but a caller's outer transaction (tests) would otherwise keep it set past the merge.
-        cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
-        cursor.execute(f"DROP TABLE {TEMP_TABLES}")
+        steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS]
+        if not live:
+            steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]
+        timings += run_steps(cursor, steps, params)
+        with report_step("final_count_and_tables"):
+            cursor.execute(
+                "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
+                " FROM song_import"
+            )
+            imported, skipped = cursor.fetchone()
+            # Transaction-local, but a caller's outer transaction (tests) would otherwise keep it set past the merge.
+            cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+            cursor.execute(f"DROP TABLE {TEMP_TABLES}")
         if record:
             ImportRun.objects.create(
                 kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped, step_timings=timings
             )
-    return {"imported": imported, "skipped": skipped, "stepTimings": timings}
+    return {"imported": imported, "skipped": skipped, "stepTimings": timings}, live

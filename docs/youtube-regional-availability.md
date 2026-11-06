@@ -2,7 +2,7 @@
 
 `Song.youtube_region_restriction` and the import staging field describe the selected video only. Null means metadata is unknown; otherwise the policy is `{mode: allowed|blocked|unrestricted, countries: [...]}`. Countries are unique, sorted uppercase two-letter codes. An empty allowed list blocks everywhere; an empty blocked list permits an attempt everywhere. Global `youtube_unplayable_reason` remains independent.
 
-Migration `0102` adds nullable JSON fields without a backfill. Legacy exports remain accepted with unknown policy. A regional-only import change updates the song and invalidates search without changing shared playlist memberships or aggregate counts. Manually edited songs retain their video and global reason; incoming policy and view count apply only when the staged video matches the selected video.
+Migration `0104` adds nullable JSON fields without a backfill. Legacy exports remain accepted with unknown policy. A regional-only import change updates the song and invalidates search without changing shared playlist memberships or aggregate counts. Manually edited songs retain their video and global reason; incoming policy and view count apply only when the staged video matches the selected video.
 
 `GET playback/context/` returns `{country: string|null}`. Country is accepted only with the configured `VIEWER_CONTEXT_TOKEN` in `X-Viewer-Context-Token`, alongside `X-Viewer-Country`. Unauthenticated country headers are ignored. An unset server token disables trusted country context. Never expose the token to browser code.
 

@@ -139,3 +139,5 @@ SONG_YOUTUBE_VIDEO_ID_LEN_MAX = 11
 
 # An empty token leaves direct/internal requests with unknown viewer country.
 VIEWER_CONTEXT_TOKEN = os.environ.get("VIEWER_CONTEXT_TOKEN", "")
+# Tests with outer transactions use synchronous telemetry; concurrency tests enable the reporter thread.
+IMPORT_PROGRESS_THREADED = True

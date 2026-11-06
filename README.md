@@ -183,3 +183,7 @@ Data derived from MusicBrainz tags remains subject to CC BY-NC-SA 3.0: credit Mu
 ## License
 
 [Apache 2.0](LICENSE)
+
+### Import merge progress
+
+Bulk import status endpoints retain `pending|success|failed`, `result` and `error`. Admin and pipeline callers also receive optional durable `progress` (attempt, current step, completed timings, heartbeat and bounded SQL wait diagnostics). `dataApplied=true` with a failure means the commit succeeded and post-commit processing needs inspection; do not resubmit. See [the progress contract and recovery rules](docs/operations/import-progress.md).
