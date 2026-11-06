@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### CI
+
+- Automate stable release tags from the application version and changelog.
+
 ### Fixed
 
 - Avoid loading every song and descendant in genre and tag detail, update and curation responses; serialization loads related data in a constant number of queries.
