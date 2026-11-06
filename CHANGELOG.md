@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### CI
+
+- Automate stable release tags from the application version and changelog.
+
 ### Added
 
 - `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
