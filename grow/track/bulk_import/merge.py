@@ -26,7 +26,7 @@ CREATE TEMP TABLE song_import AS
 WITH staged AS (
     SELECT DISTINCT ON (musicbrainz_recording_id)
         musicbrainz_recording_id AS mbid, title, artist, artist_musicbrainz_id AS artist_mbid, youtube_video_id,
-        youtube_unplayable_reason, youtube_view_count, genre_name, genre_wikidata_id, first_release_year, recording_count
+        youtube_unplayable_reason, youtube_view_count, youtube_region_restriction, genre_name, genre_wikidata_id, first_release_year, recording_count
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
 ), matched AS (
@@ -52,7 +52,10 @@ WITH staged AS (
     WHERE g.wikidata_id IS NOT NULL AND c.user_id IS NOT DISTINCT FROM %(user)s
     ORDER BY g.wikidata_id, c.tree_name <> 'canonical', c.uuid
 )
-SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.youtube_view_count,
+SELECT m.mbid, m.title, m.artist, m.artist_mbid, CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_video_id ELSE m.youtube_video_id END AS youtube_video_id,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_unplayable_reason ELSE m.youtube_unplayable_reason END AS youtube_unplayable_reason,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) AND locked.youtube_video_id IS DISTINCT FROM m.youtube_video_id THEN locked.youtube_view_count ELSE m.youtube_view_count END AS youtube_view_count,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) AND locked.youtube_video_id IS DISTINCT FROM m.youtube_video_id THEN locked.youtube_region_restriction ELSE m.youtube_region_restriction END AS youtube_region_restriction,
     m.genre_name, m.genre_wikidata_id, m.first_release_year, m.recording_count, COALESCE(q.uuid, c.uuid) AS genre_id,
     COALESCE(m.track_id, a.track_id, gen_random_uuid()) AS track_id,
     m.track_id IS NULL AND a.track_id IS NULL AS is_new,
@@ -60,6 +63,7 @@ SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_u
     COALESCE(m.is_manually_edited, a.is_manually_edited, false) AS is_locked
 FROM matched m
 LEFT JOIN adopted a USING (mbid)
+LEFT JOIN grow_song locked ON locked.track_id = COALESCE(m.track_id, a.track_id)
 LEFT JOIN genre_by_qid q ON q.wikidata_id = m.genre_wikidata_id
 -- Parts without a QID resolve by name.
 LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
@@ -106,6 +110,7 @@ CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
         OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id)
         OR y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
         OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
+        OR y.youtube_region_restriction IS DISTINCT FROM s.youtube_region_restriction
         OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
         OR y.first_release_year IS DISTINCT FROM s.first_release_year
         OR y.recording_count IS DISTINCT FROM s.recording_count
@@ -158,11 +163,13 @@ STEPS = [
         """UPDATE grow_song y SET
         youtube_video_id = s.youtube_video_id, youtube_unplayable_reason = s.youtube_unplayable_reason,
         youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year,
-        recording_count = s.recording_count
+        recording_count = s.recording_count,
+        youtube_region_restriction = s.youtube_region_restriction
     FROM changed_song s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
-            OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
+            OR y.youtube_region_restriction IS DISTINCT FROM s.youtube_region_restriction
+        OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
             OR y.first_release_year IS DISTINCT FROM s.first_release_year
             OR y.recording_count IS DISTINCT FROM s.recording_count)""",
     ),
@@ -182,9 +189,9 @@ STEPS = [
         "insert_songs",
         """INSERT INTO grow_song
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
-            musicbrainz_recording_id, first_release_year, recording_count)
+            musicbrainz_recording_id, first_release_year, recording_count, youtube_region_restriction)
     SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year,
-        recording_count
+        recording_count, youtube_region_restriction
     FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),

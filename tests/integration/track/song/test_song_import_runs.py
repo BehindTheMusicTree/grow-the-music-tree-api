@@ -255,6 +255,37 @@ class TestImportRunMerge(AppTestCase):
 
         assert counts() == {uuid.UUID(MBID): 2**40, uuid.UUID(OTHER_MBID): 7}
 
+    def test_regional_only_delta_preserves_playlist_memberships(self):
+        self.model_fixture_factory.create_genre("Rock")
+        song = {**SONG, "artist_musicbrainz_id": ARTIST_MBID}
+        initial = {"mode": "allowed", "countries": ["FR"]}
+        changed = {"mode": "blocked", "countries": ["AL"]}
+        self._sync([{**song, "youtube_region_restriction": initial}])
+        memberships = list(TrackPlaylistRel.objects.values_list("pk", flat=True))
+        steps = self._steps(self._sync([{**song, "youtube_region_restriction": changed}], mode="delta"))
+        assert steps["changed_song"] == steps["update_songs"] == 1
+        assert Song.objects.get(musicbrainz_recording_id=MBID).youtube_region_restriction == changed
+        assert list(TrackPlaylistRel.objects.values_list("pk", flat=True)) == memberships
+        assert (
+            self._steps(self._sync([{**song, "youtube_region_restriction": changed}], mode="delta"))["changed_song"]
+            == 0
+        )
+
+    def test_locked_video_policy_changes_only_for_the_same_video(self):
+        self.model_fixture_factory.create_genre("Rock")
+        policy = {"mode": "allowed", "countries": ["FR"]}
+        self._sync([SONG])
+        Song.objects.update(is_manually_edited=True, youtube_unplayable_reason="private")
+        self._sync([{**SONG, "youtube_region_restriction": policy}], mode="delta")
+        song = Song.objects.get(musicbrainz_recording_id=MBID)
+        assert song.youtube_region_restriction == policy
+        assert song.youtube_unplayable_reason == "private"
+        self._sync([{**SONG, "youtube_video_id": "zzzzzzzzzzz", "youtube_region_restriction": None}], mode="delta")
+        song.refresh_from_db()
+        assert song.youtube_video_id == SONG["youtube_video_id"]
+        assert song.youtube_region_restriction == policy
+        assert song.youtube_unplayable_reason == "private"
+
     def test_recording_count_imported_updated_and_nullable(self):
         self.model_fixture_factory.create_genre("Rock")
         without_count = {**SONG, "musicbrainz_recording_id": OTHER_MBID}

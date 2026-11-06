@@ -10,6 +10,7 @@ from rest_framework.exceptions import APIException
 
 from grow.search.cache import SearchCache, invalidate_search_cache
 from grow.song_search.projection import DRIFT, QUERY_TOKENS_MAX, TABLE, delete, upsert, words
+from grow.youtube_regions import attemptable_sql
 
 if TYPE_CHECKING:
     from grow.model.song.Song import Song
@@ -34,7 +35,12 @@ class SongSearchUnavailable(APIException):
 
 class SongSearchManager(models.Manager["SongSearch"]):
     def search(
-        self, query: str, limit: int, genre: GenreFilter = GenreFilter.ANY, playable: bool | None = None
+        self,
+        query: str,
+        limit: int,
+        genre: GenreFilter = GenreFilter.ANY,
+        playable: bool | None = None,
+        country: str | None = None,
     ) -> list[Song]:
         """
         Songs whose title and artist names hold every query word as a prefix, in any order. An exact title match
@@ -55,7 +61,7 @@ class SongSearchManager(models.Manager["SongSearch"]):
             tokens = folded.split()[:QUERY_TOKENS_MAX]
             if not tokens:
                 return []
-            filters, params = self._filters(genre, playable)
+            filters, params = self._filters(genre, playable, country)
             cursor.execute(
                 f"""WITH exact AS (
                     SELECT track_id, rank_score, 2 AS tier FROM {TABLE}
@@ -88,14 +94,16 @@ class SongSearchManager(models.Manager["SongSearch"]):
         return [songs[track_id] for track_id in track_ids if track_id in songs]
 
     @staticmethod
-    def _filters(genre: GenreFilter, playable: bool | None) -> tuple[str, dict]:
+    def _filters(genre: GenreFilter, playable: bool | None, country: str | None = None) -> tuple[str, dict]:
         filters, params = "", {}
         if genre == GenreFilter.WITH:
             filters += " AND has_genre"
         elif genre == GenreFilter.WITHOUT:
             filters += " AND NOT has_genre"
         if playable is not None:
-            filters += " AND playable = %(playable)s"
+            predicate, region_params = attemptable_sql(country)
+            filters += f" AND EXISTS (SELECT 1 FROM grow_song s WHERE s.track_id = {TABLE}.track_id AND ({predicate}) = %(playable)s)"
+            params.update(region_params)
             params["playable"] = playable
         return filters, params
 
