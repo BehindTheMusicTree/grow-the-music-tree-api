@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
@@ -333,6 +334,41 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if actor is not None:
                 self._upsert_rule(genre, "accepted_canonical_roots", actor)
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
+
+    @transaction.atomic
+    def set_root(self, instance: Genre, actor: Any) -> Genre:
+        """Detaches a canonical genre from its parent so it becomes a root.
+
+        Kept apart from a `parent: null` update, which stays a 400 for wikidata-backed genres: making a root is a
+        deliberate admin action. The pipeline pins every `accepted_canonical_roots` item as a root, and rejects an
+        item that also has a `canonical_parent` rule, so the latter is dropped.
+        """
+        self._lock_curation_writes(actor)
+        if instance.parent_id is None:
+            raise self._invalid("parent", "The genre is already a root")
+        if instance.tree_name != CriteriaTreeName.CANONICAL:
+            raise self._invalid("parent", "Regional genres can't be made a root here; edit the regional curation lists")
+        if instance.is_excluded:
+            raise self._invalid("parent", "An excluded genre can't be made a root; the pipeline prunes it")
+        updated = self.update_instance(instance, actor=None, parent=None)
+        if self._is_wikidata_item(updated):
+            for entry in CurationEntry.objects.filter(
+                user=None, list_name=CANONICAL_PARENT_LIST, key=updated.wikidata_id
+            ):
+                CurationEntry.objects.delete_instance(entry, actor=actor)
+            self._upsert_rule(updated, "accepted_canonical_roots", actor)
+        updated.is_unaccepted_root = False
+        updated.save(update_fields=["is_unaccepted_root"])
+        self._lock(updated)
+        # The parent hook ran with no actor (a null actor would bypass `_reparent_rule`) and logged the change as the
+        # pipeline's; attribute that entry to the admin.
+        HistoryEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(updated),
+            content_uuid=updated.uuid,
+            action=HistoryAction.PARENT_CHANGED,
+            actor=None,
+        ).update(actor=actor)
+        return updated
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
