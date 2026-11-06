@@ -128,6 +128,24 @@ class TestCase(GenreTestCase):
         )
         assert [(e.old_value, e.actor_id is not None) for e in entries] == [("Rock", True)]
 
+    def test_set_root_then_reparent_then_accepted_rule_dropped(self):
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+        self._post_genre_set_root(self.punk.uuid)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("accepted_canonical_roots") == []
+        assert [r["parent_item_id"] for r in _rows("canonical_parent")] == ["Q888001"]
+
+    def test_reparent_accepted_root_then_accepted_rule_dropped(self):
+        CurationEntry.objects.upsert("accepted_canonical_roots", {"item_id": "Q888002"}, actor=None)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("accepted_canonical_roots") == []
+
     def test_set_root_of_app_created_genre_then_root_without_rule(self):
         local = self.model_fixture_factory.create_genre("Local genre", parent=self.rock)
 

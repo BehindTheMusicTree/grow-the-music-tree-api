@@ -33,7 +33,7 @@ single-tenant service — this is the canonical reference dataset, not scoped pe
 
 `POST {base}{id}/set-root/` (admin only, empty body)
 
-Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-backed genre it also drops the item's `canonical_parent` rule and writes an `accepted_canonical_roots` rule, so the next pipeline import keeps it a root. The genre is locked and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 when the genre is already a root, regional, or excluded. `PUT` with `parent: null` stays rejected for Wikidata-backed genres.
+Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-backed genre it also drops the item's `canonical_parent` rule and writes an `accepted_canonical_roots` rule, so the next pipeline import keeps it a root. The genre is locked and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 when the genre is already a root, regional, or excluded. `PUT` with `parent: null` stays rejected for Wikidata-backed genres. Giving the root a parent again (`PUT` with a non-null `parent`) drops the `accepted_canonical_roots` rule, since the pipeline rejects an item with both rules.
 
 #### Delete
 
