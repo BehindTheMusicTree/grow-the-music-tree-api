@@ -77,7 +77,13 @@ def _check_level_ids(index: dict[str, Any]) -> None:
     """Every level a region (or the world) opens onto must name regions that exist, so a click never drills nowhere."""
     region_ids = {region["id"] for region in index["regions"] if "id" in region}
     for owner, key, ids in [
-        *((r["id"], key, r[key]) for r in index["regions"] if "id" in r for key in ("childIds", "zoneIds", "cityIds") if key in r),
+        *(
+            (r["id"], key, r[key])
+            for r in index["regions"]
+            if "id" in r
+            for key in ("childIds", "zoneIds", "cityIds")
+            if key in r
+        ),
         *(("world", key, index[key]) for key in ("worldChildIds", "worldZoneIds") if key in index),
     ]:
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
