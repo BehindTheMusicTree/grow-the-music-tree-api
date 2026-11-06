@@ -4,9 +4,8 @@ from typing import Any
 
 from django.db import transaction
 
-from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
-from grow.bulk_import.BulkImportRun import BulkImportRun
-from grow.bulk_import.merge_lock import hold_merge_lock
+from grow.bulk_import.lifecycle import execute_merge
+from grow.bulk_import.progress import report_step
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.region_map.RegionMapFile import RegionMapFile
@@ -20,21 +19,16 @@ UNRESOLVED_RELATION = "tradition"
 LISTED_MAX = 20
 
 
-def merge_region_map_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
+def merge_region_map_import_run(
+    run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
+) -> dict[str, Any]:
     """
     Swaps in the committed run's region map index as the only snapshot, in one transaction. The geometry is not stored
     here: the index references the immutable tileset (`tileset`, a sha256) that the pipeline published to object storage
     before this commit, so clients flip between geometry and stats atomically with the index. An index identical to the
     latest snapshot's is recorded as skipped.
     """
-    with hold_merge_lock(run_id):
-        try:
-            return _merge(run_id, record)
-        finally:
-            # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
-            RegionMapFileStaging.objects.filter(run_id=run_id).delete()
-            BulkImportDeletion.objects.filter(run_id=run_id).delete()
-            BulkImportRun.objects.filter(pk=run_id).delete()
+    return execute_merge(run_id, attempt_id, RegionMapFileStaging, lambda: _merge(run_id, record))
 
 
 def _listed(values: set[str]) -> str:
@@ -101,11 +95,12 @@ def _merge(run_id: int, record: bool) -> dict[str, Any]:
     checksum = paths[INDEX_PATH]
     staged = RegionMapFileStaging.objects.get(run_id=run_id, path=INDEX_PATH)
     index = json.loads(gzip.decompress(staged.body))
-    _check_index(index)
+    with report_step("validate_index"):
+        _check_index(index)
     count = len(index["regions"])
     latest = RegionMapSnapshot.objects.first()
     unchanged = latest is not None and latest.checksum == checksum
-    with transaction.atomic():
+    with report_step("publish_snapshot"), transaction.atomic():
         run = None
         if record:
             run = ImportRun.objects.create(
