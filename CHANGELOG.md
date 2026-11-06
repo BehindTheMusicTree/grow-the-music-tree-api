@@ -21,12 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-<<<<<<< HEAD
 - The region-map import rejects an index whose `cityIds` name a region that is not in it, like `childIds` and `zoneIds`, so a city click never drills nowhere. Test in `tests/integration/region_map/test_region_map.py`.
-=======
 - Persist selected-video regional policies and expose trusted-country playback availability, filtering playlists and search before pagination. Add a no-store playback context endpoint and preserve curated video choices during pipeline imports.
 
->>>>>>> origin/develop
 - `entity_additions` accepts `entity_kind` `city`: a curated item that becomes a point on the region map under its administrative unit, for cities claimed by a genre. Must ship before any city curation. Test in `tests/integration/curation/test_curation_api.py`.
 - Durable per-attempt progress for staged songs, artists and region-map imports, with independent heartbeats, SQL wait diagnostics and atomic commit receipts to prevent replay after worker loss. Authenticated status callers receive the additive `progress` contract; rollback, commit/cleanup failures and PostgreSQL concurrency are covered by tests.
 
