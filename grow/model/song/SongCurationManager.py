@@ -12,7 +12,7 @@ from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.song.Song import Song
-from grow.youtube import YoutubeLookupError, fetch_unplayable_reason
+from grow.youtube import YoutubeLookupError, fetch_video_metadata
 
 LINK_SUGGESTIONS_LIMIT = 50
 
@@ -73,13 +73,12 @@ class SongCurationManager:
         reason = fields.get("youtube_unplayable_reason")
         if reason is None and "youtube_unplayable_reason" not in fields and video_id == song.youtube_video_id:
             reason = song.youtube_unplayable_reason
-        if (
-            reason is None
-            and video_id is not None
-            and (video_id != song.youtube_video_id or "youtube_unplayable_reason" in fields)
-        ):
+        policy = song.youtube_region_restriction if video_id == song.youtube_video_id else None
+        if video_id is not None and (video_id != song.youtube_video_id or "youtube_unplayable_reason" in fields):
             try:
-                reason = fetch_unplayable_reason(video_id)
+                fetched_reason, policy = fetch_video_metadata(video_id)
+                if reason is None:
+                    reason = fetched_reason
             except YoutubeLookupError as e:
                 raise YoutubeUnavailable from e
         explicit = fields.get("youtube_unplayable_reason") or ""
@@ -90,8 +89,13 @@ class SongCurationManager:
         )
         if video_id is None:
             reason = None
+            policy = None
         old_video_id = song.youtube_video_id
-        if (video_id, reason) == (old_video_id, song.youtube_unplayable_reason):
+        if (video_id, reason, policy) == (
+            old_video_id,
+            song.youtube_unplayable_reason,
+            song.youtube_region_restriction,
+        ):
             updated = song
         else:
             updated = Song.objects.update_instance(
@@ -99,6 +103,7 @@ class SongCurationManager:
                 actor=actor,
                 youtube_video_id=video_id,
                 youtube_unplayable_reason=reason,
+                youtube_region_restriction=policy,
                 youtube_view_count=song.youtube_view_count if video_id == old_video_id else None,
             )
             HistoryEntry.objects.record(

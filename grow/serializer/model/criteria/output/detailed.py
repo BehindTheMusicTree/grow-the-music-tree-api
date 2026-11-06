@@ -1,46 +1,55 @@
+from django.db.models import Prefetch
 from rest_framework import serializers
 from the_music_tree_api_kit.serializer.AppInputSerializer import AppInputSerializer
+from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
-from the_music_tree_genre_kit.serializer.model.criteria.output.detailed_tracks import (
-    build_criteria_detailed_tracks_fields,
-)
+from the_music_tree_genre_kit.criteria.lineage_rel.Fields import Fields as LineageFields
 from the_music_tree_genre_kit.serializer.model.criteria.output.side import CriteriaSideSerializerMixin
+from the_music_tree_genre_kit.track.Fields import Fields as TrackFields
 
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.Fields import Fields as ModelFields
+from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.serializer.model.criteria.output.minimum import CriteriaMinimumSerializer
-from grow.serializer.model.criteria_lineage_rel.without_ascendant import CriteriaLineageRelWithoutAscendantSerializer
 from grow.serializer.model.criteria_lineage_rel.without_descendant import (
     CriteriaLineageRelWithoutDescendantSerializer,
 )
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
-from grow.serializer.model.track.output.simple.simple_without_album_and_genre import (
-    TrackWithoutAlbumPlaylistGenreSerializer,
-)
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
 from .essential_songs import CriteriaEssentialSongsSerializerMixin
 
-_tracks_fields = build_criteria_detailed_tracks_fields(
-    TrackWithoutAlbumPlaylistGenreSerializer,
-    CriteriaOutputFieldKey.TRACKS_PUBLIC.value,
-    CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
-)
-
 
 class CriteriaDetailedSerializer(
-    CriteriaSideSerializerMixin, CriteriaEssentialSongsSerializerMixin, AppInputSerializer, serializers.ModelSerializer
+    EagerLoadingMixin,
+    CriteriaSideSerializerMixin,
+    CriteriaEssentialSongsSerializerMixin,
+    AppInputSerializer,
+    serializers.ModelSerializer,
 ):
-    tracks = _tracks_fields[CriteriaOutputFieldKey.TRACKS_PUBLIC.value]
-    tracks_count = _tracks_fields[CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value]
+    tracks_count = serializers.IntegerField()
     parent = CriteriaMinimumSerializer()
     ascendants = CriteriaLineageRelWithoutDescendantSerializer(source=ModelFields.ASCENDANTS_RELS, many=True)
-    descendants = CriteriaLineageRelWithoutAscendantSerializer(source=ModelFields.DESCENDANTS_RELS, many=True)
     root = CriteriaMinimumSerializer()  # type: ignore
     children = CriteriaMinimumSerializer(many=True)
     criteria_playlist = CriteriaPlaylistMinimumSerializer()
     name = AppCharField(source=ModelFields.NAME_INTERNAL)
     wikidata_id = serializers.SerializerMethodField()
+
+    @classmethod
+    def setup_queryset(cls, queryset, prefix=""):
+        queryset = queryset.select_related(f"{prefix}{ModelFields.PARENT}", f"{prefix}{ModelFields.ROOT}")
+        queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(
+            queryset, prefix=f"{prefix}{ModelFields.CRITERIA_PLAYLIST}__"
+        )
+        return queryset.prefetch_related(
+            Prefetch(
+                f"{prefix}{ModelFields.ASCENDANTS_RELS}",
+                CriteriaLineageRel.objects.select_related(LineageFields.ASCENDANT),
+            ),
+            f"{prefix}{ModelFields.CHILDREN}",
+            f"{prefix}{TrackFields.GENRE}__{CriteriaOutputFieldKey.ESSENTIAL_SONGS}__{TrackFields.ARTISTS}",
+        )
 
     def get_wikidata_id(self, obj) -> str | None:
         # `wikidata_id` lives on the `Genre` subtype; `obj` may be the base `Criteria` row, and a tag has no genre.
@@ -56,11 +65,9 @@ class CriteriaDetailedSerializer(
             CriteriaOutputFieldKey.SUMMARY.value,
             CriteriaOutputFieldKey.PARENT.value,
             CriteriaOutputFieldKey.ASCENDANTS.value,
-            CriteriaOutputFieldKey.DESCENDANTS.value,
             CriteriaOutputFieldKey.ROOT.value,
             CriteriaOutputFieldKey.CHILDREN.value,
             CriteriaOutputFieldKey.CRITERIA_PLAYLIST.value,
-            CriteriaOutputFieldKey.TRACKS_PUBLIC.value,
             CriteriaOutputFieldKey.TRACKS_COUNT_PUBLIC.value,
             CriteriaOutputFieldKey.SIDE.value,
             CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,

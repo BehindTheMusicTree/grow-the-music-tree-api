@@ -3,6 +3,8 @@ from typing import Any
 import requests
 from django.conf import settings
 
+from grow.youtube_regions import policy_from_item
+
 VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos"
 TIMEOUT_SECONDS = 15
 
@@ -25,12 +27,12 @@ def unplayable_reason(item: dict[str, Any] | None) -> str | None:
     return None
 
 
-def fetch_unplayable_reason(video_id: str) -> str | None:
+def fetch_video_metadata(video_id: str) -> tuple[str | None, dict | None]:
     """Asks the YouTube Data API whether a video can be played; `None` means playable."""
     try:
         response = requests.get(
             VIDEOS_ENDPOINT,
-            params={"part": "status", "id": video_id},
+            params={"part": "status,contentDetails", "id": video_id},
             headers={"X-goog-api-key": settings.YOUTUBE_API_KEY},
             timeout=TIMEOUT_SECONDS,
         )
@@ -38,4 +40,12 @@ def fetch_unplayable_reason(video_id: str) -> str | None:
         items = response.json()["items"]
     except (requests.RequestException, ValueError, KeyError) as error:
         raise YoutubeLookupError(f"YouTube lookup failed for {video_id}") from error
-    return unplayable_reason(next((item for item in items if item["id"] == video_id), None))
+    item = next((item for item in items if item["id"] == video_id), None)
+    try:
+        return unplayable_reason(item), policy_from_item(item)
+    except (KeyError, TypeError, ValueError) as error:
+        raise YoutubeLookupError(f"Invalid YouTube metadata for {video_id}") from error
+
+
+def fetch_unplayable_reason(video_id: str) -> str | None:
+    return fetch_video_metadata(video_id)[0]

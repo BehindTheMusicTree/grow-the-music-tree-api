@@ -1,5 +1,4 @@
 from the_music_tree_genre_kit.filtering.set.manual_playlist.ManualPlaylistFilterSet import ManualPlaylistFilterSet
-from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.serializer.model.playlist.children.manual.input.post import ManualPlaylistPostSerializer
@@ -8,9 +7,10 @@ from grow.serializer.model.playlist.children.manual.output.detailed import Manua
 from grow.serializer.model.playlist.children.manual.output.simple import ManualPlaylistSimpleSerializer
 from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
+from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import RegionPlaylistTracksMixin
 
 
-class ManualPlaylistViewSet(PlaylistTracksActionMixin, GrowModelViewSet[ManualPlaylist]):
+class ManualPlaylistViewSet(RegionPlaylistTracksMixin, GrowModelViewSet[ManualPlaylist]):
     track_playlist_rel_serializer_class = TrackPlaylistRelInPageSerializer
 
     def __init__(self, **kwargs):

@@ -9,7 +9,6 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
-from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
@@ -104,8 +103,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         instance = Genre.objects.exclude_instance(
             genre, input_serializer.validated_data["category"], **self._get_manager_write_kwargs(request)
         )
-        serializer = self._require_serializer(SerializerType.DETAILED)(instance=instance)
-        return Response(data=serializer.data)
+        return self._detailed(instance)
 
     @action(detail=False, methods=["get"], url_path="name-conflicts")
     def name_conflicts(self, request: Request) -> Response:
@@ -143,7 +141,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         return get_object_or_404(self.get_queryset(), uuid=uuid)
 
     def _detailed(self, genre: Genre) -> Response:
-        return Response(data=self._require_serializer(SerializerType.DETAILED)(instance=genre).data)
+        return Response(data=self._get_detailed_serializer(genre).data)
 
     @action(detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin])
     def link_suggestions(self, request: Request, *args, **kwargs) -> Response:
