@@ -111,6 +111,77 @@ class TestCase(GenreTestCase):
         assert Genre.objects.get(pk=punk.pk).parent_id == self.rock.pk
         assert _rows("canonical_parent") == []
 
+    def test_set_root_then_root_with_accepted_rule_and_canonical_parent_dropped(self):
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        response = self._post_genre_set_root(self.punk.uuid)
+
+        assert response.status_code == status.HTTP_200_OK
+        punk = Genre.objects.get(pk=self.punk.pk)
+        assert punk.parent_id is None
+        assert punk.is_manually_edited
+        assert not punk.is_unaccepted_root
+        assert _rows("canonical_parent") == []
+        assert _rows("accepted_canonical_roots") == [{"item_id": "Q888002"}]
+        entries = HistoryEntry.objects.filter(
+            action=HistoryAction.PARENT_CHANGED, content_uuid=punk.uuid, new_value=None
+        )
+        assert [(e.old_value, e.actor_id is not None) for e in entries] == [("Rock", True)]
+
+    def test_set_root_then_reparent_then_accepted_rule_dropped(self):
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+        self._post_genre_set_root(self.punk.uuid)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("accepted_canonical_roots") == []
+        assert [r["parent_item_id"] for r in _rows("canonical_parent")] == ["Q888001"]
+
+    def test_reparent_accepted_root_then_accepted_rule_dropped(self):
+        CurationEntry.objects.upsert("accepted_canonical_roots", {"item_id": "Q888002"}, actor=None)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert _rows("accepted_canonical_roots") == []
+
+    def test_set_root_of_app_created_genre_then_root_without_rule(self):
+        local = self.model_fixture_factory.create_genre("Local genre", parent=self.rock)
+
+        rules_before = CurationEntry.objects.filter(list_name="accepted_canonical_roots").count()
+
+        assert self._post_genre_set_root(local.uuid).status_code == status.HTTP_200_OK
+
+        assert Genre.objects.get(pk=local.pk).parent_id is None
+        assert CurationEntry.objects.filter(list_name="accepted_canonical_roots").count() == rules_before
+
+    def test_set_root_of_root_then_400(self):
+        response = self._post_genre_set_root(self.rock.uuid)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert _rows("accepted_canonical_roots") == []
+
+    def test_set_root_of_regional_genre_then_400_and_rolled_back(self):
+        region = self.model_fixture_factory.create_genre("Music of Peru", wikidata_id="Q888004", tree_name="regional")
+        huayno = self.model_fixture_factory.create_genre(
+            "Huayno", wikidata_id="Q888005", tree_name="regional", parent=region
+        )
+
+        response = self._post_genre_set_root(huayno.uuid)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert Genre.objects.get(pk=huayno.pk).parent_id == region.pk
+
+    def test_set_root_of_excluded_genre_then_400(self):
+        punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
+        Genre.objects.filter(pk=punk.pk).update(is_excluded=True)
+
+        response = self._post_genre_set_root(punk.uuid)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert Genre.objects.get(pk=punk.pk).parent_id == self.rock.pk
+
     def test_reparent_under_app_created_genre_then_400(self):
         local = self.model_fixture_factory.create_genre("Local genre")
 

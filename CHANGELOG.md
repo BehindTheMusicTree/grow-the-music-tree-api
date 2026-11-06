@@ -16,7 +16,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Automate stable release tags from the application version and changelog.
 
+### Added
+
+- `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
+
 ### Fixed
+
+- Reparenting an accepted canonical root (made a root by `set-root/` or accepted from the unaccepted roots) now drops the item's `accepted_canonical_roots` rule along with writing its `canonical_parent` rule; keeping both made the pipeline's regional classification fail. Tests in `test_edit_curation_rules.py`.
 
 - Avoid loading every song and descendant in genre and tag detail, update and curation responses; serialization loads related data in a constant number of queries.
 
@@ -25,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- The region-map import rejects an index whose `cityIds` name a region that is not in it, like `childIds` and `zoneIds`, so a city click never drills nowhere. Test in `tests/integration/region_map/test_region_map.py`.
 - Persist selected-video regional policies and expose trusted-country playback availability, filtering playlists and search before pagination. Add a no-store playback context endpoint and preserve curated video choices during pipeline imports.
 
 - `entity_additions` accepts `entity_kind` `city`: a curated item that becomes a point on the region map under its administrative unit, for cities claimed by a genre. Must ship before any city curation. Test in `tests/integration/curation/test_curation_api.py`.
