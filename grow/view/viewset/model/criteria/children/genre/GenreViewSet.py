@@ -166,6 +166,11 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         )
         return self._detailed(genre)
 
+    @action(detail=True, methods=["post"], url_path="set-root", permission_classes=[IsAdmin])
+    def set_root(self, request: Request, *args, **kwargs) -> Response:
+        genre = Genre.objects.set_root(self.get_object(), **self._get_manager_write_kwargs(request))
+        return self._detailed(genre)
+
     @action(detail=True, methods=["post"], url_path="alias-of", permission_classes=[IsAdmin])
     def alias_of(self, request: Request, *args, **kwargs) -> Response:
         serializer = GenreAliasOfSerializer(data=request.data)
