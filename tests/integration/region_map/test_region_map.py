@@ -233,6 +233,18 @@ class TestRegionMapImportRun(AppTestCase):
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(_index(regions=regions, worldChildIds=["Q142"], worldZoneIds=[])))["imported"] == 1
 
+    def test_city_ids_must_name_existing_regions(self):
+        genres = _index()["regions"][0]["genres"]
+
+        def index(city_ids):
+            admin = {"id": "Q142", "genres": genres, "childIds": [], "cityIds": city_ids}
+            return _index(regions=[admin, {"id": "Q90", "genres": genres}], worldChildIds=["Q142"])
+
+        assert self._commit(_parts(index(["Q404"]))).status_code == 500
+        assert self._commit(_parts(index("Q90"))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+        assert self._sync(_parts(index(["Q90"])))["imported"] == 2
+
     def test_delta_run_refused_at_creation(self):
         response = self.api_client.post(path=RUNS, data={"mode": "delta"})
 

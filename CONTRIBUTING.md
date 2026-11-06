@@ -104,6 +104,20 @@ Before opening a PR:
 
 **PR title** follows the same `<type>(<scope>): <summary>` format as commits, e.g. `feat(track): add batch upload endpoint`.
 
+### Release tags
+
+Prepare the stable version in `pyproject.toml` and a matching nonempty dated
+`CHANGELOG.md` section on the release or hotfix branch. After the PR merges to
+`main`, the shared release workflow creates the immutable `vX.Y.Z` tag; do not
+create, move, or delete it manually. The workflow creates no GitHub Release or
+package. Deployments continue to follow pushes to `develop` and `main`.
+
+Before the first automated release, provision the release App and tag protections
+using the organization release-automation procedure, and promote this policy to
+`main` in a separate PR without a version change. The initial policy activation
+never creates a tag, including if a version bump is combined with it. Promoting to
+`main` deploys production and requires separate authorization.
+
 ## License & Attribution
 
 All contributions are made under the project's Apache License 2.0. You retain authorship of your code; the project retains redistribution rights under the same license. See the [LICENSE](LICENSE) file for details.
