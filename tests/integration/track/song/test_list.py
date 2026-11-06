@@ -75,6 +75,7 @@ class TestCase(AppTestCase):
             "id": "abc123defgh",
             "unplayableReason": None,
             "viewCount": None,
+            "availability": {"status": "unknown", "reason": None, "country": None},
         }
 
     def test_list_exposes_youtube_view_count(self):

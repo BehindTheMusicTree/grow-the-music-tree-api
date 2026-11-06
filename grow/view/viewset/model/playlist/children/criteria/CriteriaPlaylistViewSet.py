@@ -1,14 +1,14 @@
 from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
-from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.serializer.model.playlist.children.criteria.output.detailed import CriteriaPlaylistDetailedSerializer
 from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
 from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
+from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import RegionPlaylistTracksMixin
 
 
-class CriteriaPlaylistViewSet(PlaylistTracksActionMixin, GrowModelViewSet[CriteriaPlaylist]):
+class CriteriaPlaylistViewSet(RegionPlaylistTracksMixin, GrowModelViewSet[CriteriaPlaylist]):
     track_playlist_rel_serializer_class = TrackPlaylistRelInPageSerializer
 
     def __init__(self, model_class: type[CriteriaPlaylist], **kwargs):

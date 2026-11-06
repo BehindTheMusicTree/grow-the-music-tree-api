@@ -1,3 +1,4 @@
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 
@@ -46,7 +47,12 @@ class TestCase(AppTestCase):
         response = self.api_client.get(path=reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid}))
 
         [rel] = response.json()["results"]
-        assert rel["track"]["youtubeVideo"] == {"id": "abc123defgh", "unplayableReason": None, "viewCount": None}
+        assert rel["track"]["youtubeVideo"] == {
+            "id": "abc123defgh",
+            "unplayableReason": None,
+            "viewCount": None,
+            "availability": {"status": "unknown", "reason": None, "country": None},
+        }
 
     def test_tracks_from_starts_at_given_track_404s_on_absent_and_400s_on_non_uuid(self):
         rock_criteria = self.model_fixture_factory.create_genre(name="rock")
@@ -67,3 +73,29 @@ class TestCase(AppTestCase):
             status.HTTP_404_NOT_FOUND
         )
         assert self.api_client.get(path=path, data={"from": "nope"}).status_code == status.HTTP_400_BAD_REQUEST
+
+    @override_settings(VIEWER_CONTEXT_TOKEN="trusted")
+    def test_country_filter_precedes_pagination_and_anchor_without_changing_membership(self):
+        genre = self.model_fixture_factory.create_genre(name="regional")
+        first = self.model_fixture_factory.create_song(title="First", genre=genre)
+        blocked = self.model_fixture_factory.create_song(title="Blocked", genre=genre)
+        blocked.youtube_region_restriction = {"mode": "allowed", "countries": ["FR"]}
+        blocked.save(update_fields=["youtube_region_restriction"])
+        playlist = GenrePlaylist.objects.get(criteria=genre)
+        path = reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid})
+        headers = {"HTTP_X_VIEWER_CONTEXT_TOKEN": "trusted", "HTTP_X_VIEWER_COUNTRY": "AL"}
+        response = self.api_client.get(path, {"page_size": 1}, **headers)
+        assert response.status_code == 200
+        assert response.json()["overallTotal"] == 1
+        assert response.json()["results"][0]["track"]["uuid"] == str(first.uuid)
+        assert response.json()["results"][0]["track"]["youtubeVideo"]["availability"]["country"] == "AL"
+        assert response["Cache-Control"] == "private, no-store"
+        assert self.api_client.get(path, {"from": str(blocked.uuid)}, **headers).status_code == 404
+        assert (
+            self.api_client.get(path, HTTP_X_VIEWER_CONTEXT_TOKEN="trusted", HTTP_X_VIEWER_COUNTRY="FR").json()[
+                "overallTotal"
+            ]
+            == 2
+        )
+        playlist.refresh_from_db()
+        assert playlist.tracks_count == 2

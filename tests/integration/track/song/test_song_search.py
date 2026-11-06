@@ -5,6 +5,7 @@ from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
+from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
@@ -97,9 +98,30 @@ class TestSongSearch(AppTestCase):
             "title": "Comfortably Numb",
             "artists": [{"uuid": str(artist.uuid), "name": "Pink Floyd", "isSpecialPurpose": False}],
             "genre": {"uuid": str(self.rock.uuid), "name": "Rock"},
-            "youtubeVideo": {"id": "dQw4w9WgXcQ", "unplayableReason": None, "viewCount": None},
+            "youtubeVideo": {
+                "id": "dQw4w9WgXcQ",
+                "unplayableReason": None,
+                "viewCount": None,
+                "availability": {"status": "unknown", "reason": None, "country": None},
+            },
             "firstReleaseYear": 1979,
         }
+
+    @override_settings(VIEWER_CONTEXT_TOKEN="trusted")
+    def test_regional_search_filters_before_limits_and_scopes_cache(self):
+        blocked = self.song(
+            "Numb", recording_count=1000, youtube_region_restriction={"mode": "allowed", "countries": ["FR"]}
+        )
+        eligible = self.song("Numb live", youtube_region_restriction={"mode": "blocked", "countries": ["FR"]})
+        rebuild_song_search()
+        self.api_client.credentials(HTTP_X_VIEWER_CONTEXT_TOKEN="trusted", HTTP_X_VIEWER_COUNTRY="AL")
+        assert self.titles("numb", playable=True, limit=1) == [eligible.title]
+        response = self.search("numb", playable=False, limit=1)
+        assert response.json()[0]["uuid"] == str(blocked.uuid)
+        assert response.json()[0]["youtubeVideo"]["availability"]["reason"] == "region_blocked"
+        assert response["Cache-Control"] == "private, no-store"
+        self.api_client.credentials(HTTP_X_VIEWER_CONTEXT_TOKEN="trusted", HTTP_X_VIEWER_COUNTRY="FR")
+        assert self.titles("numb", playable=True, limit=1) == [blocked.title]
 
     def test_invalid_bearer_token_is_ignored(self):
         self.song("Comfortably Numb")
