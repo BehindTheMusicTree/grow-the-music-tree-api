@@ -1,3 +1,4 @@
+from django.db.models import OuterRef, Subquery
 from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
 from grow.model.song.Song import Song
@@ -14,5 +15,16 @@ class RegionPlaylistTracksMixin(PlaylistTracksActionMixin):
 
     def get_track_playlist_rel_queryset(self, playlist):
         country = viewer_country(self.request)
-        songs = with_region_status(Song.objects.all(), country).filter(attemptable(country)).values("pk")
-        return super().get_track_playlist_rel_queryset(playlist).filter(track_id__in=songs)
+        song = (
+            with_region_status(Song.objects.filter(pk=OuterRef("track_id")), country)
+            .filter(attemptable(country))
+            .order_by()
+            .values("pk")[:1]
+        )
+        # A scalar lookup keeps counts proportional to playlist membership; an IN/EXISTS semi-join can scan the catalog.
+        return (
+            super()
+            .get_track_playlist_rel_queryset(playlist)
+            .alias(_attemptable_song=Subquery(song))
+            .filter(_attemptable_song__isnull=False)
+        )
