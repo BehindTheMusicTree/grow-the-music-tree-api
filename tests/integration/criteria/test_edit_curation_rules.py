@@ -123,8 +123,10 @@ class TestCase(GenreTestCase):
         assert not punk.is_unaccepted_root
         assert _rows("canonical_parent") == []
         assert _rows("accepted_canonical_roots") == [{"item_id": "Q888002"}]
-        entry = HistoryEntry.objects.filter(action=HistoryAction.PARENT_CHANGED).latest("created_on")
-        assert (entry.old_value, entry.new_value) == ("Rock", None)
+        entries = HistoryEntry.objects.filter(
+            action=HistoryAction.PARENT_CHANGED, content_uuid=punk.uuid, new_value=None
+        )
+        assert [(e.old_value, e.actor_id is not None) for e in entries] == [("Rock", True)]
 
     def test_set_root_of_app_created_genre_then_root_without_rule(self):
         local = self.model_fixture_factory.create_genre("Local genre", parent=self.rock)

@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, Any
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
@@ -349,7 +350,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             raise self._invalid("parent", "Regional genres can't be made a root here; edit the regional curation lists")
         if instance.is_excluded:
             raise self._invalid("parent", "An excluded genre can't be made a root; the pipeline prunes it")
-        old_parent_name = instance.parent.name
         updated = self.update_instance(instance, actor=None, parent=None)
         if self._is_wikidata_item(updated):
             for entry in CurationEntry.objects.filter(
@@ -360,9 +360,14 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         updated.is_unaccepted_root = False
         updated.save(update_fields=["is_unaccepted_root"])
         self._lock(updated)
-        HistoryEntry.objects.record(
-            updated, action=HistoryAction.PARENT_CHANGED, actor=actor, old_value=old_parent_name, new_value=None
-        )
+        # The parent hook ran with no actor (a null actor would bypass `_reparent_rule`) and logged the change as the
+        # pipeline's; attribute that entry to the admin.
+        HistoryEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(updated),
+            content_uuid=updated.uuid,
+            action=HistoryAction.PARENT_CHANGED,
+            actor=None,
+        ).update(actor=actor)
         return updated
 
     @transaction.atomic
