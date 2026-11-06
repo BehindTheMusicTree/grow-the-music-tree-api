@@ -115,6 +115,12 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         parsed[column] = value
     if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
+    if (
+        not errors
+        and list_name == "place_relation_overrides"
+        and parsed["child_entity_id"] == parsed["parent_entity_id"]
+    ):
+        errors["parent_entity_id"] = "Must differ from child_entity_id"
     if errors:
         raise InvalidRow(errors)
     key = KEY_SEPARATOR.join(parsed[c] for c in curation_list.key)

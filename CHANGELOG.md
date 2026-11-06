@@ -31,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Add the `place_relation_overrides` curation list for explicit spatial relation decisions, exported for geohistory.
+
 - The region-map import rejects an index whose `cityIds` name a region that is not in it, like `childIds` and `zoneIds`, so a city click never drills nowhere. Test in `tests/integration/region_map/test_region_map.py`.
 - Persist selected-video regional policies and expose trusted-country playback availability, filtering playlists and search before pagination. Add a no-store playback context endpoint and preserve curated video choices during pipeline imports.
 
