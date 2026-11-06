@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Avoid loading every song and descendant in genre and tag detail, update and curation responses; serialization loads related data in a constant number of queries.
+
 - Song and artist imports no longer maintain the song search projection while it is unbuilt; grow queues one bulk build (`song-search-build` task, its own timeout) after the import instead, so a first full sync fits the task timeout. The merges take a ROW EXCLUSIVE lock on `grow_song_search` before reading `ready`, which serializes them with the rebuild; `rebuild_song_search(only_if_not_ready=True)` makes duplicate queued builds no-ops. Tests in the song and artist import run tests and `test_song_search.py`.
 - Qualify search normalization dependencies so PostgreSQL can restore generated artist columns with an empty search path.
 
@@ -43,6 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README lists the sources of the data served by `/v1/*` and their licenses; data derived from MusicBrainz tags stays under CC BY-NC-SA 3.0.
 
 ### Removed
+
+- Criteria detail responses no longer include `tracks` or `descendants`. Use `library/songs/?genre=<uuid>` for songs and `genre-playlists/tree/` for the tree.
 
 - The admin-only `GET library/songs/search/?q=&genreless=&cursor=` (title or artist substring, uuid-cursor pages of 50, every genreless song with an empty `q`) is replaced by the public search above: `genreless=true` becomes `genre=without`, and `q` is now required (2+ characters). The frontend's admin genre-assignment dialog must switch before this ships.
 
