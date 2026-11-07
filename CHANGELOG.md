@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### CI
 
+- Temporary, unmergeable negative control: add 50 ms to artist genre counts to verify the A/B regression gate.
+
 - Automate stable release tags from the application version and changelog.
 - The `Perf` job (now `.github/workflows/perf.yml`) compares each PR with its base on the same runner: `scripts/perf_ab.sh` runs `perf/` on base and head in turn, each on its own seeded database, and `perf/compare.py` fails a scenario more than 1.3x and 5 ms slower than the base, or running more queries, after two more rounds of confirmation. The absolute SLOs are judged on the median pooled over all runs, so one noisy run no longer fails the job. The comparison table is in the job summary. The `perf-regression-accepted` label accepts a deliberate slowdown, never an SLO breach. Query budgets are now exact, so a gain must lower them. Made so #415's 13 ms → 137 ms `artist-genre-counts` regression (under its 150 ms SLO, and the job was not required) can't merge unnoticed again. Tests in `tests/unit/perf/test_compare.py`.
 - `perf/compare.py` keeps each round's p50 and fails a side whose round p50s differ by more than `RATIO` and `FLOOR_MS` (`unstable base` / `unstable head`), instead of judging a pooled median that no request took. The summary shows each round's p50. Tested.

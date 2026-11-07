@@ -1,3 +1,5 @@
+import time
+
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -67,6 +69,8 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
     )
     def genre_counts(self, request, pk=None):
         """Sparse per-genre-playlist counts of the artist's songs, for pruning the genre tree to their footprint."""
+        # Temporary negative control for the Perf gate; this branch must never merge.
+        time.sleep(0.05)
         return Response(artist_genre_counts(pk))
 
     (
