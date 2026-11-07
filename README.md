@@ -147,7 +147,7 @@ uv run mypy grow
 
 ## Performance
 
-Three gates keep endpoints fast. All are required checks. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
+Three gates keep endpoints fast. The query budgets run in `Pytest` (required); `Perf` is not a required check yet. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
 
 - **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` entry. A gain lowers the budget in the same PR.
 - **Latency SLOs** (`perf/`, CI job `Perf`): median latency per endpoint on Postgres (p95 is printed too), seeded with a pinned snapshot of the prod pipeline's Gold exports (`perf/fixtures/`), imported through the same endpoints and in the same order as the nightly sync.
