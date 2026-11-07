@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- Curation : nouvelles listes de qualification culturelle et d’appartenance culturelle ; appartenance administrative automatique et transitivité gérées par le pipeline.
+
 ### Improved
 
 - The `Perf` A/B gate vacuums and analyzes each database before every measured round. Rolled-back reparenting grows physical tables despite restoring the data; stale row estimates then crossed PostgreSQL’s JIT threshold and added 49–66 ms of compilation per query in later rounds, falsely flagging unchanged code.
@@ -42,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Validate regions without a boundary using `boundaryStatus: missing` and null coordinates, preserving their genres and compatibility with existing indexes.
 - Bound playlist-track hydration to the selected page and materialize genre selection once on PostgreSQL, restoring the four-query playback budget and the 150 ms median latency target on the pinned fixture.
 
 - Reparenting an accepted canonical root (made a root by `set-root/` or accepted from the unaccepted roots) now drops the item's `accepted_canonical_roots` rule along with writing its `canonical_parent` rule; keeping both made the pipeline's regional classification fail. Tests in `test_edit_curation_rules.py`.
