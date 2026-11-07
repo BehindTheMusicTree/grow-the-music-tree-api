@@ -130,6 +130,29 @@ class TestRegionMapReads(AppTestCase):
 
 
 @pytest.mark.postgres
+class TestRegionMapAttachable(AppTestCase):
+    def test_without_snapshot_then_404(self):
+        assert APIClient().get(reverse("region-map-attachable")).status_code == status.HTTP_404_NOT_FOUND
+
+    def test_lists_drawn_then_hidden_regions(self):
+        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        hidden = {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "parentId": "Q142", "centroid": [1, 49]}
+        _snapshot(json.dumps(_index(regions=[drawn], hiddenRegions=[hidden])).encode())
+
+        response = APIClient().get(reverse("region-map-attachable"))
+
+        assert response.json() == [
+            {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "hidden": False},
+            {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "hidden": True},
+        ]
+
+    def test_index_without_hidden_regions(self):
+        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        _snapshot(json.dumps(_index(regions=[drawn])).encode())
+
+        assert len(APIClient().get(reverse("region-map-attachable")).json()) == 1
+
+
 class TestRegionMapGenres(AppTestCase):
     URL = INDEX + "genres/"
 
@@ -303,6 +326,25 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._commit(_parts(index("Q90"))).status_code == 500
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(index(["Q90"])))["imported"] == 2
+
+    def test_hidden_regions_must_be_unique_undrawn_and_parented(self):
+        genres = _index()["regions"][0]["genres"]
+        drawn = {"id": "Q142", "genres": genres}
+
+        def index(hidden):
+            return _index(regions=[drawn], hiddenRegions=hidden)
+
+        ok = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "Q142"}
+        assert self._commit(_parts(index("Q1"))).status_code == 500
+        assert self._commit(_parts(index([{"id": "Q142", "name": "x", "kind": "admin_unit"}]))).status_code == 500
+        assert self._commit(_parts(index([ok, ok]))).status_code == 500
+        assert (
+            self._commit(_parts(index([{**ok, "parentId": "Q404"}, {"id": "Q9", "parentId": "world"}]))).status_code
+            == 500
+        )
+        assert not RegionMapSnapshot.objects.exists()
+        nested = [ok, {**ok, "id": "Q2", "parentId": "Q1"}, {**ok, "id": "Q3", "parentId": "world"}]
+        assert self._sync(_parts(index(nested)))["imported"] == 1
 
     def test_delta_run_refused_at_creation(self):
         response = self.api_client.post(path=RUNS, data={"mode": "delta"})

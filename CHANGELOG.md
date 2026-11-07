@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Region map import accepts the pipeline's optional `hiddenRegions` (subdivisions kept out of the map): ids must be unique, not also drawn, and their `parentId` must be a drawn or hidden region or `world`. `GET /v1/regions/map/attachable/` lists drawn and hidden regions, so a tradition can be attached to a subdivision that has no genre yet. New `federated_state_overrides` curation list (`add`/`remove`) corrects which administrative units the map always draws. Deploy after the frontend and before the pipelines. Tested.
+
 - Expose distinct catalogue and actual playlist membership summaries for exact genres and canonical/regional/all primary descendants, including artist exploration. Playback and anchors apply the same selection before country availability and pagination.
 - Maintain actual genre-playlist membership buckets with database triggers for raw SQL and bulk imports, with an independent `verify_genre_membership_counts` command and explicit atomic `--repair`. Cover ownership, genre changes, deletion, rollback and concurrent writes.
 
