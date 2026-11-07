@@ -3,7 +3,7 @@ from importlib import import_module
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import connection
+from django.db import connection, transaction
 from django.test.utils import CaptureQueriesContext, override_settings
 from django.urls import reverse
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -19,6 +19,7 @@ TRACKED_TABLES = set(import_module("grow.migrations.0039_genre_tree_version").TR
 TREE_PATH = reverse("genre-playlist-list") + "tree/"
 # Read by the tree but deliberately untriggered, with the reason.
 UNTRACKED_READS = {
+    "grow_genre_membership_count": "derived from tracked membership sources in migration 0108",
     "grow_genre_tree_version": "holds the token the triggers bump",
     "grow_criteria_lineage_rel": "derived from the parent links of grow_criteria, which is tracked",
 }
@@ -86,7 +87,7 @@ class TestCase(AppTestCase):
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})
 
             assert tree.status_code == status.HTTP_200_OK
-            assert [{k: v for k, v in row.items() if k != "songsCount"} for row in tree.json()] == listed.json()[
+            assert [{k: v for k, v in row.items() if k not in {"songsCount"}} for row in tree.json()] == listed.json()[
                 "results"
             ]
 
@@ -163,6 +164,34 @@ class TestCase(AppTestCase):
 
         self._assert_bumps(add)
         self._assert_bumps(lambda: track.delete())  # noqa: PLW0108 -- track is bound only after add() runs
+
+    def test_track_genre_update_invalidates_cached_tree_without_membership_changes(self):
+        track = self.model_fixture_factory.create_song(title="Song", genre=self.rock)
+        punk = Genre.objects.get(name="Punk")
+        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE the_music_tree_genre_kit_track SET genre_id = %s WHERE uuid = %s",
+                [punk.pk.hex, track.pk.hex],
+            )
+
+        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+        assert second.status_code == status.HTTP_200_OK
+        assert second["ETag"] != first["ETag"]
+
+    def test_track_genre_update_rollback_restores_tree_token(self):
+        track = self.model_fixture_factory.create_song(title="Song", genre=self.rock)
+        punk = Genre.objects.get(name="Punk")
+        before = GenreTreeVersion.current_token()
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE the_music_tree_genre_kit_track SET genre_id = %s WHERE uuid = %s",
+                    [punk.pk.hex, track.pk.hex],
+                )
+            assert GenreTreeVersion.current_token() != before
+            transaction.set_rollback(True)
+        assert GenreTreeVersion.current_token() == before
 
     def test_token_bumps_on_playlist_update(self):
         self._assert_bumps(

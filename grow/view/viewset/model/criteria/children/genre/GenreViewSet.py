@@ -30,6 +30,7 @@ from grow.serializer.model.criteria.children.genre.input.put import GenrePutSeri
 from grow.serializer.model.criteria.children.genre.input.unaccepted_root_accept import (
     GenreUnacceptedRootAcceptSerializer,
 )
+from grow.serializer.model.criteria.children.genre.output.detailed import GenreDetailedSerializer
 from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.serializer.model.criteria.children.genre.search import GenreSearchQuerySerializer, GenreSearchResultSerializer
@@ -78,6 +79,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         super().__init__(
             model_class=Genre,
             simple_serializer_class=GenreSimpleSerializer,
+            detailed_serializer_class=GenreDetailedSerializer,
             filterset_class=GenreFilterSet,
             create_serializer_class=GenrePostSerializer,
             update_serializer_class=GenrePutSerializer,

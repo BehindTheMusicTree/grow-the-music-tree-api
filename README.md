@@ -188,3 +188,33 @@ Data derived from MusicBrainz tags remains subject to CC BY-NC-SA 3.0: credit Mu
 ### Import merge progress
 
 Bulk import status endpoints retain `pending|success|failed`, `result` and `error`. Admin and pipeline callers also receive optional durable `progress` (attempt, current step, completed timings, heartbeat and bounded SQL wait diagnostics). `dataApplied=true` with a failure means the commit succeeded and post-commit processing needs inspection; do not resubmit. See [the progress contract and recovery rules](docs/operations/import-progress.md).
+
+### Genre selection and counts
+
+Genre catalogue reads and genre-playlist track reads accept `coverage=genre_only|genre_and_subgenres`.
+Inclusive reads also accept `subgenres=canonical|regional|all`: canonical genres default to `canonical`,
+regional genres default to and require `all`. Exact coverage rejects `subgenres`; Genreless rejects both parameters.
+Primary paths are deduplicated; secondary parents do not contribute. Canonical coverage never crosses a regional
+node on its way to another canonical genre. Regional coverage includes the selected genre and reachable regional
+genres; `all` combines those selections. A regional root's `all` includes all its primary descendants.
+
+Genre playlist summaries expose `genreOnlyTracksCount` and `genreAndSubgenresTracksCount` (`canonical`, `regional`,
+`all` for canonical genres; only `all` for regional and Genreless). These count actual members of that playlist,
+not the sum of other playlists' members. `catalogue` contains the same shape for all catalogue songs, including
+songs without playable video. Legacy `tracksCount` follows the default membership selection; tree `songsCount`
+follows the default catalogue selection. Genre detail's legacy `tracksCount` remains a catalogue count.
+Artist-filtered trees have the same population separation and are not stored in the global tree cache.
+
+Playback applies the selection before anchors, ordering and pagination. Its queue additionally respects country
+availability; a global membership count does not guarantee playback in the viewer's country. Country does not
+change the global summary or its cache key.
+
+`uv run python manage.py verify_genre_membership_counts` independently checks the stored membership buckets.
+`--repair` explicitly rebuilds them atomically and invalidates the tree cache. PostgreSQL source writes and repair
+require the default READ COMMITTED isolation and share a transaction advisory lock; the existing tree-version row
+also serializes tracked writers. Long import transactions therefore block other source writers until commit.
+Reads remain unlocked. List/detail summaries add
+two bounded aggregate queries, and an uncached tree adds one; playback remains four queries. This tradeoff avoids
+one membership scan per genre or folding child playlists whose actual members may differ. The latest catalogue
+projection is reused within a worker only while every graph/count input and requested playlist ID is identical;
+actual playlist membership is always read again. Rolled-back writes cannot leave stale summary values.

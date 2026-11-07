@@ -16,6 +16,7 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.model.artist.Artist import Artist
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -903,3 +904,18 @@ class TestImportRunMerge(AppTestCase):
         self._sync([SONG])
 
         assert self._assert_direct_songs_counts_exact()[rock.pk] == 1
+
+    def test_membership_buckets_follow_full_and_delta_sql_imports(self):
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Pop")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}
+        for songs in (
+            [SONG, other],
+            [{**SONG, "genre_name": "Pop"}, other],
+            [{**SONG, "genre_name": "Pop", "youtube_unplayable_reason": "private"}],
+            [SONG, other],
+        ):
+            self._sync(songs)
+            assert stored_membership_bucket_counts() == membership_bucket_counts()
+        self._sync([{**SONG, "genre_name": "Pop"}], mode="delta", deleted=(OTHER_MBID,))
+        assert stored_membership_bucket_counts() == membership_bucket_counts()
