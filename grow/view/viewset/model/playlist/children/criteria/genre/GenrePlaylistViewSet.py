@@ -4,7 +4,7 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import F
+from django.db.models import F, OuterRef, Subquery
 from django.http import HttpResponse, HttpResponseNotModified
 from django.utils.http import parse_etags
 from redis.exceptions import RedisError
@@ -23,6 +23,7 @@ from the_music_tree_genre_kit.criteria.selection.coverage import (
 )
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
+from the_music_tree_genre_kit.track.Track import Track
 
 from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
@@ -184,24 +185,30 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         self.check_object_permissions(self.request, playlist)
         return playlist
 
-    def get_playlist_song_queryset(self, playlist):
+    def get_track_playlist_rel_queryset(self, playlist):
         coverage = parse_coverage(self.request.query_params.get("coverage"))
-        queryset = super().get_playlist_song_queryset(playlist)
+        # Keep the recursive selection outside the per-member song lookup, while
+        # the scalar genre lookup prevents a full-catalogue join before membership.
+        queryset = (
+            super()
+            .get_track_playlist_rel_queryset(playlist)
+            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
+        )
         if playlist.criteria_id is None:
             if self.request.query_params.get("coverage") is not None:
                 raise ValidationError({"coverage": "Genreless has no coverage selection."})
             if self.request.query_params.get("subgenres") is not None:
                 raise ValidationError({"subgenres": "Genreless has no subgenres."})
-            queryset = queryset.filter(genre_id__isnull=True)
+            queryset = queryset.filter(_selected_genre__isnull=True)
         elif coverage == CriteriaCoverage.ONLY:
             parse_subgenres(self.request.query_params.get("subgenres"), coverage, "canonical")
-            queryset = queryset.filter(genre_id=playlist.criteria_id)
+            queryset = queryset.filter(_selected_genre=playlist.criteria_id)
         else:
             scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, playlist.criteria.tree_name)
             selected = selected_genres_query(
                 playlist.criteria_id, playlist.criteria.tree_name, scope, using=queryset.db
             )
-            queryset = queryset.filter(InSubquery(F("genre_id"), selected))
+            queryset = queryset.filter(InSubquery(F("_selected_genre"), selected))
         artist_id = self.request.query_params.get("artist")
         if artist_id is not None:
             try:
@@ -210,7 +217,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
                 raise ValidationError({"artist": "Must be an artist UUID."}) from None
             if not Artist.objects.filter(user__isnull=True, uuid=artist_uuid).exists():
                 raise NotFound("Artist not found.")
-            queryset = queryset.filter(artists=artist_uuid)
+            queryset = queryset.filter(track__artists=artist_uuid)
         return queryset
 
     @action(detail=False, methods=["get"], url_path="tree")

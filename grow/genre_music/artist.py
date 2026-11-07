@@ -17,7 +17,24 @@ def artist_catalogue_counts(artist_id: UUID, graph=None) -> dict:
         .values_list("genre_id")
         .annotate(count=Count("pk", distinct=True))
     )
-    return catalogue_counts(exact, graph)
+    trees, edges = graph if graph is not None else genre_graph()
+    parents = defaultdict(set)
+    for parent, child in edges:
+        parents[child].add(parent)
+    # Only assigned genres and their primary ancestors can have nonzero counts.
+    affected = {genre for genre in exact if genre is not None}
+    pending = list(affected)
+    while pending:
+        for parent in parents[pending.pop()] - affected:
+            affected.add(parent)
+            pending.append(parent)
+    selections = all_genre_selections(trees, edges, genres=affected)
+    counts = {
+        genre: GenreScopedCounts(0, {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0})
+        for genre, tree in trees.items()
+    }
+    counts.update(catalogue_counts(exact, (trees, edges), selections=selections))
+    return counts
 
 
 def playlist_counts(
