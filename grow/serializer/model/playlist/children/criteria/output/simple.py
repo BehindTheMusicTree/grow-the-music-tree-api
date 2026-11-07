@@ -3,6 +3,7 @@ from rest_framework import serializers
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 
+from grow.genre_music.summary import GenrePlaylistSummaryMixin
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.serializer.model.criteria.output.simple import CriteriaSimpleSerializer
 from grow.serializer.model.playlist.base.output.Fields import Fields as PlaylistOutputFields
@@ -26,7 +27,7 @@ class Fields:
     VIEWS_COUNT = "views_count"
 
 
-class CriteriaPlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSerializer):
+class CriteriaPlaylistSimpleSerializer(GenrePlaylistSummaryMixin, EagerLoadingMixin, serializers.ModelSerializer):
     criteria = CriteriaSimpleSerializer()
     parent = CriteriaPlaylistMinimumSerializer()
     root = CriteriaPlaylistMinimumSerializer()  # type: ignore

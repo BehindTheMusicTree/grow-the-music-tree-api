@@ -18,9 +18,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Expose distinct catalogue and actual playlist membership summaries for exact genres and canonical/regional/all primary descendants, including artist exploration. Playback and anchors apply the same selection before country availability and pagination.
+- Maintain actual genre-playlist membership buckets with database triggers for raw SQL and bulk imports, with an independent `verify_genre_membership_counts` command and explicit atomic `--repair`. Cover ownership, genre changes, deletion, rollback and concurrent writes.
+
 - `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
 
 ### Fixed
+
+- Bound playlist-track hydration to the selected page and materialize genre selection once on PostgreSQL, restoring the four-query playback budget and the 150 ms median latency target on the pinned fixture.
 
 - Reparenting an accepted canonical root (made a root by `set-root/` or accepted from the unaccepted roots) now drops the item's `accepted_canonical_roots` rule along with writing its `canonical_parent` rule; keeping both made the pipeline's regional classification fail. Tests in `test_edit_curation_rules.py`.
 

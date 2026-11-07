@@ -20,6 +20,7 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
         create_serializer_class=CriteriaPostSerializer,
         update_serializer_class=CriteriaPutSerializer,
         simple_serializer_class=CriteriaSimpleSerializer,
+        detailed_serializer_class=CriteriaDetailedSerializer,
         filterset_class=None,
         **kwargs,
     ):
@@ -33,7 +34,7 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
             model_class=model_class,
             filterset_class=filterset_class,
             simple_serializer_class=simple_serializer_class,
-            detailed_serializer_class=CriteriaDetailedSerializer,
+            detailed_serializer_class=detailed_serializer_class,
             create_serializer_class=create_serializer_class,
             update_serializer_class=update_serializer_class,
             **kwargs,

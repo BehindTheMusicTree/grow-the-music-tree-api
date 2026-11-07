@@ -4,6 +4,7 @@ from the_music_tree_api_kit.serializer.field.AppCharField import AppCharField
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
+from grow.genre_music.summary import GenrePlaylistSummaryMixin
 from grow.serializer.model.playlist.base.output.Fields import Fields as AvailableFields
 from grow.serializer.model.playlist.base.output.minimum import PlaylistMinimumSerializer
 
@@ -18,7 +19,7 @@ class Fields:
     CREATED_ON = AvailableFields.CREATED_ON
 
 
-class PlaylistSimpleSerializer(EagerLoadingMixin, serializers.ModelSerializer):
+class PlaylistSimpleSerializer(GenrePlaylistSummaryMixin, EagerLoadingMixin, serializers.ModelSerializer):
     type = AppCharField(source=Fields.TYPE_LABEL_INTERNAL)
     tracks_count = serializers.IntegerField(source=AvailableFields.TRACKS_COUNT_ANNOTATED)
 
