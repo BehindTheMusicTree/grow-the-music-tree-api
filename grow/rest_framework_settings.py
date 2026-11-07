@@ -6,7 +6,7 @@ REST_FRAMEWORK = {
         "djangorestframework_camel_case.parser.CamelCaseFormParser",
     ),
     "DEFAULT_PERMISSION_CLASSES": ["grow.view.permission.IsAdminOrReadOnly.IsAdminOrReadOnly"],
-    "DEFAULT_THROTTLE_RATES": {"artist-search": "120/min", "song-search": "120/min"},
+    "DEFAULT_THROTTLE_RATES": {"artist-search": "120/min", "song-search": "120/min", "genre-search": "120/min"},
     "EXCEPTION_HANDLER": "grow.view.error.exception_handler.exception_handler",
 }
 

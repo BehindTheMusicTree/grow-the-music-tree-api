@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `GET genres/search/?q=&limit=&tree_name=` is a public ranked typeahead over canonical and regional genres, regional overviews included: exact, then prefix, then fuzzy matches (accent-folded, typo-tolerant), ties broken by similarity then playlist views. Each hit carries `uuid`, `name`, `treeName`, `genrePlaylistUuid`, its `root` and `viewsCount`; genres under an unaccepted root are left out. Backed by a generated, trigram-indexed `Criteria.folded_name` (migration `0106`, which also raises the planner cost of the pg_trgm word-similarity operators so the index is used on this table size); throttled by the new `genre-search` scope (120/min); cached under a key that includes the genre tree version token, so any genre write invalidates it. Tests in `test_genre_search.py`, a query budget in `test_query_budgets.py` and latency SLOs for genre and artist search in `perf/test_latency_slo.py`. Needs `the-music-tree-genre-kit` with the `bulk_create_mti` generated-field fix (unreleased at the time of writing).
 - `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
 
 ### Fixed
