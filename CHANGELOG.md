@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+- Curation : nouvelles listes de qualification culturelle et d’appartenance culturelle ; appartenance administrative automatique et transitivité gérées par le pipeline.
+
 ### Improved
 
 - `GET /v1/artists/<id>/genre-counts/` no longer reloads and walks the whole genre graph per request: the primary genre graph is cached per process and keyed by the genre tree version token, and only the artist's genres and their primary ancestors are projected (about 2.5x faster on the prod Gold dataset, back under its 150 ms perf SLO). The genre tree's artist filter and song genre filtering reuse the same cached graph. Tested, including reload after a tree write.

@@ -28,6 +28,7 @@ TRADITION_ID_COLUMNS = frozenset({"wikidata_id", "from_wikidata_id", "to_wikidat
 QID_ENTITY_LISTS = frozenset({"entity_additions"})
 """Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "cultural_membership_overrides": {"action": ("add", "remove")},
     "federated_state_overrides": {"action": ("add", "remove")},
     "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
@@ -37,7 +38,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
-BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default"})
+BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default", "is_cultural"})
 OPTIONAL_COLUMNS = frozenset(
     {"genre_item_id", "entity_id", "entity_kind", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
 )
@@ -224,6 +225,18 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "over_item_id"),
         ("item_id", "over_item_id", "reason"),
         "On a song carrying both genres, the first, more precise one wins over the second.",
+    ),
+    "entity_cultural_roles": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "is_cultural", "reason"),
+        "Cultural qualification independent of entity kind; administrative membership is automatic.",
+    ),
+    "cultural_membership_overrides": CurationList(
+        "geohistory",
+        ("child_entity_id", "parent_entity_id"),
+        ("child_entity_id", "parent_entity_id", "action", "reason"),
+        "Cultural parent or exclusion; memberships are transitive and exclusions take precedence.",
     ),
     "entity_additions": CurationList(
         "geohistory",
