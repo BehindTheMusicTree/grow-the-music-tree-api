@@ -3,19 +3,19 @@ from typing import TYPE_CHECKING
 
 from django.contrib.postgres.search import TrigramWordSimilarity
 from django.db import connection, transaction
-from django.db.models import Case, F, IntegerField, TextField, Value, When
+from django.db.models import Case, F, IntegerField, TextField, Value
 from the_music_tree_genre_kit.track_mixin.Fields import Fields as TrackMixinFields
 from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager import (
     TrackMixinWithInternalNameManager,
 )
+
+from grow.search.trigram import fold_query, match_rank
 
 if TYPE_CHECKING:
     from django.contrib.auth.models import User
 
     from .Artist import Artist
 
-# Below pg_trgm's 0.6 default so a one-letter typo in a long name still matches ("radiohed" -> "Radiohead").
-SEARCH_WORD_SIMILARITY_THRESHOLD = 0.4
 SEARCH_DUPLICATE_HEADROOM = 4
 
 
@@ -39,18 +39,10 @@ class ArtistManager(TrackMixinWithInternalNameManager["Artist"]):
         from grow.model.artist_alias.ArtistAlias import ArtistAlias
 
         with transaction.atomic(), connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT set_config('pg_trgm.word_similarity_threshold', %s, true), grow_search_norm(%s)",
-                [str(SEARCH_WORD_SIMILARITY_THRESHOLD), query],
-            )
-            folded_query = cursor.fetchone()[1]
+            folded_query = fold_query(cursor, query)
 
             def rank(field: str) -> Case:
-                return Case(
-                    When(**{field: folded_query}, then=2),
-                    When(**{f"{field}__startswith": folded_query}, then=1),
-                    default=0,
-                )
+                return match_rank(field, folded_query)
 
             by_name = (
                 self.filter(folded_name__trigram_word_similar=folded_query)

@@ -1,12 +1,16 @@
 from typing import TYPE_CHECKING, Any
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.contrib.postgres.search import TrigramWordSimilarity
+from django.db import connection, transaction
+from django.db.models import F
+from django.db.models.functions import Coalesce
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.criteria.Fields import Fields
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.lists import EXCLUDED_GENRE_LISTS
@@ -21,6 +25,7 @@ from grow.curation.rows import (
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
+from grow.search.trigram import fold_query, match_rank
 from grow.track.direct_songs_count import adjust_direct_songs_count
 
 from ...CriteriaManager import CriteriaManager
@@ -508,3 +513,47 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         self.delete_instance(source, actor=actor)
         self._lock(target)
         return target
+
+    def region_lexicon(self, item_ids: set[str]) -> list[dict[str, Any]]:
+        """The app-wide genres with these Wikidata ids, in one query, for clients that search them in memory. Genres
+        under an unaccepted root are left out, like they are from search."""
+        return list(
+            self.filter(user__isnull=True, wikidata_id__in=item_ids)
+            .exclude(root__genre__is_unaccepted_root=True)
+            .values(
+                "uuid",
+                "wikidata_id",
+                "tree_name",
+                "is_umbrella",
+                name=F(Fields.NAME_INTERNAL),
+                genre_playlist_uuid=F("criteria_playlist__uuid"),
+                views_count=Coalesce(F("criteria_playlist__views_count"), 0),
+            )
+            .order_by("wikidata_id", "uuid")
+        )
+
+    def search(self, query: str, limit: int, tree_name: str | None = None) -> list[dict[str, Any]]:
+        """Canonical genres of both trees (or of `tree_name`) whose folded name trigram-matches `query`, best first:
+        exact, then prefix, then fuzzy, ties broken by similarity then playlist views. One indexed query, no
+        hydration. Genres under an unaccepted root are left out, like they are from the tree page."""
+        with transaction.atomic(), connection.cursor() as cursor:
+            folded_query = fold_query(cursor, query)
+            queryset = self.filter(user__isnull=True, folded_name__trigram_word_similar=folded_query).exclude(
+                root__genre__is_unaccepted_root=True
+            )
+            if tree_name is not None:
+                queryset = queryset.filter(tree_name=tree_name)
+            return list(
+                queryset.values(
+                    "uuid",
+                    "tree_name",
+                    "is_umbrella",
+                    name=F(Fields.NAME_INTERNAL),
+                    genre_playlist_uuid=F("criteria_playlist__uuid"),
+                    root_uuid=F("root__uuid"),
+                    root_name=F(f"root__{Fields.NAME_INTERNAL}"),
+                    views_count=Coalesce(F("criteria_playlist__views_count"), 0),
+                    rank=match_rank("folded_name", folded_query),
+                    score=TrigramWordSimilarity(folded_query, "folded_name"),
+                ).order_by("-rank", "-score", "-views_count", "uuid")[:limit]
+            )

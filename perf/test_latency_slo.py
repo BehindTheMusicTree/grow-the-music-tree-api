@@ -151,3 +151,36 @@ def test_song_search_median_latency_within_slo(query):
     p50 = statistics.median(timings[WARMUPS:])
     print(f"\nsong-search?q={query}".ljust(39) + f"results={len(response.data):>3}  p50={p50:8.1f}ms")
     assert p50 <= SONG_SEARCH_SLO_MS[query]
+
+
+# Same method as the song search: cache cleared before each run, so the SLO is on the lookup itself. Covers a
+# 2-character prefix, a word, an accent-folded form (Alté), a typo and a regional overview, across the ~6k criteria.
+SEARCH_SLO_MS = {
+    ("genre-search", "ro"): 30,
+    ("genre-search", "jazz"): 30,
+    ("genre-search", "alte"): 30,
+    ("genre-search", "psychadelic rock"): 30,
+    ("genre-search", "music of the andes"): 45,
+    ("artist-search", "ni"): 30,
+    ("artist-search", "nirvana"): 30,
+    ("artist-search", "nirvanna"): 30,
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("route", "query"), SEARCH_SLO_MS)
+def test_search_median_latency_within_slo(route, query):
+    client = AppApiClient()
+    path, params = reverse(route), {"q": query}
+
+    timings = []
+    for _ in range(WARMUPS + RUNS):
+        cache.clear()
+        start = time.perf_counter()
+        response = client.get(path, params)
+        timings.append((time.perf_counter() - start) * 1000)
+        assert response.status_code == status.HTTP_200_OK, response.content[:500]
+
+    p50 = statistics.median(timings[WARMUPS:])
+    print(f"\n{route}?q={query}".ljust(39) + f"results={len(response.data):>3}  p50={p50:8.1f}ms")
+    assert p50 <= SEARCH_SLO_MS[(route, query)]

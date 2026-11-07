@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
+from django.db.models import F, Func
 from django.db.models.functions import Lower
 from the_music_tree_genre_kit.criteria.AbstractCriteria import AbstractCriteria
 from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
@@ -18,6 +19,12 @@ if TYPE_CHECKING:
 class Criteria(AbstractCriteria, TrackMixin):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
+    )
+    # Search key, trigram-indexed by migration 0106; see GenreManager.search.
+    folded_name = models.GeneratedField(
+        expression=Func(F(Fields.NAME_INTERNAL), function="grow_search_norm"),
+        output_field=models.TextField(),
+        db_persist=True,
     )
 
     if TYPE_CHECKING:
