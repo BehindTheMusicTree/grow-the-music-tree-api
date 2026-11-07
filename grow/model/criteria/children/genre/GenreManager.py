@@ -546,6 +546,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             return list(
                 queryset.values(
                     "uuid",
+                    "wikidata_id",
                     "tree_name",
                     "is_umbrella",
                     name=F(Fields.NAME_INTERNAL),
