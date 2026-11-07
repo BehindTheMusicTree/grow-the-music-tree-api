@@ -21,5 +21,5 @@ def test_missing_boundary_preserves_identity_without_fabricated_coordinates():
     ],
 )
 def test_boundary_status_rejects_inconsistent_coordinates(region):
-    with pytest.raises(ValueError, match="boundary|coordinates"):
+    with pytest.raises(ValueError, match=r"boundary|coordinates"):
         _check_boundary(region)
