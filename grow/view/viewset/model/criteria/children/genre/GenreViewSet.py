@@ -41,6 +41,9 @@ from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
 CURATION_EXPORTED_ON = "curation_exported_on"
+# Bump when the search payload shape changes: the tree version token only moves on genre writes, so results cached
+# in the old shape would otherwise be served until the next write or TTL.
+GENRE_SEARCH_PAYLOAD_VERSION = 2
 
 TREE_IMPORT_RUN_KINDS = {
     CriteriaTreeName.CANONICAL: ImportRun.Kind.CANONICAL_TREE,
@@ -102,7 +105,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         payload = cached_search(
             SearchCache.GENRES,
             q,
-            (limit, tree_name, GenreTreeVersion.current_token()),
+            (GENRE_SEARCH_PAYLOAD_VERSION, limit, tree_name, GenreTreeVersion.current_token()),
             lambda: GenreSearchResultSerializer(Genre.objects.search(q, limit, tree_name), many=True).data,
         )
         return Response(payload)
