@@ -27,7 +27,7 @@ from the_music_tree_genre_kit.track.Track import Track
 
 from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
-from grow.genre_music.selection import parse_subgenres
+from grow.genre_music.selection import genre_tree_snapshot, parse_subgenres
 from grow.genre_music.selection_query import selected_genres_query
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.Criteria import Criteria
@@ -85,7 +85,9 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         )
     )
     if artist_id is not None:
-        songs_counts = artist_catalogue_counts(artist_id)
+        snapshot = genre_tree_snapshot()
+        songs_counts = artist_catalogue_counts(artist_id, snapshot)
+        graph: tuple = snapshot.tree_names, snapshot.primary_edges
     else:
         all_genres = list(
             GenrePlaylist.objects.filter(user__isnull=True).values_list(
@@ -95,8 +97,8 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         trees = {genre: tree for genre, _, tree, _ in all_genres if genre is not None}
         edges = [(parent, genre) for genre, _, _, parent in all_genres if genre is not None and parent in trees]
         edges.extend((parent, child) for parent, child in extra_edges if parent in trees and child in trees)
-        songs_counts = catalogue_counts({genre: count for genre, count, _, _ in all_genres}, (trees, edges))
-    graph = None if artist_id is not None else (trees, edges)
+        graph = trees, edges
+        songs_counts = catalogue_counts({genre: count for genre, count, _, _ in all_genres}, graph)
     membership_counts = playlist_counts(artist_id, graph)
     rows = []
     for r in playlists:

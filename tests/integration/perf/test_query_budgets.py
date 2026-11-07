@@ -20,6 +20,8 @@ from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 # Genre playlist summaries add two batched queries: the genre/catalogue graph and
 # actual per-playlist membership buckets. This is independent of page and song counts;
 # playback keeps its four-query budget. The cold tree reuses its graph and adds one query.
+# Artist genre counts read the genre tree version, then the graph only when that version changed (as
+# here: each seed bumps it), then the artist's exact counts and memberships.
 # Queries per request, whatever the number of rows or tracks. Raising one is a reviewed decision, not a fix.
 BUDGETS = {
     "genre-playlist-list": 6,
@@ -35,7 +37,7 @@ BUDGETS = {
     "plays-list": 4,
     "artist-list": 4,
     "artist-detail": 6,
-    "artist-genre-counts": 3,
+    "artist-genre-counts": 4,
 }
 
 factory = ModelFixtureFactory(default_user=None)
