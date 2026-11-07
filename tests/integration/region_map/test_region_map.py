@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import json
+from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -199,14 +200,43 @@ class TestRegionMapGenres(AppTestCase):
 
         assert [row["wikidataId"] for row in self.public.get(self.URL).json()] == ["Q9"]
 
+    def test_conditional_response_skips_cached_payload_and_serialization(self):
+        self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
+        self._index_with(genres=["Q1"])
+        initial = self.public.get(self.URL)
+        cache.clear()
+        with (
+            patch("grow.view.region_map.cache.get", side_effect=AssertionError("must not load payload")),
+            patch("grow.view.region_map.serialize_lexicon", side_effect=AssertionError("must not serialize")),
+        ):
+            for validator in (initial["ETag"], "W/" + initial["ETag"], '"other", ' + initial["ETag"], "*"):
+                response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=validator)
+                assert response.status_code == status.HTTP_304_NOT_MODIFIED
+                assert response.content == b""
+                for header in ("ETag", "Cache-Control"):
+                    assert response[header] == initial[header]
+
+    def test_snapshot_change_invalidates_validator(self):
+        self._index_with(genres=["Q1"])
+        initial = self.public.get(self.URL)
+        RegionMapSnapshot.objects.all().delete()
+        self._index_with(genres=["Q2"])
+        response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=initial["ETag"])
+        assert response.status_code == status.HTTP_200_OK
+        assert response["ETag"] != initial["ETag"]
+
     def test_rename_invalidates_cached_lexicon(self):
         genre = self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
         self._index_with(genres=["Q1"])
-        assert self.public.get(self.URL).json()[0]["name"] == "Chanson"
+        initial = self.public.get(self.URL)
+        assert initial.json()[0]["name"] == "Chanson"
 
         type(genre).objects.update_instance(genre, actor=None, name="Chanson française")
 
-        assert self.public.get(self.URL).json()[0]["name"] == "Chanson française"
+        response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=initial["ETag"])
+        assert response.status_code == status.HTTP_200_OK
+        assert response["ETag"] != initial["ETag"]
+        assert response.json()[0]["name"] == "Chanson française"
 
 
 @pytest.mark.postgres
