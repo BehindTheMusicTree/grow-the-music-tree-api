@@ -34,22 +34,24 @@ fi
 run() {
   local side=$1 dir=$2 round=$3
   echo "::group::perf $side round $round"
+  # Reparent tests roll back their writes, but still grow the physical tables. Stale
+  # row estimates can cross jit_above_cost between rounds and add 50-70ms of compilation.
+  # Reset both visibility and statistics before EVERY round, outside measured requests.
+  psql -v ON_ERROR_STOP=1 -q "$PERF_PG_URL/test_perf_$side" -c "VACUUM (FREEZE, ANALYZE)"
   # SLOs are judged on the pooled median by compare.py, not per run: one noisy run must not fail the gate alone.
   (cd "$dir" && PERF_DATABASE_URL="$PERF_PG_URL/perf_$side" PERF_RESULTS="$out_dir/$side-$round.json" \
     PERF_SLO_ASSERT=0 uv run --frozen pytest perf --no-cov -q -s --ds=perf.settings --reuse-db -p no:cacheprovider)
   echo "::endgroup::"
 }
 
-# Seeds a side's database (the import endpoints leave it with unvacuumed tables, so the first measured round ran 20-60%
-# slower than the next ones on every search scenario) then vacuums it, so every measured round sees the same settled
-# data. One cheap scenario is enough: the session fixture seeds before any test. pytest-django prefixes the database
-# name with `test_`.
-settle() {
+# Seed each side before measurement. run() settles the database after the seed and
+# again between rounds, since rolled-back write scenarios still change its physical state.
+# One cheap scenario is enough: the session fixture seeds before any test.
+seed() {
   local side=$1 dir=$2
-  echo "::group::perf $side seed and vacuum"
+  echo "::group::perf $side seed"
   (cd "$dir" && PERF_DATABASE_URL="$PERF_PG_URL/perf_$side" PERF_SLO_ASSERT=0 \
     uv run --frozen pytest perf --no-cov -q -s --ds=perf.settings --reuse-db -p no:cacheprovider -k "tag-playlist-list")
-  psql -v ON_ERROR_STOP=1 -q "$PERF_PG_URL/test_perf_$side" -c "VACUUM (FREEZE, ANALYZE)"
   echo "::endgroup::"
 }
 
@@ -64,15 +66,15 @@ if [[ $base_dir == none ]] || ! grep -q PERF_RESULTS "$base_dir/perf/conftest.py
       echo "> ⚠️ The base branch predates the A/B perf gate: head judged on its SLOs only." >>"$PERF_SUMMARY"
     fi
   fi
-  settle head "$head_dir"
+  seed head "$head_dir"
   run head "$head_dir" 1
   run head "$head_dir" 2
   judge --head "$out_dir"/head-*.json ${summary[@]+"${summary[@]}"}
   exit $?
 fi
 
-settle base "$base_dir"
-settle head "$head_dir"
+seed base "$base_dir"
+seed head "$head_dir"
 rounds=0
 measure() {
   for _ in 1 2; do
