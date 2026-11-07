@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Guard region-map index and genre lexicon database query counts for cold, warm and conditional requests at two dataset sizes, including index encoding variants. Pin the 849-region staging index for repeatable performance seeding, with checksum validation and stale-database detection.
+
 - Curation : nouvelles listes de qualification culturelle et d’appartenance culturelle ; appartenance administrative automatique et transitivité gérées par le pipeline.
 
 ### Improved
