@@ -2,15 +2,24 @@ from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
+from the_music_tree_genre_kit.track.Track import Track
 
+from grow.bulk_import.analyze import analyze_steps
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.lifecycle import execute_merge
 from grow.bulk_import.progress import report_step
 from grow.bulk_import.run_steps import run_steps
+from grow.model.artist.Artist import Artist
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.history.HistoryAction import HistoryAction
+from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
+from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.song.Song import Song
+from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
 from grow.song_search.rebuild import queue_song_search_build
@@ -420,6 +429,20 @@ AFTER_STALE_STEPS = [
     ),
 ]
 
+# Every table the steps write, directly or through triggers (membership counts), in the order they are analyzed.
+WRITTEN_MODELS = (
+    Track,
+    Song,
+    Track.artists.through,
+    TrackPlaylistRel,
+    CriteriaPlaylist,
+    GenreMembershipCount,
+    Artist,
+    Genre.essential_songs.through,
+    HistoryEntry,
+    SongSearch,
+)
+
 
 def merge_song_import_run(
     run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
@@ -473,7 +496,7 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
                 # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
                 raise ValueError(f"import run {run_id} has no staged songs")
         steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
-        steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS]
+        steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS, *analyze_steps(WRITTEN_MODELS)]
         if not live:
             steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]
         timings += run_steps(cursor, steps, params)

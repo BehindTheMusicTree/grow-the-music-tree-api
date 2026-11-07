@@ -2,7 +2,20 @@ import json
 
 import pytest
 
-from perf.compare import MORE_QUERIES, NEW, OK, REMOVED, SLO_BREACH, SLOWER, Side, compare, load, main
+from perf.compare import (
+    MORE_QUERIES,
+    NEW,
+    OK,
+    REMOVED,
+    SLO_BREACH,
+    SLOWER,
+    UNSTABLE_BASE,
+    UNSTABLE_HEAD,
+    Side,
+    compare,
+    load,
+    main,
+)
 
 
 def _write(path, scenarios):
@@ -22,7 +35,7 @@ def test_load_pools_timings_of_every_run_and_keeps_the_worst_query_count(tmp_pat
     first = _write(tmp_path / "a.json", {"x": _result(10, 12, queries=3)})
     second = _write(tmp_path / "b.json", {"x": _result(30, queries=4)})
 
-    assert load([first, second]) == {"x": Side(p50=12, slo_ms=100, queries=4)}
+    assert load([first, second]) == {"x": Side(p50=12, slo_ms=100, queries=4, rounds=(11, 30))}
 
 
 @pytest.mark.parametrize("payload", [{"version": 2, "scenarios": {"x": {}}}, {"version": 1, "scenarios": {}}])
@@ -79,10 +92,42 @@ def test_main_writes_the_summary_and_exits_1_on_regression(tmp_path):
     assert main(["--base", str(base), "--head", str(head), "--summary", str(summary)]) == 1
     report = summary.read_text()
     assert "❌ Perf regression" in report
-    assert "| x | 10.0 | 50.0 | +400% | 2 | 100 | **slower** |" in report
+    assert "| x | 10.0 | 50.0 | +400% | 10 | 50 | 2 | 100 | **slower** |" in report
 
 
 def test_main_exits_0_when_clean(tmp_path):
     head = _write(tmp_path / "head.json", {"x": _result(10, queries=2)})
 
     assert main(["--head", str(head)]) == 0
+
+
+def test_a_side_whose_round_medians_disagree_is_unstable():
+    assert Side(668, 150, 3, rounds=(1170, 178)).unstable
+    assert not Side(180, 150, 3, rounds=(178, 198)).unstable  # within RATIO
+    assert not Side(3, 150, 3, rounds=(2, 4)).unstable  # within FLOOR_MS
+    assert not Side(30, 150, 3, rounds=(30,)).unstable
+
+
+def test_an_unstable_head_fails_even_against_a_matching_base():
+    base = {"x": Side(100, 1000, 3, rounds=(100, 100))}
+    head = {"x": Side(100, 1000, 3, rounds=(30, 170))}
+
+    assert _statuses(base, head) == {"x": (UNSTABLE_HEAD,)}
+
+
+def test_an_unstable_base_replaces_the_slowdown_verdict():
+    base = {"x": Side(100, 1000, 3, rounds=(30, 170))}
+    head = {"x": Side(200, 1000, 3, rounds=(200, 200))}
+
+    assert _statuses(base, head) == {"x": (UNSTABLE_BASE,)}
+    assert _statuses(base, head, accept_regressions=True) == {"x": (OK,)}
+
+
+def test_main_fails_on_a_bimodal_head(tmp_path):
+    rounds = [
+        _write(tmp_path / f"head-{i}.json", {"x": _result(ms, ms, queries=2)}) for i, ms in enumerate((1170, 178))
+    ]
+    summary = tmp_path / "summary.md"
+
+    assert main(["--head", *map(str, rounds), "--summary", str(summary), "--accept-regressions"]) == 1
+    assert "| 1170 / 178 |" in summary.read_text()

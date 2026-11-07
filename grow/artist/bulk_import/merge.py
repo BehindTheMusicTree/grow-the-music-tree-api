@@ -3,11 +3,18 @@ from typing import Any
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.bulk_import.analyze import analyze_steps
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.lifecycle import execute_merge
 from grow.bulk_import.progress import report_step
 from grow.bulk_import.run_steps import run_steps
+from grow.model.album.Album import Album
+from grow.model.artist.Artist import Artist
+from grow.model.artist_alias.ArtistAlias import ArtistAlias
+from grow.model.artist_link.ArtistLink import ArtistLink
+from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
 from grow.song_search.rebuild import queue_song_search_build
@@ -312,6 +319,10 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
     ]
 
 
+# Every table the steps write, in the order they are analyzed.
+WRITTEN_MODELS = (Artist, ArtistAlias, ArtistLink, ArtistMembership, Album, Album.album_artists.through, SongSearch)
+
+
 def merge_artist_import_run(
     run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
 ) -> dict[str, Any]:
@@ -348,7 +359,13 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
                 raise ValueError(f"import run {run_id} has no staged artists")
         with report_step("lock_search_projection"):
             live = projection.lock_if_live(cursor)
-        steps = [*EXPANDED_STEPS, *RESOLVE_STEPS, *DIFF_STEPS, *_stale_steps(params["user"], delta)]
+        steps = [
+            *EXPANDED_STEPS,
+            *RESOLVE_STEPS,
+            *DIFF_STEPS,
+            *_stale_steps(params["user"], delta),
+            *analyze_steps(WRITTEN_MODELS),
+        ]
         if not live:
             steps = [step for step in steps if step[0] != "upsert_song_search"]
         timings = run_steps(cursor, steps, params)
