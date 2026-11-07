@@ -130,7 +130,6 @@ class TestRegionMapReads(AppTestCase):
 
 
 @pytest.mark.postgres
-@pytest.mark.postgres
 class TestRegionMapGenres(AppTestCase):
     URL = INDEX + "genres/"
 
@@ -187,6 +186,7 @@ class TestRegionMapGenres(AppTestCase):
         assert self.public.get(self.URL).json()[0]["name"] == "Chanson française"
 
 
+@pytest.mark.postgres
 class TestRegionMapImportRun(AppTestCase):
     def setUp(self):
         super().setUp()
