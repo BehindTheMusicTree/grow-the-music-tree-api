@@ -13,7 +13,7 @@ from grow.youtube import YoutubeLookupError
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 
-FETCH = "grow.model.song.SongCurationManager.fetch_unplayable_reason"
+FETCH = "grow.model.song.SongCurationManager.fetch_video_metadata"
 MB_ID = "11111111-1111-4111-8111-111111111111"
 
 
@@ -110,7 +110,7 @@ class TestCase(AppTestCase):
         song.save()
         old_video_id = song.youtube_video_id
 
-        with patch(FETCH, return_value="not_embeddable") as fetch:
+        with patch(FETCH, return_value=("not_embeddable", {"mode": "allowed", "countries": ["FR"]})) as fetch:
             response = self.api_client.patch(
                 reverse("song-detail", kwargs={"pk": song.uuid}), {"youtubeVideoId": "abc"}, format="json"
             )
@@ -127,10 +127,10 @@ class TestCase(AppTestCase):
         assert rule["youtube_video_id"] == "abc"
         assert rule["unplayable_reason"] == ""
 
-    def test_patch_explicit_reason_then_youtube_not_called(self):
+    def test_patch_explicit_reason_preserves_reason_and_fetches_policy(self):
         song = self._song(genre=self._rock())
 
-        with patch(FETCH) as fetch:
+        with patch(FETCH, return_value=(None, {"mode": "allowed", "countries": ["FR"]})) as fetch:
             response = self.api_client.patch(
                 reverse("song-detail", kwargs={"pk": song.uuid}),
                 {"youtubeVideoId": "abc", "youtubeUnplayableReason": "private"},
@@ -138,7 +138,7 @@ class TestCase(AppTestCase):
             )
 
         assert response.status_code == status.HTTP_200_OK
-        fetch.assert_not_called()
+        fetch.assert_called_once_with("abc")
         song.refresh_from_db()
         assert song.youtube_unplayable_reason == "private"
         assert self._rule("recording_youtube_video")[0]["unplayable_reason"] == "private"
@@ -206,34 +206,6 @@ class TestCase(AppTestCase):
             status.HTTP_401_UNAUTHORIZED,
             status.HTTP_405_METHOD_NOT_ALLOWED,
         )
-
-    def test_search_then_genreless_filter_and_cursor(self):
-        rock = self._rock()
-        artist = self.model_fixture_factory.create_artist("Nirvana")
-        loose = self._song("Lithium", None)
-        loose.artists.add(artist)
-        self._song("Lithium Tree", rock, "33333333-3333-4333-8333-333333333333")
-
-        everything = self.api_client.get(reverse("song-search"), {"q": "lithium"}).json()
-        genreless = self.api_client.get(reverse("song-search"), {"q": "nirvana", "genreless": "true"}).json()
-
-        assert len(everything["results"]) == 2
-        assert [r["uuid"] for r in genreless["results"]] == [str(loose.uuid)]
-        assert genreless["next"] is None
-
-    def test_search_cursor_then_pages(self):
-        for i in range(51):
-            self.model_fixture_factory.create_song(f"Bulk {i}", None)
-
-        first = self.api_client.get(reverse("song-search"), {"genreless": "true"}).json()
-        second = self.api_client.get(reverse("song-search"), {"genreless": "true", "cursor": first["next"]}).json()
-
-        assert len(first["results"]) == 50
-        assert len(second["results"]) == 1
-        assert second["next"] is None
-
-    def test_search_then_401_and_403(self):
-        self._forbidden_and_unauthorized("get", reverse("song-search"))
 
     def test_link_suggestions_then_sorted_by_shared_artists(self):
         rock = self._rock()

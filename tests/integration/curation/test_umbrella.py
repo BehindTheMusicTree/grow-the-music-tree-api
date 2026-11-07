@@ -38,7 +38,7 @@ class TestCase(AppTestCase):
         self._genre("Brostep", "Q1")
 
         with self.assertRaises(InvalidRow) as raised:
-            CurationEntry.objects.upsert("umbrella_genres", self._umbrella_row("Q1"))
+            CurationEntry.objects.upsert("umbrella_stylistic_genres", self._umbrella_row("Q1"))
 
         assert "no sub-genre" in str(raised.exception.errors)
 
@@ -46,10 +46,10 @@ class TestCase(AppTestCase):
         techno = self._genre("Techno", "Q9")
         self._genre("Detroit techno", "Q10", parent=techno)
 
-        assert CurationEntry.objects.upsert("umbrella_genres", self._umbrella_row("Q9")) == "created"
+        assert CurationEntry.objects.upsert("umbrella_stylistic_genres", self._umbrella_row("Q9")) == "created"
 
     def test_umbrella_entry_for_unknown_genre_then_created(self):
-        assert CurationEntry.objects.upsert("umbrella_genres", self._umbrella_row("Q404")) == "created"
+        assert CurationEntry.objects.upsert("umbrella_stylistic_genres", self._umbrella_row("Q404")) == "created"
 
     def test_songs_filtered_by_umbrella_genre(self):
         techno = self._genre("Techno", "Q9", is_umbrella=True)

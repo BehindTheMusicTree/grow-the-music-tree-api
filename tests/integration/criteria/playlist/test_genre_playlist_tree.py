@@ -18,7 +18,10 @@ from tests.utils.AppTestCase import AppTestCase
 TRACKED_TABLES = set(import_module("grow.migrations.0039_genre_tree_version").TRACKED_TABLES)
 TREE_PATH = reverse("genre-playlist-list") + "tree/"
 # Read by the tree but deliberately untriggered, with the reason.
-UNTRACKED_READS = {"grow_genre_tree_version": "holds the token the triggers bump"}
+UNTRACKED_READS = {
+    "grow_genre_tree_version": "holds the token the triggers bump",
+    "grow_criteria_lineage_rel": "derived from the parent links of grow_criteria, which is tracked",
+}
 
 
 class TestCase(AppTestCase):
@@ -83,7 +86,9 @@ class TestCase(AppTestCase):
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})
 
             assert tree.status_code == status.HTTP_200_OK
-            assert tree.json() == listed.json()["results"]
+            assert [{k: v for k, v in row.items() if k != "songsCount"} for row in tree.json()] == listed.json()[
+                "results"
+            ]
 
     def test_tree_flags_unaccepted_roots(self):
         Genre.objects.filter(pk=self.rock.pk).update(is_unaccepted_root=True)

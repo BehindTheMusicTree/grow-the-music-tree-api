@@ -28,15 +28,17 @@ TRADITION_ID_COLUMNS = frozenset({"wikidata_id", "from_wikidata_id", "to_wikidat
 QID_ENTITY_LISTS = frozenset({"entity_additions"})
 """Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
+    "entity_additions": {"entity_kind": ("cultural_region", "macro_region", "city")},
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default"})
 OPTIONAL_COLUMNS = frozenset(
-    {"genre_item_id", "entity_id", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
+    {"genre_item_id", "entity_id", "entity_kind", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
 )
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
@@ -115,26 +117,37 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "display_label", "reason"),
         "Explicit display label for an item, overriding sentence-casing.",
     ),
-    "main_parent": _item_list(
-        "Forced main parent of an item, optionally dropping its other parents.",
+    "forced_canonical_genres": _item_list(
+        "Genres kept canonical although a parent is regional; their own regional sources are ignored."
+    ),
+    "canonical_parent": _item_list(
+        "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
         "parent_item_id",
         "exclude_other_parents",
     ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
-    "regional_overrides": _item_list(
-        "Maps a regionally specific genre to its `music of <place>` overview item.",
-        "overview_item_id",
+    "regional_genre_parent": _item_list(
+        "Forced regional parent genre (not an overview) of an item, optionally dropping its other regional genre "
+        "parents.",
+        "parent_item_id",
         "exclude_other_parents",
+    ),
+    "regional_overviews": CurationList(
+        "wikidata",
+        ("item_id", "overview_item_id"),
+        ("item_id", "reason", "overview_item_id", "exclude_other_parents"),
+        "Adds a `music of <place>` overview item as a regional parent of an item; `exclude_other_parents` keeps only "
+        "the curated overviews.",
     ),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
-    "non_stylistic_genres": _item_list(
+    "umbrella_non_stylistic_genres": _item_list(
         "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as canonical nodes, "
         "dropped."
     ),
-    "umbrella_genres": _item_list(
+    "umbrella_stylistic_genres": _item_list(
         "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
         source="gold",
     ),
@@ -214,8 +227,9 @@ CURATION_LISTS: dict[str, CurationList] = {
     "entity_additions": CurationList(
         "geohistory",
         ("entity_id",),
-        ("entity_id", "reason"),
-        "Wikidata items ingested as cultural entities although no bulk class covers them.",
+        ("entity_id", "entity_kind", "reason"),
+        "Wikidata items ingested as cultural entities although no bulk class covers them; a blank `entity_kind` "
+        "keeps them undrawn, `cultural_region` or `macro_region` makes them a map zone, `city` a point under its administrative unit.",
     ),
     "entity_exclusions": CurationList(
         "geohistory",
@@ -228,6 +242,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("child_entity_id", "parent_entity_id"),
         ("child_entity_id", "parent_entity_id", "action", "reason"),
         "Membership edges of a cultural entity: `add` adds a parent, `remove` drops one.",
+    ),
+    "place_relation_overrides": CurationList(
+        "geohistory",
+        ("child_entity_id", "parent_entity_id"),
+        ("child_entity_id", "parent_entity_id", "extent", "reason"),
+        "Spatial relation between two entities, overriding the resolved extent.",
     ),
     "entity_time_span_overrides": CurationList(
         "geohistory",
@@ -288,5 +308,9 @@ EXCLUDED_GENRE_LISTS = {
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
 
-PARENT_RULE_COLUMNS = {"main_parent": "parent_item_id", "regional_overrides": "overview_item_id"}
+PARENT_RULE_COLUMNS = {
+    "canonical_parent": "parent_item_id",
+    "regional_genre_parent": "parent_item_id",
+    "regional_overviews": "overview_item_id",
+}
 """Lists moving an item under another: the pipeline fails on such a rule once either item is pruned."""

@@ -1,18 +1,32 @@
 from typing import TYPE_CHECKING, Any
 
-from django.db import transaction
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.search import TrigramWordSimilarity
+from django.db import connection, transaction
+from django.db.models import F
+from django.db.models.functions import Coalesce
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.criteria.Fields import Fields
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.lists import EXCLUDED_GENRE_LISTS
-from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, find_parent_rule, lock_writes
+from grow.curation.rows import (
+    ACCEPTED_CANONICAL_ROOTS_LIST,
+    CANONICAL_PARENT_LIST,
+    KEY_SEPARATOR,
+    POP_SIDE_LIST,
+    find_parent_rule,
+    lock_writes,
+)
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
+from grow.search.trigram import fold_query, match_rank
+from grow.track.direct_songs_count import adjust_direct_songs_count
 
 from ...CriteriaManager import CriteriaManager
 
@@ -61,14 +75,21 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         row = {"item_id": instance.wikidata_id, **row}
         upsert_admin_rule(list_name, row, actor)
 
+    def _delete_rules(self, instance: Genre, list_name: str, actor: Any) -> None:
+        """Deletes the item's rules in a list keyed by `item_id` alone."""
+        if not self._is_wikidata_item(instance):
+            return
+        for entry in CurationEntry.objects.filter(user=None, list_name=list_name, key=instance.wikidata_id):
+            CurationEntry.objects.delete_instance(entry, actor=actor)
+
     def _reparent_rule(self, instance: Genre) -> dict[str, str]:
-        """The `main_parent` row for an admin reparent, or a 400 when no curation list can express it."""
+        """The `canonical_parent` row for an admin reparent, or a 400 when no curation list can express it."""
         parent_item_id, parent_excluded = self.filter(pk=instance.parent_id).values_list(
             "wikidata_id", "is_excluded"
         ).first() or (None, False)
         if instance.tree_name != CriteriaTreeName.CANONICAL:
-            # The new parent may be a regional overview (`regional_overrides`) or a genre (`main_parent`),
-            # which grow can't tell apart, and `secondary_parents` adds an edge rather than moving one.
+            # The new parent may be a regional overview (`regional_overviews`) or a regional genre
+            # (`regional_genre_parent`), which grow can't tell apart.
             message = "Regional genres can't be reparented here; edit the regional curation lists instead"
         elif instance.parent_id is None:
             message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
@@ -99,7 +120,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         if actor is not None:
             if self._is_wikidata_item(instance):
-                self._upsert_rule(instance, "main_parent", actor, **self._reparent_rule(instance))
+                self._upsert_rule(instance, CANONICAL_PARENT_LIST, actor, **self._reparent_rule(instance))
+                # The pipeline rejects an item that is both an accepted root and curated a parent.
+                self._delete_rules(instance, ACCEPTED_CANONICAL_ROOTS_LIST, actor)
             if instance.parent_id is not None:
                 instance.is_unaccepted_root = False
                 instance.save(update_fields=["is_unaccepted_root"])
@@ -128,16 +151,16 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 was_secondary = was_secondary or field == "secondary_parents"
         return was_secondary
 
-    def _drop_secondary_add_rule(self, instance: Genre, main_parent_pk: Any, actor: Any) -> None:
+    def _drop_secondary_add_rule(self, instance: Genre, anchor_parent_pk: Any, actor: Any) -> None:
         """The `add` rule of an edge that became the main parent would make gold raise on the duplicate. A `remove`
         rule is kept, it applies again if the main parent later moves away."""
-        main_parent_item_id = self.filter(pk=main_parent_pk).values_list("wikidata_id", flat=True).first()
-        if instance.wikidata_id is None or main_parent_item_id is None:
+        anchor_parent_item_id = self.filter(pk=anchor_parent_pk).values_list("wikidata_id", flat=True).first()
+        if instance.wikidata_id is None or anchor_parent_item_id is None:
             return
         entries = CurationEntry.objects.filter(
             user=None,
             list_name="secondary_parents",
-            key=KEY_SEPARATOR.join((instance.wikidata_id, main_parent_item_id)),
+            key=KEY_SEPARATOR.join((instance.wikidata_id, anchor_parent_item_id)),
             values__action="add",
         )
         for entry in entries:
@@ -209,6 +232,26 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         super().delete_instance(instance, actor=actor)
         if was_required_root:
             self.assert_required_roots_present(user)
+
+    @transaction.atomic
+    def _on_before_delete(self, instance: Genre, *, actor: Any = None) -> None:
+        from grow.model.song.Song import Song
+        from grow.model.song_search.SongSearch import SongSearch
+
+        # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
+        moved = (
+            type(instance.criteria_playlist)
+            .objects.values_list("direct_songs_count", flat=True)
+            .get(pk=instance.criteria_playlist.pk)
+            if instance.user_id is None
+            else 0
+        )
+        # A root's songs become genreless, which changes their search rank; elsewhere they keep a genre.
+        genreless = [] if instance.parent_id else list(Song.objects.filter(genre=instance).values_list("pk", flat=True))
+        super()._on_before_delete(instance, actor=actor)
+        if moved:
+            adjust_direct_songs_count(instance.parent_id, moved)
+        SongSearch.objects.refresh(genreless)
 
     @transaction.atomic
     def exclude_instance(self, instance: Genre, category: str, actor: Any = None) -> Genre:
@@ -310,8 +353,39 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             genre.save(update_fields=["is_unaccepted_root"])
             self._lock(genre)
             if actor is not None:
-                self._upsert_rule(genre, "accepted_canonical_roots", actor)
+                self._upsert_rule(genre, ACCEPTED_CANONICAL_ROOTS_LIST, actor)
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
+
+    @transaction.atomic
+    def set_root(self, instance: Genre, actor: Any) -> Genre:
+        """Detaches a canonical genre from its parent so it becomes a root.
+
+        Kept apart from a `parent: null` update, which stays a 400 for wikidata-backed genres: making a root is a
+        deliberate admin action. The pipeline pins every `accepted_canonical_roots` item as a root, and rejects an
+        item that also has a `canonical_parent` rule, so the latter is dropped.
+        """
+        self._lock_curation_writes(actor)
+        if instance.parent_id is None:
+            raise self._invalid("parent", "The genre is already a root")
+        if instance.tree_name != CriteriaTreeName.CANONICAL:
+            raise self._invalid("parent", "Regional genres can't be made a root here; edit the regional curation lists")
+        if instance.is_excluded:
+            raise self._invalid("parent", "An excluded genre can't be made a root; the pipeline prunes it")
+        updated = self.update_instance(instance, actor=None, parent=None)
+        self._delete_rules(updated, CANONICAL_PARENT_LIST, actor)
+        self._upsert_rule(updated, ACCEPTED_CANONICAL_ROOTS_LIST, actor)
+        updated.is_unaccepted_root = False
+        updated.save(update_fields=["is_unaccepted_root"])
+        self._lock(updated)
+        # The parent hook ran with no actor (a null actor would bypass `_reparent_rule`) and logged the change as the
+        # pipeline's; attribute that entry to the admin.
+        HistoryEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(updated),
+            content_uuid=updated.uuid,
+            action=HistoryAction.PARENT_CHANGED,
+            actor=None,
+        ).update(actor=actor)
+        return updated
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
@@ -439,3 +513,28 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         self.delete_instance(source, actor=actor)
         self._lock(target)
         return target
+
+    def search(self, query: str, limit: int, tree_name: str | None = None) -> list[dict[str, Any]]:
+        """Canonical genres of both trees (or of `tree_name`) whose folded name trigram-matches `query`, best first:
+        exact, then prefix, then fuzzy, ties broken by similarity then playlist views. One indexed query, no
+        hydration. Genres under an unaccepted root are left out, like they are from the tree page."""
+        with transaction.atomic(), connection.cursor() as cursor:
+            folded_query = fold_query(cursor, query)
+            queryset = self.filter(user__isnull=True, folded_name__trigram_word_similar=folded_query).exclude(
+                root__genre__is_unaccepted_root=True
+            )
+            if tree_name is not None:
+                queryset = queryset.filter(tree_name=tree_name)
+            return list(
+                queryset.values(
+                    "uuid",
+                    "tree_name",
+                    name=F(Fields.NAME_INTERNAL),
+                    genre_playlist_uuid=F("criteria_playlist__uuid"),
+                    root_uuid=F("root__uuid"),
+                    root_name=F(f"root__{Fields.NAME_INTERNAL}"),
+                    views_count=Coalesce(F("criteria_playlist__views_count"), 0),
+                    rank=match_rank("folded_name", folded_query),
+                    score=TrigramWordSimilarity(folded_query, "folded_name"),
+                ).order_by("-rank", "-score", "-views_count", "uuid")[:limit]
+            )

@@ -44,6 +44,27 @@ class TestCase(AppTestCase):
         assert set(lists) == set(CURATION_LISTS)
         assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
 
+    def test_place_relation_override_round_trip(self):
+        name = "place_relation_overrides"
+        row = {"child_entity_id": "Q145", "parent_entity_id": "Q161885", "extent": "partial", "reason": "overlap"}
+        for invalid in (
+            {**row, "extent": "unknown"},
+            {**row, "reason": " "},
+            {**row, "child_entity_id": "bad"},
+            {**row, "parent_entity_id": row["child_entity_id"]},
+        ):
+            assert self._create(invalid, name).status_code == status.HTTP_400_BAD_REQUEST
+
+        created = self._create(row, name)
+        assert created.status_code == status.HTTP_201_CREATED
+        assert self._create(row, name).status_code == status.HTTP_400_BAD_REQUEST
+        url = self._entry_url(created.json()["uuid"], name)
+        updated = self.api_client.patch(url, {"row": {"extent": "reject"}}, format="json")
+        assert updated.status_code == status.HTTP_200_OK
+        assert self.api_client.get(path=reverse("curation-export")).json()[name] == [{**row, "extent": "reject"}]
+        assert self.api_client.delete(url).status_code == status.HTTP_204_NO_CONTENT
+        assert self.api_client.get(path=reverse("curation-export")).json()[name] == []
+
     def test_create_then_row_snake_case_and_history(self):
         response = self._create(ITEM)
 
@@ -101,9 +122,9 @@ class TestCase(AppTestCase):
     def test_entries_then_labels_for_every_item_id_column(self):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
-        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "main_parent")
+        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "canonical_parent")
 
-        response = self.api_client.get(path=self._entries_url("main_parent"), data={"q": "Q99999999"})
+        response = self.api_client.get(path=self._entries_url("canonical_parent"), data={"q": "Q99999999"})
 
         labels = response.json()["labels"]
 
@@ -114,7 +135,7 @@ class TestCase(AppTestCase):
         self._create(ITEM)
         self._create(
             {**ITEM, "item_id": "Q999999992", "parent_item_id": "Q999999991", "exclude_other_parents": False},
-            "main_parent",
+            "canonical_parent",
         )
         row = {
             "item_id": "Q999999993",
@@ -128,7 +149,7 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert [(r["listName"], r["row"]["item_id"]) for r in response.json()["results"]] == [
-            ("main_parent", "Q999999992"),
+            ("canonical_parent", "Q999999992"),
             ("secondary_parents", "Q999999993"),
             ("theme_genres", "Q999999991"),
         ]
@@ -204,7 +225,7 @@ class TestCase(AppTestCase):
     def test_bool_column_then_coerced(self):
         row = {**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": "true"}
 
-        response = self._create(row, "main_parent")
+        response = self._create(row, "canonical_parent")
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"]["exclude_other_parents"] is True
@@ -281,6 +302,29 @@ class TestCase(AppTestCase):
 
         assert ok.status_code == status.HTTP_201_CREATED
         assert glottocode.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_entity_additions_then_entity_kind_optional_and_enumerated(self):
+        blank = self._create({"entity_id": "Q141814080", "reason": "testing"}, "entity_additions")
+        zone = self._create(
+            {"entity_id": "Q7057805", "entity_kind": "cultural_region", "reason": "testing"}, "entity_additions"
+        )
+        city = self._create({"entity_id": "Q12345", "entity_kind": "city", "reason": "testing"}, "entity_additions")
+        bad = self._create({"entity_id": "Q128011", "entity_kind": "country", "reason": "testing"}, "entity_additions")
+
+        assert city.status_code == status.HTTP_201_CREATED
+        assert city.json()["row"]["entity_kind"] == "city"
+        assert blank.status_code == status.HTTP_201_CREATED
+        assert blank.json()["row"]["entity_kind"] == ""
+        assert zone.status_code == status.HTTP_201_CREATED
+        assert zone.json()["row"]["entity_kind"] == "cultural_region"
+        assert bad.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_entity_addition_stored_without_entity_kind_has_blank_kind(self):
+        CurationEntry.objects.create(list_name="entity_additions", key="Q141814080", values={}, reason="legacy")
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["entity_additions"] == [{"entity_id": "Q141814080", "entity_kind": "", "reason": "legacy"}]
 
     def test_time_span_override_then_years_optional_integers(self):
         ok = self._create(
@@ -393,13 +437,13 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_then_csv_rows_snake_case(self):
-        self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "main_parent")
+        self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "canonical_parent")
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
         assert set(export) == {*CURATION_LISTS, "exported_on"}
-        row = next(r for r in export["main_parent"] if r["item_id"] == ITEM["item_id"])
-        assert list(row) == list(CURATION_LISTS["main_parent"].columns)
+        row = next(r for r in export["canonical_parent"] if r["item_id"] == ITEM["item_id"])
+        assert list(row) == list(CURATION_LISTS["canonical_parent"].columns)
         assert row["exclude_other_parents"] == ""
 
     def test_local_item_id_then_accepted(self):

@@ -4,13 +4,16 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
-from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
-from grow.bulk_import.merge_lock import hold_merge_lock
+from grow.bulk_import.lifecycle import execute_merge
+from grow.bulk_import.progress import report_step
 from grow.bulk_import.run_steps import run_steps
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
+from grow.search.cache import invalidate_search_cache
+from grow.song_search import projection
+from grow.song_search.rebuild import queue_song_search_build
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -24,7 +27,7 @@ CREATE TEMP TABLE song_import AS
 WITH staged AS (
     SELECT DISTINCT ON (musicbrainz_recording_id)
         musicbrainz_recording_id AS mbid, title, artist, artist_musicbrainz_id AS artist_mbid, youtube_video_id,
-        youtube_unplayable_reason, youtube_view_count, genre_name, genre_wikidata_id, first_release_year
+        youtube_unplayable_reason, youtube_view_count, youtube_region_restriction, genre_name, genre_wikidata_id, first_release_year, recording_count
     FROM grow_song_import_staging WHERE run_id = %(run)s
     ORDER BY musicbrainz_recording_id, part DESC
 ), matched AS (
@@ -50,19 +53,28 @@ WITH staged AS (
     WHERE g.wikidata_id IS NOT NULL AND c.user_id IS NOT DISTINCT FROM %(user)s
     ORDER BY g.wikidata_id, c.tree_name <> 'canonical', c.uuid
 )
-SELECT m.mbid, m.title, m.artist, m.artist_mbid, m.youtube_video_id, m.youtube_unplayable_reason, m.youtube_view_count,
-    m.genre_name, m.genre_wikidata_id, m.first_release_year, COALESCE(q.uuid, c.uuid) AS genre_id,
+SELECT m.mbid, m.title, m.artist, m.artist_mbid, CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_video_id ELSE m.youtube_video_id END AS youtube_video_id,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_unplayable_reason ELSE m.youtube_unplayable_reason END AS youtube_unplayable_reason,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) AND locked.youtube_video_id IS DISTINCT FROM m.youtube_video_id THEN locked.youtube_view_count ELSE m.youtube_view_count END AS youtube_view_count,
+    CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) AND locked.youtube_video_id IS DISTINCT FROM m.youtube_video_id THEN locked.youtube_region_restriction ELSE m.youtube_region_restriction END AS youtube_region_restriction,
+    m.genre_name, m.genre_wikidata_id, m.first_release_year, m.recording_count, COALESCE(q.uuid, c.uuid) AS genre_id,
     COALESCE(m.track_id, a.track_id, gen_random_uuid()) AS track_id,
     m.track_id IS NULL AND a.track_id IS NULL AS is_new,
     a.track_id IS NOT NULL AS is_adopted,
     COALESCE(m.is_manually_edited, a.is_manually_edited, false) AS is_locked
 FROM matched m
 LEFT JOIN adopted a USING (mbid)
+LEFT JOIN grow_song locked ON locked.track_id = COALESCE(m.track_id, a.track_id)
 LEFT JOIN genre_by_qid q ON q.wikidata_id = m.genre_wikidata_id
 -- Parts without a QID resolve by name.
 LEFT JOIN (grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid)
     ON m.genre_wikidata_id IS NULL AND lower(c.name) = lower(m.genre_name) AND c.user_id IS NOT DISTINCT FROM %(user)s
 """
+
+# RFC 9562 uuidv7, which Postgres only ships from 18: the unix-ms timestamp over a v4's first 6 bytes, version 4 → 7.
+UUID7 = """encode(set_bit(set_bit(overlay(uuid_send(gen_random_uuid())
+        placing substring(int8send(floor(extract(epoch FROM clock_timestamp()) * 1000)::bigint) FROM 3) FROM 1 FOR 6),
+        52, 1), 53, 1), 'hex')::uuid"""
 
 # Same predicate as TrackManager._is_playable: only playable songs belong to playlists.
 PLAYABLE = "{0}.youtube_video_id IS NOT NULL AND {0}.youtube_unplayable_reason IS NULL"
@@ -76,19 +88,22 @@ MISSING_FROM_FULL_RUN = "NOT EXISTS (SELECT 1 FROM song_import s WHERE s.track_i
 LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
             SELECT musicbrainz_id FROM grow_bulk_import_deletion WHERE run_id = %(run)s)"""
 
-STEPS = [
-    ("analyze_song_import", "ANALYZE song_import"),
-    # Everything below works on the songs that need a write; the rest of the run only counts toward `stale`. A song
-    # whose credit isn't exactly its one MBID artist is kept: the artist steps resolve it (legacy names, extra credits).
-    (
-        "changed_song",
-        """CREATE TEMP TABLE changed_song AS
-    SELECT s.* FROM song_import s
+# Everything after this works on the songs that need a write; the rest of the run only counts toward `stale`. A song
+# whose credit isn't exactly its one MBID artist is kept and flagged `artist_changed`: the artist steps resolve it
+# (legacy names, extra credits). Unflagged songs skip them: an MBID is unique, so they would re-sync to the same artist.
+# The stored genre, playability and view count are carried along (`stored_*`, null-filled for songs without a row) so
+# the capture steps below don't look the same two tables up again.
+CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
+    SELECT s.*, s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text AS artist_changed,
+        t.uuid IS NOT NULL AND y.track_id IS NOT NULL AS is_stored, t.genre_id AS stored_genre_id,
+        {PLAYABLE.format("y")} AS stored_playable, y.youtube_view_count AS stored_view_count
+    FROM song_import s
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
     LEFT JOIN (
         SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
         FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
+        {{run_tracks}}
         GROUP BY ta.track_id HAVING count(*) = 1
     ) c ON c.track_id = s.track_id
     WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
@@ -96,10 +111,16 @@ STEPS = [
         OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id)
         OR y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
         OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
+        OR y.youtube_region_restriction IS DISTINCT FROM s.youtube_region_restriction
         OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
         OR y.first_release_year IS DISTINCT FROM s.first_release_year
-        OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text""",
-    ),
+        OR y.recording_count IS DISTINCT FROM s.recording_count
+        OR s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text"""
+# A delta run groups only its own tracks' artists (minutes saved on every daily run). A full run holds every track, and
+# the same filter there turns the sorted aggregate into a hash aggregate that spills to disk: 580 s became 720 s on 32M.
+DELTA_RUN_TRACKS = "WHERE ta.track_id IN (SELECT track_id FROM song_import)"
+
+STEPS = [
     ("analyze_changed_song", "ANALYZE changed_song"),
     (
         "adopt_legacy_tracks",
@@ -112,13 +133,11 @@ STEPS = [
         "capture_track_change",
         f"""CREATE TEMP TABLE track_change AS
     SELECT * FROM (
-        SELECT s.track_id, t.genre_id AS old_genre_id,
-            CASE WHEN s.is_locked THEN t.genre_id ELSE s.genre_id END AS new_genre_id,
-            {PLAYABLE.format("y")} AS was_playable, {PLAYABLE.format("s")} AS is_playable
+        SELECT s.track_id, s.stored_genre_id AS old_genre_id,
+            CASE WHEN s.is_locked THEN s.stored_genre_id ELSE s.genre_id END AS new_genre_id,
+            s.stored_playable AS was_playable, {PLAYABLE.format("s")} AS is_playable
         FROM changed_song s
-        JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
-        JOIN grow_song y ON y.track_id = s.track_id
-        WHERE NOT s.is_new
+        WHERE NOT s.is_new AND s.is_stored
     ) c WHERE old_genre_id IS DISTINCT FROM new_genre_id OR was_playable IS DISTINCT FROM is_playable""",
     ),
     (
@@ -134,23 +153,26 @@ STEPS = [
     (
         "views_delta",
         """CREATE TEMP TABLE views_delta AS
-    SELECT r.playlist_id, sum(coalesce(s.youtube_view_count, 0) - coalesce(y.youtube_view_count, 0)) AS v
+    SELECT r.playlist_id, sum(coalesce(s.youtube_view_count, 0) - coalesce(s.stored_view_count, 0)) AS v
     FROM changed_song s
-    JOIN grow_song y ON y.track_id = s.track_id
     JOIN the_music_tree_genre_kit_track_playlist_rel r ON r.track_id = s.track_id
-    WHERE NOT s.is_new AND s.youtube_view_count IS DISTINCT FROM y.youtube_view_count
+    WHERE NOT s.is_new AND s.is_stored AND s.youtube_view_count IS DISTINCT FROM s.stored_view_count
     GROUP BY r.playlist_id""",
     ),
     (
         "update_songs",
         """UPDATE grow_song y SET
         youtube_video_id = s.youtube_video_id, youtube_unplayable_reason = s.youtube_unplayable_reason,
-        youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year
+        youtube_view_count = s.youtube_view_count, first_release_year = s.first_release_year,
+        recording_count = s.recording_count,
+        youtube_region_restriction = s.youtube_region_restriction
     FROM changed_song s WHERE y.track_id = s.track_id AND NOT s.is_new
         AND (y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
             OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
-            OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
-            OR y.first_release_year IS DISTINCT FROM s.first_release_year)""",
+            OR y.youtube_region_restriction IS DISTINCT FROM s.youtube_region_restriction
+        OR y.youtube_view_count IS DISTINCT FROM s.youtube_view_count
+            OR y.first_release_year IS DISTINCT FROM s.first_release_year
+            OR y.recording_count IS DISTINCT FROM s.recording_count)""",
     ),
     (
         "apply_views_delta",
@@ -168,8 +190,9 @@ STEPS = [
         "insert_songs",
         """INSERT INTO grow_song
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
-            musicbrainz_recording_id, first_release_year)
-    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year
+            musicbrainz_recording_id, first_release_year, recording_count, youtube_region_restriction)
+    SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year,
+        recording_count, youtube_region_restriction
     FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
@@ -211,7 +234,7 @@ STEPS = [
         WHERE a.name = n.artist AND a.musicbrainz_artist_id IS NULL AND a.user_id IS NOT DISTINCT FROM %(user)s
     )""",
     ),
-    # Every run re-syncs track artists, so upstream artist corrections reach existing tracks.
+    # Upstream artist corrections reach existing tracks: every flagged song's track artists are re-synced.
     (
         "desired_artist",
         """CREATE TEMP TABLE desired_artist AS
@@ -221,7 +244,8 @@ STEPS = [
         -- An MBID-less song never borrows an MBID artist's name: a namesake would be credited.
         SELECT DISTINCT ON (name) uuid, name FROM grow_artist
         WHERE musicbrainz_artist_id IS NULL AND user_id IS NOT DISTINCT FROM %(user)s ORDER BY name, created_on
-    ) n ON s.artist_mbid IS NULL AND n.name = s.artist""",
+    ) n ON s.artist_mbid IS NULL AND n.name = s.artist
+    WHERE s.artist_changed""",
     ),
     ("analyze_desired_artist", "ANALYZE desired_artist"),
     # One scan of the track artists; the delete and insert below then only diff the two temp tables.
@@ -229,7 +253,7 @@ STEPS = [
         "current_artist",
         """CREATE TEMP TABLE current_artist AS
     SELECT ta.id, ta.track_id, ta.artist_id FROM the_music_tree_genre_kit_track_artists ta
-    JOIN changed_song s ON s.track_id = ta.track_id""",
+    JOIN changed_song s ON s.track_id = ta.track_id WHERE s.artist_changed""",
     ),
     ("analyze_current_artist", "ANALYZE current_artist"),
     (
@@ -246,9 +270,27 @@ STEPS = [
     WHERE NOT EXISTS (SELECT 1 FROM current_artist c WHERE c.track_id = d.track_id AND c.artist_id = d.artist_id)
     ORDER BY d.track_id""",
     ),
+    # Every new, changed or re-credited song, once its track, song and artist rows hold their final values.
+    ("upsert_song_search", projection.upsert("SELECT track_id FROM changed_song")),
 ]
 
 AFTER_STALE_STEPS = [
+    # Net per-genre change of the canonical direct songs count, taken while the stale songs still carry their genre.
+    # Playability-only changes leave it alone: the count covers unplayable songs too.
+    (
+        "update_direct_songs_count",
+        """UPDATE grow_criteria_playlist cp SET direct_songs_count = cp.direct_songs_count + d.delta
+    FROM (
+        SELECT genre_id, sum(delta) AS delta FROM (
+            SELECT genre_id, 1 AS delta FROM song_import WHERE is_new
+            UNION ALL SELECT old_genre_id, -1 FROM track_change WHERE old_genre_id IS DISTINCT FROM new_genre_id
+            UNION ALL SELECT new_genre_id, 1 FROM track_change WHERE old_genre_id IS DISTINCT FROM new_genre_id
+            UNION ALL SELECT t.genre_id, -1 FROM stale s JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
+        ) changes GROUP BY genre_id
+    ) d, the_music_tree_genre_kit_playlist p
+    WHERE p.uuid = cp.playlist_id AND p.user_id IS NULL AND p.user_id IS NOT DISTINCT FROM %(user)s
+        AND cp.type_id = %(genre_type)s AND cp.criteria_id IS NOT DISTINCT FROM d.genre_id AND d.delta <> 0""",
+    ),
     # Taken before the stale tracks' artist links are deleted: those artists lose a song too.
     (
         "count_artist",
@@ -275,6 +317,7 @@ AFTER_STALE_STEPS = [
         "delete_stale_track_artists",
         "DELETE FROM the_music_tree_genre_kit_track_artists WHERE track_id IN (SELECT track_id FROM stale)",
     ),
+    ("delete_song_search", projection.delete("SELECT track_id FROM stale")),
     ("delete_stale_songs", "DELETE FROM grow_song WHERE track_id IN (SELECT track_id FROM stale)"),
     ("delete_stale_tracks", "DELETE FROM the_music_tree_genre_kit_track WHERE uuid IN (SELECT track_id FROM stale)"),
     # Each genre's playlists: its own and every primary ascendant's; genreless songs get the genreless playlist.
@@ -352,15 +395,17 @@ AFTER_STALE_STEPS = [
             AND r.position IS NOT NULL AND NOT EXISTS (SELECT 1 FROM new_rel x WHERE x.id = r.id)
     ) o WHERE r.id = o.id AND r.position IS DISTINCT FROM o.position""",
     ),
+    # Time-ordered ids append to the pkey btree instead of evicting a random index page per row, as uuid4 did.
     (
         "insert_history",
-        """INSERT INTO grow_history_entry
+        f"""INSERT INTO grow_history_entry
         (uuid, created_on, object_pk, action, old_value, new_value, content_type_id, user_id, actor_id)
-    SELECT gen_random_uuid(), now(), c.track_id, %(genre_changed)s, o.name, n.name, %(content_type)s, %(user)s, NULL
+    SELECT {UUID7}, now(), c.track_id, %(genre_changed)s, o.name, n.name, %(content_type)s, %(user)s, NULL
     FROM track_change c
     LEFT JOIN grow_criteria o ON o.uuid = c.old_genre_id
     LEFT JOIN grow_criteria n ON n.uuid = c.new_genre_id
-    WHERE c.old_genre_id IS DISTINCT FROM c.new_genre_id""",
+    WHERE c.old_genre_id IS DISTINCT FROM c.new_genre_id
+    ORDER BY c.track_id""",
     ),
     # Ranks artist search results; only artists whose tracks this run touched are recounted.
     (
@@ -376,13 +421,15 @@ AFTER_STALE_STEPS = [
 ]
 
 
-def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
+def merge_song_import_run(
+    run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
+) -> dict[str, Any]:
     """
     Merges a committed run's staged songs into the owner's `Song`s in one transaction: upsert by MBID
     (legacy MBID-less tracks adopted by video id), only changed rows written, locked (`is_manually_edited`) tracks
     keep their genre and are never deleted, every other track missing from the run is deleted (a `delta` run instead deletes only the tracks it lists), and genre-playlist
-    rels follow genre and playability changes, holding playable songs only. Track artists are re-synced: matched
-    on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
+    rels follow genre and playability changes, holding playable songs only. Track artists not exactly the song's one
+    MBID artist are re-synced: matched on MBID (a legacy MBID-less artist of the same name adopted), else on name; orphaned artists are left to the
     artists import, which owns their lifecycle. The genre resolves by `genre_wikidata_id` (the
     canonical genre when the QID is in both trees), else by name when no QID is sent; an unresolved genre is stored
     as a null genre and counted as skipped.
@@ -394,36 +441,53 @@ def merge_song_import_run(run_id: int, user_id: int | None, record: bool) -> dic
         "genre_type": CriteriaTypePks.GENRE.value,
         "content_type": ContentType.objects.get_for_model(Song).pk,
     }
-    with hold_merge_lock(run_id):
-        try:
-            return _merge(run_id, params, record)
-        finally:
-            # A failed merge rolls back, so its staged rows are dropped here instead of lingering until the next run.
-            SongImportStaging.objects.filter(run_id=run_id).delete()
-            BulkImportDeletion.objects.filter(run_id=run_id).delete()
-            BulkImportRun.objects.filter(pk=run_id).delete()
+    live = False
+
+    def merge() -> dict[str, Any]:
+        nonlocal live
+        result, live = _merge(run_id, params, record)
+        return result
+
+    def after_commit() -> None:
+        invalidate_search_cache()
+        if not live:
+            queue_song_search_build()
+
+    return execute_merge(run_id, attempt_id, SongImportStaging, merge, after_commit)
 
 
-def _merge(run_id: int, params: dict, record: bool) -> dict[str, Any]:
+def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], bool]:
     delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
+    changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
-        cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
+        with report_step("prepare_tables"):
+            cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+        with report_step("lock_search_projection"):
+            live = projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)
-        cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
-        if not delta and not cursor.fetchone()[0]:
-            # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
-            raise ValueError(f"import run {run_id} has no staged songs")
-        timings += run_steps(cursor, [*STEPS, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS], params)
-        cursor.execute(
-            "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
-            " FROM song_import"
-        )
-        imported, skipped = cursor.fetchone()
-        # Transaction-local, but a caller's outer transaction (tests) would otherwise keep it set past the merge.
-        cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
-        cursor.execute(f"DROP TABLE {TEMP_TABLES}")
+        with report_step("validate_staging"):
+            cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
+            if not delta and not cursor.fetchone()[0]:
+                # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
+                raise ValueError(f"import run {run_id} has no staged songs")
+        steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
+        steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS]
+        if not live:
+            steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]
+        timings += run_steps(cursor, steps, params)
+        with report_step("final_count_and_tables"):
+            cursor.execute(
+                "SELECT count(*), count(*) FILTER (WHERE (genre_name IS NOT NULL OR genre_wikidata_id IS NOT NULL) AND genre_id IS NULL)"
+                " FROM song_import"
+            )
+            imported, skipped = cursor.fetchone()
+            # Transaction-local, but a caller's outer transaction (tests) would otherwise keep it set past the merge.
+            cursor.execute("SELECT set_config(%s, 'off', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+            cursor.execute(f"DROP TABLE {TEMP_TABLES}")
         if record:
-            ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped)
-    return {"imported": imported, "skipped": skipped, "stepTimings": timings}
+            ImportRun.objects.create(
+                kind=ImportRun.Kind.SONGS, count=imported, skipped_count=skipped, step_timings=timings
+            )
+    return {"imported": imported, "skipped": skipped, "stepTimings": timings}, live

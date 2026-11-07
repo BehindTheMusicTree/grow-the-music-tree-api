@@ -135,7 +135,7 @@ def test_query_count_is_constant_and_within_budget(endpoint):
     assert many_rows <= BUDGETS[endpoint]
 
 
-TREE_BUDGETS = {"cold": 4, "warm": 1, "not-modified": 1}
+TREE_BUDGETS = {"cold": 5, "warm": 1, "not-modified": 1}
 
 
 def _count_tree_queries(**headers) -> int:
@@ -187,3 +187,30 @@ def test_reparent_query_count_is_constant_and_within_budget():
 
     assert few_rows == many_rows, "reparenting issues queries per track"
     assert many_rows <= REPARENT_BUDGET
+
+
+# Postgres-only (trigram operators); the cache is cleared so the lookup itself is counted.
+SEARCH_BUDGETS = {"genre-search": 5, "artist-search": 5}
+SEARCH_SEEDS = {"genre-search": _seed_genres, "artist-search": _seed_artists}
+
+
+def _count_search_queries(route: str) -> int:
+    cache.clear()
+    client = AppApiClient()
+    with CaptureQueriesContext(connection) as queries:
+        response = client.get(reverse(route), {"q": "member" if route == "artist-search" else "genre"})
+    assert response.status_code == status.HTTP_200_OK
+    return len(queries.captured_queries)
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db
+@pytest.mark.parametrize("route", SEARCH_BUDGETS)
+def test_search_query_count_is_constant_and_within_budget(route):
+    SEARCH_SEEDS[route](0, 2)
+    few_rows = _count_search_queries(route)
+    SEARCH_SEEDS[route](2, 12)
+    many_rows = _count_search_queries(route)
+
+    assert few_rows == many_rows, f"{route} issues queries per row"
+    assert many_rows <= SEARCH_BUDGETS[route]

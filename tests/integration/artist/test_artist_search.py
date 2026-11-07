@@ -5,9 +5,9 @@ from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 
-from grow.artist.search_cache import invalidate_search_cache
 from grow.model.artist.Artist import SPECIAL_PURPOSE_ARTIST_MBIDS
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
+from grow.search.cache import invalidate_search_cache
 from tests.utils.AppTestCase import AppTestCase
 
 

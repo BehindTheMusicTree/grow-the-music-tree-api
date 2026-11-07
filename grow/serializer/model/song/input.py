@@ -25,9 +25,3 @@ class SongYoutubePatchSerializer(serializers.Serializer):
         if not attrs:
             raise serializers.ValidationError("Provide youtubeVideoId and/or youtubeUnplayableReason")
         return attrs
-
-
-class SongSearchQuerySerializer(serializers.Serializer):
-    q = serializers.CharField(required=False, allow_blank=True, default="")
-    genreless = serializers.BooleanField(required=False, default=False)
-    cursor = serializers.UUIDField(required=False, allow_null=True, default=None)

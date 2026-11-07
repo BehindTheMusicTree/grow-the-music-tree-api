@@ -26,6 +26,7 @@ from grow.view.pipeline_run import (
     PipelineRunsView,
     PipelineRunView,
 )
+from grow.view.playback import PlaybackContextView
 from grow.view.region_map import RegionMapIndexView, RegionMapViewSet
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
@@ -57,6 +58,7 @@ router.register(r"regions/map", RegionMapViewSet, basename="region-map")
 urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
 
 urlpatterns += [
+    path(f"{settings.API_ROOT_BASE}playback/context/", PlaybackContextView.as_view(), name="playback-context"),
     path(f"{settings.API_ROOT_BASE}auth/me/", AuthMeView.as_view(), name="auth-me"),
     path(f"{settings.API_ROOT_BASE}curation/lists/", CurationListsView.as_view(), name="curation-lists"),
     path(f"{settings.API_ROOT_BASE}curation/history/", CurationHistoryView.as_view(), name="curation-history"),

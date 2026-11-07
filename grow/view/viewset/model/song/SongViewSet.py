@@ -1,18 +1,20 @@
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
-from grow.model.song.SongCurationManager import SEARCH_PAGE_SIZE, SongCurationManager
-from grow.serializer.model.song.input import (
-    SongAssignGenreSerializer,
-    SongSearchQuerySerializer,
-    SongYoutubePatchSerializer,
-)
+from grow.model.song.SongCurationManager import SongCurationManager
+from grow.model.song_search.SongSearch import SongSearch
+from grow.search.cache import SearchCache, cached_search
+from grow.serializer.model.song.input import SongAssignGenreSerializer, SongYoutubePatchSerializer
 from grow.serializer.model.song.output.detailed import SongDetailedSerializer
-from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
+from grow.serializer.model.song.output.full import SongFullSerializer
+from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -26,19 +28,45 @@ from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
+from grow.youtube_regions import viewer_country
 
 
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
+    throttle_scope = "song-search"
 
     def __init__(self, **kwargs):
         super().__init__(
             model_class=Song,
             filterset_class=SongFilterSet,
             simple_serializer_class=SongDetailedSerializer,
-            detailed_serializer_class=SongDetailedSerializer,
+            detailed_serializer_class=SongFullSerializer,
             **kwargs,
         )
+
+    def _get_detailed_serializer(self, instance):
+        serializer = super()._get_detailed_serializer(instance)
+        serializer.context.update(self.get_serializer_context())
+        return serializer
+
+    def _get_paginated_list_response(self, queryset, serializer_type=SerializerType.SIMPLE, status_code=200):
+        serializer_class = self._require_serializer(serializer_type)
+        queryset = self._eager_load(serializer_class, self.filter_queryset(queryset))
+        page = self.paginate_queryset(queryset)
+        serializer = serializer_class(
+            page if page is not None else queryset, many=True, context=self.get_serializer_context()
+        )
+        if page is None:
+            return Response(serializer.data, status=status_code)
+        response = self.get_paginated_response(serializer.data)
+        response.status_code = status_code
+        return response
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response["Cache-Control"] = "private, no-store"
+        response["X-Playback-Country"] = viewer_country(request) or "unknown"
+        return response
 
     def list(self, *args, **kwargs):
         # Genreless songs are stored for later linking but have no place in the tree.
@@ -67,7 +95,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         if unknown:
             raise ValidationError(dict.fromkeys(sorted(unknown), "Not editable"))
         updated = SongCurationManager().update_youtube(song, serializer.validated_data, request.user)
-        return Response(SongDetailedSerializer(updated, context=self.get_serializer_context()).data)
+        return Response(self._get_detailed_serializer(updated).data)
 
     @action(detail=False, methods=["post"], url_path="assign-genre", permission_classes=[IsAdmin])
     def assign_genre(self, request):
@@ -78,18 +106,32 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         )
         return Response({"previous": previous})
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAdmin])
+    @action(
+        detail=False,
+        methods=["get"],
+        authentication_classes=[],
+        permission_classes=[AllowAny],
+        throttle_classes=[ScopedRateThrottle],
+    )
     def search(self, request):
         query = SongSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        page = list(
-            SongCurationManager.search(params["q"], params["genreless"], params["cursor"])[: SEARCH_PAGE_SIZE + 1]
+        payload = cached_search(
+            SearchCache.SONGS,
+            params["q"],
+            (params["limit"], params["genre"], params["playable"], viewer_country(request)),
+            lambda: (
+                SongSearchResultSerializer(
+                    SongSearch.objects.search(
+                        params["q"], params["limit"], params["genre"], params["playable"], viewer_country(request)
+                    ),
+                    many=True,
+                    context=self.get_serializer_context(),
+                ).data
+            ),
         )
-        has_more = len(page) > SEARCH_PAGE_SIZE
-        page = page[:SEARCH_PAGE_SIZE]
-        results = SongWithoutPlaylistsSerializer(page, many=True, context=self.get_serializer_context()).data
-        return Response({"results": results, "next": str(page[-1].uuid) if has_more else None})
+        return Response(payload)
 
     (
         create_import_run,

@@ -10,6 +10,7 @@ from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplay
 from grow.bulk_import.copy_part import copy_part
 from grow.curation.lists import ITEM_ID_PATTERN
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
+from grow.youtube_regions import normalize_policy
 
 TEXT_COLUMNS = (
     "musicbrainz_recording_id",
@@ -21,7 +22,7 @@ TEXT_COLUMNS = (
     "genre_name",
     "genre_wikidata_id",
 )
-COLUMNS = (*TEXT_COLUMNS, "youtube_view_count", "first_release_year")
+COLUMNS = (*TEXT_COLUMNS, "youtube_view_count", "first_release_year", "recording_count", "youtube_region_restriction")
 REQUIRED = {"musicbrainz_recording_id", "title", "artist"}
 MAX_LENGTHS = {
     "title": settings.TRACK_TITLE_LEN_MAX,
@@ -30,6 +31,7 @@ MAX_LENGTHS = {
     "genre_name": settings.CRITERIA_NAME_LEN_MAX,
 }
 MAX_VIEW_COUNT = 2**63 - 1
+MAX_RECORDING_COUNT = 2**31 - 1
 REASONS = set(YoutubeUnplayableReason.values)
 
 
@@ -65,6 +67,20 @@ def _row(line_number: int, line: bytes) -> tuple:
     year = song["first_release_year"]
     if year is not None and (not isinstance(year, int) or isinstance(year, bool) or not 0 <= year <= 32767):
         raise ValidationError(f"line {line_number}: first_release_year must be a year")
+    recording_count = song.get("recording_count")
+    if recording_count is not None and (
+        not isinstance(recording_count, int)
+        or isinstance(recording_count, bool)
+        or not 1 <= recording_count <= MAX_RECORDING_COUNT
+    ):
+        raise ValidationError(f"line {line_number}: recording_count must be a positive integer")
+    try:
+        policy = normalize_policy(song.get("youtube_region_restriction"))
+    except ValueError as error:
+        raise ValidationError(f"line {line_number}: {error}") from error
+    if policy is not None and song.get("youtube_video_id") is None:
+        raise ValidationError(f"line {line_number}: regional policy requires a video")
+    song["youtube_region_restriction"] = json.dumps(policy) if policy is not None else None
     return (*(song.get(column) for column in COLUMNS),)
 
 

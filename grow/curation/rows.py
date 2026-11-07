@@ -29,8 +29,11 @@ from grow.curation.lists import (
 
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
-UMBRELLA_LIST = "umbrella_genres"
-MAIN_PARENT_LIST = "main_parent"
+UMBRELLA_LIST = "umbrella_stylistic_genres"
+CANONICAL_PARENT_LIST = "canonical_parent"
+ACCEPTED_CANONICAL_ROOTS_LIST = "accepted_canonical_roots"
+REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
+REGIONAL_OVERVIEWS_LIST = "regional_overviews"
 SCENE_LIST = "canonical_genre_scene"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
@@ -112,6 +115,12 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         parsed[column] = value
     if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
+    if (
+        not errors
+        and list_name == "place_relation_overrides"
+        and parsed["child_entity_id"] == parsed["parent_entity_id"]
+    ):
+        errors["parent_entity_id"] = "Must differ from child_entity_id"
     if errors:
         raise InvalidRow(errors)
     key = KEY_SEPARATOR.join(parsed[c] for c in curation_list.key)
@@ -128,7 +137,8 @@ def to_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dic
     """The entry back as a row in CSV column order, booleans kept as booleans."""
     curation_list = CURATION_LISTS[list_name]
     fields = {**dict(zip(curation_list.key, key.split(KEY_SEPARATOR), strict=True)), **values, "reason": reason}
-    return {c: fields[c] for c in curation_list.columns}
+    # An optional column added to a list after its entries were stored has no stored value.
+    return {c: fields.get(c, "") if c in OPTIONAL_COLUMNS else fields[c] for c in curation_list.columns}
 
 
 def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dict[str, str]:
@@ -203,11 +213,11 @@ def find_scene_split_error(
 
     A genre with a scene child is a split: its children are exactly one commercial and one underground scene node.
     Only curated placements are visible here; the pipeline's Gold stage checks the built tree."""
-    if list_name not in (MAIN_PARENT_LIST, SCENE_LIST):
+    if list_name not in (CANONICAL_PARENT_LIST, SCENE_LIST):
         return None
     others = queryset.exclude(pk=exclude_pk)
     scenes = dict(others.filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
-    parents = dict(others.filter(list_name=MAIN_PARENT_LIST).values_list("key", "values__parent_item_id"))
+    parents = dict(others.filter(list_name=CANONICAL_PARENT_LIST).values_list("key", "values__parent_item_id"))
     if list_name == SCENE_LIST:
         scenes[parsed.key] = parsed.values["scene"]
     else:
@@ -336,10 +346,10 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
 
 
 def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
-    """Upserts each list from `manual_<list_name>.csv` in `directory`. Returns the count of each upsert result."""
+    """Upserts each list from `<list_name>.csv` in `directory`. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
     for list_name, curation_list in CURATION_LISTS.items():
-        path = directory / f"manual_{list_name}.csv"
+        path = directory / f"{list_name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             if tuple(reader.fieldnames or ()) != curation_list.columns:

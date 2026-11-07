@@ -21,9 +21,12 @@ class Song(KitTrack):
     youtube_unplayable_reason = models.CharField(
         max_length=32, choices=YoutubeUnplayableReason.choices, null=True, blank=True
     )
+    youtube_region_restriction = models.JSONField(null=True, blank=True)
     youtube_view_count = models.PositiveBigIntegerField(null=True, blank=True)
     is_manually_edited = models.BooleanField(default=False)
     first_release_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    # MusicBrainz recordings grouped into this song (live versions, remasters, compilations): a popularity signal.
+    recording_count = models.PositiveIntegerField(null=True, blank=True)
 
     objects: TrackManager[Song] = TrackManager()
 

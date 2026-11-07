@@ -18,6 +18,7 @@ Depends on [`the-music-tree-genre-kit`](https://github.com/BehindTheMusicTree/th
   - [API](#api)
   - [Tests](#tests)
 - [Performance](#performance)
+  - [Data sources and licenses](#data-sources-and-licenses)
   - [License](#license)
 
 ## Features
@@ -66,6 +67,8 @@ uv run manage.py runserver
 RCLONE_CONFIG=~/.config/rclone/gtmt-backup.conf R2_BACKUP_BUCKET_NAME=btmt-backups ./scripts/restore-prod-db.sh
 ```
 
+**Legacy archives:** this script erases the local schema before restoring. Use the [legacy recovery procedure](docs/operations/backup-recovery.md) for backups made before migration 0101.
+
 Replaces the Docker Compose `db` with the latest prod backup (Coolify's daily `pg_dump` to Cloudflare R2), then restarts `api`/`worker`, which apply the current branch's migrations. Includes admin curation that the pipeline Gold exports in `perf/fixtures/` lack. The dump holds only the public canonical dataset, so it is safe on a laptop. Requires [rclone](https://rclone.org/) and a config with an `[r2]` remote (`type = s3`, `provider = Cloudflare`, `endpoint = https://<account-id>.r2.cloudflarestorage.com`) using a **read-only** R2 token scoped to the backup bucket, not the VPS's read/write one. Token setup: infrastructure's [`docs/guides/cloudflare-r2-backup-setup.md` § 5](https://github.com/BehindTheMusicTree/infrastructure/blob/main/docs/guides/cloudflare-r2-backup-setup.md#5-local-dev-read-only-token-prod-db-restore).
 
 ## Environment variables
@@ -97,14 +100,14 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/artists`                 | Artists (list, detail with MusicBrainz details, `image` (`{url, pageUrl, author, license, licenseUrl}` or null; show with its attribution), members, links and release-group albums, `{uuid}/genre-counts/` (sparse per-genre-playlist song counts of the artist's footprint), + `import-runs/`) |
 | `/v1/genealogy`               | `GET` latest music-tradition genealogy document (public; `ETag` = checksum, `304` on `If-None-Match`, 404 before the first import); `POST import/` stores a new snapshot from the pipeline's `4_genealogy.json` (pipeline key or admin; 201 created, 200 unchanged) |
 | `/v1/regions/map`              | `GET` latest region map index (public; `ETag` = checksum, `Cache-Control: no-cache`, gzip when accepted, `304` on `If-None-Match`, 404 before the first import): the per-region stats and genre hierarchy, plus `tileset`, the sha256 of the immutable vector tileset `regions/<sha256>.pmtiles` the pipeline published to object storage (the geometry is not stored or served here). `import-runs/` takes the pipeline's `5_region_map/parts` (full runs only, a single NDJSON line `{path: "index.json", sha256, document}`, the sha256 checked over the canonical JSON); the merge checks `tileset` is a sha256, `files` is absent and the index lists only known genres (`tradition` relations excepted), replaces the snapshot atomically, and records an unchanged index as skipped. The pipeline must publish the tileset before committing the run |
-| `/v1/genres`                  | Genre criteria tree (CRUD + `{uuid}/overview/`, `{uuid}/exclude/` (body `{"category": "theme"\|"technique"\|"out_of_scope"\|"duplicate"}`), `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
+| `/v1/genres`                  | Genre criteria tree (CRUD + `search/?q=&limit=&tree_name=` (public ranked typeahead over canonical and regional genres, overviews included), `{uuid}/overview/`, `{uuid}/set-root/`, `{uuid}/exclude/` (body `{"category": "theme"\|"technique"\|"out_of_scope"\|"duplicate"}`), `tree/`, `tree/import/`, `name-conflicts/`, `name-conflicts/validate/`, `unaccepted-roots/`, `unaccepted-roots/accept/`) |
 | `/v1/tags`                    | Tag criteria tree (CRUD + `{uuid}/overview/`, `tree/`, `tree/import/`) |
 | `/v1/playlists`               | Playlists (CRUD + `{uuid}/tracks/`; on every playlist route, `tracks/?from=<track uuid>` starts the list at that track in play order, 404 if it is not in the playlist, 400 if not a UUID) |
 | `/v1/manual-playlists`        | Manual playlists (CRUD + `{uuid}/tracks/`)           |
 | `/v1/genre-playlists`         | Playlists derived from the genre tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/tag-playlists`           | Playlists derived from the tag tree (read-only, + `{uuid}/tracks/`) |
 | `/v1/plays`                   | Play records                                         |
-| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`) |
+| `/v1/library/songs`      | Songs (CRUD + `songs/import-runs/`, `?genre=`, `?artist=`, `?playable=`, `?from=<uuid>`, `?ordering=title\|-title\|albumYear\|-albumYear`; detail adds `firstReleaseYear` and `essentialGenres`). `search/?q=&limit=&genre=any\|with\|without&playable=` is the public ranked typeahead over titles and artist names, 503 until `manage.py rebuild_song_search` has run once ([`docs/api/songs.md`](docs/api/songs.md)) |
 | `/v1/curation/lists/`         | The pipeline curation lists: `{name, keyColumns, columns, description}` (admin only) |
 | `/v1/curation/{list}/entries/` | Curation entries of one list (`GET`/`POST`, `{uuid}/` `PATCH`/`DELETE`; admin only). Body `{"row": {<csv column>: value}}`, `row` keys stay snake_case |
 | `/v1/curation/export/`        | Every list as CSV-ready rows keyed by list name, plus `exported_on` (ISO 8601, the export's instant), plain snake_case JSON (`X-API-Key` or admin) |
@@ -121,7 +124,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/pipeline/imports/latest/` | Newest run per kind: `{canonicalTree, regionalTree, songs, unresolvedGenreTags, genealogy, regionMap}`, each a run or `null` (admin only) |
 | `/v1/pipeline/imports/unresolved-genre-tags/` | `POST {"unresolvedGenreTagCount": n}`: records the pipeline's count of song genre tags it couldn't match to a genre, returns the run (`X-API-Key` or admin) |
 
-An admin edit of a wikidata-backed genre also upserts the curation rule that makes the pipeline reproduce it, with reason `grow admin edit by <pseudo>`: a rename goes to `label_overrides`, a canonical reparent to `main_parent` (`exclude_other_parents`), a root acceptance to `accepted_canonical_roots`, and an exclusion to `<category>_genres`. Edits no list expresses return 400: a reparent to a root, under an app-created genre, or in the regional tree. Genres without a `wikidataId` are app-created, absent from the pipeline's output, so their edits only lock the row.
+An admin edit of a wikidata-backed genre also upserts the curation rule that makes the pipeline reproduce it, with reason `grow admin edit by <pseudo>`: a rename goes to `label_overrides`, a canonical reparent to `canonical_parent` (`exclude_other_parents`), a root acceptance to `accepted_canonical_roots`, and an exclusion to `<category>_genres`. Edits no list expresses return 400: a reparent to a root, under an app-created genre, or in the regional tree (grow can't tell a regional overview, `regional_overviews`, from a regional genre, `regional_genre_parent`). Genres without a `wikidataId` are app-created, absent from the pipeline's output, so their edits only lock the row.
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 
@@ -161,6 +164,26 @@ for f in 1_canonical_genre_tree 1_regional_genre_tree 2_songs; do
 done
 ```
 
+## Data sources and licenses
+
+The code in this repository is licensed under Apache 2.0. The data served by the `/v1/*` endpoints is produced by [the-music-tree-pipelines](https://github.com/BehindTheMusicTree/the-music-tree-pipelines) and keeps the license of its source:
+
+| Source | Used for | License |
+|---|---|---|
+| [MusicBrainz](https://musicbrainz.org) core data | Artists, recordings, genre entities | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| [MusicBrainz](https://musicbrainz.org) supplementary data | Recording tags, from which song ↔ genre associations are derived | [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/) |
+| [Wikidata](https://www.wikidata.org) | Genre taxonomy, aliases, artist image references | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| [Wikimedia Commons](https://commons.wikimedia.org) | Artist images | Per-file license; author and license travel with each image |
+| [YouTube Data API](https://developers.google.com/youtube/v3) | Video candidates and playability | [YouTube API Services Terms of Service](https://developers.google.com/youtube/terms/api-services-terms-of-service) |
+| [Glottolog CLDF](https://github.com/glottolog/glottolog-cldf) | Languoids for the cultural-entity backbone and region maps | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [Natural Earth](https://www.naturalearthdata.com) | Admin boundaries and map background layers | Public domain |
+
+Data derived from MusicBrainz tags remains subject to CC BY-NC-SA 3.0: credit MusicBrainz, non-commercial use only, share-alike. See the [MusicBrainz data license](https://musicbrainz.org/doc/About/Data_License).
+
 ## License
 
 [Apache 2.0](LICENSE)
+
+### Import merge progress
+
+Bulk import status endpoints retain `pending|success|failed`, `result` and `error`. Admin and pipeline callers also receive optional durable `progress` (attempt, current step, completed timings, heartbeat and bounded SQL wait diagnostics). `dataApplied=true` with a failure means the commit succeeded and post-commit processing needs inspection; do not resubmit. See [the progress contract and recovery rules](docs/operations/import-progress.md).

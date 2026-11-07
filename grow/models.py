@@ -5,6 +5,7 @@ from the_music_tree_genre_kit.track.Track import Track
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
@@ -31,6 +32,8 @@ from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.model.song.Song import Song
+from grow.model.song_search.SongSearch import SongSearch
+from grow.model.song_search.SongSearchState import SongSearchState
 from grow.model.user.UserProfile import UserProfile
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
@@ -55,6 +58,8 @@ __all__ = [
     "GenrePlaylist",
     "GenreTreeVersion",
     "HistoryEntry",
+    "ImportAttempt",
+    "ImportReceipt",
     "ImportRun",
     "ManualPlaylist",
     "PipelineRunRequest",
@@ -65,6 +70,8 @@ __all__ = [
     "RegionMapSnapshot",
     "Song",
     "SongImportStaging",
+    "SongSearch",
+    "SongSearchState",
     "Tag",
     "TagPlaylist",
     "Track",

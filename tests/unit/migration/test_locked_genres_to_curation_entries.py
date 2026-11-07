@@ -43,7 +43,7 @@ class TestCase(AppTestCase):
         assert self._rows("label_overrides") == [
             {"item_id": "Q8880002", "display_label": "Punk rock", "reason": REASON}
         ]
-        assert self._rows("main_parent") == [
+        assert self._rows("canonical_parent") == [
             {
                 "item_id": "Q8880002",
                 "reason": REASON,
@@ -80,12 +80,12 @@ class TestCase(AppTestCase):
 
         self._migrate()
 
-        assert self._rows("main_parent") == []
+        assert self._rows("canonical_parent") == []
         assert {r["item_id"] for r in self._rows("out_of_scope_genres")} == {"Q8880004", "Q8880009"}
 
     def test_excluded_genre_referenced_by_parent_rule_then_no_exclusion_rule(self):
         CurationEntry.objects.upsert(
-            "main_parent",
+            "canonical_parent",
             {
                 "item_id": "Q8880010",
                 "reason": "x",

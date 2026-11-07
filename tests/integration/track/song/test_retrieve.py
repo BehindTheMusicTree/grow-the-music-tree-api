@@ -32,6 +32,18 @@ class TestCase(AppTestCase):
         assert response.data["album"]["name"] == "The Wall"
         assert response.data["genre"]["name"] == "Rock"
 
+    def test_retrieve_adds_release_year_and_essential_genres_but_list_does_not(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        song = self.model_fixture_factory.create_song(title="Money", genre=rock, first_release_year=1973)
+        rock.essential_songs.add(song)
+
+        detail = self.api_client.get(path=reverse("song-detail", kwargs={"pk": song.uuid})).data
+        (item,) = self.api_client.get(path=reverse("song-list")).data["results"]
+
+        assert detail["first_release_year"] == 1973
+        assert [genre["name"] for genre in detail["essential_genres"]] == ["Rock"]
+        assert "essential_genres" not in item and "first_release_year" not in item
+
     def test_retrieve_with_unknown_uuid_then_404_not_found(self):
         response = self.api_client.get(path=reverse("song-detail", kwargs={"pk": uuid.uuid4()}))
 
