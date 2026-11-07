@@ -24,5 +24,6 @@ class GenreSearchResultSerializer(serializers.Serializer):
     name = serializers.CharField()
     tree_name = serializers.CharField()
     genre_playlist_uuid = serializers.UUIDField(allow_null=True)
+    is_umbrella = serializers.BooleanField()
     root = GenreSearchRootSerializer(source="*")
     views_count = serializers.IntegerField()
