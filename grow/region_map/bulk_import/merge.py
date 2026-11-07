@@ -101,8 +101,8 @@ def _check_hidden_regions(index: dict[str, Any]) -> None:
     region_ids = {region["id"] for region in index["regions"] if "id" in region}
     hidden_ids: set[str] = set()
     for region in hidden:
-        if not isinstance(region, dict) or not isinstance(region.get("id"), str):
-            raise ValueError("each hidden region must be an object with a string id")
+        if not isinstance(region, dict) or not all(isinstance(region.get(key), str) for key in ("id", "name", "kind")):
+            raise ValueError("each hidden region must be an object with a string id, name and kind")
         if region["id"] in hidden_ids:
             raise ValueError(f"hidden region {region['id']} is listed twice")
         hidden_ids.add(region["id"])

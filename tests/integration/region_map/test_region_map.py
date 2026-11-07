@@ -334,13 +334,16 @@ class TestRegionMapImportRun(AppTestCase):
         def index(hidden):
             return _index(regions=[drawn], hiddenRegions=hidden)
 
-        ok = {"id": "Q1", "parentId": "Q142"}
+        ok = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "Q142"}
         assert self._commit(_parts(index("Q1"))).status_code == 500
-        assert self._commit(_parts(index([{"id": "Q142"}]))).status_code == 500
+        assert self._commit(_parts(index([{"id": "Q142", "name": "x", "kind": "admin_unit"}]))).status_code == 500
         assert self._commit(_parts(index([ok, ok]))).status_code == 500
-        assert self._commit(_parts(index([{"id": "Q1", "parentId": "Q404"}]))).status_code == 500
+        assert (
+            self._commit(_parts(index([{**ok, "parentId": "Q404"}, {"id": "Q9", "parentId": "world"}]))).status_code
+            == 500
+        )
         assert not RegionMapSnapshot.objects.exists()
-        nested = [ok, {"id": "Q2", "parentId": "Q1"}, {"id": "Q3", "parentId": "world"}]
+        nested = [ok, {**ok, "id": "Q2", "parentId": "Q1"}, {**ok, "id": "Q3", "parentId": "world"}]
         assert self._sync(_parts(index(nested)))["imported"] == 1
 
     def test_delta_run_refused_at_creation(self):

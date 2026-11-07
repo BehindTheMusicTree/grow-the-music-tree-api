@@ -136,13 +136,17 @@ class RegionMapAttachableView(View):
         snapshot = RegionMapSnapshot.objects.first()
         if snapshot is None:
             return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
-        body = RegionMapFile.objects.filter(pk=snapshot.checksum).values_list("body", flat=True).first()
-        if body is None:
-            return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
-        index = json.loads(gzip.decompress(bytes(body)))
-        targets = [
-            {"id": region["id"], "name": region["name"], "kind": region["kind"], "hidden": hidden}
-            for hidden, regions in ((False, index["regions"]), (True, index.get("hiddenRegions", [])))
-            for region in regions
-        ]
+        key = f"region-map-attachable:{snapshot.checksum}"
+        targets = cache.get(key)
+        if targets is None:
+            body = RegionMapFile.objects.filter(pk=snapshot.checksum).values_list("body", flat=True).first()
+            if body is None:
+                return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
+            index = json.loads(gzip.decompress(bytes(body)))
+            targets = [
+                {"id": region["id"], "name": region["name"], "kind": region["kind"], "hidden": hidden}
+                for hidden, regions in ((False, index["regions"]), (True, index.get("hiddenRegions", [])))
+                for region in regions
+            ]
+            cache.set(key, targets, LEXICON_TTL_SECONDS)
         return JsonResponse(targets, safe=False)
