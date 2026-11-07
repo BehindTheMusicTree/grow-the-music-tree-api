@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from django.conf import settings
+from django.db import connection
 from django.db.models import Count
 from django.urls import reverse
 from rest_framework import status
@@ -13,10 +14,14 @@ from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.track_playlist_rel.Fields import Fields as TrackPlaylistRelFields
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
+from grow.artist.bulk_import.merge import WRITTEN_MODELS as ARTIST_MERGE_MODELS
+from grow.bulk_import.analyze import tables
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
+from grow.track.bulk_import.merge import WRITTEN_MODELS as SONG_MERGE_MODELS
+from grow.view.viewset.model.criteria.children.genre.GenreViewSet import TREE_IMPORT_MODELS
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.curation_export import export_curation
 
@@ -88,11 +93,31 @@ def mid_size_genre(*, exclude: Genre) -> Genre:
     return playlist.criteria
 
 
+def _assert_imports_analyzed() -> None:
+    """
+    Fails when an import left a filled table without planner statistics. Rounds would then measure plans picked on
+    pre-import row counts until autoanalyze catches up (round 1 at 6x round 2 on one scenario), not the code.
+    """
+    unanalyzed = []
+    with connection.cursor() as cursor:
+        for table in tables((*TREE_IMPORT_MODELS, *SONG_MERGE_MODELS, *ARTIST_MERGE_MODELS)):
+            cursor.execute(
+                f"SELECT EXISTS (SELECT 1 FROM {table}) AND NOT EXISTS ("
+                "SELECT 1 FROM pg_stats WHERE schemaname = current_schema() AND tablename = %s)",
+                [table],
+            )
+            if cursor.fetchone()[0]:
+                unanalyzed.append(table)
+    if unanalyzed:
+        raise RuntimeError(f"seeded tables without planner statistics: {', '.join(unanalyzed)}")
+
+
 @pytest.fixture(scope="session")
 def django_db_setup(django_db_setup, django_db_blocker):
     with django_db_blocker.unblock():
         if not Genre.objects.exists():  # --reuse-db keeps the seed across runs
             _seed()
+            _assert_imports_analyzed()
         # Checked apart from the seed: a database reused from before song search existed still needs its first build.
         if not SongSearchState.load().ready:
             start = time.perf_counter()
