@@ -24,6 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Validate regions without a boundary using `boundaryStatus: missing` and null coordinates, preserving their genres and compatibility with existing indexes.
 - Reparenting an accepted canonical root (made a root by `set-root/` or accepted from the unaccepted roots) now drops the item's `accepted_canonical_roots` rule along with writing its `canonical_parent` rule; keeping both made the pipeline's regional classification fail. Tests in `test_edit_curation_rules.py`.
 
 - Avoid loading every song and descendant in genre and tag detail, update and curation responses; serialization loads related data in a constant number of queries.

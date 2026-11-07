@@ -55,6 +55,7 @@ def _check_index(index: Any) -> None:
     for region in index["regions"]:
         if not isinstance(region, dict) or not isinstance(region.get("genres"), list):
             raise ValueError("each region must be an object with a genres list")
+        _check_boundary(region)
         listed: set[str] = set()
         for genre in region["genres"]:
             if not isinstance(genre, dict) or not isinstance(genre.get("itemId"), str):
@@ -71,6 +72,20 @@ def _check_index(index: Any) -> None:
     _check_level_ids(index)
     if unknown := item_ids - set(Genre.objects.filter(wikidata_id__in=item_ids).values_list("wikidata_id", flat=True)):
         raise ValueError(f"region genres missing from grow: {_listed(unknown)}")
+
+
+def _check_boundary(region: dict[str, Any]) -> None:
+    status = region.get("boundaryStatus", "available")
+    if status not in ("available", "missing"):
+        raise ValueError("region boundaryStatus must be available or missing")
+    if status == "missing":
+        if any(key not in region or region[key] is not None for key in ("bbox", "mainBbox", "centroid")):
+            raise ValueError("a missing boundary requires null bbox, mainBbox and centroid")
+    elif any(
+        (key in region and region[key] is None) or ("boundaryStatus" in region and key not in region)
+        for key in ("bbox", "mainBbox", "centroid")
+    ):
+        raise ValueError("an available boundary requires coordinates")
 
 
 def _check_level_ids(index: dict[str, Any]) -> None:

@@ -283,6 +283,30 @@ class TestRegionMapImportRun(AppTestCase):
 
         assert self._sync(_parts(_index(regions=[region])))["imported"] == 1
 
+    def test_missing_boundary_retains_region_and_genres(self):
+        region = {
+            **_index()["regions"][0],
+            "id": "JO",
+            "boundaryStatus": "missing",
+            "bbox": None,
+            "mainBbox": None,
+            "centroid": None,
+        }
+        assert self._sync(_parts(_index(regions=[region], worldZoneIds=["JO"])))["imported"] == 1
+        response = self.public.get(INDEX)
+        assert json.loads(response.content)["regions"][0] == region
+
+    def test_boundary_status_must_agree_with_coordinates(self):
+        base = {**_index()["regions"][0], "bbox": None, "mainBbox": None, "centroid": None}
+        invalid = [
+            {**base, "boundaryStatus": "unknown"},
+            {**base, "boundaryStatus": "available"},
+            {**base, "boundaryStatus": "missing", "centroid": [0, 0]},
+        ]
+        for region in invalid:
+            assert self._commit(_parts(_index(regions=[region]))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
     def test_level_ids_must_name_existing_regions(self):
         genres = _index()["regions"][0]["genres"]
         regions = [{"id": "Q142", "genres": genres, "childIds": []}]
