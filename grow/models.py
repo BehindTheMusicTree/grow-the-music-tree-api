@@ -29,6 +29,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
+from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.model.song.Song import Song
@@ -55,6 +56,7 @@ __all__ = [
     "CurationSyncState",
     "GenealogySnapshot",
     "Genre",
+    "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeVersion",
     "HistoryEntry",

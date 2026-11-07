@@ -54,6 +54,21 @@ class TestCase(AppTestCase):
         assert counts["Punk"] == (2, 1)
         assert counts["Rock"] == (3, 1)
         assert counts["Jazz"] == (0, 0)
+        rows = {
+            row["name"]: row["catalogue"] for row in self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        }
+        assert rows["Rock"] == {
+            "genreOnlyTracksCount": 1,
+            "genreAndSubgenresTracksCount": {"canonical": 3, "regional": 1, "all": 3},
+        }
+        assert rows["Punk"] == {
+            "genreOnlyTracksCount": 2,
+            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 2, "all": 2},
+        }
+        assert rows["Jazz"] == {
+            "genreOnlyTracksCount": 0,
+            "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 0, "all": 0},
+        }
         self.assert_exact()
 
     def test_genreless_songs_count_on_the_genreless_playlist(self):
