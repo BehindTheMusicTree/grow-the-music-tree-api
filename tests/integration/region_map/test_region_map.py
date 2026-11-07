@@ -4,9 +4,11 @@ import json
 
 import pytest
 from django.conf import settings
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.import_run.ImportRun import ImportRun
@@ -128,6 +130,86 @@ class TestRegionMapReads(AppTestCase):
 
 
 @pytest.mark.postgres
+class TestRegionMapAttachable(AppTestCase):
+    def test_without_snapshot_then_404(self):
+        assert APIClient().get(reverse("region-map-attachable")).status_code == status.HTTP_404_NOT_FOUND
+
+    def test_lists_drawn_then_hidden_regions(self):
+        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        hidden = {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "parentId": "Q142", "centroid": [1, 49]}
+        _snapshot(json.dumps(_index(regions=[drawn], hiddenRegions=[hidden])).encode())
+
+        response = APIClient().get(reverse("region-map-attachable"))
+
+        assert response.json() == [
+            {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "hidden": False},
+            {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "hidden": True},
+        ]
+
+    def test_index_without_hidden_regions(self):
+        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        _snapshot(json.dumps(_index(regions=[drawn])).encode())
+
+        assert len(APIClient().get(reverse("region-map-attachable")).json()) == 1
+
+
+class TestRegionMapGenres(AppTestCase):
+    URL = INDEX + "genres/"
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+        self.public = APIClient()
+
+    def _index_with(self, *, genres: list[str], overview: str | None = None) -> None:
+        region = {
+            "id": "france",
+            "genres": [{"itemId": item_id, "rule": "anchor", "relation": "canonical"} for item_id in genres],
+            "overviewItemId": overview,
+            "inheritedOverviewItemId": None,
+        }
+        _snapshot(json.dumps({"regions": [region], "tileset": TILESET}).encode())
+
+    def test_without_snapshot_then_404(self):
+        assert self.public.get(self.URL).status_code == status.HTTP_404_NOT_FOUND
+
+    def test_lists_referenced_genres_only_and_skips_unknown_ids(self):
+        chanson = self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
+        self.model_fixture_factory.create_genre("Unreferenced", user=None, wikidata_id="Q2")
+        self._index_with(genres=["Q1", "Q404"])
+
+        response = self.public.get(self.URL)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json() == [
+            {
+                "wikidataId": "Q1",
+                "uuid": str(chanson.uuid),
+                "name": "Chanson",
+                "treeName": CriteriaTreeName.CANONICAL,
+                "genrePlaylistUuid": str(chanson.criteria_playlist.uuid),
+                "isUmbrella": False,
+                "viewsCount": 0,
+            }
+        ]
+
+    def test_overview_is_included(self):
+        self.model_fixture_factory.create_genre("Music of France", user=None, wikidata_id="Q9")
+        self._index_with(genres=[], overview="Q9")
+
+        assert [row["wikidataId"] for row in self.public.get(self.URL).json()] == ["Q9"]
+
+    def test_rename_invalidates_cached_lexicon(self):
+        genre = self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
+        self._index_with(genres=["Q1"])
+        assert self.public.get(self.URL).json()[0]["name"] == "Chanson"
+
+        type(genre).objects.update_instance(genre, actor=None, name="Chanson française")
+
+        assert self.public.get(self.URL).json()[0]["name"] == "Chanson française"
+
+
+@pytest.mark.postgres
 class TestRegionMapImportRun(AppTestCase):
     def setUp(self):
         super().setUp()
@@ -244,6 +326,25 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._commit(_parts(index("Q90"))).status_code == 500
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(index(["Q90"])))["imported"] == 2
+
+    def test_hidden_regions_must_be_unique_undrawn_and_parented(self):
+        genres = _index()["regions"][0]["genres"]
+        drawn = {"id": "Q142", "genres": genres}
+
+        def index(hidden):
+            return _index(regions=[drawn], hiddenRegions=hidden)
+
+        ok = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "Q142"}
+        assert self._commit(_parts(index("Q1"))).status_code == 500
+        assert self._commit(_parts(index([{"id": "Q142", "name": "x", "kind": "admin_unit"}]))).status_code == 500
+        assert self._commit(_parts(index([ok, ok]))).status_code == 500
+        assert (
+            self._commit(_parts(index([{**ok, "parentId": "Q404"}, {"id": "Q9", "parentId": "world"}]))).status_code
+            == 500
+        )
+        assert not RegionMapSnapshot.objects.exists()
+        nested = [ok, {**ok, "id": "Q2", "parentId": "Q1"}, {**ok, "id": "Q3", "parentId": "world"}]
+        assert self._sync(_parts(index(nested)))["imported"] == 1
 
     def test_delta_run_refused_at_creation(self):
         response = self.api_client.post(path=RUNS, data={"mode": "delta"})

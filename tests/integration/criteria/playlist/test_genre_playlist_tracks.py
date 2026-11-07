@@ -1,6 +1,7 @@
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.utils.AppTestCase import AppTestCase
@@ -99,3 +100,78 @@ class TestCase(AppTestCase):
         )
         playlist.refresh_from_db()
         assert playlist.tracks_count == 2
+
+    def test_coverage_and_artist_filter_before_anchor(self):
+        factory = self.model_fixture_factory
+        rock = factory.create_genre("Rock")
+        child = factory.create_genre("Punk", parent=rock)
+        artist = factory.create_artist("Band")
+        other = factory.create_artist("Other")
+        direct = factory.create_song(title="Direct", genre=rock, artists=[artist])
+        descendant = factory.create_song(title="Child", genre=child, artists=[artist])
+        factory.create_song(title="Other", genre=rock, artists=[other])
+        path = reverse("genre-playlist-tracks", kwargs={"pk": GenrePlaylist.objects.get(criteria=rock).uuid})
+        params = {"coverage": "genre_only", "artist": str(artist.uuid)}
+        response = self.api_client.get(path, params)
+        assert response.status_code == 200
+        assert [row["track"]["uuid"] for row in response.json()["results"]] == [str(direct.uuid)]
+        assert self.api_client.get(path, {**params, "from": str(descendant.uuid)}).status_code == 404
+        inclusive = self.api_client.get(path, {**params, "coverage": "genre_and_subgenres"})
+        assert {row["track"]["uuid"] for row in inclusive.json()["results"]} == {str(direct.uuid), str(descendant.uuid)}
+        assert self.api_client.get(path, {"coverage": "invalid"}).status_code == 400
+        assert self.api_client.get(path, {"artist": "invalid"}).status_code == 400
+
+    def test_genreless_playlist_is_exact_and_rejects_coverage_parameters(self):
+        factory = self.model_fixture_factory
+        genreless = factory.create_song(title="Genreless", genre=None)
+        factory.create_song(title="Genre", genre=factory.create_genre("Jazz"))
+        playlist = GenrePlaylist.objects.get(user__isnull=True, criteria__isnull=True)
+        path = reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid})
+        response = self.api_client.get(path)
+        assert response.status_code == 200
+        assert [row["track"]["uuid"] for row in response.json()["results"]] == [str(genreless.uuid)]
+        for params in ({"coverage": "genre_only"}, {"coverage": "genre_and_subgenres"}, {"subgenres": "all"}):
+            assert self.api_client.get(path, params).status_code == 400
+
+    def test_subgenre_scopes_filter_real_members_before_anchor(self):
+        factory = self.model_fixture_factory
+        parent = factory.create_genre("Canonical")
+        child = factory.create_genre("Canonical child", parent=parent)
+        regional = factory.create_genre("Regional child", tree_name="regional")
+        regional.additional_primary_parents.add(parent)
+        direct = factory.create_song("Direct", genre=parent)
+        canonical_song = factory.create_song("Canonical song", genre=child)
+        regional_song = factory.create_song("Regional song", genre=regional)
+        playlist = GenrePlaylist.objects.get(criteria=parent)
+        TrackPlaylistRel.objects.get_or_create(playlist=playlist, track=regional_song, defaults={"user": None})
+        path = reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid})
+
+        def tracks(**params):
+            response = self.api_client.get(path, params)
+            assert response.status_code == 200
+            return {row["track"]["uuid"] for row in response.json()["results"]}
+
+        assert tracks() == {str(direct.uuid), str(canonical_song.uuid)}
+        assert tracks(subgenres="regional") == {str(direct.uuid), str(regional_song.uuid)}
+        assert tracks(subgenres="all") == {str(direct.uuid), str(canonical_song.uuid), str(regional_song.uuid)}
+        assert self.api_client.get(path, {"from": str(regional_song.uuid)}).status_code == 404
+        assert self.api_client.get(path, {"coverage": "genre_only", "subgenres": "all"}).status_code == 400
+
+    def test_regional_playlist_defaults_to_all_and_rejects_other_inclusive_scopes(self):
+        factory = self.model_fixture_factory
+        regional = factory.create_genre("Regional root", tree_name="regional")
+        child = factory.create_genre("Regional descendant", tree_name="regional", parent=regional)
+        direct = factory.create_song("Direct", genre=regional)
+        descendant = factory.create_song("Descendant", genre=child)
+        playlist = GenrePlaylist.objects.get(criteria=regional)
+        path = reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid})
+
+        for params in ({}, {"subgenres": "all"}):
+            response = self.api_client.get(path, params)
+            assert response.status_code == 200
+            assert {row["track"]["uuid"] for row in response.json()["results"]} == {
+                str(direct.uuid),
+                str(descendant.uuid),
+            }
+        for scope in ("canonical", "regional"):
+            assert self.api_client.get(path, {"subgenres": scope}).status_code == 400

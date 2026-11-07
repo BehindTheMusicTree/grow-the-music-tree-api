@@ -514,6 +514,24 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         self._lock(target)
         return target
 
+    def region_lexicon(self, item_ids: set[str]) -> list[dict[str, Any]]:
+        """The app-wide genres with these Wikidata ids, in one query, for clients that search them in memory. Genres
+        under an unaccepted root are left out, like they are from search."""
+        return list(
+            self.filter(user__isnull=True, wikidata_id__in=item_ids)
+            .exclude(root__genre__is_unaccepted_root=True)
+            .values(
+                "uuid",
+                "wikidata_id",
+                "tree_name",
+                "is_umbrella",
+                name=F(Fields.NAME_INTERNAL),
+                genre_playlist_uuid=F("criteria_playlist__uuid"),
+                views_count=Coalesce(F("criteria_playlist__views_count"), 0),
+            )
+            .order_by("wikidata_id", "uuid")
+        )
+
     def search(self, query: str, limit: int, tree_name: str | None = None) -> list[dict[str, Any]]:
         """Canonical genres of both trees (or of `tree_name`) whose folded name trigram-matches `query`, best first:
         exact, then prefix, then fuzzy, ties broken by similarity then playlist views. One indexed query, no
@@ -528,7 +546,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             return list(
                 queryset.values(
                     "uuid",
+                    "wikidata_id",
                     "tree_name",
+                    "is_umbrella",
                     name=F(Fields.NAME_INTERNAL),
                     genre_playlist_uuid=F("criteria_playlist__uuid"),
                     root_uuid=F("root__uuid"),

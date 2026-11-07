@@ -33,7 +33,7 @@ class TestGenreSearch(AppTestCase):
 
     def test_anonymous_search_then_result_shape(self):
         rock = self.genre("Rock")
-        punk = self.genre("Punk rock", parent=rock)
+        punk = self.genre("Punk rock", parent=rock, wikidata_id="Q3071")
 
         response = self.search("punk")
 
@@ -42,11 +42,20 @@ class TestGenreSearch(AppTestCase):
         assert item == {
             "uuid": str(punk.uuid),
             "name": "Punk rock",
+            "wikidata_id": "Q3071",
             "tree_name": CriteriaTreeName.CANONICAL,
             "genre_playlist_uuid": str(punk.criteria_playlist.uuid),
+            "is_umbrella": False,
             "root": {"uuid": str(rock.uuid), "name": "Rock"},
             "views_count": 0,
         }
+
+    def test_genre_without_wikidata_id_has_null(self):
+        self.genre("Local sound")
+
+        (item,) = self.search("local sound").data
+
+        assert item["wikidata_id"] is None
 
     def test_accent_case_and_typo_insensitive(self):
         self.genre("Musique concrète")
