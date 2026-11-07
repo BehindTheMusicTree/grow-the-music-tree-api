@@ -22,7 +22,9 @@ class GenreSearchResultSerializer(serializers.Serializer):
 
     uuid = serializers.UUIDField()
     name = serializers.CharField()
+    wikidata_id = serializers.CharField(allow_null=True)
     tree_name = serializers.CharField()
     genre_playlist_uuid = serializers.UUIDField(allow_null=True)
+    is_umbrella = serializers.BooleanField()
     root = GenreSearchRootSerializer(source="*")
     views_count = serializers.IntegerField()

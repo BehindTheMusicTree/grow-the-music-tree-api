@@ -27,7 +27,12 @@ from grow.view.pipeline_run import (
     PipelineRunView,
 )
 from grow.view.playback import PlaybackContextView
-from grow.view.region_map import RegionMapIndexView, RegionMapViewSet
+from grow.view.region_map import (
+    RegionMapAttachableView,
+    RegionMapGenresView,
+    RegionMapIndexView,
+    RegionMapViewSet,
+)
 from grow.view.viewset.model.album.AlbumViewSet import AlbumViewSet
 from grow.view.viewset.model.artist.ArtistViewSet import ArtistViewSet
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import GenreViewSet
@@ -90,6 +95,12 @@ urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genealogy/", GenealogyView.as_view(), name="genealogy"),
     path(f"{settings.API_ROOT_BASE}genealogy/import/", GenealogyImportView.as_view(), name="genealogy-import"),
     path(f"{settings.API_ROOT_BASE}regions/map/", RegionMapIndexView.as_view(), name="region-map-index"),
+    path(f"{settings.API_ROOT_BASE}regions/map/genres/", RegionMapGenresView.as_view(), name="region-map-genres"),
+    path(
+        f"{settings.API_ROOT_BASE}regions/map/attachable/",
+        RegionMapAttachableView.as_view(),
+        name="region-map-attachable",
+    ),
     path(f"{settings.API_ROOT_BASE}pipeline/runs/", PipelineRunsView.as_view(), name="pipeline-runs"),
     path(
         f"{settings.API_ROOT_BASE}pipeline/runs/latest/", PipelineRunLatestView.as_view(), name="pipeline-runs-latest"

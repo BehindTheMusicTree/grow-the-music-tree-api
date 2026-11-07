@@ -149,3 +149,34 @@ class TestCase(AppTestCase):
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": "genre"})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_genre_coverage_selects_exact_or_primary_descendants(self):
+        child = self.model_fixture_factory.create_genre("Progressive Rock", parent=self.rock)
+        child_song = self.model_fixture_factory.create_song(title="Echoes", genre=child, youtube_video_id=None)
+        genre = str(self.rock.uuid)
+        assert self._list_uuids(genre=genre, coverage="genre_only") == {str(self.matching_track.uuid)}
+        assert self._list_uuids(genre=genre, coverage="genre_and_subgenres") == {
+            str(self.matching_track.uuid),
+            str(child_song.uuid),
+        }
+        assert self.api_client.get(reverse(self.list_endpoint), {"coverage": "genre_only"}).status_code == 400
+        assert self.api_client.get(reverse(self.list_endpoint), {"genre": genre, "coverage": "bad"}).status_code == 400
+        assert self.api_client.get(reverse(self.list_endpoint), {"genre": genre, "coverage": ""}).status_code == 400
+
+    def test_genre_subgenre_scopes_and_validation(self):
+        regional = self.model_fixture_factory.create_genre("Regional rock", tree_name="regional")
+        regional.additional_primary_parents.add(self.rock)
+        regional_song = self.model_fixture_factory.create_song("Regional song", genre=regional)
+        genre = str(self.rock.uuid)
+        direct = str(self.matching_track.uuid)
+        assert self._list_uuids(genre=genre) == {direct}
+        assert self._list_uuids(genre=genre, subgenres="regional") == {direct, str(regional_song.uuid)}
+        assert self._list_uuids(genre=genre, subgenres="all") == {direct, str(regional_song.uuid)}
+        assert self._list_uuids(genre=str(regional.uuid)) == {str(regional_song.uuid)}
+        for params in (
+            {"subgenres": "all"},
+            {"genre": genre, "coverage": "genre_only", "subgenres": "all"},
+            {"genre": genre, "subgenres": "invalid"},
+            {"genre": str(regional.uuid), "subgenres": "canonical"},
+        ):
+            assert self.api_client.get(reverse(self.list_endpoint), params).status_code == 400

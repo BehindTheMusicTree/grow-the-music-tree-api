@@ -13,14 +13,12 @@ class RegionPlaylistTracksMixin(PlaylistTracksActionMixin):
             response["X-Playback-Country"] = viewer_country(request) or "unknown"
         return response
 
-    def get_track_playlist_rel_queryset(self, playlist):
+    def get_playlist_song_queryset(self, playlist):
         country = viewer_country(self.request)
-        song = (
-            with_region_status(Song.objects.filter(pk=OuterRef("track_id")), country)
-            .filter(attemptable(country))
-            .order_by()
-            .values("pk")[:1]
-        )
+        return with_region_status(Song.objects.filter(pk=OuterRef("track_id")), country).filter(attemptable(country))
+
+    def get_track_playlist_rel_queryset(self, playlist):
+        song = self.get_playlist_song_queryset(playlist).order_by().values("pk")[:1]
         # A scalar lookup keeps counts proportional to playlist membership; an IN/EXISTS semi-join can scan the catalog.
         return (
             super()

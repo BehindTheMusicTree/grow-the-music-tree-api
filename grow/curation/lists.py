@@ -28,6 +28,7 @@ TRADITION_ID_COLUMNS = frozenset({"wikidata_id", "from_wikidata_id", "to_wikidat
 QID_ENTITY_LISTS = frozenset({"entity_additions"})
 """Entity lists whose `entity_id` is always a QID: a Glottocode already comes from Glottolog."""
 COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
+    "federated_state_overrides": {"action": ("add", "remove")},
     "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
@@ -242,6 +243,13 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("child_entity_id", "parent_entity_id"),
         ("child_entity_id", "parent_entity_id", "action", "reason"),
         "Membership edges of a cultural entity: `add` adds a parent, `remove` drops one.",
+    ),
+    "federated_state_overrides": CurationList(
+        "geohistory",
+        ("entity_id",),
+        ("entity_id", "action", "reason"),
+        "Administrative units the region map always draws as federated states, even without a genre: `add` flags one "
+        "Wikidata does not class as a federated state, `remove` unflags one it does.",
     ),
     "place_relation_overrides": CurationList(
         "geohistory",

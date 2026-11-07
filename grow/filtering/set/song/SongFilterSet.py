@@ -7,11 +7,12 @@ from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
     PrivateUniqueResourceFilterSet,
 )
+from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage, parse_coverage
 
+from grow.genre_music.selection import genre_graph, parse_subgenres, selected_genres
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields
-from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.song.Fields import Fields as ModelFields
 from grow.model.song.Song import Song
 from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM
@@ -58,6 +59,8 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         lookup_expr="icontains",
     )
     genre = UUIDFilter(method="filter_genre")
+    coverage = CharFilter(method="filter_coverage")
+    subgenres = CharFilter(method="filter_coverage")
     genre_is_umbrella = BooleanFilter(field_name="genre__genre__is_umbrella")
     artist = UUIDFilter(field_name=ModelFields.ARTISTS)
     playable = BooleanFilter(method="filter_playable")
@@ -74,9 +77,20 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
 
     def filter_genre(self, queryset: QuerySet[Song], name: str, value) -> QuerySet[Song]:
         """The genre's songs and its primary descendants', the same subtree its playlists cover."""
-        # Ids are materialized: an OR with a subquery keeps Postgres off the genre index (seq scan over all songs).
-        descendants = CriteriaLineageRel.objects.filter(ascendant=value).values_list("descendant", flat=True)
-        return queryset.filter(genre__in=[value, *descendants])
+        coverage = parse_coverage(self.data.get("coverage"))
+        scope_value = self.data.get("subgenres")
+        if coverage == CriteriaCoverage.ONLY:
+            parse_subgenres(scope_value, coverage, "canonical")
+            return queryset.filter(genre=value)
+        trees, edges = genre_graph()
+        if value not in trees:
+            parse_subgenres(scope_value, coverage, "canonical")
+            return queryset.none()
+        scope = parse_subgenres(scope_value, coverage, trees[value])
+        return queryset.filter(genre__in=selected_genres(value, trees, edges, scope))
+
+    def filter_coverage(self, queryset: QuerySet[Song], name: str, value: str) -> QuerySet[Song]:
+        return queryset
 
     def filter_playable(self, queryset: QuerySet[Song], name: str, value: bool) -> QuerySet[Song]:
         country = viewer_country(self.request)
@@ -98,6 +112,11 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         )
 
     def filter_queryset(self, queryset: QuerySet[Song]) -> QuerySet[Song]:
+        parse_coverage(self.data.get("coverage"), criteria_selected=bool(self.data.get("genre")))
+        if self.data.get("subgenres") is not None and not self.data.get("genre"):
+            from rest_framework.exceptions import ValidationError
+
+            raise ValidationError({"subgenres": "Subgenre scope requires a genre selection."})
         queryset = super().filter_queryset(queryset)
         anchor_uuid = self.form.cleaned_data.get(Fields.FROM)
         if anchor_uuid is None:

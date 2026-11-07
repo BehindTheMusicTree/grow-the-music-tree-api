@@ -32,7 +32,14 @@ def recount_direct_songs_count_holding_writers(song_model: Any, playlist_model: 
     merge's delta committed mid-count would otherwise be overwritten by the older count. Readers are not blocked."""
     if connection.vendor == "postgresql":
         with connection.cursor() as cursor:
-            cursor.execute("LOCK TABLE grow_criteria_playlist IN SHARE ROW EXCLUSIVE MODE")
+            cursor.execute("SELECT to_regprocedure('lock_genre_membership_sources()') IS NOT NULL")
+            if cursor.fetchone()[0]:
+                # Writers acquire relation locks before their gate trigger runs. Taking
+                # a conflicting table lock after the gate would invert that order.
+                cursor.execute("SELECT pg_advisory_xact_lock(716731928417)")
+            else:
+                # Historical migration 0094 runs before the source gate is installed.
+                cursor.execute("LOCK TABLE grow_criteria_playlist IN SHARE ROW EXCLUSIVE MODE")
     recount_direct_songs_count(song_model, playlist_model)
 
 
