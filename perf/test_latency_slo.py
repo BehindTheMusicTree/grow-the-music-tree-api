@@ -190,3 +190,49 @@ def test_search_median_latency_within_slo(route, query, perf_record):
     print(f"\n{route}?q={query}".ljust(39) + f"results={len(response.data):>3}  p50={p50:8.1f}ms")
     perf_record(f"{route}?q={query}", timings[WARMUPS:], slo_ms=SEARCH_SLO_MS[(route, query)])
     assert_within_slo(p50, SEARCH_SLO_MS[(route, query)])
+
+
+# No absolute ceiling until stable CI self-comparisons; relative and stability gates still apply.
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("route", "encoding"),
+    [
+        ("region-map-index", "identity"),
+        ("region-map-index", "gzip"),
+        ("region-map-genres", "identity"),
+    ],
+)
+@pytest.mark.parametrize("mode", ["cold", "warm", "not-modified"])
+def test_region_map_latency_for_calibration(route, encoding, mode, perf_record):
+    client = AppApiClient()
+    path = reverse(route)
+    headers = {"HTTP_ACCEPT_ENCODING": encoding}
+    initial = client.get(path, **headers)
+    assert initial.status_code == status.HTTP_200_OK
+    if route == "region-map-genres":
+        # Coverage of the pinned index against the older pinned genre exports.
+        assert len(initial.json()) == 4625
+    if mode == "not-modified":
+        headers["HTTP_IF_NONE_MATCH"] = initial["ETag"]
+    expected_status = status.HTTP_304_NOT_MODIFIED if mode == "not-modified" else status.HTTP_200_OK
+    timings = []
+    query_counts = []
+    try:
+        for run in range(WARMUPS + RUNS):
+            if mode == "cold":
+                cache.clear()
+            start = time.perf_counter()
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(path, **headers)
+            elapsed = (time.perf_counter() - start) * 1000
+            assert response.status_code == expected_status
+            if route == "region-map-index" and expected_status == status.HTTP_200_OK:
+                assert response.get("Content-Encoding", "identity") == encoding
+            if run >= WARMUPS:
+                timings.append(elapsed)
+                query_counts.append(len(queries))
+    finally:
+        cache.clear()
+    scenario = f"{route} ({encoding}, {mode})"
+    print(f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(query_counts)}")
+    perf_record(scenario, timings, slo_ms=None, queries=max(query_counts))

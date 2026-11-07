@@ -30,7 +30,7 @@ UNSTABLE_BASE, UNSTABLE_HEAD = "unstable base", "unstable head"
 @dataclass(frozen=True)
 class Side:
     p50: float
-    slo_ms: float
+    slo_ms: float | None
     queries: int | None
     rounds: tuple[float, ...] = ()
 
@@ -62,7 +62,7 @@ def load(paths: list[Path]) -> dict[str, Side]:
         raise ValueError("no result files given")
     timings: dict[str, list[float]] = {}
     rounds: dict[str, list[float]] = {}
-    meta: dict[str, tuple[float, int | None]] = {}
+    meta: dict[str, tuple[float | None, int | None]] = {}
     for path in paths:
         payload = json.loads(path.read_text())
         if payload.get("version") != 1 or not payload.get("scenarios"):
@@ -90,7 +90,9 @@ def compare(base: dict[str, Side] | None, head: dict[str, Side], *, accept_regre
         if after is None:
             statuses.append(REMOVED)
         else:
-            if after.p50 > after.slo_ms:
+            if (after.slo_ms is not None and after.p50 > after.slo_ms) or (
+                before is not None and before.slo_ms is not None and after.slo_ms is None
+            ):
                 statuses.append(SLO_BREACH)
             if after.unstable:
                 statuses.append(UNSTABLE_HEAD)
@@ -146,7 +148,7 @@ def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str
     for row in rows:
         status = ", ".join(row.statuses)
         status = f"**{status}**" if row.failing else status
-        slo = f"{row.head.slo_ms:.0f}" if row.head else "-"
+        slo = f"{row.head.slo_ms:.0f}" if row.head and row.head.slo_ms is not None else "pending calibration"
         if with_base:
             delta = f"{(row.head.p50 / row.base.p50 - 1) * 100:+.0f}%" if row.base and row.head else "-"
             cells = [row.scenario, _ms(row.base), _ms(row.head), delta, _rounds(row.base), _rounds(row.head)]

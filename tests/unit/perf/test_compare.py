@@ -131,3 +131,19 @@ def test_main_fails_on_a_bimodal_head(tmp_path):
 
     assert main(["--head", *map(str, rounds), "--summary", str(summary), "--accept-regressions"]) == 1
     assert "| 1170 / 178 |" in summary.read_text()
+
+
+def test_pending_calibration_preserves_relative_and_stability_gates(tmp_path):
+    base = {"x": Side(10, None, 2)}
+    assert _statuses(base, {"x": Side(30, None, 3)}) == {"x": (SLOWER, MORE_QUERIES)}
+    assert _statuses(None, {"x": Side(30, None, 2, rounds=(10, 50))}) == {"x": (UNSTABLE_HEAD,)}
+    result = _result(10, queries=2)
+    result["slo_ms"] = None
+    head = _write(tmp_path / "head.json", {"x": result})
+    summary = tmp_path / "summary.md"
+    assert main(["--head", str(head), "--summary", str(summary)]) == 0
+    assert "pending calibration" in summary.read_text()
+
+
+def test_calibration_cannot_remove_an_existing_ceiling():
+    assert _statuses({"x": Side(10, 100, 2)}, {"x": Side(10, None, 2)}) == {"x": (SLO_BREACH,)}
