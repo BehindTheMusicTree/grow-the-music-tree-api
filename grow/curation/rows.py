@@ -117,7 +117,7 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if (
         not errors
-        and list_name == "place_relation_overrides"
+        and list_name in {"place_relation_overrides", "cultural_membership_overrides"}
         and parsed["child_entity_id"] == parsed["parent_entity_id"]
     ):
         errors["parent_entity_id"] = "Must differ from child_entity_id"
