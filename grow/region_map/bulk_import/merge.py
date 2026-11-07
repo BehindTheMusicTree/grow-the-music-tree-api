@@ -69,6 +69,7 @@ def _check_index(index: Any) -> None:
                 f"region {region.get('id')} overviewItemId {overview!r} must be one of its non-tradition genres"
             )
     _check_level_ids(index)
+    _check_hidden_regions(index)
     if unknown := item_ids - set(Genre.objects.filter(wikidata_id__in=item_ids).values_list("wikidata_id", flat=True)):
         raise ValueError(f"region genres missing from grow: {_listed(unknown)}")
 
@@ -90,6 +91,27 @@ def _check_level_ids(index: dict[str, Any]) -> None:
             raise ValueError(f"{owner} {key} must be a list of region ids")
         if missing := set(ids) - region_ids:
             raise ValueError(f"{owner} {key} name unknown regions: {_listed(missing)}")
+
+
+def _check_hidden_regions(index: dict[str, Any]) -> None:
+    """Hidden regions are attachable targets kept out of the map: unique ids, never shadowing a drawn region."""
+    hidden = index.get("hiddenRegions", [])
+    if not isinstance(hidden, list):
+        raise ValueError("hiddenRegions must be a list")
+    region_ids = {region["id"] for region in index["regions"] if "id" in region}
+    hidden_ids: set[str] = set()
+    for region in hidden:
+        if not isinstance(region, dict) or not isinstance(region.get("id"), str):
+            raise ValueError("each hidden region must be an object with a string id")
+        if region["id"] in hidden_ids:
+            raise ValueError(f"hidden region {region['id']} is listed twice")
+        hidden_ids.add(region["id"])
+    if both := hidden_ids & region_ids:
+        raise ValueError(f"hidden regions are also drawn regions: {_listed(both)}")
+    for region in hidden:
+        parent = region.get("parentId")
+        if parent is not None and parent != "world" and parent not in region_ids | hidden_ids:
+            raise ValueError(f"hidden region {region['id']} parentId {parent!r} is unknown")
 
 
 def _merge(run_id: int, record: bool) -> dict[str, Any]:

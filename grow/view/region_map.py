@@ -126,3 +126,23 @@ class RegionMapGenresView(View):
             payload = serialize_lexicon(Genre.objects.region_lexicon(item_ids))
             cache.set(key, payload, LEXICON_TTL_SECONDS)
         return JsonResponse(payload, safe=False)
+
+
+class RegionMapAttachableView(View):
+    """Every place a curator can attach a tradition to: the drawn regions and the hidden ones the latest index keeps
+    out of the map, so `tradition_placement_overrides` can name a subdivision that has no genre yet."""
+
+    def get(self, request: HttpRequest) -> JsonResponse:
+        snapshot = RegionMapSnapshot.objects.first()
+        if snapshot is None:
+            return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
+        body = RegionMapFile.objects.filter(pk=snapshot.checksum).values_list("body", flat=True).first()
+        if body is None:
+            return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
+        index = json.loads(gzip.decompress(bytes(body)))
+        targets = [
+            {"id": region["id"], "name": region["name"], "kind": region["kind"], "hidden": hidden}
+            for hidden, regions in ((False, index["regions"]), (True, index.get("hiddenRegions", [])))
+            for region in regions
+        ]
+        return JsonResponse(targets, safe=False)
