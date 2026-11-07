@@ -293,7 +293,8 @@ class TestRegionMapImportRun(AppTestCase):
             "centroid": None,
         }
         assert self._sync(_parts(_index(regions=[region], worldZoneIds=["JO"])))["imported"] == 1
-        response = self.public.get(INDEX)
+        response = APIClient().get(INDEX)
+        assert response.status_code == status.HTTP_200_OK
         assert json.loads(response.content)["regions"][0] == region
 
     def test_boundary_status_must_agree_with_coordinates(self):
