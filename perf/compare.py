@@ -16,9 +16,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # A slowdown counts only when it exceeds both the ratio and the absolute floor, so ~10 ms endpoints don't flag on a
-# few ms of jitter. Starting values, to be confirmed with base == head runs on GitHub-hosted runners: on a laptop
-# (4 rounds, base == head) the slow list endpoints varied up to +36% because of a cold first round (2-3x slower)
-# and a load spike in one round, so these constants are not meant to be calibrated locally.
+# few ms of jitter. Starting values, to be confirmed with base == head runs on GitHub-hosted runners: the spread seen
+# on a laptop came from stale planner statistics after the bulk merges (fixed by their ANALYZE) plus load spikes, so
+# these constants are not meant to be calibrated locally. A cold first round that persists in CI shows up as
+# `unstable`, and the 4-round retry widens the spread.
 RATIO = 1.3
 FLOOR_MS = 5.0
 
@@ -130,7 +131,7 @@ def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str
     if with_base:
         lines.append(
             f"p50 of all runs, base and head interleaved on the same runner. A scenario is slower when head > "
-            f"{RATIO}x base **and** +{FLOOR_MS:.0f} ms. A side is unstable when its round p50s differ by as much."
+            f"{RATIO}x base **and** +{FLOOR_MS:.0f} ms. A side is unstable when its round p50s differ by as much (an unstable head fails even with the label)."
         )
         if accept_regressions:
             lines.append("")
