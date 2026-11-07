@@ -147,14 +147,21 @@ uv run mypy grow
 
 ## Performance
 
-Two gates keep list and detail endpoints fast. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
+Three gates keep endpoints fast. All are required checks. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
 
-- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and no more than its `BUDGETS` entry.
+- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` entry. A gain lowers the budget in the same PR.
 - **Latency SLOs** (`perf/`, CI job `Perf`): median latency per endpoint on Postgres (p95 is printed too), seeded with a pinned snapshot of the prod pipeline's Gold exports (`perf/fixtures/`), imported through the same endpoints and in the same order as the nightly sync.
+- **A/B regression gate** (CI job `Perf` on PRs, `scripts/perf_ab.sh`): the PR's base and head run `perf/` in turn on the same runner (base, head, base, head), each on its own seeded database. `perf/compare.py` pools each side's timings and fails a scenario that is more than `RATIO` times slower **and** more than `FLOOR_MS` slower than the base, or that runs more queries. A suspected regression gets two more rounds before the verdict. This catches what an absolute SLO can't: a 13 ms endpoint going to 130 ms under a 150 ms SLO. The table lands in the job summary. Pushes to `main` and `develop` judge the SLOs only; `workflow_dispatch` compares a ref with itself to measure noise.
+- **Accepting a regression** (a deliberate trade-off, for example a feature that must do more work): add the `perf-regression-accepted` label to the PR, which reruns `Perf` with slowdowns and query increases reported but not failed. SLOs still apply.
+
+A red `Perf` is a regression until a same-runner A/B or an `EXPLAIN (ANALYZE, BUFFERS)` shows otherwise. Never merge over it.
 
 ```bash
 docker run -d --name grow-perf-pg -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:55432:5432 postgres:16-alpine
 PERF_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/postgres uv run pytest perf --no-cov -s --ds=perf.settings --reuse-db
+# A/B against develop: check it out in a scratch worktree, then (about 5 min: two seeds, four runs)
+git worktree add --detach /tmp/grow-perf-base origin/develop
+PERF_PG_URL=postgres://postgres:postgres@127.0.0.1:55432 scripts/perf_ab.sh /tmp/grow-perf-base . /tmp/grow-perf-results
 ```
 
 The fixture is refreshed by hand, since an SLO needs fixed data (re-calibrate `SLO_MS` in the same PR):
