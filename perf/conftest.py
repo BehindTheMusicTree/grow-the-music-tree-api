@@ -1,5 +1,6 @@
 import gzip
 import json
+import os
 import time
 from pathlib import Path
 
@@ -98,3 +99,36 @@ def django_db_setup(django_db_setup, django_db_blocker):
             rows = rebuild_song_search()
             label = f"song search rebuild ({rows} songs)"
             print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
+
+
+# Machine-readable results for perf/compare.py: written when PERF_RESULTS names the output file.
+_results: dict[str, dict] = {}
+
+
+def _slo_assert_enabled() -> bool:
+    # The A/B gate turns per-run asserts off and judges the SLO on the pooled median of every run instead.
+    value = os.environ.get("PERF_SLO_ASSERT", "1")
+    if value not in ("0", "1"):
+        raise ValueError(f"PERF_SLO_ASSERT must be 0 or 1, got {value!r}")
+    return value == "1"
+
+
+@pytest.fixture(scope="session")
+def perf_record():
+    def record(scenario: str, timings_ms: list[float], *, slo_ms: float, queries: int | None = None) -> None:
+        if scenario in _results:
+            raise ValueError(f"perf scenario recorded twice: {scenario}")
+        _results[scenario] = {"timings_ms": timings_ms, "slo_ms": slo_ms, "queries": queries}
+
+    return record
+
+
+def assert_within_slo(p50: float, slo_ms: float) -> None:
+    if _slo_assert_enabled():
+        assert p50 <= slo_ms
+
+
+def pytest_sessionfinish(session, exitstatus):
+    path = os.environ.get("PERF_RESULTS")
+    if path:
+        Path(path).write_text(json.dumps({"version": 1, "scenarios": _results}, indent=2, sort_keys=True))

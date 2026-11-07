@@ -1,0 +1,79 @@
+name: Perf
+
+# Separate from validate.yml so (un)labeling a PR reruns only this job. Keep the job name `Perf` and never add a paths
+# filter: once `Perf` is a required check, PRs that skip it would wait forever.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+  # Calibration: compares the selected ref with itself, so any flagged scenario is a false positive.
+  workflow_dispatch:
+
+concurrency:
+  group: perf-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    name: Perf
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PERF_PG_URL: postgres://postgres:postgres@localhost:5432
+      PERF_SUMMARY: ${{ github.workspace }}/perf-summary.md
+      PERF_ACCEPT_REGRESSIONS: ${{ contains(github.event.pull_request.labels.*.name, 'perf-regression-accepted') && '1' || '0' }}
+      BASE_REF: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
+    steps:
+      - name: Checkout head
+        uses: actions/checkout@v5.0.1
+        with:
+          path: head
+          fetch-depth: 2
+
+      # On pull_request the head checkout is the merge commit; its first parent is the base tip that head was merged
+      # onto, whereas the event payload's base.sha can be stale after the base branch moves or on a re-run.
+      - name: Resolve base
+        if: github.event_name == 'pull_request'
+        run: echo "BASE_REF=$(git -C head rev-parse HEAD^1)" >>"$GITHUB_ENV"
+
+      - name: Checkout base
+        if: env.BASE_REF != ''
+        uses: actions/checkout@v5.0.1
+        with:
+          ref: ${{ env.BASE_REF }}
+          path: base
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Sync dependencies
+        run: |
+          (cd head && uv sync --all-extras)
+          if [[ -n "$BASE_REF" ]]; then (cd base && uv sync --all-extras); fi
+
+      - name: Latency on prod Gold data (base/head A/B on PRs)
+        run: head/scripts/perf_ab.sh "$([[ -n "$BASE_REF" ]] && echo base || echo none)" head "$RUNNER_TEMP/perf"
+
+      - name: Job summary
+        if: always()
+        run: if [[ -f "$PERF_SUMMARY" ]]; then cat "$PERF_SUMMARY" >>"$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: ${{ runner.temp }}/perf
+          if-no-files-found: ignore
