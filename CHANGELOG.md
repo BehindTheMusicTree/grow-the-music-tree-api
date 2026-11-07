@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- The `Perf` A/B gate vacuums and analyzes each database before every measured round. Rolled-back reparenting grows physical tables despite restoring the data; stale row estimates then crossed PostgreSQL’s JIT threshold and added 49–66 ms of compilation per query in later rounds, falsely flagging unchanged code.
+
 - The `Perf` A/B gate vacuums each seeded database (`VACUUM (FREEZE, ANALYZE)`) before the interleaved rounds. Calibration runs of develop against itself failed 2 times out of 4: the first measured round, which also seeded the database, ran 20-60% slower than the following ones on every search scenario (head round 1 at 16 ms against 11 ms on `genre-search?q=music of the andes`), and a whole `genre-playlist-tracks` round ran at 140 ms against 61 ms.
 - The song and artist import merges and the genre tree import now `ANALYZE` every table they write before committing, so the planner sees the new row counts at once instead of after autoanalyze. On the perf dataset, `genre-playlist-tracks` took 1170 ms right after an import and 178 ms once analyzed. The perf seed fails when an imported table has no statistics, and a unit test checks each merge's analyzed tables against the tables its SQL writes.
 
