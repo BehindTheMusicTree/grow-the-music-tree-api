@@ -16,18 +16,19 @@ from tests.utils.AppApiClient import AppApiClient
 WARMUPS = 2
 RUNS = 10
 
-# Median ceilings in ms, ~2x the median measured on an Apple M-series laptop against postgres:16-alpine in Docker.
+# All ceilings below: 3x the slowest side's pooled p50 across five CI self-comparisons on 2026-11-07,
+# rounded up to 10 ms (100 ms above 1 s). Postgres 16, pinned Gold fixtures; calibration links in README.
 # Median, not p95: over back-to-back runs p95 is the single worst outlier (GC, noisy CI runners), not a tail.
 SLO_MS = {
-    "genre-playlist-list?page_size=30": 300,
-    "genre-playlist-list?page_size=100": 400,
-    "tag-playlist-list?page_size=100": 100,
-    "playlist-list?page_size=100": 100,
-    "genre-list?page_size=100": 200,
-    "genre-playlist-detail (largest genre)": 100,
-    "playlist-detail (largest genre)": 100,
-    "genre-playlist-tracks?page_size=100 (largest genre)": 150,
-    "artist-genre-counts (Canned Heat)": 150,
+    "genre-playlist-list?page_size=30": 360,
+    "genre-playlist-list?page_size=100": 470,
+    "tag-playlist-list?page_size=100": 50,
+    "playlist-list?page_size=100": 200,
+    "genre-list?page_size=100": 140,
+    "genre-playlist-detail (largest genre)": 140,
+    "playlist-detail (largest genre)": 120,
+    "genre-playlist-tracks?page_size=100 (largest genre)": 260,
+    "artist-genre-counts (Canned Heat)": 30,
 }
 
 
@@ -79,7 +80,7 @@ def test_median_latency_within_slo(scenario, perf_record):
 
 
 # Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.
-TREE_SLO_MS = {"cold": 2400, "warm": 20, "not-modified": 20}
+TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 
 
 @pytest.mark.django_db
@@ -106,7 +107,7 @@ def test_genre_tree_median_latency_within_slo(mode, perf_record):
 
 
 # Reparenting a ~250-track genre under the biggest playlist's genre timed out (gunicorn 30s) before the set-based track moves.
-REPARENT_SLO_MS = 2400
+REPARENT_SLO_MS = 1800
 
 
 @pytest.mark.django_db
@@ -134,7 +135,7 @@ def test_genre_reparent_median_latency_within_slo(perf_record):
 
 # Cache cleared before each run: a cached query costs nothing, the SLO is on the projection lookup itself. Short and
 # common prefixes match the most rows, the worst case for the over-fetched token tier.
-SONG_SEARCH_SLO_MS = {"lo": 30, "love": 30, "the beat": 30, "nirvana smells": 30}
+SONG_SEARCH_SLO_MS = {"lo": 30, "love": 30, "the beat": 30, "nirvana smells": 20}
 
 
 @pytest.mark.django_db
@@ -160,14 +161,14 @@ def test_song_search_median_latency_within_slo(query, perf_record):
 # Same method as the song search: cache cleared before each run, so the SLO is on the lookup itself. Covers a
 # 2-character prefix, a word, an accent-folded form (Alté), a typo and a regional overview, across the ~6k criteria.
 SEARCH_SLO_MS = {
-    ("genre-search", "ro"): 30,
-    ("genre-search", "jazz"): 30,
-    ("genre-search", "alte"): 30,
+    ("genre-search", "ro"): 40,
+    ("genre-search", "jazz"): 40,
+    ("genre-search", "alte"): 40,
     ("genre-search", "psychadelic rock"): 30,
-    ("genre-search", "music of the andes"): 45,
-    ("artist-search", "ni"): 30,
-    ("artist-search", "nirvana"): 30,
-    ("artist-search", "nirvanna"): 30,
+    ("genre-search", "music of the andes"): 50,
+    ("artist-search", "ni"): 20,
+    ("artist-search", "nirvana"): 20,
+    ("artist-search", "nirvanna"): 20,
 }
 
 
