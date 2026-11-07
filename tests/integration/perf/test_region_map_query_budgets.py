@@ -14,11 +14,11 @@ from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 
-@pytest.fixture
-def region_snapshot():
+@pytest.fixture(params=[2, 12], ids=["few-regions", "many-regions"])
+def region_snapshot(request):
     factory = ModelFixtureFactory(default_user=None)
     regions = []
-    for index in range(12):
+    for index in range(request.param):
         item_id = f"Q{index + 1}"
         factory.create_genre(f"Region genre {index}", wikidata_id=item_id)
         regions.append({"itemId": f"Q{index + 100}", "genres": [{"itemId": item_id}]})
@@ -27,6 +27,8 @@ def region_snapshot():
     compressed = gzip.compress(body, mtime=0)
     RegionMapFile.objects.create(sha256=checksum, body=compressed, size=len(compressed))
     RegionMapSnapshot.objects.create(checksum=checksum)
+    cache.clear()
+    yield request.param
     cache.clear()
 
 
@@ -54,7 +56,7 @@ def test_region_lexicon_exact_query_budget(region_snapshot, mode):
     client = AppApiClient()
     path = reverse("region-map-genres")
     initial = client.get(path)
-    assert len(initial.json()) == 12
+    assert len(initial.json()) == region_snapshot
     if mode == "cold":
         cache.clear()
     headers = {"HTTP_IF_NONE_MATCH": initial["ETag"]} if mode == "not-modified" else {}
