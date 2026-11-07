@@ -12,12 +12,17 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
+from grow.bulk_import.analyze import analyze
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.criteria.Criteria import Criteria
+from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.song.SongCurationManager import SongCurationManager
 from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
@@ -73,6 +78,18 @@ def _node_count(nodes: list[dict]) -> int:
     return sum(1 + _node_count(node.get(Fields.CHILDREN) or []) for node in nodes)
 
 
+# The tables a tree import rewrites. Analyzed in its transaction so the first requests after it (and the songs
+# import that follows it nightly) don't plan against the pre-import row counts.
+TREE_IMPORT_MODELS = (
+    Criteria,
+    Genre,
+    *(field.remote_field.through for field in Criteria._meta.many_to_many),
+    CriteriaLineageRel,
+    Playlist,
+    CriteriaPlaylist,
+)
+
+
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     throttle_scope = "genre-search"
 
@@ -119,6 +136,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
                 state.applied_export_on = _curation_exported_on(request, state)
             response = super().import_tree(request)
             Genre.objects.assert_required_roots_present(get_request_owner(request))
+            analyze(TREE_IMPORT_MODELS)
             if is_pipeline:
                 state.save(update_fields=["applied_export_on"])
                 ImportRun.objects.create(
