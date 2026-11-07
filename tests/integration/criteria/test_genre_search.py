@@ -44,6 +44,7 @@ class TestGenreSearch(AppTestCase):
             "name": "Punk rock",
             "tree_name": CriteriaTreeName.CANONICAL,
             "genre_playlist_uuid": str(punk.criteria_playlist.uuid),
+            "is_umbrella": False,
             "root": {"uuid": str(rock.uuid), "name": "Rock"},
             "views_count": 0,
         }
