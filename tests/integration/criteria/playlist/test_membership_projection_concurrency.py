@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from threading import Event
+from time import monotonic
 from uuid import uuid4
 
 import pytest
@@ -14,7 +16,10 @@ from grow.genre_music.membership import (
     verify_membership_counts,
 )
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.song.Song import Song
+from grow.track.direct_songs_count import recount_direct_songs_count_holding_writers
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 
@@ -85,3 +90,47 @@ def test_genre_move_serializes_with_membership_insert_and_repair():
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     exercise_race("insert")
     exercise_race("repair")
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db(transaction=True)
+def test_recount_does_not_invert_source_writer_relation_locks():
+    CriteriaType.objects.get_or_create(pk=0, defaults={"label": "genre"})
+    GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
+    factory = ModelFixtureFactory(default_user=None)
+    genre = factory.create_genre("Recount race")
+    factory.create_song("Song", genre=genre)
+    playlist = GenrePlaylist.objects.get(criteria=genre)
+    writer_pid = Queue()
+
+    def write():
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL lock_timeout = '5s'")
+                cursor.execute("SELECT pg_backend_pid()")
+                writer_pid.put(cursor.fetchone()[0])
+            CriteriaPlaylist.objects.filter(pk=playlist.pk).update(direct_songs_count=1)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute("SET LOCAL lock_timeout = '2s'")
+                cursor.execute("SELECT pg_advisory_xact_lock(716731928417)")
+            writer = pool.submit(in_connection, write)
+            pid = writer_pid.get(timeout=5)
+            deadline = monotonic() + 3
+            while True:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = %s "
+                        "AND locktype = 'advisory' AND NOT granted)",
+                        [pid],
+                    )
+                    if cursor.fetchone()[0]:
+                        break
+                if monotonic() >= deadline:
+                    raise TimeoutError("Writer did not reach the advisory gate")
+                Event().wait(0.01)
+            recount_direct_songs_count_holding_writers(Song, CriteriaPlaylist, connection)
+        writer.result(timeout=5)
+    assert CriteriaPlaylist.objects.get(pk=playlist.pk).direct_songs_count == 1

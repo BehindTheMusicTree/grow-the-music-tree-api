@@ -1,7 +1,9 @@
 from dataclasses import asdict
 from functools import lru_cache
 
+from django.db.models import Case, IntegerField, Value, When
 from rest_framework import serializers
+from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
 from grow.genre_music.artist import playlist_counts
@@ -9,6 +11,16 @@ from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
 from grow.genre_music.selection import all_genre_selections
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+
+
+def playlist_tracks_count_annotation():
+    # Genre summaries replace this field from exact membership buckets; avoid
+    # scanning their full relation sets for a value that is immediately discarded.
+    return Case(
+        When(criteria_playlist__type_id=int(CriteriaTypePks.GENRE), user__isnull=True, then=Value(0)),
+        default=tracks_count_annotation(),
+        output_field=IntegerField(),
+    )
 
 
 @lru_cache(maxsize=1)
