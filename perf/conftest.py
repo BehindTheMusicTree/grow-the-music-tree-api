@@ -22,6 +22,7 @@ from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.merge import WRITTEN_MODELS as SONG_MERGE_MODELS
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import TREE_IMPORT_MODELS
+from perf.region_fixture import seed_region_snapshot
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.curation_export import export_curation
 
@@ -118,6 +119,7 @@ def django_db_setup(django_db_setup, django_db_blocker):
         if not Genre.objects.exists():  # --reuse-db keeps the seed across runs
             _seed()
             _assert_imports_analyzed()
+        seed_region_snapshot()
         # Checked apart from the seed: a database reused from before song search existed still needs its first build.
         if not SongSearchState.load().ready:
             start = time.perf_counter()

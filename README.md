@@ -166,6 +166,12 @@ git worktree add --detach /tmp/grow-perf-base origin/develop
 PERF_PG_URL=postgres://postgres:postgres@127.0.0.1:55432 scripts/perf_ab.sh /tmp/grow-perf-base . /tmp/grow-perf-results
 ```
 
+The performance seed also installs the pinned 849-region staging snapshot documented in
+[`perf/fixtures/region_map_index.README.md`](perf/fixtures/region_map_index.README.md),
+including when reusing a database created before region benchmarks. Its checksum
+is verified before use; a different existing snapshot requires recreating the
+performance database. Region latency calibration is pending.
+
 The fixture is refreshed by hand, since an SLO needs fixed data (re-calibrate `SLO_MS` in the same PR):
 
 ```bash
