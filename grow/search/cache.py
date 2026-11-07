@@ -12,6 +12,7 @@ TTL_SECONDS = 3600
 class SearchCache(StrEnum):
     ARTISTS = "artist-search"
     SONGS = "song-search"
+    GENRES = "genre-search"
 
 
 def _version_key(namespace: SearchCache) -> str:
