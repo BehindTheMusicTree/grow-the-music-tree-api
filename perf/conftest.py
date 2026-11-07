@@ -142,7 +142,7 @@ def _slo_assert_enabled() -> bool:
 
 @pytest.fixture(scope="session")
 def perf_record():
-    def record(scenario: str, timings_ms: list[float], *, slo_ms: float, queries: int | None = None) -> None:
+    def record(scenario: str, timings_ms: list[float], *, slo_ms: float | None, queries: int | None = None) -> None:
         if scenario in _results:
             raise ValueError(f"perf scenario recorded twice: {scenario}")
         _results[scenario] = {"timings_ms": timings_ms, "slo_ms": slo_ms, "queries": queries}

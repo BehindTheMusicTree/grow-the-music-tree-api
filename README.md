@@ -170,7 +170,14 @@ The performance seed also installs the pinned 849-region staging snapshot docume
 [`perf/fixtures/region_map_index.README.md`](perf/fixtures/region_map_index.README.md),
 including when reusing a database created before region benchmarks. Its checksum
 is verified before use; a different existing snapshot requires recreating the
-performance database. Region latency calibration is pending.
+performance database. Nine region latency scenarios cover index identity/gzip and lexicon
+cold/warm/304 requests. They record `slo_ms: null`, displayed as `pending calibration`,
+until stable CI self-comparisons establish absolute ceilings. Relative slowdown, query-count
+and unstable-head gates still apply; an existing absolute ceiling cannot become null.
+The lexicon fixture resolves exactly 4,625 rows against the older pinned genre exports.
+Run five successful `workflow_dispatch` self-comparisons on this branch and calibrate
+from the slowest pooled side median, using the existing 3× rounding method above.
+This PR introduces measurements, not calibrated absolute guarantees.
 
 The fixture is refreshed by hand, since an SLO needs fixed data (re-calibrate `SLO_MS` in the same PR):
 
