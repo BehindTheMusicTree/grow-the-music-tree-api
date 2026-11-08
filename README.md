@@ -171,13 +171,24 @@ The performance seed also installs the pinned 849-region staging snapshot docume
 including when reusing a database created before region benchmarks. Its checksum
 is verified before use; a different existing snapshot requires recreating the
 performance database. Nine region latency scenarios cover index identity/gzip and lexicon
-cold/warm/304 requests. They record `slo_ms: null`, displayed as `pending calibration`,
-until stable CI self-comparisons establish absolute ceilings. Relative slowdown, query-count
-and unstable-head gates still apply; an existing absolute ceiling cannot become null.
-The lexicon fixture resolves exactly 4,625 rows against the older pinned genre exports.
-Run five successful `workflow_dispatch` self-comparisons on this branch and calibrate
-from the slowest pooled side median, using the existing 3× rounding method above.
-This PR introduces measurements, not calibrated absolute guarantees.
+cold/warm/304 requests. Their absolute ceilings are calibrated from five successful unchanged-head CI self-comparisons
+at `fa2d9e3`, using 3× the slowest pooled side median and the rounding method above.
+Existing ceilings and relative slowdown, query-count and stability gates remain unchanged.
+The pinned index resolves 4,625 lexicon rows against the pinned genre exports.
+
+Calibration runs: [1](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42410527794), [2](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42410796684), [3](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42411147145), [4](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42411513316), [5](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42411867398).
+
+| Scenario | Slowest pooled side p50 (ms) | Ceiling (ms) |
+| --- | ---: | ---: |
+| region-map-genres (identity, cold) | 91.494 | 280 |
+| region-map-genres (identity, not-modified) | 11.083 | 40 |
+| region-map-genres (identity, warm) | 11.979 | 40 |
+| region-map-index (gzip, cold) | 2.641 | 10 |
+| region-map-index (gzip, not-modified) | 0.902 | 10 |
+| region-map-index (gzip, warm) | 2.462 | 10 |
+| region-map-index (identity, cold) | 4.855 | 20 |
+| region-map-index (identity, not-modified) | 0.874 | 10 |
+| region-map-index (identity, warm) | 4.272 | 20 |
 
 The fixture is refreshed by hand, since an SLO needs fixed data (re-calibrate `SLO_MS` in the same PR):
 

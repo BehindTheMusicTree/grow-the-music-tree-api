@@ -17,6 +17,10 @@ def test_canonical_tree_payload_budget():
         assert response.status_code == status.HTTP_200_OK
         rows = response.json()
         assert len(rows) >= 1700
+        print(
+            f"canonical-tree payload: {len(rows)} nodes, {len(response.content)} bytes, "
+            f"{len(response.content) / len(rows):.1f} bytes/node"
+        )
         assert len(response.content) / len(rows) <= 1100
         for row in rows:
             if row["criteria"] is not None:
