@@ -192,7 +192,20 @@ def test_search_median_latency_within_slo(route, query, perf_record):
     assert_within_slo(p50, SEARCH_SLO_MS[(route, query)])
 
 
-# No absolute ceiling until stable CI self-comparisons; relative and stability gates still apply.
+# Five stable CI self-comparisons; 3x the slowest pooled side median, rounded up.
+REGION_SLO_MS = {
+    "region-map-genres (identity, cold)": 280,
+    "region-map-genres (identity, not-modified)": 40,
+    "region-map-genres (identity, warm)": 40,
+    "region-map-index (gzip, cold)": 10,
+    "region-map-index (gzip, not-modified)": 10,
+    "region-map-index (gzip, warm)": 10,
+    "region-map-index (identity, cold)": 20,
+    "region-map-index (identity, not-modified)": 10,
+    "region-map-index (identity, warm)": 20,
+}
+
+
 @pytest.mark.django_db
 @pytest.mark.parametrize(
     ("route", "encoding"),
@@ -203,7 +216,7 @@ def test_search_median_latency_within_slo(route, query, perf_record):
     ],
 )
 @pytest.mark.parametrize("mode", ["cold", "warm", "not-modified"])
-def test_region_map_latency_for_calibration(route, encoding, mode, perf_record):
+def test_region_map_median_latency_within_slo(route, encoding, mode, perf_record):
     client = AppApiClient()
     path = reverse(route)
     headers = {"HTTP_ACCEPT_ENCODING": encoding}
@@ -235,4 +248,5 @@ def test_region_map_latency_for_calibration(route, encoding, mode, perf_record):
         cache.clear()
     scenario = f"{route} ({encoding}, {mode})"
     print(f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(query_counts)}")
-    perf_record(scenario, timings, slo_ms=None, queries=max(query_counts))
+    perf_record(scenario, timings, slo_ms=REGION_SLO_MS[scenario], queries=max(query_counts))
+    assert_within_slo(statistics.median(timings), REGION_SLO_MS[scenario])

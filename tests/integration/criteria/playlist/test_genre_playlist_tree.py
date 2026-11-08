@@ -72,7 +72,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert "Rock" in [row["criteria"] and row["criteria"]["name"] for row in response.json()]
 
-    def test_tree_equals_unpaginated_list(self):
+    def test_tree_matches_list_except_tree_only_payload_omissions(self):
         metal = self.model_fixture_factory.create_genre("Metal", summary="Heavy", wikidata_id="Q38848")
         punk = Genre.objects.get(name="Punk")
         punk.secondary_parents.add(metal, self.rock)
@@ -87,9 +87,14 @@ class TestCase(AppTestCase):
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})
 
             assert tree.status_code == status.HTTP_200_OK
-            assert [{k: v for k, v in row.items() if k not in {"songsCount"}} for row in tree.json()] == listed.json()[
-                "results"
-            ]
+            expected = listed.json()["results"]
+            for row in expected:
+                if row["criteria"] is not None:
+                    row["criteria"].pop("summary")
+            assert [{k: v for k, v in row.items() if k != "songsCount"} for row in tree.json()] == expected
+            for row in tree.json():
+                if row["criteria"] is not None:
+                    assert "summary" not in row["criteria"]
 
     def test_tree_flags_unaccepted_roots(self):
         Genre.objects.filter(pk=self.rock.pk).update(is_unaccepted_root=True)

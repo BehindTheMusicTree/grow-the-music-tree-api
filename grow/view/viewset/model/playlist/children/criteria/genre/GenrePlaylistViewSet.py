@@ -69,7 +69,6 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
             "criteria__uuid",
             "criteria___name",
             "criteria__created_on",
-            "criteria__summary",
             "criteria__tree_name",
             "criteria__parent_id",
             "criteria__parent__uuid",
@@ -119,7 +118,6 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
                 "created_on": _datetime(r["criteria__created_on"]),
                 "side": r["criteria__genre__side"],
                 "wikidata_id": r["criteria__genre__wikidata_id"],
-                "summary": r["criteria__summary"],
                 "tree_name": r["criteria__tree_name"],
                 "primary_parents": ([criteria_parent] if criteria_parent else []) + additional.get(criteria_id, []),
                 "secondary_parents": secondary.get(criteria_id, []),
@@ -244,7 +242,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             return HttpResponse(body, content_type="application/json", headers={"Cache-Control": "no-store"})
 
         token = GenreTreeVersion.current_token()
-        version = f"scoped-v2-{tree_name}-{settings.GIT_COMMIT}-{token}"
+        version = f"scoped-v3-{tree_name}-{settings.GIT_COMMIT}-{token}"
         etag = f'"{version}"'
         headers = {"ETag": etag, "Cache-Control": "no-cache"}
         if etag in (e.removeprefix("W/") for e in parse_etags(request.headers.get("If-None-Match", ""))):

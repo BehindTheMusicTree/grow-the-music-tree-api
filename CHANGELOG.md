@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- Revalidate region genre lexicons before loading or serializing their payload, with validators tied to the snapshot and genre tree version.
+
+- Remove unused genre summaries from tree responses, retaining overview and paginated genre details. Version the tree cache and guard serialized bytes per node on the pinned canonical tree.
+
 - Calibrate absolute latency SLOs to 3× the slowest pooled CI median from five stable self-comparisons, instead of a laptop baseline. Artist genre counts now have a 30 ms ceiling instead of 150 ms; the same-runner A/B thresholds remain unchanged. Calibration links and rounding are documented in README.
 
 - The `Perf` A/B gate vacuums and analyzes each database before every measured round. Rolled-back reparenting grows physical tables despite restoring the data; stale row estimates then crossed PostgreSQL’s JIT threshold and added 49–66 ms of compilation per query in later rounds, falsely flagging unchanged code.
