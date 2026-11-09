@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `entity_additions` accepts `entity_kind` `admin_unit`: a curated item (a former region such as Alsace or Bourgogne) becomes a drawn administrative unit on the region map, replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated.
+
 - Curation: two new review item reasons, `invalid_rule` (the pipeline dropped a rule that contradicts Wikidata) and `exclusive_parent_regional` (a `canonical_parent` with `exclude_other_parents` whose item ends up regional: use `forced_canonical_genres`). Migration `0113`.
 
 - Curation: `grow/curation/rule_set.py` (`find_rule_set_violations`) checks the rule set as a whole: exclusivity, precedence cycles, pop child, scene split, umbrella leaf, plus two new invariants — an accepted canonical root can't also have a regional rule, and an edge can't place an item a pruning list excludes. Edge writes (manager, so `curation/edges/`) and entry writes reject a violation they would add; `import_curation_csvs` fails on any stored violation; `curation/export/` answers **409** with the offending rows rather than export an invalid set. Tested on each invariant, the write paths and the export.
