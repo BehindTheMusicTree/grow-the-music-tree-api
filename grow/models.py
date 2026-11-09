@@ -30,6 +30,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
@@ -58,6 +59,7 @@ __all__ = [
     "GenealogySnapshot",
     "Genre",
     "GenreEdgeRule",
+    "GenreCatalogueCount",
     "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeVersion",

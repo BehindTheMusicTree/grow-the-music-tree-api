@@ -23,6 +23,7 @@ from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.SongCurationManager import SongCurationManager
 from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
@@ -87,6 +88,7 @@ TREE_IMPORT_MODELS = (
     CriteriaLineageRel,
     Playlist,
     CriteriaPlaylist,
+    GenreCatalogueCount,
 )
 
 

@@ -46,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `scripts/rehearse-migration.sh` applies pending migrations to a disposable copy of the latest prod backup and reports duration, WAL, temp files, lock waits and an optional verification command, then removes the copy. See `docs/operations/migration-rehearsal.md`.
 
 - Curation: the five edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`) become one `GenreEdgeRule` table (`curation/edges/` endpoints, `genre_edges.csv` seed) with database constraints (one primary parent per item and axis, one rule per pair, roots only canonical, no self edge). Migration `0112` moves the data both ways and refuses conflicting rules. `curation/export/` adds `edges` (the five legacy lists it first kept alongside are removed in this release, see Removed); resolutions and review items designate a rule by `rule_id` or by the legacy `(list, key)`. Tested at the constraint, manager, endpoint, export-parity and migration levels.
+- Add a sparse database-maintained shadow projection of canonical song catalogue counts, including genreless and unplayable songs. Maintain both Song/Track halves across ORM and SQL writes, rollback and truncation; independently compare it and the legacy counters with `verify_genre_catalogue_counts`, with explicit atomic repair.
 
 - Measure nine region index/lexicon latency scenarios on pinned data, including gzip and conditional requests, with relative regression and stability gates while absolute ceilings await CI calibration.
 
@@ -88,6 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
 
 ### Fixed
+
+- Reload songs under the source-write gate before managed updates and deletions, preventing stale instances from corrupting playlist membership and legacy catalogue deltas. Genre deletion transfers the actual source count instead of propagating a corrupted legacy bucket. Cover stale concurrent moves/deletes and corrupted-count deletion.
 
 - Bound playlist-track hydration to the selected page and materialize genre selection once on PostgreSQL, restoring the four-query playback budget and the 150 ms median latency target on the pinned fixture.
 

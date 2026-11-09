@@ -249,8 +249,25 @@ change the global summary or its cache key.
 `--repair` explicitly rebuilds them atomically and invalidates the tree cache. PostgreSQL source writes and repair
 require the default READ COMMITTED isolation and share a transaction advisory lock; the existing tree-version row
 also serializes tracked writers. Long import transactions therefore block other source writers until commit.
-Reads remain unlocked. List/detail summaries add
-two bounded aggregate queries, and an uncached tree adds one; playback remains four queries. This tradeoff avoids
+Reads remain unlocked. List/detail summaries use one statement for catalogue, graph and selected membership
+inputs, and an uncached tree adds one query; playback remains four queries. This tradeoff avoids
 one membership scan per genre or folding child playlists whose actual members may differ. The latest catalogue
-projection is reused within a worker only while every graph/count input and requested playlist ID is identical;
+graph and catalogue inputs are reused within a worker when the statement observes the same tree version;
 actual playlist membership is always read again. Rolled-back writes cannot leave stale summary values.
+
+`uv run python manage.py verify_genre_catalogue_counts` compares canonical Song/Track joins with both the
+legacy `direct_songs_count` fields and the sparse shadow catalogue buckets. It includes unplayable and
+genreless songs, reports drift without changing data, and exits unsuccessfully on a mismatch. An absent
+shadow bucket means zero. Missing required genre playlists or the tree-version singleton are configuration
+errors rather than zero counts.
+
+Use `--repair` explicitly to rebuild both projections in one transaction, retaining the original mismatch
+report and independently checking the result before commit. Repair removes orphan shadow buckets but
+does not create or remove playlists. `--database <alias>` selects the database. On PostgreSQL, verification
+and repair require READ COMMITTED isolation and acquire the same source-write gate as membership repair;
+ordinary detail requests do not acquire that gate.
+
+Migration `0113` installs shadow maintenance on both halves of the Song/Track join and backfills while
+source writers are excluded. Relation locks precede the advisory gate. A busy source relation or gate makes
+the migration fail immediately and roll back; retry after the writer completes. This migration temporarily
+takes exclusive source-table locks; its operational window must be measured on representative data.
