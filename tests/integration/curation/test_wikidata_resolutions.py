@@ -173,6 +173,16 @@ class TestWikidataResolutions(AppTestCase):
         assert item["target"] is None
         assert "reportedOn" in item
 
+    def test_rule_review_reasons_then_stored(self):
+        for reason in ("invalid_rule", "exclusive_parent_regional"):
+            item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": reason}
+            assert self._report([], [item]).status_code == status.HTTP_200_OK
+            [stored] = self._review()
+            assert stored["reason"] == reason
+        item["evidence"] = {"detail": "parent is regional, expected canonical"}
+        assert self._report([], [item]).status_code == status.HTTP_200_OK
+        assert self._review()[0]["evidence"] == {"detail": "parent is regional, expected canonical"}
+
     def test_review_evidence_then_round_trips(self):
         evidence = {
             "label": "Foo rock",

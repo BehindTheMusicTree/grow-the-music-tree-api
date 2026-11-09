@@ -40,6 +40,7 @@ from grow.curation.lists import (
 )
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import InvalidRow, ParsedRow, RowConflict, check_edit, find_item_rules, lock_writes
+from grow.curation.rule_set import Violation, find_stored_violations
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
@@ -371,6 +372,10 @@ class CurationStatusView(CurationView):
         return Response({"applied_export_on": state.applied_export_on, "pending_count": state.pending_count})
 
 
+def _serialize_violation(violation: Violation) -> dict[str, Any]:
+    return {"kind": violation.kind, "message": violation.message, "item_ids": sorted(violation.items)}
+
+
 class CurationExportView(CurationView):
     """Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
@@ -382,6 +387,15 @@ class CurationExportView(CurationView):
     renderer_classes = [JSONRenderer]
 
     def get(self, request: Request) -> Response:
+        violations = find_stored_violations()
+        if violations:
+            return Response(
+                {
+                    "detail": "The stored rule set is invalid",
+                    "violations": [_serialize_violation(v) for v in violations],
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         exported_on = timezone.now()
         if request.auth.role == "pipeline":
             CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": exported_on})
@@ -437,6 +451,7 @@ class _EvidenceSerializer(_StrictSerializer):
     subclass_of = _ItemRefSerializer(many=True, required=False)
     has_indigenous_to = serializers.BooleanField(required=False)
     conflict_list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
+    detail = serializers.CharField(required=False, allow_blank=False, max_length=500)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         value = super().to_internal_value(data)
