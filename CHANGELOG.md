@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Curation: the five edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`) become one `GenreEdgeRule` table (`curation/edges/` endpoints, `genre_edges.csv` seed) with database constraints (one primary parent per item and axis, one rule per pair, roots only canonical, no self edge). Migration `0112` moves the data both ways and refuses conflicting rules. `curation/export/` keeps the five legacy lists, projected from the edges, and adds `edges`; resolutions and review items designate a rule by `rule_id` or by the legacy `(list, key)`. Tested at the constraint, manager, endpoint, export-parity and migration levels.
 
+- Benchmark genre and tag detail on pinned fixtures across repeated, alternating, cleared-cache and post-write requests, asserting successful responses before recording timings. Detail ceilings await stable CI self-comparisons.
+
 - Measure nine region index/lexicon latency scenarios on pinned data, including gzip and conditional requests, with relative regression and stability gates while absolute ceilings await CI calibration.
 
 - Guard region-map index and genre lexicon database query counts for cold, warm and conditional requests at two dataset sizes, including index encoding variants. Pin the 849-region staging index for repeatable performance seeding, with checksum validation and stale-database detection.
