@@ -451,6 +451,7 @@ class _EvidenceSerializer(_StrictSerializer):
     subclass_of = _ItemRefSerializer(many=True, required=False)
     has_indigenous_to = serializers.BooleanField(required=False)
     conflict_list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
+    detail = serializers.CharField(required=False, allow_blank=False, max_length=500)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         value = super().to_internal_value(data)
