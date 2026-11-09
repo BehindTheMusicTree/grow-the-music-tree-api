@@ -10,6 +10,7 @@ from rest_framework import status
 
 from grow.genre_music.selection import _selection_index
 from grow.genre_music.summary import _catalogue_projection
+from grow.genre_music.summary_inputs import clear_summary_inputs_cache
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
@@ -307,6 +308,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
             cache.clear()
             _selection_index.cache_clear()
             _catalogue_projection.cache_clear()
+            clear_summary_inputs_cache()
         elif mode == "alternating":
             assert client.get(alternate).status_code == status.HTTP_200_OK
         elif written_song is not None:

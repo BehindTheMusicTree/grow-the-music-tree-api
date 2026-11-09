@@ -15,3 +15,12 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["tracksCount"] == 0
         assert "trackPlaylistRelations" not in response.json()
+
+    def test_genre_detail_reflects_a_count_change_after_a_cached_read(self):
+        rock = self.model_fixture_factory.create_genre(name="rock")
+        path = reverse("genre-detail", kwargs={"pk": rock.uuid})
+        assert self.api_client.get(path).json()["tracksCount"] == 0
+
+        self.model_fixture_factory.create_song(title="Song", genre=rock)
+
+        assert self.api_client.get(path).json()["tracksCount"] == 1

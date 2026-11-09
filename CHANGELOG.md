@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
+
 - `entity_additions` accepts `entity_kind` `admin_unit`: a curated item (a former region such as Alsace or Bourgogne) becomes a drawn administrative unit on the region map, replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated.
 
 - Benchmark genre and tag detail on pinned fixtures across repeated, alternating, cleared-cache and post-write requests, asserting successful responses before recording timings. Detail ceilings await stable CI self-comparisons.
