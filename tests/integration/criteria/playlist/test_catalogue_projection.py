@@ -211,7 +211,7 @@ class TestCatalogueProjection(AppTestCase):
     def test_trigger_reversal_and_backfill(self):
         genre = self.model_fixture_factory.create_genre("Genre")
         song = self.model_fixture_factory.create_song("Song", genre=genre)
-        migration = import_module("grow.migrations.0114_maintain_genre_catalogue_counts")
+        migration = import_module("grow.migrations.0115_maintain_genre_catalogue_counts")
         editor = connection.schema_editor()
         migration.drop(apps, editor)
         Track.objects.filter(pk=song.pk).update(genre=None)

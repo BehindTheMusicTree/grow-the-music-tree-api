@@ -78,7 +78,7 @@ parent key, so any new writer of an import input must take the gate itself.
 
 ## Migration locks
 
-Migration 0114 takes source relation locks before attempting the advisory gate.
+Migration 0115 takes source relation locks before attempting the advisory gate.
 Both acquisitions fail immediately when busy, rolling the migration transaction
 back so it can be retried. This avoids waiting for an old writer that already
 holds a relation lock while waiting at its BEFORE trigger. New writers wait for
@@ -88,20 +88,20 @@ The backfill scans the Song/Track join under exclusive source-table locks, so
 reads and writes on those tables block until the migration commits.
 
 Measured on a restore of the 9 Nov 2026 production backup (32,075,219 songs,
-22 GB), migrating the shadow migrations separately (numbered 0112/0113 on that copy, renumbered 0113/0114 after rebasing onto the edge-rules migration 0112) in a scratch Postgres 16:
+22 GB), migrating the shadow migrations separately (numbered 0112/0113 on that copy, renumbered 0114/0115 after rebasing onto develop (migration 0113)) in a scratch Postgres 16:
 
 | Step | Duration | WAL |
 | --- | --- | --- |
-| 0113 | 6.8 s | 1.6 MB |
-| 0114, cold cache (first read after restore/clone) | 1,746 s | 8.6 MB |
-| 0114, warm cache (join scanned once beforehand) | 97 s | 0.5 MB |
+| 0114 | 6.8 s | 1.6 MB |
+| 0115, cold cache (first read after restore/clone) | 1,746 s | 8.6 MB |
+| 0115, warm cache (join scanned once beforehand) | 97 s | 0.5 MB |
 
 The join scan itself takes about 110 s warm; the cold figure is dominated by
 reading the tables from disk. WAL is negligible because the backfill writes one
 row per genre bucket. `verify_genre_catalogue_counts` reported zero mismatches
 for both projections after the migration (15 min 43 s on that copy, read only).
 
-Before deploying 0114 to an environment whose Postgres cache may be cold (after a
+Before deploying 0115 to an environment whose Postgres cache may be cold (after a
 restart or restore), warm the join first, for example by running the `COUNT(*)`
 of the Song/Track join once, so the exclusive window stays near 100 s instead of
 tens of minutes. The deploy runs `migrate`; if a writer holds a source lock the

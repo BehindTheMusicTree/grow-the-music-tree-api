@@ -267,7 +267,7 @@ does not create or remove playlists. `--database <alias>` selects the database. 
 and repair require READ COMMITTED isolation and acquire the same source-write gate as membership repair;
 ordinary detail requests do not acquire that gate.
 
-Migration `0114` installs shadow maintenance on both halves of the Song/Track join and backfills while
+Migration `0115` installs shadow maintenance on both halves of the Song/Track join and backfills while
 source writers are excluded. Relation locks precede the advisory gate. A busy source relation or gate makes
 the migration fail immediately and roll back; retry after the writer completes. This migration temporarily
 takes exclusive source-table locks; its operational window must be measured on representative data.

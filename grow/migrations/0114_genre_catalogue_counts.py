@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('grow', '0112_genre_edge_rules'),
+        ('grow', '0113_review_item_invalid_rule_reasons'),
     ]
 
     operations = [
