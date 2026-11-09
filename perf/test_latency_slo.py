@@ -8,8 +8,12 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 
+from grow.genre_music.selection import _selection_index
+from grow.genre_music.summary import _catalogue_projection
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.criteria.children.tag.Tag import Tag
+from grow.model.song.Song import Song
 from perf.conftest import assert_within_slo, largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
 
@@ -69,7 +73,8 @@ def test_median_latency_within_slo(scenario, perf_record):
     for _ in range(RUNS):
         start = time.perf_counter()
         with CaptureQueriesContext(connection) as queries:
-            client.get(path, params)
+            response = client.get(path, params)
+        assert response.status_code == status.HTTP_200_OK, response.content[:500]
         timings.append((time.perf_counter() - start) * 1000)
 
     p50 = statistics.median(timings)
@@ -250,3 +255,73 @@ def test_region_map_median_latency_within_slo(route, encoding, mode, perf_record
     print(f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(query_counts)}")
     perf_record(scenario, timings, slo_ms=REGION_SLO_MS[scenario], queries=max(query_counts))
     assert_within_slo(statistics.median(timings), REGION_SLO_MS[scenario])
+
+
+# Detail ceilings require stable CI self-comparisons; these scenarios still
+# participate in the same-runner relative regression gate.
+@pytest.mark.django_db
+@pytest.mark.parametrize("name", ["Latin", "World", "Rock", "leaf", "empty", "regional", "tag"])
+@pytest.mark.parametrize("mode", ["repeated", "alternating", "cold", "post-write"])
+def test_criteria_detail_latency(name, mode, perf_record):
+    if name == "tag":
+        criteria = Tag.objects.filter(user__isnull=True).order_by("_name").first()
+        if criteria is None:
+            criteria = Tag.objects.create(name="Detail benchmark", user=None)
+        route = "tag-detail"
+    else:
+        genres = Genre.objects.filter(user__isnull=True)
+        if name == "leaf":
+            criteria = genres.filter(children__isnull=True, criteria_playlist__direct_songs_count__gt=0).order_by(
+                "_name", "tree_name"
+            )[0]
+        elif name == "empty":
+            criteria = genres.filter(criteria_playlist__direct_songs_count=0).order_by("_name", "tree_name")[0]
+        elif name == "regional":
+            criteria = genres.filter(tree_name="regional").order_by("_name")[0]
+        else:
+            fixture_name, tree = {
+                "Latin": ("Music of Latin America", "regional"),
+                "World": ("World music", "regional"),
+                "Rock": ("Rock music", "canonical"),
+            }[name]
+            criteria = genres.get(_name=fixture_name, tree_name=tree)
+        route = "genre-detail"
+    path = reverse(route, kwargs={"pk": criteria.pk})
+    alternate_genre = (
+        Genre.objects.get(_name="World music", tree_name="regional")
+        if name == "Rock"
+        else Genre.objects.get(_name="Rock music", tree_name="canonical")
+    )
+    alternate = reverse("genre-detail", kwargs={"pk": alternate_genre.pk})
+    written_song = (
+        Song.objects.filter(user__isnull=True, musicbrainz_recording_id__isnull=False).order_by(
+            "musicbrainz_recording_id"
+        )[0]
+        if mode == "post-write"
+        else None
+    )
+    client = AppApiClient()
+    timings, queries_per_run = [], []
+    for run in range(WARMUPS + RUNS):
+        if mode == "cold":
+            cache.clear()
+            _selection_index.cache_clear()
+            _catalogue_projection.cache_clear()
+        elif mode == "alternating":
+            assert client.get(alternate).status_code == status.HTTP_200_OK
+        elif written_song is not None:
+            target = alternate_genre if written_song.genre_id != alternate_genre.pk else None
+            written_song = Song.objects.update_instance(written_song, genre=target)
+        start = time.perf_counter()
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(path)
+        elapsed = (time.perf_counter() - start) * 1000
+        assert response.status_code == status.HTTP_200_OK, response.content[:500]
+        if run >= WARMUPS:
+            timings.append(elapsed)
+            queries_per_run.append(len(queries))
+    scenario = f"criteria-detail {name} ({mode})"
+    print(
+        f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(queries_per_run)} bytes={len(response.content)}"
+    )
+    perf_record(scenario, timings, slo_ms=None, queries=max(queries_per_run))
