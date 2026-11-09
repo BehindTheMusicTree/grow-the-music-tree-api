@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [16.0.0] - 2026-11-09
+
 ### Removed
 
 - Curation: `curation/export/` no longer projects the five legacy edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`); the pipelines read the `edges` rows. Tested on the export's keys.
