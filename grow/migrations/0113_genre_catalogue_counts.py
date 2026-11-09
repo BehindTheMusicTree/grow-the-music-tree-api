@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('grow', '0111_cultural_roles'),
+        ('grow', '0112_genre_edge_rules'),
     ]
 
     operations = [

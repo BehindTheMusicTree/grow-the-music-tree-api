@@ -178,5 +178,5 @@ def drop(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("grow", "0112_genre_catalogue_counts")]
+    dependencies = [("grow", "0113_genre_catalogue_counts")]
     operations = [migrations.RunPython(create, drop)]

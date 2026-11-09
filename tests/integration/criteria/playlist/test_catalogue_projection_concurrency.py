@@ -361,7 +361,7 @@ def test_summary_inputs_use_one_query(catalogue, warm, django_assert_num_queries
 
 @pytest.fixture
 def uninstalled_catalogue_projection(catalogue):
-    migration = import_module("grow.migrations.0113_maintain_genre_catalogue_counts")
+    migration = import_module("grow.migrations.0114_maintain_genre_catalogue_counts")
     migration.drop(apps, connection.schema_editor())
     GenreCatalogueCount.objects.all().delete()
     try:
