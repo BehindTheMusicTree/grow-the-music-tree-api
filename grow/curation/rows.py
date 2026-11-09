@@ -272,8 +272,23 @@ def find_item_rules(queryset: models.QuerySet, item_id: str) -> models.QuerySet:
     return queryset.filter(query)
 
 
-def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
-    """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any."""
+def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str) -> str | None:
+    """Why `key` can't join a pruning list, if it can't: a curated edge still names it."""
+    if list_name not in EXCLUSIVE_LISTS:
+        return None
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import find_excluded_edge_conflicts
+
+    violations = find_excluded_edge_conflicts({key: list_name}, edge_rules())
+    return violations[0].message if violations else None
+
+
+def check_upsert(
+    entries: models.QuerySet, list_name: str, row: dict[str, Any], check_edges: bool = True
+) -> tuple[ParsedRow, Any]:
+    """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any.
+
+    Migrations pass `check_edges=False`: the edge table may not exist at their point in history."""
     parsed = parse_row(list_name, row)
     lock_writes(entries)
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key)
@@ -297,6 +312,9 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key) if check_edges else None
+    if excluded_edge_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: excluded_edge_error})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
 
 
@@ -323,13 +341,16 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key)
+    if excluded_edge_error:
+        raise RowConflict(excluded_edge_error)
     return parsed
 
 
 def upsert_without_history(model: type[models.Model], list_name: str, row: dict[str, Any]) -> UpsertResult:
     """`CurationEntryManager.upsert` for migrations, whose historical models have neither the manager nor history."""
     entries = model.objects.filter(user=None)
-    parsed, entry = check_upsert(entries, list_name, row)
+    parsed, entry = check_upsert(entries, list_name, row, check_edges=False)
     fields = {"values": parsed.values, "reason": parsed.reason}
     if entry is None:
         model.objects.create(user=None, list_name=list_name, key=parsed.key, **fields)
@@ -344,9 +365,10 @@ def import_csv_dir(
     directory: Path,
     upsert: Callable[[str, dict[str, Any]], UpsertResult],
     upsert_edge: Callable[[dict[str, Any]], UpsertResult],
+    find_violations: Callable[[], list[str]],
 ) -> Counter[UpsertResult]:
-    """Upserts each list from `<list_name>.csv` in `directory`, and the edges from `genre_edges.csv`. Returns the
-    count of each upsert result."""
+    """Upserts each list from `<list_name>.csv` in `directory`, and the edges from `genre_edges.csv`, then raises
+    on any rule-set violation `find_violations` reports. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
     sources: list[tuple[str, tuple[str, ...], Callable[[dict[str, Any]], UpsertResult]]] = [
         (list_name, curation_list.columns, lambda row, name=list_name: upsert(name, row))
@@ -364,4 +386,7 @@ def import_csv_dir(
                     results[upsert_row(row)] += 1
                 except InvalidRow as e:
                     raise ValueError(f"{path.name}:{line}: {e.errors}") from e
+    violations = find_violations()
+    if violations:
+        raise ValueError("Imported rule set is invalid: " + "; ".join(violations))
     return results

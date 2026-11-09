@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Curation: `grow/curation/rule_set.py` (`find_rule_set_violations`) checks the rule set as a whole: exclusivity, precedence cycles, pop child, scene split, umbrella leaf, plus two new invariants — an accepted canonical root can't also have a regional rule, and an edge can't place an item a pruning list excludes. Edge writes (manager, so `curation/edges/`) and entry writes reject a violation they would add; `import_curation_csvs` fails on any stored violation; `curation/export/` answers **409** with the offending rows rather than export an invalid set. Tested on each invariant, the write paths and the export.
+
 - `scripts/rehearse-migration.sh` applies pending migrations to a disposable copy of the latest prod backup and reports duration, WAL, temp files, lock waits and an optional verification command, then removes the copy. See `docs/operations/migration-rehearsal.md`.
 
 - Curation: the five edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`) become one `GenreEdgeRule` table (`curation/edges/` endpoints, `genre_edges.csv` seed) with database constraints (one primary parent per item and axis, one rule per pair, roots only canonical, no self edge). Migration `0112` moves the data both ways and refuses conflicting rules. `curation/export/` keeps the five legacy lists, projected from the edges, and adds `edges`; resolutions and review items designate a rule by `rule_id` or by the legacy `(list, key)`. Tested at the constraint, manager, endpoint, export-parity and migration levels.
