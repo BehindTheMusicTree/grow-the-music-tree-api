@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `entity_additions` accepts `entity_kind` `admin_unit`: a curated item (a former region such as Alsace or Bourgogne) becomes a drawn administrative unit on the region map, replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated.
+
 ## [16.0.0] - 2026-11-09
 
 ### CI
