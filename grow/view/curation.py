@@ -4,6 +4,7 @@ from datetime import UTC
 from typing import Any
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Count, Q, TextField
 from django.db.models.functions import Cast, Coalesce
@@ -20,14 +21,30 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
+from grow.curation.edges import (
+    edge_csv_row,
+    edge_rules,
+    find_edge_rules,
+    legacy_key,
+    legacy_list_name,
+    project_legacy_lists,
+)
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
-from grow.curation.lists import ADDITION_LISTS, CURATION_LISTS, ITEM_ID_COLUMNS, ITEM_ID_PATTERN, KEY_MAX_LENGTH
+from grow.curation.lists import (
+    ADDITION_LISTS,
+    CURATION_LISTS,
+    EDGE_PROJECTION_LISTS,
+    ITEM_ID_COLUMNS,
+    ITEM_ID_PATTERN,
+    KEY_MAX_LENGTH,
+)
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import InvalidRow, ParsedRow, RowConflict, check_edit, find_item_rules, lock_writes
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
@@ -178,25 +195,142 @@ class CurationEntryView(CurationView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class CurationRulesView(CurationView):
-    """Every canonical entry referencing an item, across lists."""
+def _item_id_field(**kwargs) -> serializers.RegexField:
+    return serializers.RegexField(rf"^(?:{ITEM_ID_PATTERN})$", **kwargs)
+
+
+class _StrictSerializer(serializers.Serializer):
+    def to_internal_value(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict) and (unknown := set(data) - set(self.fields)):
+            raise ValidationError(dict.fromkeys(sorted(unknown), "Unknown field"))
+        return super().to_internal_value(data)
+
+
+def _serialize_edge(rule: GenreEdgeRule) -> dict[str, Any]:
+    return {"uuid": rule.uuid, "row": rule.row, "created_on": rule.created_on, "updated_on": rule.updated_on}
+
+
+def _edge_labels(rules: list[GenreEdgeRule]) -> dict[str, str]:
+    return resolve_item_labels(item_ids(r.row for r in rules))
+
+
+def _edge_errors(e: DjangoValidationError | InvalidRow) -> dict[str, Any]:
+    if isinstance(e, InvalidRow):
+        return e.errors
+    if hasattr(e, "error_dict"):
+        return {("edge" if field == "__all__" else field): messages for field, messages in e.message_dict.items()}
+    return {"edge": e.messages}
+
+
+class _EdgeSerializer(_StrictSerializer):
+    relation = serializers.ChoiceField(choices=GenreEdgeRule.Relation.choices)
+    item_id = _item_id_field()
+    parent_item_id = _item_id_field(required=False, allow_null=True, default=None)
+    action = serializers.ChoiceField(
+        choices=GenreEdgeRule.Action.choices, required=False, allow_null=True, default=None
+    )
+    exclude_other_parents = serializers.BooleanField(required=False, allow_null=True, default=None)
+    reason = serializers.CharField(required=False, allow_blank=True, default="", trim_whitespace=False)
+
+
+class _EdgePatchSerializer(_StrictSerializer):
+    parent_item_id = _item_id_field(required=False, allow_null=True)
+    action = serializers.ChoiceField(choices=GenreEdgeRule.Action.choices, required=False, allow_null=True)
+    exclude_other_parents = serializers.BooleanField(required=False, allow_null=True)
+    reason = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+
+
+class CurationEdgesView(CurationView):
+    """The curated genre edges (canonical/regional parents, roots, regional overviews, secondary parents)."""
+
+    permission_classes = [IsCuratorOrAdmin]
 
     def get(self, request: Request) -> Response:
-        entries = list(find_item_rules(_entries(), _item_id(request)).order_by("list_name", "key"))
+        queryset = edge_rules()
+        if "item_id" in request.query_params:
+            queryset = find_edge_rules(_item_id(request))
+        relation = request.query_params.get("relation")
+        if relation:
+            if relation not in GenreEdgeRule.Relation.values:
+                raise ValidationError({"relation": f"Must be one of {', '.join(GenreEdgeRule.Relation.values)}"})
+            queryset = queryset.filter(relation=relation)
+        q = request.query_params.get("q", "").strip()
+        if q:
+            qids = _canonical_genres().filter(_name__icontains=q).exclude(wikidata_id=None).values("wikidata_id")
+            queryset = queryset.filter(
+                Q(item_id__icontains=q)
+                | Q(parent_item_id__icontains=q)
+                | Q(reason__icontains=q)
+                | Q(item_id__in=qids)
+                | Q(parent_item_id__in=qids)
+            )
+        paginator = AppPagination()
+        page = paginator.paginate_queryset(
+            queryset.order_by("item_id", "relation", "parent_item_id"), request, view=self
+        )
+        rules = list(page or [])
+        response = paginator.get_paginated_response([_serialize_edge(r) for r in rules])
+        response.data["labels"] = _edge_labels(rules)
+        return response
+
+    @transaction.atomic
+    def post(self, request: Request) -> Response:
+        serializer = _EdgeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            rule = GenreEdgeRule.objects.create(actor=request.user, user=None, **serializer.validated_data)
+        except (DjangoValidationError, InvalidRow) as e:
+            raise ValidationError(_edge_errors(e)) from e
+        return Response(_serialize_edge(rule), status=status.HTTP_201_CREATED)
+
+
+class CurationEdgeView(CurationView):
+    permission_classes = [IsCuratorOrAdmin]
+
+    def _get(self, uuid: str) -> GenreEdgeRule:
+        lock_writes(edge_rules())
+        return get_object_or_404(edge_rules(), uuid=uuid)
+
+    @transaction.atomic
+    def patch(self, request: Request, uuid: str) -> Response:
+        rule = self._get(uuid)
+        serializer = _EdgePatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            rule = GenreEdgeRule.objects.update_instance(rule, actor=request.user, **serializer.validated_data)
+        except (DjangoValidationError, InvalidRow) as e:
+            raise ValidationError(_edge_errors(e)) from e
+        return Response(_serialize_edge(rule))
+
+    @transaction.atomic
+    def delete(self, request: Request, uuid: str) -> Response:
+        GenreEdgeRule.objects.delete_instance(self._get(uuid), actor=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CurationRulesView(CurationView):
+    """Every canonical entry and edge referencing an item."""
+
+    def get(self, request: Request) -> Response:
+        item_id = _item_id(request)
+        entries = list(find_item_rules(_entries(), item_id).order_by("list_name", "key"))
+        edges = list(find_edge_rules(item_id).order_by("item_id", "relation", "parent_item_id"))
         return Response(
             {
                 "results": [{"list_name": e.list_name, **_serialize(e)} for e in entries],
-                "labels": _labels(entries),
+                "edges": [_serialize_edge(r) for r in edges],
+                "labels": {**_labels(entries), **_edge_labels(edges)},
             }
         )
 
 
 class CurationHistoryView(CurationView):
-    """Edits to canonical entries, newest first, optionally narrowed to a `list`, an `entry` uuid or an `item_id`."""
+    """Edits to canonical entries and edges, newest first, optionally narrowed to a `list`, an `entry` uuid or an `item_id`."""
 
     def get(self, request: Request) -> Response:
         params = request.query_params
-        queryset = HistoryEntry.objects.filter(user=None, content_type=ContentType.objects.get_for_model(CurationEntry))
+        content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
+        queryset = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if "list" in params:
             if params["list"] not in CURATION_LISTS:
                 raise ValidationError({"list": "Unknown curation list"})
@@ -231,7 +365,7 @@ class CurationStatusView(CurationView):
 
 
 class CurationExportView(CurationView):
-    """Every list as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+    """Every list, and the edges, as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
     `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
     knows which export the imported tree was built from.
@@ -247,21 +381,33 @@ class CurationExportView(CurationView):
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
+        export.update(project_legacy_lists())
+        export["edges"] = [
+            edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
+        ]
         export["exported_on"] = exported_on.isoformat()
         return Response(export)
 
 
-def _item_id_field(**kwargs) -> serializers.RegexField:
-    return serializers.RegexField(rf"^(?:{ITEM_ID_PATTERN})$", **kwargs)
-
-
 class _CurationItemSerializer(serializers.Serializer):
-    list = serializers.ChoiceField(choices=list(CURATION_LISTS))
-    key = serializers.CharField(max_length=KEY_MAX_LENGTH, trim_whitespace=False)
+    """An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or the legacy `list` + `key`)."""
+
+    rule_id = serializers.UUIDField(required=False)
+    list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
+    key = serializers.CharField(max_length=KEY_MAX_LENGTH, trim_whitespace=False, required=False)
     column = serializers.ChoiceField(choices=sorted(ITEM_ID_COLUMNS))
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
-        if attrs["column"] not in CURATION_LISTS[attrs["list"]].columns:
+        if "rule_id" in attrs:
+            if "list" in attrs or "key" in attrs:
+                raise ValidationError({"rule_id": "Can't be combined with list and key"})
+            if attrs["column"] not in ("item_id", "parent_item_id"):
+                raise ValidationError({"column": "Must be item_id or parent_item_id for a rule_id"})
+            return attrs
+        if "list" not in attrs or "key" not in attrs:
+            raise ValidationError({"rule_id": "Required unless list and key are given"})
+        columns = {**CURATION_LISTS, **EDGE_PROJECTION_LISTS}[attrs["list"]].columns
+        if attrs["column"] not in columns:
             raise ValidationError({"column": f"Not a column of {attrs['list']}"})
         return attrs
 
@@ -271,13 +417,6 @@ class _RemapSerializer(_CurationItemSerializer):
 
     def get_fields(self) -> dict[str, serializers.Field]:
         return {**super().get_fields(), "from": _item_id_field()}  # `from` is a Python keyword
-
-
-class _StrictSerializer(serializers.Serializer):
-    def to_internal_value(self, data: Any) -> dict[str, Any]:
-        if isinstance(data, dict) and (unknown := set(data) - set(self.fields)):
-            raise ValidationError(dict.fromkeys(sorted(unknown), "Unknown field"))
-        return super().to_internal_value(data)
 
 
 class _ItemRefSerializer(_StrictSerializer):
@@ -291,7 +430,7 @@ class _EvidenceSerializer(_StrictSerializer):
     instance_of = _ItemRefSerializer(many=True, required=False)
     subclass_of = _ItemRefSerializer(many=True, required=False)
     has_indigenous_to = serializers.BooleanField(required=False)
-    conflict_list = serializers.ChoiceField(choices=list(CURATION_LISTS), required=False)
+    conflict_list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
         value = super().to_internal_value(data)
@@ -388,12 +527,20 @@ class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
     def get(self, request: Request) -> Response:
-        items = CurationReviewItem.objects.order_by("list_name", "key", "column")
+        items = sorted(
+            CurationReviewItem.objects.select_related("rule"),
+            key=lambda i: (
+                i.list_name or legacy_list_name(i.rule),
+                i.key or legacy_key(i.rule),
+                i.column,
+            ),
+        )
         return Response(
             [
                 {
-                    "list": i.list_name,
-                    "key": i.key,
+                    "rule_id": i.rule.uuid if i.rule else None,
+                    "list": i.list_name or legacy_list_name(i.rule),
+                    "key": i.key or legacy_key(i.rule),
                     "column": i.column,
                     "item_id": i.item_id,
                     "reason": i.reason,
