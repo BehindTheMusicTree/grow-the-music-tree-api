@@ -62,7 +62,7 @@ def edge_csv_row(rule: GenreEdgeRule) -> dict[str, str]:
 
 
 def legacy_list_name(rule: GenreEdgeRule) -> str:
-    """The legacy list `project_legacy_lists` puts the rule in."""
+    """The legacy list the rule used to belong to."""
     if rule.relation == Relation.CANONICAL_PARENT:
         return "accepted_canonical_roots" if rule.parent_item_id is None else "canonical_parent"
     return {
