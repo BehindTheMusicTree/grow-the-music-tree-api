@@ -28,7 +28,6 @@ from grow.curation.edges import (
     find_edge_rules,
     legacy_key,
     legacy_list_name,
-    project_legacy_lists,
 )
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
 from grow.curation.lists import (
@@ -373,7 +372,7 @@ class CurationStatusView(CurationView):
 
 
 class CurationExportView(CurationView):
-    """Every list, and the edges, as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+    """Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
     `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
     knows which export the imported tree was built from.
@@ -389,7 +388,6 @@ class CurationExportView(CurationView):
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
-        export.update(project_legacy_lists())
         export["edges"] = [
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]

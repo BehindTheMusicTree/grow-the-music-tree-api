@@ -442,10 +442,14 @@ class TestCase(AppTestCase):
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
-        assert set(export) == {*CURATION_LISTS, *EDGE_PROJECTION_LISTS, "edges", "exported_on"}
-        row = next(r for r in export["canonical_parent"] if r["item_id"] == ITEM["item_id"])
-        assert list(row) == list(EDGE_PROJECTION_LISTS["canonical_parent"].columns)
-        assert row["exclude_other_parents"] == ""
+        assert set(export) == {*CURATION_LISTS, "edges", "exported_on"}
+        assert not {
+            "canonical_parent",
+            "accepted_canonical_roots",
+            "regional_genre_parent",
+            "regional_overviews",
+            "secondary_parents",
+        } & set(export)
         edge = next(e for e in export["edges"] if e["item_id"] == ITEM["item_id"])
         assert edge == {
             "relation": "canonical_parent",

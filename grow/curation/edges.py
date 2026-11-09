@@ -12,12 +12,6 @@ from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 
 Relation = GenreEdgeRule.Relation
 
-PARENT_COLUMN_BY_LIST = {
-    "canonical_parent": "parent_item_id",
-    "regional_genre_parent": "parent_item_id",
-    "regional_overviews": "overview_item_id",
-    "secondary_parents": "parent_id",
-}
 """Per projected legacy list, the column holding the edge's parent."""
 
 RELATION_BY_LIST = {
@@ -55,20 +49,6 @@ def find_edge_parent_rule(item_id: str) -> GenreEdgeRule | None:
     return find_edge_rules(item_id).exclude(relation=Relation.SECONDARY_PARENT).first()
 
 
-def _legacy_row(list_name: str, rule: GenreEdgeRule) -> dict[str, str]:
-    columns = EDGE_PROJECTION_LISTS[list_name].columns
-    parent_column = PARENT_COLUMN_BY_LIST.get(list_name)
-    fields: dict[str, Any] = {
-        "item_id": rule.item_id,
-        "reason": rule.reason,
-        "exclude_other_parents": "true" if rule.exclude_other_parents else "",
-        "action": rule.action,
-    }
-    if parent_column:
-        fields[parent_column] = rule.parent_item_id
-    return {c: fields[c] for c in columns}
-
-
 def edge_csv_row(rule: GenreEdgeRule) -> dict[str, str]:
     """The rule as a `genre_edges.csv` row: booleans as "true"/"", no value as ""."""
     return {
@@ -78,30 +58,6 @@ def edge_csv_row(rule: GenreEdgeRule) -> dict[str, str]:
         "action": rule.action or "",
         "exclude_other_parents": "true" if rule.exclude_other_parents else "",
         "reason": rule.reason,
-    }
-
-
-def _key(rule_list: str) -> Any:
-    if rule_list in {"accepted_canonical_roots", "canonical_parent", "regional_genre_parent"}:
-        return models.F("item_id")
-    return Concat("item_id", Value(KEY_SEPARATOR), "parent_item_id", output_field=models.CharField())
-
-
-def project_legacy_lists() -> dict[str, list[dict[str, str]]]:
-    """The five legacy curation lists, rebuilt from the edges in the stored lists' exact CSV rows and key order."""
-    rules = edge_rules()
-    selections: dict[str, models.QuerySet[GenreEdgeRule]] = {
-        "canonical_parent": rules.filter(relation=Relation.CANONICAL_PARENT, parent_item_id__isnull=False),
-        "accepted_canonical_roots": rules.filter(relation=Relation.CANONICAL_PARENT, parent_item_id__isnull=True),
-        "regional_genre_parent": rules.filter(relation=Relation.REGIONAL_GENRE_PARENT),
-        "regional_overviews": rules.filter(relation=Relation.REGIONAL_OVERVIEW),
-        "secondary_parents": rules.filter(relation=Relation.SECONDARY_PARENT),
-    }
-    return {
-        list_name: [
-            _legacy_row(list_name, rule) for rule in queryset.annotate(sort_key=_key(list_name)).order_by("sort_key")
-        ]
-        for list_name, queryset in selections.items()
     }
 
 
