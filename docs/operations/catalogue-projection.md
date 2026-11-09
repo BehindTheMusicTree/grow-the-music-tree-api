@@ -19,6 +19,17 @@ verification therefore does not establish legacy parity. Reader adoption must
 explicitly resolve this boundary; neither a silent fallback nor a repair before
 each comparison is evidence of compatibility.
 
+## Compatibility boundary
+
+Legacy parity is required for managed writes (manager-mediated create, genre
+change, delete, genre delete/alias) and for full and delta imports only.
+Child-only MTI deletes, canonical/private owner changes and raw SQL are
+characterized as legacy drift by dedicated tests; the shadow projection stays
+exact for them. A grep of this repo, the genre kit and the pipelines repo found
+no production caller of these paths: the pipelines only POST to the import
+endpoints and never write these tables. A new writer of any of these paths must
+either go through the managers or account for the legacy field itself.
+
 ## Writer audit
 
 | Mutation | Shadow owner | Legacy owner / limitation |
@@ -60,9 +71,10 @@ The song import takes the gate before reading its staging snapshot and holds it
 until its merge commits, so manager-mediated edits cannot invalidate the snapshot's
 membership and legacy deltas. This also makes those edits wait for the merge;
 representative wait times and import overhead still need measurement.
-Song-only updates to fields other than the parent key do not take this gate,
-so concurrent direct changes to import inputs such as the manual-edit flag
-still need an explicit compatibility and concurrency audit.
+The admin YouTube edit also takes the gate, after its YouTube lookup, because it
+can set the manual-edit flag the import reads without any other source write.
+The trigger gate does not cover Song-only updates to fields other than the
+parent key, so any new writer of an import input must take the gate itself.
 
 ## Migration locks
 

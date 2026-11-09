@@ -29,6 +29,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
+from grow.model.song.SongCurationManager import SongCurationManager
 from grow.track.bulk_import import merge as song_merge
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
@@ -168,7 +169,8 @@ def test_genre_delete_waits_for_song_assignment(catalogue, rollback_move):
     assert song.genre_id == (None if rollback_move else b.pk)
 
 
-def test_import_snapshot_excludes_concurrent_admin_edit(catalogue):
+@pytest.mark.parametrize("edit_kind", ["genre_move", "unchanged_video_lock"])
+def test_import_snapshot_excludes_concurrent_admin_edit(catalogue, edit_kind):
     _, _, b, c, song = catalogue
     mbid = uuid4()
     Song.objects.filter(pk=song.pk).update(musicbrainz_recording_id=mbid)
@@ -196,11 +198,15 @@ def test_import_snapshot_excludes_concurrent_admin_edit(catalogue):
 
     def edit():
         started.set()
-        Song.objects.update_instance(song, genre=c)
+        if edit_kind == "genre_move":
+            Song.objects.update_instance(song, genre=c)
+        else:
+            SongCurationManager().update_youtube(Song.objects.get(pk=song.pk), {}, actor=None)
         finished.set()
 
     with (
         patch.object(song_merge, "run_steps", side_effect=pause_after_snapshot),
+        patch("grow.model.song.SongCurationManager.upsert_admin_rule"),
         ThreadPoolExecutor(max_workers=2) as pool,
     ):
         importer = pool.submit(in_connection, lambda: song_merge._merge(run.pk, params, False))
@@ -216,7 +222,11 @@ def test_import_snapshot_excludes_concurrent_admin_edit(catalogue):
     assert all(report.valid for report in verify_catalogue_counts().values())
     assert stored_membership_bucket_counts() == membership_bucket_counts()
     song.refresh_from_db()
-    assert song.genre_id == c.pk
+    if edit_kind == "genre_move":
+        assert song.genre_id == c.pk
+    else:
+        assert song.genre_id == b.pk
+        assert song.is_manually_edited
 
 
 def test_savepoint_failure_preserves_outer_projection(catalogue):
