@@ -71,7 +71,7 @@ def entries_to_edge_rules(apps, schema_editor):
         relation, item_id, parent_item_id, action, exclude = _rule_fields(entry)
         if parent_item_id == item_id:
             raise RuntimeError(f"{entry.list_name} {entry.key!r}: an item can't be its own parent")
-        if relation != "secondary_parent":
+        if relation in ("canonical_parent", "regional_genre_parent"):
             owner = primaries.setdefault((item_id, relation), entry)
             if owner is not entry:
                 raise RuntimeError(

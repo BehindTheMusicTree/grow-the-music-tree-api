@@ -91,6 +91,17 @@ class TestCase(AppTestCase):
         with self.assertRaisesRegex(RuntimeError, "set the same canonical_parent"):
             migration_module.entries_to_edge_rules(self.apps, None)
 
+    def test_several_regional_overviews_then_all_migrate(self):
+        self._entry("regional_overviews", f"Q1{SEP}Q2", exclude_other_parents=False)
+        self._entry("regional_overviews", f"Q1{SEP}Q3", exclude_other_parents=False)
+
+        migration_module.entries_to_edge_rules(self.apps, None)
+
+        assert self._rules() == {
+            ("regional_overview", "Q1", "Q2", None, False),
+            ("regional_overview", "Q1", "Q3", None, False),
+        }
+
     def test_same_pair_twice_then_migration_refuses(self):
         self._entry("canonical_parent", "Q1", parent_item_id="Q2", exclude_other_parents=True)
         self._entry("secondary_parents", f"Q1{SEP}Q2", action="add")
