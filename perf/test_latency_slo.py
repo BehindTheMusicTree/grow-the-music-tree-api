@@ -10,24 +10,25 @@ from rest_framework import status
 
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
-from perf.conftest import largest_genre_playlist, mid_size_genre
+from perf.conftest import assert_within_slo, largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
 
 WARMUPS = 2
 RUNS = 10
 
-# Median ceilings in ms, ~2x the median measured on an Apple M-series laptop against postgres:16-alpine in Docker.
+# All ceilings below: 3x the slowest side's pooled p50 across five CI self-comparisons on 2026-11-07,
+# rounded up to 10 ms (100 ms above 1 s). Postgres 16, pinned Gold fixtures; calibration links in README.
 # Median, not p95: over back-to-back runs p95 is the single worst outlier (GC, noisy CI runners), not a tail.
 SLO_MS = {
-    "genre-playlist-list?page_size=30": 300,
-    "genre-playlist-list?page_size=100": 400,
-    "tag-playlist-list?page_size=100": 100,
-    "playlist-list?page_size=100": 100,
-    "genre-list?page_size=100": 200,
-    "genre-playlist-detail (largest genre)": 100,
-    "playlist-detail (largest genre)": 100,
-    "genre-playlist-tracks?page_size=100 (largest genre)": 150,
-    "artist-genre-counts (Canned Heat)": 150,
+    "genre-playlist-list?page_size=30": 360,
+    "genre-playlist-list?page_size=100": 470,
+    "tag-playlist-list?page_size=100": 50,
+    "playlist-list?page_size=100": 200,
+    "genre-list?page_size=100": 140,
+    "genre-playlist-detail (largest genre)": 140,
+    "playlist-detail (largest genre)": 120,
+    "genre-playlist-tracks?page_size=100 (largest genre)": 260,
+    "artist-genre-counts (Canned Heat)": 30,
 }
 
 
@@ -58,7 +59,7 @@ PATHS = {
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("scenario", SLO_MS)
-def test_median_latency_within_slo(scenario):
+def test_median_latency_within_slo(scenario, perf_record):
     path, params = PATHS[scenario]()
     client = AppApiClient()
     for _ in range(WARMUPS):
@@ -74,16 +75,17 @@ def test_median_latency_within_slo(scenario):
     p50 = statistics.median(timings)
     p95 = statistics.quantiles(timings, n=20)[-1]
     print(f"\n{scenario:<38} queries={len(queries.captured_queries):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
-    assert p50 <= SLO_MS[scenario]
+    perf_record(scenario, timings, slo_ms=SLO_MS[scenario], queries=len(queries.captured_queries))
+    assert_within_slo(p50, SLO_MS[scenario])
 
 
 # Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.
-TREE_SLO_MS = {"cold": 2400, "warm": 20, "not-modified": 20}
+TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("mode", TREE_SLO_MS)
-def test_genre_tree_median_latency_within_slo(mode):
+def test_genre_tree_median_latency_within_slo(mode, perf_record):
     client = AppApiClient()
     path, params = reverse("genre-playlist-tree"), {"tree_name": "canonical"}
     etag = client.get(path, params)["ETag"]
@@ -100,15 +102,16 @@ def test_genre_tree_median_latency_within_slo(mode):
 
     p50 = statistics.median(timings)
     print(f"\ngenre-playlist-tree ({mode})".ljust(39) + f"p50={p50:8.1f}ms")
-    assert p50 <= TREE_SLO_MS[mode]
+    perf_record(f"genre-playlist-tree ({mode})", timings, slo_ms=TREE_SLO_MS[mode])
+    assert_within_slo(p50, TREE_SLO_MS[mode])
 
 
 # Reparenting a ~250-track genre under the biggest playlist's genre timed out (gunicorn 30s) before the set-based track moves.
-REPARENT_SLO_MS = 2400
+REPARENT_SLO_MS = 1800
 
 
 @pytest.mark.django_db
-def test_genre_reparent_median_latency_within_slo():
+def test_genre_reparent_median_latency_within_slo(perf_record):
     client = AppApiClient()
     target = largest_genre_playlist().criteria
     moved = mid_size_genre(exclude=target)
@@ -126,17 +129,18 @@ def test_genre_reparent_median_latency_within_slo():
 
     p50 = statistics.median(timings)
     print(f"\ngenre reparent ({moved.name})".ljust(39) + f"p50={p50:8.1f}ms  max={max(timings):8.1f}ms")
-    assert p50 <= REPARENT_SLO_MS
+    perf_record("genre reparent", timings, slo_ms=REPARENT_SLO_MS)
+    assert_within_slo(p50, REPARENT_SLO_MS)
 
 
 # Cache cleared before each run: a cached query costs nothing, the SLO is on the projection lookup itself. Short and
 # common prefixes match the most rows, the worst case for the over-fetched token tier.
-SONG_SEARCH_SLO_MS = {"lo": 30, "love": 30, "the beat": 30, "nirvana smells": 30}
+SONG_SEARCH_SLO_MS = {"lo": 30, "love": 30, "the beat": 30, "nirvana smells": 20}
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("query", SONG_SEARCH_SLO_MS)
-def test_song_search_median_latency_within_slo(query):
+def test_song_search_median_latency_within_slo(query, perf_record):
     client = AppApiClient()
     path, params = reverse("song-search"), {"q": query}
 
@@ -150,26 +154,27 @@ def test_song_search_median_latency_within_slo(query):
 
     p50 = statistics.median(timings[WARMUPS:])
     print(f"\nsong-search?q={query}".ljust(39) + f"results={len(response.data):>3}  p50={p50:8.1f}ms")
-    assert p50 <= SONG_SEARCH_SLO_MS[query]
+    perf_record(f"song-search?q={query}", timings[WARMUPS:], slo_ms=SONG_SEARCH_SLO_MS[query])
+    assert_within_slo(p50, SONG_SEARCH_SLO_MS[query])
 
 
 # Same method as the song search: cache cleared before each run, so the SLO is on the lookup itself. Covers a
 # 2-character prefix, a word, an accent-folded form (Alté), a typo and a regional overview, across the ~6k criteria.
 SEARCH_SLO_MS = {
-    ("genre-search", "ro"): 30,
-    ("genre-search", "jazz"): 30,
-    ("genre-search", "alte"): 30,
+    ("genre-search", "ro"): 40,
+    ("genre-search", "jazz"): 40,
+    ("genre-search", "alte"): 40,
     ("genre-search", "psychadelic rock"): 30,
-    ("genre-search", "music of the andes"): 45,
-    ("artist-search", "ni"): 30,
-    ("artist-search", "nirvana"): 30,
-    ("artist-search", "nirvanna"): 30,
+    ("genre-search", "music of the andes"): 50,
+    ("artist-search", "ni"): 20,
+    ("artist-search", "nirvana"): 20,
+    ("artist-search", "nirvanna"): 20,
 }
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize(("route", "query"), SEARCH_SLO_MS)
-def test_search_median_latency_within_slo(route, query):
+def test_search_median_latency_within_slo(route, query, perf_record):
     client = AppApiClient()
     path, params = reverse(route), {"q": query}
 
@@ -183,4 +188,65 @@ def test_search_median_latency_within_slo(route, query):
 
     p50 = statistics.median(timings[WARMUPS:])
     print(f"\n{route}?q={query}".ljust(39) + f"results={len(response.data):>3}  p50={p50:8.1f}ms")
-    assert p50 <= SEARCH_SLO_MS[(route, query)]
+    perf_record(f"{route}?q={query}", timings[WARMUPS:], slo_ms=SEARCH_SLO_MS[(route, query)])
+    assert_within_slo(p50, SEARCH_SLO_MS[(route, query)])
+
+
+# Five stable CI self-comparisons; 3x the slowest pooled side median, rounded up.
+REGION_SLO_MS = {
+    "region-map-genres (identity, cold)": 280,
+    "region-map-genres (identity, not-modified)": 40,
+    "region-map-genres (identity, warm)": 40,
+    "region-map-index (gzip, cold)": 10,
+    "region-map-index (gzip, not-modified)": 10,
+    "region-map-index (gzip, warm)": 10,
+    "region-map-index (identity, cold)": 20,
+    "region-map-index (identity, not-modified)": 10,
+    "region-map-index (identity, warm)": 20,
+}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("route", "encoding"),
+    [
+        ("region-map-index", "identity"),
+        ("region-map-index", "gzip"),
+        ("region-map-genres", "identity"),
+    ],
+)
+@pytest.mark.parametrize("mode", ["cold", "warm", "not-modified"])
+def test_region_map_median_latency_within_slo(route, encoding, mode, perf_record):
+    client = AppApiClient()
+    path = reverse(route)
+    headers = {"HTTP_ACCEPT_ENCODING": encoding}
+    initial = client.get(path, **headers)
+    assert initial.status_code == status.HTTP_200_OK
+    if route == "region-map-genres":
+        # Coverage of the pinned index against the older pinned genre exports.
+        assert len(initial.json()) == 4625
+    if mode == "not-modified":
+        headers["HTTP_IF_NONE_MATCH"] = initial["ETag"]
+    expected_status = status.HTTP_304_NOT_MODIFIED if mode == "not-modified" else status.HTTP_200_OK
+    timings = []
+    query_counts = []
+    try:
+        for run in range(WARMUPS + RUNS):
+            if mode == "cold":
+                cache.clear()
+            start = time.perf_counter()
+            with CaptureQueriesContext(connection) as queries:
+                response = client.get(path, **headers)
+            elapsed = (time.perf_counter() - start) * 1000
+            assert response.status_code == expected_status
+            if route == "region-map-index" and expected_status == status.HTTP_200_OK:
+                assert response.get("Content-Encoding", "identity") == encoding
+            if run >= WARMUPS:
+                timings.append(elapsed)
+                query_counts.append(len(queries))
+    finally:
+        cache.clear()
+    scenario = f"{route} ({encoding}, {mode})"
+    print(f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(query_counts)}")
+    perf_record(scenario, timings, slo_ms=REGION_SLO_MS[scenario], queries=max(query_counts))
+    assert_within_slo(statistics.median(timings), REGION_SLO_MS[scenario])

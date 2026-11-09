@@ -3,7 +3,9 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from grow.curation.edges import upsert_edge_row
 from grow.curation.rows import import_csv_dir
+from grow.curation.rule_set import find_stored_violations
 from grow.model.curation.CurationEntry import CurationEntry
 
 
@@ -16,7 +18,12 @@ class Command(BaseCommand):
     def handle(self, *args, directory: Path, **options) -> None:
         try:
             with transaction.atomic():
-                results = import_csv_dir(directory, CurationEntry.objects.upsert)
+                results = import_csv_dir(
+                    directory,
+                    CurationEntry.objects.upsert,
+                    upsert_edge_row,
+                    lambda: [v.message for v in find_stored_violations()],
+                )
         except (OSError, ValueError) as e:
             raise CommandError(str(e)) from e
         self.stdout.write(

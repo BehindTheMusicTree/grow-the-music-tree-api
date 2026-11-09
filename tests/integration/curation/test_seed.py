@@ -13,6 +13,7 @@ from django.urls import reverse
 from grow.curation.lists import CURATION_LISTS
 from grow.curation.rows import SEED_DIR
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.utils.AppTestCase import AppTestCase
@@ -42,13 +43,13 @@ class TestCase(AppTestCase):
             assert actual == expected, list_name
 
     def test_import_command_then_idempotent_upsert(self):
-        total = CurationEntry.objects.count()
+        total = CurationEntry.objects.count() + GenreEdgeRule.objects.count()
         out = StringIO()
 
         call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
 
         assert out.getvalue().strip() == f"0 created, 0 updated, {total} unchanged"
-        assert CurationEntry.objects.count() == total
+        assert CurationEntry.objects.count() + GenreEdgeRule.objects.count() == total
 
     def test_import_command_changed_row_then_updated_with_history(self):
         entry = CurationEntry.objects.filter(list_name="theme_genres").first()

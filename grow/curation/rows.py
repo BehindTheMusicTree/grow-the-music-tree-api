@@ -22,7 +22,6 @@ from grow.curation.lists import (
     ITEM_PAIR_LISTS,
     KEY_MAX_LENGTH,
     OPTIONAL_COLUMNS,
-    PARENT_RULE_COLUMNS,
     QID_ENTITY_LISTS,
     TRADITION_ID_COLUMNS,
 )
@@ -30,11 +29,9 @@ from grow.curation.lists import (
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_stylistic_genres"
-CANONICAL_PARENT_LIST = "canonical_parent"
-ACCEPTED_CANONICAL_ROOTS_LIST = "accepted_canonical_roots"
-REGIONAL_GENRE_PARENT_LIST = "regional_genre_parent"
-REGIONAL_OVERVIEWS_LIST = "regional_overviews"
 SCENE_LIST = "canonical_genre_scene"
+EDGES_FILE = "genre_edges"
+EDGE_COLUMNS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
@@ -117,7 +114,7 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if (
         not errors
-        and list_name == "place_relation_overrides"
+        and list_name in {"place_relation_overrides", "cultural_membership_overrides"}
         and parsed["child_entity_id"] == parsed["parent_entity_id"]
     ):
         errors["parent_entity_id"] = "Must differ from child_entity_id"
@@ -206,23 +203,12 @@ def find_other_pop_child_error(
     return f"{root} already has the pop child {other_key.split(KEY_SEPARATOR, 1)[1]}; a root has at most one"
 
 
-def find_scene_split_error(
-    queryset: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None
-) -> str | None:
-    """Why `parsed` would break a scene split, if it would.
+def scene_split_error(scenes: dict[str, str], parents: dict[str, str], item_id: str) -> str | None:
+    """Why `item_id`'s placement under `parents[item_id]` would break a scene split, if it would.
 
     A genre with a scene child is a split: its children are exactly one commercial and one underground scene node.
     Only curated placements are visible here; the pipeline's Gold stage checks the built tree."""
-    if list_name not in (CANONICAL_PARENT_LIST, SCENE_LIST):
-        return None
-    others = queryset.exclude(pk=exclude_pk)
-    scenes = dict(others.filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
-    parents = dict(others.filter(list_name=CANONICAL_PARENT_LIST).values_list("key", "values__parent_item_id"))
-    if list_name == SCENE_LIST:
-        scenes[parsed.key] = parsed.values["scene"]
-    else:
-        parents[parsed.key] = parsed.values["parent_item_id"]
-    parent = parents.get(parsed.key)
+    parent = parents.get(item_id)
     if parent is None:
         return None
     children = [key for key, key_parent in parents.items() if key_parent == parent]
@@ -239,6 +225,20 @@ def find_scene_split_error(
     if duplicate is not None:
         return f"{parent} already has a {duplicate} scene child; a split has exactly one of each"
     return None
+
+
+def find_scene_split_error(
+    queryset: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None
+) -> str | None:
+    """Why a scene row `parsed` would break a scene split, if it would. A canonical parent edge is checked by
+    `grow.curation.edges.find_edge_scene_split_error`."""
+    if list_name != SCENE_LIST:
+        return None
+    from grow.curation.edges import canonical_parents
+
+    scenes = dict(queryset.exclude(pk=exclude_pk).filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
+    scenes[parsed.key] = parsed.values["scene"]
+    return scene_split_error(scenes, canonical_parents(), parsed.key)
 
 
 def find_umbrella_leaf_error(list_name: str, key: str) -> str | None:
@@ -272,13 +272,23 @@ def find_item_rules(queryset: models.QuerySet, item_id: str) -> models.QuerySet:
     return queryset.filter(query)
 
 
-def find_parent_rule(queryset: models.QuerySet, item_id: str) -> Any:
-    """A `PARENT_RULE_COLUMNS` entry moving `item_id`, or moving another item under it, if any."""
-    return find_item_rules(queryset.filter(list_name__in=PARENT_RULE_COLUMNS), item_id).first()
+def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str) -> str | None:
+    """Why `key` can't join a pruning list, if it can't: a curated edge still names it."""
+    if list_name not in EXCLUSIVE_LISTS:
+        return None
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import find_excluded_edge_conflicts
+
+    violations = find_excluded_edge_conflicts({key: list_name}, edge_rules())
+    return violations[0].message if violations else None
 
 
-def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) -> tuple[ParsedRow, Any]:
-    """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any."""
+def check_upsert(
+    entries: models.QuerySet, list_name: str, row: dict[str, Any], check_edges: bool = True
+) -> tuple[ParsedRow, Any]:
+    """Validates `row` for an upsert into `entries`: the parsed row, and the entry with its key to update, if any.
+
+    Migrations pass `check_edges=False`: the edge table may not exist at their point in history."""
     parsed = parse_row(list_name, row)
     lock_writes(entries)
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key)
@@ -296,12 +306,15 @@ def check_upsert(entries: models.QuerySet, list_name: str, row: dict[str, Any]) 
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key)
     if pop_child_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[-1]: pop_child_error})
-    scene_split_error = find_scene_split_error(entries, list_name, parsed)
-    if scene_split_error:
-        raise InvalidRow({CURATION_LISTS[list_name].key[0]: scene_split_error})
+    split_error = find_scene_split_error(entries, list_name, parsed)
+    if split_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: split_error})
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key) if check_edges else None
+    if excluded_edge_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: excluded_edge_error})
     return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
 
 
@@ -322,19 +335,22 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     pop_child_error = find_other_pop_child_error(entries, list_name, parsed.key, exclude_pk)
     if pop_child_error:
         raise RowConflict(pop_child_error)
-    scene_split_error = find_scene_split_error(entries, list_name, parsed, exclude_pk)
-    if scene_split_error:
-        raise RowConflict(scene_split_error)
+    split_error = find_scene_split_error(entries, list_name, parsed, exclude_pk)
+    if split_error:
+        raise RowConflict(split_error)
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key)
+    if excluded_edge_error:
+        raise RowConflict(excluded_edge_error)
     return parsed
 
 
 def upsert_without_history(model: type[models.Model], list_name: str, row: dict[str, Any]) -> UpsertResult:
     """`CurationEntryManager.upsert` for migrations, whose historical models have neither the manager nor history."""
     entries = model.objects.filter(user=None)
-    parsed, entry = check_upsert(entries, list_name, row)
+    parsed, entry = check_upsert(entries, list_name, row, check_edges=False)
     fields = {"values": parsed.values, "reason": parsed.reason}
     if entry is None:
         model.objects.create(user=None, list_name=list_name, key=parsed.key, **fields)
@@ -345,18 +361,32 @@ def upsert_without_history(model: type[models.Model], list_name: str, row: dict[
     return "updated"
 
 
-def import_csv_dir(directory: Path, upsert: Callable[[str, dict[str, Any]], UpsertResult]) -> Counter[UpsertResult]:
-    """Upserts each list from `<list_name>.csv` in `directory`. Returns the count of each upsert result."""
+def import_csv_dir(
+    directory: Path,
+    upsert: Callable[[str, dict[str, Any]], UpsertResult],
+    upsert_edge: Callable[[dict[str, Any]], UpsertResult],
+    find_violations: Callable[[], list[str]],
+) -> Counter[UpsertResult]:
+    """Upserts each list from `<list_name>.csv` in `directory`, and the edges from `genre_edges.csv`, then raises
+    on any rule-set violation `find_violations` reports. Returns the count of each upsert result."""
     results: Counter[UpsertResult] = Counter()
-    for list_name, curation_list in CURATION_LISTS.items():
-        path = directory / f"{list_name}.csv"
+    sources: list[tuple[str, tuple[str, ...], Callable[[dict[str, Any]], UpsertResult]]] = [
+        (list_name, curation_list.columns, lambda row, name=list_name: upsert(name, row))
+        for list_name, curation_list in CURATION_LISTS.items()
+    ]
+    sources.append((EDGES_FILE, EDGE_COLUMNS, upsert_edge))
+    for name, columns, upsert_row in sources:
+        path = directory / f"{name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            if tuple(reader.fieldnames or ()) != curation_list.columns:
-                raise ValueError(f"{path.name}: header {reader.fieldnames} != {list(curation_list.columns)}")
+            if tuple(reader.fieldnames or ()) != columns:
+                raise ValueError(f"{path.name}: header {reader.fieldnames} != {list(columns)}")
             for line, row in enumerate(reader, start=2):
                 try:
-                    results[upsert(list_name, row)] += 1
+                    results[upsert_row(row)] += 1
                 except InvalidRow as e:
                     raise ValueError(f"{path.name}:{line}: {e.errors}") from e
+    violations = find_violations()
+    if violations:
+        raise ValueError("Imported rule set is invalid: " + "; ".join(violations))
     return results

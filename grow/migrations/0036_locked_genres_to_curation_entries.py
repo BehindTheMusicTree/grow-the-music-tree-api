@@ -1,7 +1,6 @@
 from django.db import migrations
 
-from grow.curation.lists import EXCLUSIVE_LISTS
-from grow.curation.rows import find_parent_rule, upsert_without_history
+from ._frozen_0036 import EXCLUSIVE_LISTS, find_parent_rule, upsert_without_history
 
 REASON = "migrated grow admin lock"
 

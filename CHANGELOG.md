@@ -12,6 +12,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [16.0.0] - 2026-11-09
+
+### CI
+
+- The `Perf` job (now `.github/workflows/perf.yml`) compares each PR with its base on the same runner: `scripts/perf_ab.sh` runs `perf/` on base and head in turn, each on its own seeded database, and `perf/compare.py` fails a scenario more than 1.3x and 5 ms slower than the base, or running more queries, after two more rounds of confirmation. The absolute SLOs are judged on the median pooled over all runs, so one noisy run no longer fails the job. The comparison table is in the job summary. The `perf-regression-accepted` label accepts a deliberate slowdown, never an SLO breach. Query budgets are now exact, so a gain must lower them. Made so #415's 13 ms → 137 ms `artist-genre-counts` regression (under its 150 ms SLO, and the job was not required) can't merge unnoticed again. Tests in `tests/unit/perf/test_compare.py`.
+- `perf/compare.py` keeps each round's p50 and fails a side whose round p50s differ by more than `RATIO` and `FLOOR_MS` (`unstable base` / `unstable head`), instead of judging a pooled median that no request took. The summary shows each round's p50. Tested.
+
+### Removed
+
+- Curation: `curation/export/` no longer projects the five legacy edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`); the pipelines read the `edges` rows. Tested on the export's keys.
+
+### Added
+
+- Validate regions without a boundary using `boundaryStatus: missing` and null coordinates, preserving their genres and compatibility with existing indexes.
+
+- Curation: two new review item reasons, `invalid_rule` (the pipeline dropped a rule that contradicts Wikidata) and `exclusive_parent_regional` (a `canonical_parent` with `exclude_other_parents` whose item ends up regional: use `forced_canonical_genres`). Migration `0113`.
+
+- Curation: `grow/curation/rule_set.py` (`find_rule_set_violations`) checks the rule set as a whole: exclusivity, precedence cycles, pop child, scene split, umbrella leaf, plus two new invariants — an accepted canonical root can't also have a regional rule, and an edge can't place an item a pruning list excludes. Edge writes (manager, so `curation/edges/`) and entry writes reject a violation they would add; `import_curation_csvs` fails on any stored violation; `curation/export/` answers **409** with the offending rows rather than export an invalid set. Tested on each invariant, the write paths and the export.
+
+- `scripts/rehearse-migration.sh` applies pending migrations to a disposable copy of the latest prod backup and reports duration, WAL, temp files, lock waits and an optional verification command, then removes the copy. See `docs/operations/migration-rehearsal.md`.
+
+- Curation: the five edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`) become one `GenreEdgeRule` table (`curation/edges/` endpoints, `genre_edges.csv` seed) with database constraints (one primary parent per item and axis, one rule per pair, roots only canonical, no self edge). Migration `0112` moves the data both ways and refuses conflicting rules. `curation/export/` adds `edges` (the five legacy lists it first kept alongside are removed in this release, see Removed); resolutions and review items designate a rule by `rule_id` or by the legacy `(list, key)`. Tested at the constraint, manager, endpoint, export-parity and migration levels.
+
+- Measure nine region index/lexicon latency scenarios on pinned data, including gzip and conditional requests, with relative regression and stability gates while absolute ceilings await CI calibration.
+
+- Guard region-map index and genre lexicon database query counts for cold, warm and conditional requests at two dataset sizes, including index encoding variants. Pin the 849-region staging index for repeatable performance seeding, with checksum validation and stale-database detection.
+
+- Curation : nouvelles listes de qualification culturelle et d’appartenance culturelle ; appartenance administrative automatique et transitivité gérées par le pipeline.
+
+### Improved
+
+- Revalidate region genre lexicons before loading or serializing their payload, with validators tied to the snapshot and genre tree version.
+
+- Remove unused genre summaries from tree responses, retaining overview and paginated genre details. Version the tree cache and guard serialized bytes per node on the pinned canonical tree.
+
+- Calibrate absolute latency SLOs to 3× the slowest pooled CI median from five stable self-comparisons, instead of a laptop baseline. Artist genre counts now have a 30 ms ceiling instead of 150 ms; the same-runner A/B thresholds remain unchanged. Calibration links and rounding are documented in README.
+
+- The `Perf` A/B gate vacuums and analyzes each database before every measured round. Rolled-back reparenting grows physical tables despite restoring the data; stale row estimates then crossed PostgreSQL’s JIT threshold and added 49–66 ms of compilation per query in later rounds, falsely flagging unchanged code.
+
+- The `Perf` A/B gate vacuums each seeded database (`VACUUM (FREEZE, ANALYZE)`) before the interleaved rounds. Calibration runs of develop against itself failed 2 times out of 4: the first measured round, which also seeded the database, ran 20-60% slower than the following ones on every search scenario (head round 1 at 16 ms against 11 ms on `genre-search?q=music of the andes`), and a whole `genre-playlist-tracks` round ran at 140 ms against 61 ms.
+- The song and artist import merges and the genre tree import now `ANALYZE` every table they write before committing, so the planner sees the new row counts at once instead of after autoanalyze. On the perf dataset, `genre-playlist-tracks` took 1170 ms right after an import and 178 ms once analyzed. The perf seed fails when an imported table has no statistics, and a unit test checks each merge's analyzed tables against the tables its SQL writes.
+
+- `GET /v1/artists/<id>/genre-counts/` no longer reloads and walks the whole genre graph per request: the primary genre graph is cached per process and keyed by the genre tree version token, and only the artist's genres and their primary ancestors are projected (about 2.5x faster on the prod Gold dataset, back under its 150 ms perf SLO). The genre tree's artist filter and song genre filtering reuse the same cached graph. Tested, including reload after a tree write.
+
 ## [15.2.0] - 2026-11-07
 
 ### CI

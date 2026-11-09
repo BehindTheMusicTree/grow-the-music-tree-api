@@ -1,7 +1,9 @@
 from collections import defaultdict, deque
 from collections.abc import Hashable, Iterable, Mapping
+from dataclasses import dataclass
 from enum import StrEnum
 from functools import cache, lru_cache
+from types import MappingProxyType
 
 
 class SubgenreScope(StrEnum):
@@ -60,22 +62,74 @@ def selected_genres[K: Hashable](
     return canonical | regional
 
 
-def genre_graph():
-    from grow.model.criteria.children.genre.Genre import Genre
+@dataclass(frozen=True)
+class GenreTreeSnapshot:
+    """Canonical primary genre graph; shared across requests, so never mutate it."""
 
+    tree_names: Mapping
+    primary_edges: frozenset
+    parents: Mapping
+    playlists: Mapping
+
+
+_snapshot: tuple[object, GenreTreeSnapshot] | None = None
+
+
+def genre_tree_snapshot() -> GenreTreeSnapshot:
+    """The primary genre graph, reloaded only when the genre tree version token changes.
+
+    The token is read before the graph: a write committing in between only stores a newer graph under
+    the stale key, never an older graph under the new one. A token read inside a writing transaction is
+    a fresh random uuid that no other transaction sees and that a rollback discards with its writes.
+    """
+    global _snapshot
+    from grow.model.criteria.children.genre.Genre import Genre
+    from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
+
+    token = GenreTreeVersion.current_token()
+    cached = _snapshot
+    if cached is not None and cached[0] == token:
+        return cached[1]
     rows = list(
         Genre.objects.filter(user__isnull=True).values_list(
-            "pk", "tree_name", "parent_id", "additional_primary_parents__pk"
+            "pk", "tree_name", "parent_id", "additional_primary_parents__pk", "criteria_playlist__uuid"
         )
     )
-    trees = {pk: tree for pk, tree, _, _ in rows}
-    edges = {
+    trees = {pk: tree for pk, tree, _, _, _ in rows}
+    edges = frozenset(
         (parent, pk)
-        for pk, _, direct_parent, extra_parent in rows
+        for pk, _, direct_parent, extra_parent, _ in rows
         for parent in (direct_parent, extra_parent)
         if parent is not None and parent in trees
-    }
-    return trees, edges
+    )
+    parents: dict = defaultdict(set)
+    for parent, child in edges:
+        parents[child].add(parent)
+    snapshot = GenreTreeSnapshot(
+        MappingProxyType(trees),
+        edges,
+        MappingProxyType({child: frozenset(nodes) for child, nodes in parents.items()}),
+        MappingProxyType({pk: playlist for pk, _, _, _, playlist in rows if playlist is not None}),
+    )
+    _snapshot = token, snapshot
+    return snapshot
+
+
+def genre_graph():
+    snapshot = genre_tree_snapshot()
+    return snapshot.tree_names, snapshot.primary_edges
+
+
+def primary_ancestors(snapshot: GenreTreeSnapshot, genres: Iterable) -> set:
+    """The genres and every genre above them through primary parents."""
+    result = set(genres)
+    pending = list(result)
+    while pending:
+        for parent in snapshot.parents.get(pending.pop(), ()):
+            if parent not in result:
+                result.add(parent)
+                pending.append(parent)
+    return result
 
 
 def parse_subgenres(value, coverage, tree_name):
@@ -150,6 +204,9 @@ def _selection_index[K: Hashable](tree_items: tuple[tuple[K, str], ...], primary
     return indices, reachable, canonical, regional_mask, members
 
 
+_last_index: tuple | None = None
+
+
 def all_genre_selections[K: Hashable](
     tree_names: Mapping[K, str], primary_edges: Iterable[tuple[K, K]], *, genres: Iterable[K] | None = None
 ) -> dict[K, dict[SubgenreScope, frozenset[K]]]:
@@ -158,9 +215,16 @@ def all_genre_selections[K: Hashable](
     Integer bitsets keep shared descendant unions cheap on the full production graph;
     the latest graph index is reused across catalogue and membership projections.
     """
-    indices, reachable, canonical, regional_mask, members = _selection_index(
-        tuple(tree_names.items()), frozenset(primary_edges)
-    )
+    global _last_index
+    last = _last_index
+    if last is not None and last[0] is tree_names and last[1] is primary_edges:
+        index_data = last[2]
+    else:
+        index_data = _selection_index(tuple(tree_names.items()), frozenset(primary_edges))
+        # Snapshot graphs are immutable and reused, so identity skips rehashing ~6k nodes per call.
+        if isinstance(tree_names, MappingProxyType) and isinstance(primary_edges, frozenset):
+            _last_index = tree_names, primary_edges, index_data
+    indices, reachable, canonical, regional_mask, members = index_data
     result = {}
     for genre in tree_names if genres is None else genres:
         index = indices[genre]

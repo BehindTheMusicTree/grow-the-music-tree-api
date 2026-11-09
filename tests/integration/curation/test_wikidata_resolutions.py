@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
@@ -59,8 +60,16 @@ class TestWikidataResolutions(AppTestCase):
         assert OLD in history.old_value and NEW in history.new_value
 
     def test_remap_value_and_composite_key_then_rewritten(self):
-        main = _entry("canonical_parent", "Q999999001", parent_item_id=OLD, exclude_other_parents=False)
-        edge = _entry("secondary_parents", "Q999999002\tQ999999003", action="add")
+        main = GenreEdgeRule.objects.create(
+            user=None,
+            relation="canonical_parent",
+            item_id="Q999999001",
+            parent_item_id=OLD,
+            exclude_other_parents=False,
+        )
+        edge = GenreEdgeRule.objects.create(
+            user=None, relation="secondary_parent", item_id="Q999999002", parent_item_id="Q999999003", action="add"
+        )
 
         response = self._report(
             [
@@ -73,8 +82,51 @@ class TestWikidataResolutions(AppTestCase):
         assert response.json()["remappedCount"] == 3
         main.refresh_from_db()
         edge.refresh_from_db()
-        assert main.values["parent_item_id"] == NEW
-        assert edge.key == "Q999999020\tQ999999030"
+        assert main.parent_item_id == NEW
+        assert (edge.item_id, edge.parent_item_id) == ("Q999999020", "Q999999030")
+
+    def test_remap_by_rule_id_then_rewritten(self):
+        rule = GenreEdgeRule.objects.create(
+            user=None,
+            relation="canonical_parent",
+            item_id="Q999999001",
+            parent_item_id=OLD,
+            exclude_other_parents=False,
+        )
+
+        response = self._report([{"rule_id": str(rule.uuid), "column": "parent_item_id", "from": OLD, "to": NEW}])
+
+        assert response.json() == {"remappedCount": 1, "reviewCount": 0}
+        rule.refresh_from_db()
+        assert rule.parent_item_id == NEW
+
+    def test_remap_by_rule_id_clashing_then_review_item_with_rule(self):
+        rule = GenreEdgeRule.objects.create(
+            user=None,
+            relation="canonical_parent",
+            item_id="Q999999001",
+            parent_item_id=OLD,
+            exclude_other_parents=False,
+        )
+        GenreEdgeRule.objects.create(
+            user=None, relation="secondary_parent", item_id="Q999999001", parent_item_id=NEW, action="add"
+        )
+
+        response = self._report([{"rule_id": str(rule.uuid), "column": "parent_item_id", "from": OLD, "to": NEW}])
+
+        assert response.json() == {"remappedCount": 0, "reviewCount": 1}
+        [item] = self._review()
+        assert (item["ruleId"], item["reason"], item["target"]) == (str(rule.uuid), "redirect_conflict", NEW)
+
+    def test_rule_id_with_list_or_wrong_column_then_400(self):
+        rule_id = "00000000-0000-0000-0000-000000000001"
+
+        for item in (
+            {"rule_id": rule_id, "list": "canonical_parent", "key": "Q1", "column": "item_id"},
+            {"rule_id": rule_id, "column": "overview_item_id"},
+        ):
+            response = self._report([{**item, "from": OLD, "to": NEW}])
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, item
 
     def test_remap_onto_existing_or_exclusive_entry_then_review_item(self):
         _entry("technique_genres", OLD)
@@ -120,6 +172,16 @@ class TestWikidataResolutions(AppTestCase):
         assert item["reason"] == "not_in_tree"
         assert item["target"] is None
         assert "reportedOn" in item
+
+    def test_rule_review_reasons_then_stored(self):
+        for reason in ("invalid_rule", "exclusive_parent_regional"):
+            item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": reason}
+            assert self._report([], [item]).status_code == status.HTTP_200_OK
+            [stored] = self._review()
+            assert stored["reason"] == reason
+        item["evidence"] = {"detail": "parent is regional, expected canonical"}
+        assert self._report([], [item]).status_code == status.HTTP_200_OK
+        assert self._review()[0]["evidence"] == {"detail": "parent is regional, expected canonical"}
 
     def test_review_evidence_then_round_trips(self):
         evidence = {

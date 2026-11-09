@@ -8,9 +8,10 @@ from django.db import connection
 from django.urls import reverse
 from rest_framework import status
 
-from grow.curation.lists import CURATION_LISTS
+from grow.curation.lists import CURATION_LISTS, EDGE_PROJECTION_LISTS
 from grow.curation.rows import WRITE_LOCK_ID, InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
@@ -122,9 +123,11 @@ class TestCase(AppTestCase):
     def test_entries_then_labels_for_every_item_id_column(self):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
-        self._create({**ITEM, "parent_item_id": "Q999999992", "exclude_other_parents": False}, "canonical_parent")
+        self._create(
+            {"root_item_id": "Q999999991", "pop_child_item_id": "Q999999992", "reason": "r"}, "canonical_genre_pop_side"
+        )
 
-        response = self.api_client.get(path=self._entries_url("canonical_parent"), data={"q": "Q99999999"})
+        response = self.api_client.get(path=self._entries_url("canonical_genre_pop_side"), data={"q": "Q99999999"})
 
         labels = response.json()["labels"]
 
@@ -133,25 +136,21 @@ class TestCase(AppTestCase):
     def test_rules_then_entries_referencing_item_by_key_value_and_composite_key(self):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self._create(ITEM)
-        self._create(
-            {**ITEM, "item_id": "Q999999992", "parent_item_id": "Q999999991", "exclude_other_parents": False},
-            "canonical_parent",
+        GenreEdgeRule.objects.upsert(
+            "canonical_parent", "Q999999992", "Q999999991", exclude_other_parents=False, reason="r"
         )
-        row = {
-            "item_id": "Q999999993",
-            "parent_id": "Q999999991",
-            "action": "add",
-        }
-        self._create({**row, "reason": "r"}, "secondary_parents")
+        GenreEdgeRule.objects.upsert("secondary_parent", "Q999999993", "Q999999991", action="add", reason="r")
         self._create({**ITEM, "item_id": "Q9999999910"})
 
         response = self.api_client.get(path=reverse("curation-rules"), data={"item_id": "Q999999991"})
 
         assert response.status_code == status.HTTP_200_OK
         assert [(r["listName"], r["row"]["item_id"]) for r in response.json()["results"]] == [
-            ("canonical_parent", "Q999999992"),
-            ("secondary_parents", "Q999999993"),
             ("theme_genres", "Q999999991"),
+        ]
+        assert [(r["row"]["relation"], r["row"]["item_id"]) for r in response.json()["edges"]] == [
+            ("canonical_parent", "Q999999992"),
+            ("secondary_parent", "Q999999993"),
         ]
         assert response.json()["labels"] == {"Q999999991": "Rock"}
 
@@ -223,12 +222,12 @@ class TestCase(AppTestCase):
             )
 
     def test_bool_column_then_coerced(self):
-        row = {**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": "true"}
+        row = {"musicbrainz_genre_name": "rap", "item_id": "Q45981", "is_default": "true", "reason": "r"}
 
-        response = self._create(row, "canonical_parent")
+        response = self._create(row, "genre_disambiguation")
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert response.json()["row"]["exclude_other_parents"] is True
+        assert response.json()["row"]["is_default"] is True
 
     def test_genre_disambiguation_then_candidates_per_tag(self):
         default = self._create(
@@ -437,14 +436,29 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_then_csv_rows_snake_case(self):
-        self._create({**ITEM, "parent_item_id": "Q11399", "exclude_other_parents": False}, "canonical_parent")
+        GenreEdgeRule.objects.upsert(
+            "canonical_parent", ITEM["item_id"], "Q11399", exclude_other_parents=False, reason="r"
+        )
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
-        assert set(export) == {*CURATION_LISTS, "exported_on"}
-        row = next(r for r in export["canonical_parent"] if r["item_id"] == ITEM["item_id"])
-        assert list(row) == list(CURATION_LISTS["canonical_parent"].columns)
-        assert row["exclude_other_parents"] == ""
+        assert set(export) == {*CURATION_LISTS, "edges", "exported_on"}
+        assert not {
+            "canonical_parent",
+            "accepted_canonical_roots",
+            "regional_genre_parent",
+            "regional_overviews",
+            "secondary_parents",
+        } & set(export)
+        edge = next(e for e in export["edges"] if e["item_id"] == ITEM["item_id"])
+        assert edge == {
+            "relation": "canonical_parent",
+            "item_id": ITEM["item_id"],
+            "parent_item_id": "Q11399",
+            "action": "",
+            "exclude_other_parents": "",
+            "reason": "r",
+        }
 
     def test_local_item_id_then_accepted(self):
         assert self._create({**ITEM, "item_id": "LOCAL:my-genre"}).status_code == status.HTTP_201_CREATED

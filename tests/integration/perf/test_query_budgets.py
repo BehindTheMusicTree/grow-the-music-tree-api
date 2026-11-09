@@ -20,7 +20,10 @@ from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 # Genre playlist summaries add two batched queries: the genre/catalogue graph and
 # actual per-playlist membership buckets. This is independent of page and song counts;
 # playback keeps its four-query budget. The cold tree reuses its graph and adds one query.
-# Queries per request, whatever the number of rows or tracks. Raising one is a reviewed decision, not a fix.
+# Artist genre counts read the genre tree version, then the graph only when that version changed (as
+# here: each seed bumps it), then the artist's exact counts and memberships.
+# Exact queries per request, whatever the number of rows or tracks: a gain must lower its budget, so the next
+# regression cannot spend the slack. Raising one is a reviewed decision, not a fix.
 BUDGETS = {
     "genre-playlist-list": 6,
     "tag-playlist-list": 4,
@@ -35,7 +38,7 @@ BUDGETS = {
     "plays-list": 4,
     "artist-list": 4,
     "artist-detail": 6,
-    "artist-genre-counts": 3,
+    "artist-genre-counts": 4,
 }
 
 factory = ModelFixtureFactory(default_user=None)
@@ -135,7 +138,7 @@ def test_query_count_is_constant_and_within_budget(endpoint):
     many_rows = _count_queries(path())
 
     assert (few_rows, many_rows) == (many_rows, many_rows), f"{endpoint} issues queries per row"
-    assert many_rows <= BUDGETS[endpoint]
+    assert many_rows == BUDGETS[endpoint], f"{endpoint}: {many_rows} queries, budget {BUDGETS[endpoint]}"
 
 
 TREE_BUDGETS = {"cold": 6, "warm": 1, "not-modified": 1}
@@ -189,7 +192,7 @@ def test_reparent_query_count_is_constant_and_within_budget():
     many_rows = _count_reparent_queries(12)
 
     assert few_rows == many_rows, "reparenting issues queries per track"
-    assert many_rows <= REPARENT_BUDGET
+    assert many_rows == REPARENT_BUDGET, f"reparent: {many_rows} queries"
 
 
 # Postgres-only (trigram operators); the cache is cleared so the lookup itself is counted.
@@ -216,4 +219,4 @@ def test_search_query_count_is_constant_and_within_budget(route):
     many_rows = _count_search_queries(route)
 
     assert few_rows == many_rows, f"{route} issues queries per row"
-    assert many_rows <= SEARCH_BUDGETS[route]
+    assert many_rows == SEARCH_BUDGETS[route], f"{route}: {many_rows} queries"

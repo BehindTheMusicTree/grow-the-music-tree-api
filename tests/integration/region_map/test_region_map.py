@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import json
+from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -199,14 +200,43 @@ class TestRegionMapGenres(AppTestCase):
 
         assert [row["wikidataId"] for row in self.public.get(self.URL).json()] == ["Q9"]
 
+    def test_conditional_response_skips_cached_payload_and_serialization(self):
+        self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
+        self._index_with(genres=["Q1"])
+        initial = self.public.get(self.URL)
+        cache.clear()
+        with (
+            patch("grow.view.region_map.cache.get", side_effect=AssertionError("must not load payload")),
+            patch("grow.view.region_map.serialize_lexicon", side_effect=AssertionError("must not serialize")),
+        ):
+            for validator in (initial["ETag"], "W/" + initial["ETag"], '"other", ' + initial["ETag"], "*"):
+                response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=validator)
+                assert response.status_code == status.HTTP_304_NOT_MODIFIED
+                assert response.content == b""
+                for header in ("ETag", "Cache-Control"):
+                    assert response[header] == initial[header]
+
+    def test_snapshot_change_invalidates_validator(self):
+        self._index_with(genres=["Q1"])
+        initial = self.public.get(self.URL)
+        RegionMapSnapshot.objects.all().delete()
+        self._index_with(genres=["Q2"])
+        response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=initial["ETag"])
+        assert response.status_code == status.HTTP_200_OK
+        assert response["ETag"] != initial["ETag"]
+
     def test_rename_invalidates_cached_lexicon(self):
         genre = self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
         self._index_with(genres=["Q1"])
-        assert self.public.get(self.URL).json()[0]["name"] == "Chanson"
+        initial = self.public.get(self.URL)
+        assert initial.json()[0]["name"] == "Chanson"
 
         type(genre).objects.update_instance(genre, actor=None, name="Chanson française")
 
-        assert self.public.get(self.URL).json()[0]["name"] == "Chanson française"
+        response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=initial["ETag"])
+        assert response.status_code == status.HTTP_200_OK
+        assert response["ETag"] != initial["ETag"]
+        assert response.json()[0]["name"] == "Chanson française"
 
 
 @pytest.mark.postgres
@@ -305,6 +335,31 @@ class TestRegionMapImportRun(AppTestCase):
         region = {**_index()["regions"][0], "id": "Q142", "overviewItemId": None}
 
         assert self._sync(_parts(_index(regions=[region])))["imported"] == 1
+
+    def test_missing_boundary_retains_region_and_genres(self):
+        region = {
+            **_index()["regions"][0],
+            "id": "JO",
+            "boundaryStatus": "missing",
+            "bbox": None,
+            "mainBbox": None,
+            "centroid": None,
+        }
+        assert self._sync(_parts(_index(regions=[region], worldZoneIds=["JO"])))["imported"] == 1
+        response = APIClient().get(INDEX)
+        assert response.status_code == status.HTTP_200_OK
+        assert json.loads(response.content)["regions"][0] == region
+
+    def test_boundary_status_must_agree_with_coordinates(self):
+        base = {**_index()["regions"][0], "bbox": None, "mainBbox": None, "centroid": None}
+        invalid = [
+            {**base, "boundaryStatus": "unknown"},
+            {**base, "boundaryStatus": "available"},
+            {**base, "boundaryStatus": "missing", "centroid": [0, 0]},
+        ]
+        for region in invalid:
+            assert self._commit(_parts(_index(regions=[region]))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
 
     def test_level_ids_must_name_existing_regions(self):
         genres = _index()["regions"][0]["genres"]
