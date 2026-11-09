@@ -84,6 +84,28 @@ back so it can be retried. This avoids waiting for an old writer that already
 holds a relation lock while waiting at its BEFORE trigger. New writers wait for
 the installation/backfill transaction to commit.
 
-The backfill scans the Song/Track join under exclusive source-table locks. Its
-duration, write overhead and WAL cost still require representative measurements;
-there is no established operational window or production rollout instruction.
+The backfill scans the Song/Track join under exclusive source-table locks, so
+reads and writes on those tables block until the migration commits.
+
+Measured on a restore of the 9 Nov 2026 production backup (32,075,219 songs,
+22 GB), migrating 0111 -> 0113 separately in a scratch Postgres 16:
+
+| Step | Duration | WAL |
+| --- | --- | --- |
+| 0112 | 6.8 s | 1.6 MB |
+| 0113, cold cache (first read after restore/clone) | 1,746 s | 8.6 MB |
+| 0113, warm cache (join scanned once beforehand) | 97 s | 0.5 MB |
+
+The join scan itself takes about 110 s warm; the cold figure is dominated by
+reading the tables from disk. WAL is negligible because the backfill writes one
+row per genre bucket. `verify_genre_catalogue_counts` reported zero mismatches
+for both projections after the migration (15 min 43 s on that copy, read only).
+
+Before deploying 0113 to an environment whose Postgres cache may be cold (after a
+restart or restore), warm the join first, for example by running the `COUNT(*)`
+of the Song/Track join once, so the exclusive window stays near 100 s instead of
+tens of minutes. The deploy runs `migrate`; if a writer holds a source lock the
+NOWAIT acquisition fails and the migration can be retried. Run
+`verify_genre_catalogue_counts` after the deploy and before any shadow reader is
+enabled. Timings come from one VPS and one run each; treat them as an order of
+magnitude, not a guaranteed window.
