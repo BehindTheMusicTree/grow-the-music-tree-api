@@ -14,11 +14,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [16.0.0] - 2026-11-09
 
+### CI
+
+- The `Perf` job (now `.github/workflows/perf.yml`) compares each PR with its base on the same runner: `scripts/perf_ab.sh` runs `perf/` on base and head in turn, each on its own seeded database, and `perf/compare.py` fails a scenario more than 1.3x and 5 ms slower than the base, or running more queries, after two more rounds of confirmation. The absolute SLOs are judged on the median pooled over all runs, so one noisy run no longer fails the job. The comparison table is in the job summary. The `perf-regression-accepted` label accepts a deliberate slowdown, never an SLO breach. Query budgets are now exact, so a gain must lower them. Made so #415's 13 ms → 137 ms `artist-genre-counts` regression (under its 150 ms SLO, and the job was not required) can't merge unnoticed again. Tests in `tests/unit/perf/test_compare.py`.
+- `perf/compare.py` keeps each round's p50 and fails a side whose round p50s differ by more than `RATIO` and `FLOOR_MS` (`unstable base` / `unstable head`), instead of judging a pooled median that no request took. The summary shows each round's p50. Tested.
+
 ### Removed
 
 - Curation: `curation/export/` no longer projects the five legacy edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`); the pipelines read the `edges` rows. Tested on the export's keys.
 
 ### Added
+
+- Validate regions without a boundary using `boundaryStatus: missing` and null coordinates, preserving their genres and compatibility with existing indexes.
 
 - Curation: two new review item reasons, `invalid_rule` (the pipeline dropped a rule that contradicts Wikidata) and `exclusive_parent_regional` (a `canonical_parent` with `exclude_other_parents` whose item ends up regional: use `forced_canonical_genres`). Migration `0113`.
 
@@ -54,8 +61,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### CI
 
 - Automate stable release tags from the application version and changelog.
-- The `Perf` job (now `.github/workflows/perf.yml`) compares each PR with its base on the same runner: `scripts/perf_ab.sh` runs `perf/` on base and head in turn, each on its own seeded database, and `perf/compare.py` fails a scenario more than 1.3x and 5 ms slower than the base, or running more queries, after two more rounds of confirmation. The absolute SLOs are judged on the median pooled over all runs, so one noisy run no longer fails the job. The comparison table is in the job summary. The `perf-regression-accepted` label accepts a deliberate slowdown, never an SLO breach. Query budgets are now exact, so a gain must lower them. Made so #415's 13 ms → 137 ms `artist-genre-counts` regression (under its 150 ms SLO, and the job was not required) can't merge unnoticed again. Tests in `tests/unit/perf/test_compare.py`.
-- `perf/compare.py` keeps each round's p50 and fails a side whose round p50s differ by more than `RATIO` and `FLOOR_MS` (`unstable base` / `unstable head`), instead of judging a pooled median that no request took. The summary shows each round's p50. Tested.
 
 ### Added
 
@@ -72,7 +77,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
-- Validate regions without a boundary using `boundaryStatus: missing` and null coordinates, preserving their genres and compatibility with existing indexes.
 - Bound playlist-track hydration to the selected page and materialize genre selection once on PostgreSQL, restoring the four-query playback budget and the 150 ms median latency target on the pinned fixture.
 
 - Reparenting an accepted canonical root (made a root by `set-root/` or accepted from the unaccepted roots) now drops the item's `accepted_canonical_roots` rule along with writing its `canonical_parent` rule; keeping both made the pipeline's regional classification fail. Tests in `test_edit_curation_rules.py`.
