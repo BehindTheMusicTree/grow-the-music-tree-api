@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Enforce separate data-query and snapshot transaction budgets without relaxing query limits, including latency A/B measurements with strict protocol checks and worst-run data-query counts.
 - Use genre-kit 0.63.1 and API-kit 0.12.3 for shared snapshots, filtered detail lookups and object permissions.
 
+### Changed
+
+- Genre catalogue counts (`songsCount`, `catalogue`) now read the `grow_genre_catalogue_count` projection in the genre tree and the genre playlist summaries instead of `direct_songs_count` (still maintained, no longer read). A genre without a bucket counts 0 and Genreless reads the NULL bucket. Tested with the legacy counter forced wrong. Run `manage.py verify_genre_catalogue_counts` against prod after migration 0115 and before deploying.
+
 ### Added
 
 - Draft semantic reference graph API with explicit genre UUID mappings, revision-checked song attributions and archived graph restoration; song lists use normalized graph membership, name/refinement filters, UUID cursors and consistent revision headers. Explicit retirement decisions remap or unassign removed concepts after archiving direct assignments; permanent semantic bindings preserve genre UUIDs through retirement and reactivation. Initial assignments can be restored from their archive with revision checks. Tests cover conflicting legacy assignments, duplicate labels, atomic rollback and 1,710-node imports. The catalogue, playlist, search and bulk-import cutover remains incomplete.

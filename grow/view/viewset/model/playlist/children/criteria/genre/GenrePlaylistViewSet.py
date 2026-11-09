@@ -34,6 +34,7 @@ from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
 from grow.genre_music.selection import genre_tree_snapshot, parse_subgenres
 from grow.genre_music.selection_query import selected_genres_query
+from grow.genre_music.summary_inputs import catalogue_count_annotation
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.Criteria import Criteria
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -97,9 +98,9 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         graph: tuple = snapshot.tree_names, snapshot.primary_edges
     else:
         all_genres = list(
-            GenrePlaylist.objects.filter(user__isnull=True).values_list(
-                "criteria_id", "direct_songs_count", "criteria__tree_name", "criteria__parent_id"
-            )
+            GenrePlaylist.objects.filter(user__isnull=True)
+            .annotate(catalogue_count=catalogue_count_annotation())
+            .values_list("criteria_id", "catalogue_count", "criteria__tree_name", "criteria__parent_id")
         )
         trees = {genre: tree for genre, _, tree, _ in all_genres if genre is not None}
         edges = [(parent, genre) for genre, _, _, parent in all_genres if genre is not None and parent in trees]

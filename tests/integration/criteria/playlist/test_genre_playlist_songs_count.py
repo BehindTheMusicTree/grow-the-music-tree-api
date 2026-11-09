@@ -42,6 +42,18 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         return {row["name"]: (row["songsCount"], row["tracksCount"]) for row in response.json()}
 
+    def test_readers_use_the_catalogue_projection_not_the_legacy_counter(self):
+        self.factory.create_song(title="Punk song", genre=self.punk)
+        self.factory.create_song(title="Genreless song", genre=None)
+        GenrePlaylist.objects.filter(user__isnull=True).update(direct_songs_count=99)
+
+        counts = self.tree_songs_counts()
+
+        assert counts["Punk"] == (1, 1)
+        assert counts["Rock"] == (1, 1)
+        assert counts["Jazz"] == (0, 0)
+        assert counts[CriterialessPlaylistNames.GENRE][0] == 1
+
     def test_tree_folds_playable_and_unplayable_songs_into_ascendants(self):
         self.factory.create_song(title="Playable", genre=self.punk)
         self.factory.create_song(title="No video", genre=self.punk, youtube_video_id=None)

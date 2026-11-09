@@ -1,7 +1,9 @@
-from django.db.models import CharField, IntegerField, Subquery, UUIDField, Value
+from django.db.models import Case, CharField, IntegerField, OuterRef, Subquery, UUIDField, Value, When
+from django.db.models.functions import Coalesce
 
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 
 _catalogue_rows: tuple[object, tuple] | None = None
@@ -10,6 +12,23 @@ _catalogue_rows: tuple[object, tuple] | None = None
 def clear_summary_inputs_cache() -> None:
     global _catalogue_rows
     _catalogue_rows = None
+
+
+def catalogue_count_annotation():
+    """Projected catalogue count per genre playlist, read inside the caller's statement.
+
+    Sparse projection: a missing bucket means zero; the Genreless playlist (no criteria) reads the NULL bucket.
+    """
+    bucket = GenreCatalogueCount.objects.order_by()
+    return Coalesce(
+        Case(
+            When(criteria_id__isnull=True, then=Subquery(bucket.filter(genre_id__isnull=True).values("tracks_count"))),
+            default=Subquery(bucket.filter(genre_id=OuterRef("criteria_id")).values("tracks_count")),
+            output_field=IntegerField(),
+        ),
+        Value(0),
+        output_field=IntegerField(),
+    )
 
 
 def summary_inputs(playlist_ids):
@@ -24,7 +43,9 @@ def summary_inputs(playlist_ids):
     cached = _catalogue_rows
     version = Subquery(GenreTreeVersion.objects.filter(pk=1).values("token"))
     null_uuid = Value(None, output_field=UUIDField())
-    graph = GenrePlaylist.objects.filter(user__isnull=True).annotate(input_kind=Value(0), input_version=version)
+    graph = GenrePlaylist.objects.filter(user__isnull=True).annotate(
+        input_kind=Value(0), input_version=version, catalogue_count=catalogue_count_annotation()
+    )
     if cached is not None:
         graph = graph.exclude(input_version=cached[0])
     graph_rows = graph.order_by().values_list(
@@ -32,7 +53,7 @@ def summary_inputs(playlist_ids):
         "input_version",
         "pk",
         "criteria_id",
-        "direct_songs_count",
+        "catalogue_count",
         "criteria__tree_name",
         "criteria__parent_id",
         "criteria__additional_primary_parents__pk",
