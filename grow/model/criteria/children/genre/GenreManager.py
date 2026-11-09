@@ -17,6 +17,7 @@ from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
 from grow.curation.lists import EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
@@ -251,6 +252,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
+        lock_catalogue_sources(using=self.db)
+        instance.refresh_from_db(using=self.db)
         was_required_root = self._is_required_root(instance)
         user = instance.user
         HistoryEntry.objects.record(instance, action=HistoryAction.DELETED, actor=actor, old_value=instance.name)
@@ -264,13 +267,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         from grow.model.song_search.SongSearch import SongSearch
 
         # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
-        moved = (
-            type(instance.criteria_playlist)
-            .objects.values_list("direct_songs_count", flat=True)
-            .get(pk=instance.criteria_playlist.pk)
-            if instance.user_id is None
-            else 0
-        )
+        # Transferring a possibly drifted legacy bucket propagates its error to
+        # the surviving parent. The source gate keeps this source count stable.
+        moved = Song.objects.filter(user__isnull=True, genre=instance).count() if instance.user_id is None else 0
         # A root's songs become genreless, which changes their search rank; elsewhere they keep a genre.
         genreless = [] if instance.parent_id else list(Song.objects.filter(genre=instance).values_list("pk", flat=True))
         super()._on_before_delete(instance, actor=actor)

@@ -6,6 +6,7 @@ from rest_framework.exceptions import APIException
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.rows import lock_writes
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationEntry import CurationEntry
@@ -81,6 +82,9 @@ class SongCurationManager:
                     reason = fetched_reason
             except YoutubeLookupError as e:
                 raise YoutubeUnavailable from e
+        # The import's locked-row decision reads is_manually_edited, and an unchanged video skips update_instance's
+        # gate. Taken after the YouTube call so the global gate is never held across the network.
+        lock_catalogue_sources()
         explicit = fields.get("youtube_unplayable_reason") or ""
         upsert_admin_rule(
             "recording_youtube_video",

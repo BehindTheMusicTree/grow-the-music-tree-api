@@ -11,12 +11,14 @@ from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.lifecycle import execute_merge
 from grow.bulk_import.progress import report_step
 from grow.bulk_import.run_steps import run_steps
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
@@ -437,6 +439,7 @@ WRITTEN_MODELS = (
     TrackPlaylistRel,
     CriteriaPlaylist,
     GenreMembershipCount,
+    GenreCatalogueCount,
     Artist,
     Genre.essential_songs.through,
     HistoryEntry,
@@ -487,6 +490,9 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         with report_step("prepare_tables"):
             cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
+        # Match managed writes' gate-before-search lock order and protect the
+        # staging snapshot that drives legacy and membership deltas.
+        lock_catalogue_sources()
         with report_step("lock_search_projection"):
             live = projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)

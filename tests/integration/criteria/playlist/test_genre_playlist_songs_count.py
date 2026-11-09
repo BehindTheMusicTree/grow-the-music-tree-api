@@ -7,11 +7,11 @@ from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.criteria.playlist.CriterialessPlaylistNames import CriterialessPlaylistNames
 
+from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
-from grow.track.direct_songs_count import recount_direct_songs_count
 from tests.utils.AppTestCase import AppTestCase
 
 TREE_PATH = reverse("genre-playlist-list") + "tree/"
@@ -35,9 +35,7 @@ class TestCase(AppTestCase):
         }
 
     def assert_exact(self):
-        stored = self.stored()
-        recount_direct_songs_count(Song, GenrePlaylist)
-        assert stored == self.stored()
+        assert all(report.valid for report in verify_catalogue_counts().values())
 
     def tree_songs_counts(self) -> dict[str, tuple[int, int]]:
         response = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})

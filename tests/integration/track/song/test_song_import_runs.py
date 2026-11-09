@@ -16,6 +16,9 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.run_steps import run_steps
+from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.model.artist.Artist import Artist
 from grow.model.history.HistoryAction import HistoryAction
@@ -28,7 +31,6 @@ from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
-from grow.track.direct_songs_count import recount_direct_songs_count
 from tests.utils.AppTestCase import AppTestCase
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
@@ -679,6 +681,37 @@ class TestImportRunMerge(AppTestCase):
         assert timings[0]["label"] == "song_import"
         assert all({"label", "rowcount", "ms"} == timing.keys() for timing in timings)
 
+    def test_partial_merge_failure_rolls_back_catalogue_and_membership(self):
+        rock = self.model_fixture_factory.create_genre("Rock")
+        pop = self.model_fixture_factory.create_genre("Pop")
+        self._sync([SONG])
+        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        response = self._upload(run_id, 0, _gzip_ndjson([{**SONG, "genre_name": "Pop"}]))
+        assert response.status_code == status.HTTP_200_OK
+        observed = []
+
+        def fail_after_track_update(cursor, steps, params):
+            timings = []
+            for label, sql in steps:
+                timings.extend(run_steps(cursor, [(label, sql)], params))
+                if label == "update_tracks":
+                    observed.append(Song.objects.get(musicbrainz_recording_id=MBID).genre_id)
+                    assert verify_catalogue_counts()["shadow"].valid
+                    raise ValueError("Injected partial merge failure")
+            return timings
+
+        with patch("grow.track.bulk_import.merge.run_steps", side_effect=fail_after_track_update):
+            response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
+        # Under synchronous django-q test settings the worker exception reaches commit.
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        attempt = ImportAttempt.objects.get(run_id=run_id)
+        assert attempt.state == ImportAttempt.State.FAILED
+        assert not attempt.data_applied
+        assert observed == [pop.pk]
+        assert Song.objects.get(musicbrainz_recording_id=MBID).genre_id == rock.pk
+        assert all(report.valid for report in verify_catalogue_counts().values())
+        assert stored_membership_bucket_counts() == membership_bucket_counts()
+
     def test_delta_run_upserts_without_deleting_unlisted_tracks(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_song(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")
@@ -852,8 +885,7 @@ class TestImportRunMerge(AppTestCase):
 
     def _assert_direct_songs_counts_exact(self) -> dict:
         stored = self._direct_songs_counts()
-        recount_direct_songs_count(Song, GenrePlaylist)
-        assert stored == self._direct_songs_counts()
+        assert all(report.valid for report in verify_catalogue_counts().values())
         return stored
 
     def test_direct_songs_count_follows_new_moved_and_unplayable_songs(self):
