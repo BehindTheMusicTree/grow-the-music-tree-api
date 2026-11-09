@@ -197,6 +197,7 @@ django_run() {
   docker run --rm --name "$prefix-$name" --network "$network" --label "rehearsal.oneshot=$run_id" \
     -e DATABASE_URL="postgresql://postgres:$pg_password@$pg_container:5432/$db" \
     -e REDIS_URL=redis://127.0.0.1:6379/0 \
+    ${DJANGO_PGOPTIONS:+-e PGOPTIONS="$DJANGO_PGOPTIONS"} \
     -e SECRET_KEY=rehearsal \
     -e PIPELINE_API_KEY=rehearsal \
     -e CURATION_API_KEY=rehearsal \
@@ -258,7 +259,10 @@ for run in $(seq 1 "$runs"); do
   sampler_pid=$!
 
   migrate_started=$SECONDS
-  if django_run "$db" "migrate-$run" python3 manage.py migrate --no-input ${target_args[@]+"${target_args[@]}"}; then
+  # With a lock held, a conflicting migration would wait forever unless the session gives up.
+  export DJANGO_PGOPTIONS=""
+  [[ -z $hold_lock ]] || export DJANGO_PGOPTIONS="-c lock_timeout=60s"
+  if django_run "$db" "migrate-$run" python3 manage.py migrate --no-input ${target_args[@]+"${target_args[@]}"} 2>&1 | tee "$work_dir/migrate.log"; then
     migrate_status=0
   else
     migrate_status=$?
@@ -277,6 +281,8 @@ for run in $(seq 1 "$runs"); do
   if [[ $expect_failure -eq 1 ]]; then
     if [[ $migrate_status -eq 0 ]]; then
       result="FAIL: migrate succeeded while the lock was held"
+    elif ! grep -Eqi 'could not obtain lock|lock timeout|canceling statement due to lock' "$work_dir/migrate.log"; then
+      result="FAIL: migrate failed, but not on the held lock (see output above)"
     elif ! cmp -s "$work_dir/before" "$work_dir/after"; then
       result="FAIL: migrate failed but django_migrations changed"
     else
@@ -309,6 +315,8 @@ peak blocked:    $(cat "$work_dir/peak") ungranted locks
 verify:          $verify_result
 applied:         ${applied:-none}
 REPORT
+  # Free the clone: later runs would otherwise stack full copies on the volume.
+  [[ $keep -eq 1 ]] || pg_sql postgres -c "DROP DATABASE IF EXISTS $db" >/dev/null 2>&1 || true
 done
 
 exit "$overall"
