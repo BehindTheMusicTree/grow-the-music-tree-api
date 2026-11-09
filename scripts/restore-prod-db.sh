@@ -4,37 +4,17 @@
 # Usage: RCLONE_CONFIG=<config with an [r2] remote> R2_BACKUP_BUCKET_NAME=<bucket> ./scripts/restore-prod-db.sh
 set -euo pipefail
 
-: "${RCLONE_CONFIG:?RCLONE_CONFIG must point to an rclone config with an [r2] remote}"
-: "${R2_BACKUP_BUCKET_NAME:?R2_BACKUP_BUCKET_NAME must be set}"
-command -v rclone >/dev/null || { echo "rclone is required (brew install rclone)" >&2; exit 1; }
-
 cd "$(dirname "$0")/.."
-
-# Coolify's upload prefix; listing the whole bucket also walks the TMD asset snapshots and takes minutes.
-prefix="data/coolify/backups/databases"
-latest_object="$(rclone lsjson "r2:${R2_BACKUP_BUCKET_NAME}/${prefix}" --recursive --files-only \
-  | python3 -c "
-import json, sys
-entries = [e for e in json.load(sys.stdin) if 'gtmt-api-db' in e['Path']]
-entries.sort(key=lambda e: e['ModTime'], reverse=True)
-print('${prefix}/' + entries[0]['Path'] if entries else '')
-")"
-[ -n "$latest_object" ] || { echo "No gtmt-api-db backup found in ${R2_BACKUP_BUCKET_NAME}" >&2; exit 1; }
+# shellcheck source=scripts/lib/prod-backup.sh
+source scripts/lib/prod-backup.sh
 
 dump_file="$(mktemp -t gtmt-prod-dump.XXXXXX)"
 trap 'rm -f "$dump_file"' EXIT
-echo "Fetching ${latest_object}"
-rclone copyto "r2:${R2_BACKUP_BUCKET_NAME}/${latest_object}" "$dump_file"
+gtmt_fetch_latest_dump "$dump_file"
+latest_object=$GTMT_LATEST_DUMP_OBJECT
 
 docker compose up -d --wait db
-# Read the whole dump before wiping anything, so a truncated or non-archive file fails with the local DB intact.
-docker compose exec -T db pg_restore -f /dev/null <"$dump_file"
-# Reject legacy archives before deleting the local schema. Their generated columns cannot be restored normally.
-function_sql="$(docker compose exec -T db pg_restore --schema-only --function='grow_search_norm(text)' <"$dump_file")"
-if [[ "$function_sql" != *"public.unaccent("* || "$function_sql" != *"'public.unaccent'"* ]]; then
-  echo "Archive does not contain the qualified search function; see docs/operations/backup-recovery.md" >&2
-  exit 1
-fi
+gtmt_validate_archive "$dump_file" docker compose exec -T db pg_restore
 docker compose stop api worker
 # pg_restore --clean only drops objects in the dump: tables from local migrations prod hasn't run yet would survive
 # and make migrate fail with "already exists", so start from an empty schema.
