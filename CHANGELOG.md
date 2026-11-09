@@ -49,6 +49,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `GET /v1/artists/<id>/genre-counts/` no longer reloads and walks the whole genre graph per request: the primary genre graph is cached per process and keyed by the genre tree version token, and only the artist's genres and their primary ancestors are projected (about 2.5x faster on the prod Gold dataset, back under its 150 ms perf SLO). The genre tree's artist filter and song genre filtering reuse the same cached graph. Tested, including reload after a tree write.
 
+## [15.2.0] - 2026-11-07
+
 ### CI
 
 - Automate stable release tags from the application version and changelog.
@@ -97,6 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Public ranked song search, `GET library/songs/search/?q=&limit=&genre=any|with|without&playable=`: every query word must prefix-match the song's title or credited artist names, in any order. Accents, case and punctuation are folded. Results put exact titles first, then title prefixes, then a static rank (genre, then playable, then capped log-scaled recording count and YouTube views). They are cached until the next song, artist or genre write (deletes included), and throttled to 120/min per client. It reads the new `grow_song_search` projection (migration `0099`, GIN on a `simple` tsvector). The projection is kept in sync by new songs-merge steps (`upsert_song_search`, `delete_song_search`), by the artists merge's `renamed_artist` step, and by the song and genre ORM writes. **After deploying, run `manage.py rebuild_song_search` once**: search answers 503 `search_unavailable` until then. Song, artist and genre writes, imports included, wait for a rebuild, so run it outside the nightly pipeline window. `--check` reports drift. Song detail and `PATCH` responses add `firstReleaseYear` and `essentialGenres`; the list is unchanged. New perf SLOs on the 8.8k-song fixture. Tests in `tests/integration/track/song/test_song_search.py` and the Postgres merge tests.
 
 ### Changed
+
+- Bump `the-music-tree-genre-kit` to v0.56.1 (from v0.53.0): `bulk_create_mti` skips generated fields, which the genre search column needs.
 
 - **Breaking** curation lists renamed to match the genre taxonomy: `umbrella_genres` → `umbrella_stylistic_genres` and `non_stylistic_genres` → `umbrella_non_stylistic_genres` (migration 0102 renames existing entries and review items; reversible). Merge together with the-music-tree-pipelines and grow-the-music-tree-frontend
 - **Breaking**: the curation list `canonical_overrides` is renamed `forced_canonical_genres` (migration `0100` moves its rules and review items). `curation/export/` and `curation/<list>/entries/` use the new name. The seed CSVs and `import_curation_csvs` drop the `manual_` prefix (`<list_name>.csv`). Merge with the matching pipelines and frontend changes.
