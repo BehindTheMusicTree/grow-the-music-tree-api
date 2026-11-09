@@ -4,6 +4,8 @@ from rest_framework import routers
 
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
+    CurationEdgesView,
+    CurationEdgeView,
     CurationEntriesView,
     CurationEntryView,
     CurationExportView,
@@ -82,6 +84,8 @@ urlpatterns += [
         name="curation-wikidata-items",
     ),
     path(f"{settings.API_ROOT_BASE}curation/items/", CurationItemsView.as_view(), name="curation-items"),
+    path(f"{settings.API_ROOT_BASE}curation/edges/", CurationEdgesView.as_view(), name="curation-edges"),
+    path(f"{settings.API_ROOT_BASE}curation/edges/<uuid:uuid>/", CurationEdgeView.as_view(), name="curation-edge"),
     path(
         f"{settings.API_ROOT_BASE}curation/<str:list_name>/entries/",
         CurationEntriesView.as_view(),

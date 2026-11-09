@@ -6,6 +6,7 @@ from rest_framework import status
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.song.Song import Song
@@ -240,8 +241,8 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert [g.pk for g in genre.secondary_parents.all()] == [other.pk]
-        [rule] = self._rule("secondary_parents")
-        assert rule["action"] == "add"
+        [rule] = GenreEdgeRule.objects.filter(relation="secondary_parent")
+        assert (rule.item_id, rule.parent_item_id, rule.action) == ("Q11366", "Q3071", "add")
         genre.refresh_from_db()
         assert genre.is_manually_edited
 
@@ -249,8 +250,8 @@ class TestCase(AppTestCase):
 
         assert undo.status_code == status.HTTP_200_OK
         assert not genre.secondary_parents.exists()
-        [rule] = self._rule("secondary_parents")
-        assert rule["action"] == "remove"
+        [rule] = GenreEdgeRule.objects.filter(relation="secondary_parent")
+        assert rule.action == "remove"
 
     def test_secondary_parent_invalid_then_400(self):
         root = self.model_fixture_factory.create_genre("Music", wikidata_id="Q638")

@@ -18,6 +18,7 @@ from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRe
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -56,6 +57,7 @@ __all__ = [
     "CurationSyncState",
     "GenealogySnapshot",
     "Genre",
+    "GenreEdgeRule",
     "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeVersion",

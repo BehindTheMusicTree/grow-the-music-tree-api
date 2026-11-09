@@ -11,6 +11,7 @@ from tests.utils.AppTestCase import AppTestCase
 
 migration_module = import_module("grow.migrations.0036_locked_genres_to_curation_entries")
 REASON = "migrated grow admin lock"
+LEGACY_EDGE_LISTS = {"canonical_parent", "accepted_canonical_roots"}
 
 
 class TestCase(AppTestCase):
@@ -31,7 +32,10 @@ class TestCase(AppTestCase):
         migration_module.locked_genres_to_curation_entries(self.apps, None)
 
     def _rows(self, list_name: str) -> list[dict]:
-        return [e.row for e in CurationEntry.objects.filter(list_name=list_name, key__startswith="Q888")]
+        entries = CurationEntry.objects.filter(list_name=list_name, key__startswith="Q888")
+        if list_name in LEGACY_EDGE_LISTS:  # no longer in the lists registry: the migration still writes raw entries
+            return [{"item_id": e.key, **e.values, **({"reason": e.reason} if e.reason else {})} for e in entries]
+        return [e.row for e in entries]
 
     def test_history_trail_then_matching_rules(self):
         self._locked("Punk rock", "Q8880002", HistoryAction.RENAMED, HistoryAction.PARENT_CHANGED, parent=self.rock)
@@ -84,14 +88,16 @@ class TestCase(AppTestCase):
         assert {r["item_id"] for r in self._rows("out_of_scope_genres")} == {"Q8880004", "Q8880009"}
 
     def test_excluded_genre_referenced_by_parent_rule_then_no_exclusion_rule(self):
-        CurationEntry.objects.upsert(
-            "canonical_parent",
-            {
-                "item_id": "Q8880010",
-                "reason": "x",
-                "parent_item_id": "Q8880004",
-                "exclude_other_parents": "",
-            },
+        CurationEntry.objects.bulk_create(
+            [
+                CurationEntry(
+                    user=None,
+                    list_name="canonical_parent",
+                    key="Q8880010",
+                    values={"parent_item_id": "Q8880004", "exclude_other_parents": False},
+                    reason="x",
+                )
+            ]
         )
         self._locked("Nenia", "Q8880004", HistoryAction.EXCLUDED, is_excluded=True)
 

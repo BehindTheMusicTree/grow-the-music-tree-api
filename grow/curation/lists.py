@@ -98,12 +98,6 @@ def _addition_list(description: str) -> CurationList:
 
 
 CURATION_LISTS: dict[str, CurationList] = {
-    "accepted_canonical_roots": CurationList(
-        "wikidata",
-        ("item_id",),
-        ("item_id",),
-        "Canonical roots reviewed and accepted as roots; any other root is flagged for review.",
-    ),
     "canonical_parent_additions": _addition_list("Synthetic canonical parent items the pipeline adds to the tree."),
     "capitalized_words": CurationList(
         "wikidata",
@@ -122,26 +116,8 @@ CURATION_LISTS: dict[str, CurationList] = {
     "forced_canonical_genres": _item_list(
         "Genres kept canonical although a parent is regional; their own regional sources are ignored."
     ),
-    "canonical_parent": _item_list(
-        "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
-        "parent_item_id",
-        "exclude_other_parents",
-    ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
-    "regional_genre_parent": _item_list(
-        "Forced regional parent genre (not an overview) of an item, optionally dropping its other regional genre "
-        "parents.",
-        "parent_item_id",
-        "exclude_other_parents",
-    ),
-    "regional_overviews": CurationList(
-        "wikidata",
-        ("item_id", "overview_item_id"),
-        ("item_id", "reason", "overview_item_id", "exclude_other_parents"),
-        "Adds a `music of <place>` overview item as a regional parent of an item; `exclude_other_parents` keeps only "
-        "the curated overviews.",
-    ),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
@@ -189,12 +165,6 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_genre_name", "item_id", "context_item_id"),
         ("musicbrainz_genre_name", "item_id", "context_item_id", "reason"),
         "On a song also carrying context_item_id (or a genre under it), an ambiguous tag resolves to item_id.",
-    ),
-    "secondary_parents": CurationList(
-        "gold",
-        ("item_id", "parent_id"),
-        ("item_id", "parent_id", "action", "reason"),
-        "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
     ),
     "song_genre": CurationList(
         "musicbrainz",
@@ -311,6 +281,41 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
 }
 
+EDGE_PROJECTION_LISTS: dict[str, CurationList] = {
+    "accepted_canonical_roots": CurationList(
+        "wikidata",
+        ("item_id",),
+        ("item_id",),
+        "Canonical roots reviewed and accepted as roots; any other root is flagged for review.",
+    ),
+    "canonical_parent": _item_list(
+        "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
+        "parent_item_id",
+        "exclude_other_parents",
+    ),
+    "regional_genre_parent": _item_list(
+        "Forced regional parent genre (not an overview) of an item, optionally dropping its other regional genre "
+        "parents.",
+        "parent_item_id",
+        "exclude_other_parents",
+    ),
+    "regional_overviews": CurationList(
+        "wikidata",
+        ("item_id", "overview_item_id"),
+        ("item_id", "reason", "overview_item_id", "exclude_other_parents"),
+        "Adds a `music of <place>` overview item as a regional parent of an item; `exclude_other_parents` keeps only "
+        "the curated overviews.",
+    ),
+    "secondary_parents": CurationList(
+        "gold",
+        ("item_id", "parent_id"),
+        ("item_id", "parent_id", "action", "reason"),
+        "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
+    ),
+}
+"""The legacy lists `curation/export/` still projects from `GenreEdgeRule`; their rows are no longer stored as
+`CurationEntry` nor served by the generic curation CRUD."""
+
 ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
 """Lists whose rows create a node: their `label` is the item's only name until it reaches the tree."""
 
@@ -328,10 +333,3 @@ EXCLUDED_GENRE_LISTS = {
 
 EXCLUSIVE_LISTS = frozenset(EXCLUDED_GENRE_LISTS.values())
 """An item_id may sit in at most one of these lists: each prunes it for a different reason."""
-
-PARENT_RULE_COLUMNS = {
-    "canonical_parent": "parent_item_id",
-    "regional_genre_parent": "parent_item_id",
-    "regional_overviews": "overview_item_id",
-}
-"""Lists moving an item under another: the pipeline fails on such a rule once either item is pruned."""
