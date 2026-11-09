@@ -213,7 +213,7 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("entity_id",),
         ("entity_id", "entity_kind", "reason"),
         "Wikidata items ingested as cultural entities although no bulk class covers them; a blank `entity_kind` "
-        "keeps them undrawn, `cultural_region` or `macro_region` makes them a map zone, `city` a point under its administrative unit.",
+        "keeps them undrawn, `cultural_region` or `macro_region` makes them a map zone, `city` a point under its administrative unit, `admin_unit` a drawn administrative unit (a former region).",
     ),
     "entity_exclusions": CurationList(
         "geohistory",
