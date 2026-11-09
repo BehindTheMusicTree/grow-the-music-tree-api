@@ -229,6 +229,33 @@ def test_import_snapshot_excludes_concurrent_admin_edit(catalogue, edit_kind):
         assert song.is_manually_edited
 
 
+@pytest.mark.parametrize("mode", [BulkImportRun.Mode.FULL, BulkImportRun.Mode.DELTA])
+@pytest.mark.parametrize("repair", [False, True])
+def test_verification_waits_for_running_import(catalogue, mode, repair):
+    _, _, b, _, song = catalogue
+    mbid = uuid4()
+    Song.objects.filter(pk=song.pk).update(musicbrainz_recording_id=mbid)
+    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, mode=mode)
+    SongImportStaging.objects.create(
+        run_id=run.pk, part=0, musicbrainz_recording_id=mbid, title="Imported", artist="Artist", genre_name=b.name
+    )
+    params = {
+        "run": run.pk,
+        "user": None,
+        "genre_changed": HistoryAction.GENRE_CHANGED.value,
+        "genre_type": CriteriaTypePks.GENRE.value,
+        "content_type": ContentType.objects.get_for_model(Song).pk,
+    }
+
+    def second():
+        assert verify_catalogue_counts(repair=repair)["shadow"].valid
+
+    race(lambda: song_merge._merge(run.pk, params, False), second)
+    assert all(report.valid for report in verify_catalogue_counts().values())
+    song.refresh_from_db()
+    assert song.genre_id == b.pk
+
+
 def test_savepoint_failure_preserves_outer_projection(catalogue):
     _, a, b, c, song = catalogue
 
