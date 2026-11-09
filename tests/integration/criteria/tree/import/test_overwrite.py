@@ -2,6 +2,7 @@ from rest_framework import status
 from the_music_tree_genre_kit.criteria.children.genre.CriteriaSource import CriteriaSource
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
+from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.model.criteria.children.genre.Genre import Genre
 from tests.integration.criteria.GenreTestCase import GenreTestCase
 
@@ -90,3 +91,25 @@ class TestOverwrite(GenreTestCase):
         assert not Genre.objects.filter(user=None, wikidata_id="Q182985").exists()
         track.refresh_from_db()
         assert track.genre_id is None
+        assert all(report.valid for report in verify_catalogue_counts().values())
+
+    def test_import_reparenting_a_genre_keeps_catalogue_parity(self):
+        rock = self.model_fixture_factory.create_genre(
+            name="Rock", wikidata_id="Q11399", source=CriteriaSource.PIPELINE
+        )
+        self.model_fixture_factory.create_genre(name="Punk", wikidata_id="Q3071", source=CriteriaSource.PIPELINE)
+        self.model_fixture_factory.create_song(title="Punk song", genre=Genre.objects.get(wikidata_id="Q3071"))
+
+        tree_data = [
+            {
+                Fields.ID: "Q11399",
+                Fields.NAME_PUBLIC: "Rock",
+                Fields.CHILDREN: [{Fields.ID: "Q3071", Fields.NAME_PUBLIC: "Punk", Fields.CHILDREN: []}],
+            },
+            {Fields.ID: "Q105", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
+        ]
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Genre.objects.get(wikidata_id="Q3071").parent_id == rock.pk
+        assert all(report.valid for report in verify_catalogue_counts().values())
