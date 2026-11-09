@@ -22,6 +22,7 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
 from grow.curation.edges import (
+    RELATION_BY_LIST,
     edge_csv_row,
     edge_rules,
     find_edge_rules,
@@ -332,9 +333,16 @@ class CurationHistoryView(CurationView):
         content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
         queryset = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if "list" in params:
-            if params["list"] not in CURATION_LISTS:
+            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS):
                 raise ValidationError({"list": "Unknown curation list"})
-            queryset = queryset.filter(_snapshot_has("list_name", params["list"]))
+            # Edits made before migration 0112 stay under the entry content type with a `list_name`; later ones are
+            # edge snapshots carrying a `relation`.
+            matching = _snapshot_has("list_name", params["list"])
+            if params["list"] in RELATION_BY_LIST:
+                matching |= Q(content_type=ContentType.objects.get_for_model(GenreEdgeRule)) & _snapshot_has(
+                    "relation", RELATION_BY_LIST[params["list"]]
+                )
+            queryset = queryset.filter(matching)
         if "entry" in params:
             try:
                 queryset = queryset.filter(content_uuid=uuid.UUID(params["entry"]))

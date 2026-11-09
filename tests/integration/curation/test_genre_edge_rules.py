@@ -190,3 +190,14 @@ class TestExportAndSeed(AppTestCase):
                     "reason": "r",
                 }
             )
+
+
+class TestHistoryByLegacyList(AppTestCase):
+    def test_legacy_list_filter_then_edge_history(self):
+        GenreEdgeRule.objects.upsert("regional_overview", A, B, exclude_other_parents=False)
+        GenreEdgeRule.objects.upsert("canonical_parent", C, B, exclude_other_parents=True)
+
+        response = self.api_client.get(path=reverse("curation-history"), data={"list": "regional_overviews"})
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert [h["entry"] for h in response.json()["results"]] == [str(GenreEdgeRule.objects.get(item_id=A).uuid)]

@@ -4,7 +4,7 @@ import django.db.models.deletion
 import django.utils.timezone
 import uuid
 from django.conf import settings
-from django.db import migrations, models
+from django.db import connection, migrations, models
 
 KEY_SEPARATOR = "\t"
 LEGACY_LISTS = (
@@ -151,6 +151,9 @@ def edge_rules_to_entries(apps, schema_editor):
         review_item.rule = None
         review_item.save(update_fields=["rule", "list_name", "key"])
     GenreEdgeRule.objects.all().delete()
+    if connection.vendor == "postgresql":
+        # Deferred FK checks queued by the delete would block the table alterations that follow in this transaction.
+        connection.cursor().execute("SET CONSTRAINTS ALL IMMEDIATE")
 
 
 class Migration(migrations.Migration):
