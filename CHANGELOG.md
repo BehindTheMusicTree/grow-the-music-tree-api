@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- Curation: `curation/export/` no longer projects the five legacy edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`); the pipelines read the `edges` rows. Tested on the export's keys.
+
 ### Added
 
 - `scripts/rehearse-migration.sh` applies pending migrations to a disposable copy of the latest prod backup and reports duration, WAL, temp files, lock waits and an optional verification command, then removes the copy. See `docs/operations/migration-rehearsal.md`.

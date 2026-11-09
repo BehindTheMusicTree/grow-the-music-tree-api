@@ -313,8 +313,8 @@ EDGE_PROJECTION_LISTS: dict[str, CurationList] = {
         "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
     ),
 }
-"""The legacy lists `curation/export/` still projects from `GenreEdgeRule`; their rows are no longer stored as
-`CurationEntry` nor served by the generic curation CRUD."""
+"""The legacy edge lists, now stored as `GenreEdgeRule` rows: no longer `CurationEntry` rows nor served by the generic
+curation CRUD, nor exported (the export carries `edges`). Kept to designate a rule by its legacy `(list, key)`."""
 
 ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
 """Lists whose rows create a node: their `label` is the item's only name until it reaches the tree."""

@@ -6,7 +6,7 @@ from django.db import IntegrityError, transaction
 from django.urls import reverse
 from rest_framework import status
 
-from grow.curation.edges import project_legacy_lists, upsert_edge_row
+from grow.curation.edges import upsert_edge_row
 from grow.curation.rows import InvalidRow
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
@@ -165,18 +165,6 @@ class TestExportAndSeed(AppTestCase):
 
         key = lambda r: (r["item_id"], r["relation"], r["parent_item_id"])  # noqa: E731
         assert sorted(export["edges"], key=key) == sorted(self._seed_rows(), key=key)
-
-    def test_legacy_projection_then_one_row_per_edge(self):
-        GenreEdgeRule.objects.all().delete()
-        GenreEdgeRule.objects.upsert("canonical_parent", A, B, exclude_other_parents=True, reason="r")
-        GenreEdgeRule.objects.upsert("canonical_parent", C, None, exclude_other_parents=True, reason="r")
-        GenreEdgeRule.objects.upsert("secondary_parent", A, C, action="add", reason="r")
-
-        projection = project_legacy_lists()
-
-        assert [r["item_id"] for r in projection["canonical_parent"]] == [A]
-        assert [r["item_id"] for r in projection["accepted_canonical_roots"]] == [C]
-        assert [(r["item_id"], r["parent_id"]) for r in projection["secondary_parents"]] == [(A, C)]
 
     def test_import_row_with_invalid_edge_then_invalid_row(self):
         with self.assertRaises(InvalidRow):
