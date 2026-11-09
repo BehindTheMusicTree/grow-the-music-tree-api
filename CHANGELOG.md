@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Benchmark genre and tag detail on pinned fixtures across repeated, alternating, cleared-cache and post-write requests, asserting successful responses before recording timings. Detail ceilings await stable CI self-comparisons.
 
+### Removed
+
+- Stray `CHANGELOG.md-e` backup file committed by mistake in #434.
+
 ## [16.0.0] - 2026-11-09
 
 ### CI
