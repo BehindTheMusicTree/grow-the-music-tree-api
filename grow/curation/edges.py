@@ -118,3 +118,24 @@ def upsert_edge_row(row: dict[str, Any]) -> UpsertResult:
     except ValidationError as e:
         errors = e.message_dict if hasattr(e, "error_dict") else {"edge": e.messages}
         raise InvalidRow({field: "; ".join(messages) for field, messages in errors.items()}) from e
+
+
+def find_edge_candidate_error(
+    relation: str, item_id: str, parent_item_id: str | None, exclude_pk: Any = None
+) -> tuple[str, str] | None:
+    """The `(field, message)` of the first rule-set violation a rule would add to the stored edges, if any."""
+    from grow.curation.rule_set import (
+        excluded_items,
+        find_excluded_edge_conflicts,
+        find_root_regional_conflicts,
+        involving,
+    )
+
+    candidate = GenreEdgeRule(user=None, relation=relation, item_id=item_id, parent_item_id=parent_item_id)
+    edges = [*edge_rules().exclude(pk=exclude_pk), candidate]
+    own = {item_id, parent_item_id} - {None}
+    violations = involving(find_root_regional_conflicts(edges), own)
+    violations += involving(
+        find_excluded_edge_conflicts(excluded_items(CurationEntry.objects.filter(user=None)), [candidate]), own
+    )
+    return ("item_id", violations[0].message) if violations else None

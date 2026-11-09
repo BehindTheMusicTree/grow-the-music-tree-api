@@ -33,14 +33,16 @@ class GenreEdgeRuleManager(StandardResourceManager):
         instance.full_clean(exclude=AUTO_FIELDS, validate_unique=False)
 
     @staticmethod
-    def _check_scene_split(relation: str, item_id: str, parent_item_id: str | None, exclude_pk: Any = None) -> None:
-        if relation != "canonical_parent" or parent_item_id is None:
-            return
-        from grow.curation.edges import find_edge_scene_split_error
+    def _check_rule_set(relation: str, item_id: str, parent_item_id: str | None, exclude_pk: Any = None) -> None:
+        from grow.curation.edges import find_edge_candidate_error, find_edge_scene_split_error
 
-        error = find_edge_scene_split_error(item_id, parent_item_id, exclude_pk)
-        if error:
-            raise InvalidRow({"parent_item_id": error})
+        if relation == "canonical_parent" and parent_item_id is not None:
+            error = find_edge_scene_split_error(item_id, parent_item_id, exclude_pk)
+            if error:
+                raise InvalidRow({"parent_item_id": error})
+        candidate_error = find_edge_candidate_error(relation, item_id, parent_item_id, exclude_pk)
+        if candidate_error:
+            raise InvalidRow({candidate_error[0]: candidate_error[1]})
 
     def _lock(self) -> None:
         lock_writes(self.all())
@@ -49,7 +51,7 @@ class GenreEdgeRuleManager(StandardResourceManager):
     def create(self, actor: Any = None, **kwargs) -> GenreEdgeRule:
         self._lock()
         self._validate(self.model(**kwargs))
-        self._check_scene_split(kwargs["relation"], kwargs["item_id"], kwargs.get("parent_item_id"))
+        self._check_rule_set(kwargs["relation"], kwargs["item_id"], kwargs.get("parent_item_id"))
         instance = super().create(**kwargs)
         HistoryEntry.objects.record(
             instance, action=HistoryAction.CREATED, actor=actor, new_value=self._snapshot(instance)
@@ -64,7 +66,7 @@ class GenreEdgeRuleManager(StandardResourceManager):
         candidate.user_id = instance.user_id
         candidate._state.adding = False  # so unique constraints ignore the row being updated
         candidate.full_clean(exclude=AUTO_FIELDS, validate_unique=False)
-        self._check_scene_split(candidate.relation, candidate.item_id, candidate.parent_item_id, instance.pk)
+        self._check_rule_set(candidate.relation, candidate.item_id, candidate.parent_item_id, instance.pk)
         instance = super().update_instance(instance, **kwargs)
         HistoryEntry.objects.record(
             instance,
