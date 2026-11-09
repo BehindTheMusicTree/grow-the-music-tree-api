@@ -133,8 +133,8 @@ def find_edge_candidate_error(
 
     candidate = GenreEdgeRule(user=None, relation=relation, item_id=item_id, parent_item_id=parent_item_id)
     edges = [*edge_rules().exclude(pk=exclude_pk), candidate]
-    own = {item_id, parent_item_id} - {None}
-    violations = involving(find_root_regional_conflicts(edges), own)
+    own = {item_id}
+    violations = involving(find_root_regional_conflicts(edges), {item_id})
     violations += involving(
         find_excluded_edge_conflicts(excluded_items(CurationEntry.objects.filter(user=None)), [candidate]), own
     )

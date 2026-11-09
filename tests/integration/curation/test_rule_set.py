@@ -93,3 +93,26 @@ class TestExcludedEdgeConflict(AppTestCase):
         _exclude("technique_genres", A)
 
         assert "exclusivity" in {v.kind for v in _violations()}
+
+
+class TestStoredViolationsDontBlockOthers(AppTestCase):
+    def test_rule_under_a_conflicted_root_then_created(self):
+        GenreEdgeRule.objects.bulk_create(
+            [
+                GenreEdgeRule(user=None, relation="canonical_parent", item_id=A, exclude_other_parents=True),
+                GenreEdgeRule(
+                    user=None, relation="regional_overview", item_id=A, parent_item_id=B, exclude_other_parents=False
+                ),
+            ]
+        )
+
+        assert (
+            GenreEdgeRule.objects.upsert("canonical_parent", "Q999991003", A, exclude_other_parents=False) == "created"
+        )
+
+    def test_remove_rule_on_an_excluded_item_then_allowed(self):
+        _exclude("theme_genres", A)
+
+        GenreEdgeRule.objects.upsert("secondary_parent", A, B, action="remove", reason="r")
+
+        assert _violations() == []

@@ -14,11 +14,9 @@ from grow.curation.lists import EXCLUSIVE_LISTS
 from grow.curation.rows import (
     POP_SIDE_LIST,
     SCENE_LIST,
-    UMBRELLA_LIST,
     find_exclusivity_conflict,
     find_other_pop_child_error,
     find_precedence_cycle,
-    find_umbrella_leaf_error,
     precedence_cycle_error,
     scene_split_error,
 )
@@ -56,7 +54,7 @@ def find_excluded_edge_conflicts(excluded: dict[str, str], edges: Iterable[Genre
             {edge.item_id},
         )
         for edge in edges
-        if edge.item_id in excluded
+        if edge.item_id in excluded and edge.parent_item_id is not None and edge.action != GenreEdgeRule.Action.REMOVE
     ]
 
 
@@ -79,15 +77,22 @@ def find_scene_split_violations(entries: models.QuerySet, edges: Iterable[GenreE
 
 
 def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdgeRule]) -> list[Violation]:
-    """Every invariant the stored curation entries and `edges` break together, in a stable order."""
+    """Every invariant the stored curation entries and `edges` break together, in a stable order.
+
+    The umbrella-leaf check reads the live Genre tree, itself built from the export, so it stays on the write path:
+    gating the export on it could leave no way to publish a fresh tree."""
     edges = list(edges)
     violations: list[Violation] = []
+    lists_by_item: dict[str, list[str]] = {}
     for list_name, key in entries.filter(list_name__in=EXCLUSIVE_LISTS).order_by("key").values_list("list_name", "key"):
-        other = find_exclusivity_conflict(entries, list_name, key)
-        if other:
+        lists_by_item.setdefault(key, []).append(list_name)
+    for key, list_names in lists_by_item.items():
+        if len(list_names) > 1:
             violations.append(
                 Violation(
-                    "exclusivity", f"{key} is in {list_name} and {other}; these lists are mutually exclusive", {key}
+                    "exclusivity",
+                    f"{key} is in {' and '.join(sorted(list_names))}; these lists are mutually exclusive",
+                    {key},
                 )
             )
     for key in entries.filter(list_name="genre_precedence").order_by("key").values_list("key", flat=True):
@@ -98,10 +103,6 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
         message = find_other_pop_child_error(entries, POP_SIDE_LIST, key)
         if message:
             violations.append(Violation("pop_child", message, set(key.split("\t"))))
-    for key in entries.filter(list_name=UMBRELLA_LIST).order_by("key").values_list("key", flat=True):
-        message = find_umbrella_leaf_error(UMBRELLA_LIST, key)
-        if message:
-            violations.append(Violation("umbrella_leaf", message, {key}))
     violations += find_scene_split_violations(entries, edges)
     violations += find_root_regional_conflicts(edges)
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
