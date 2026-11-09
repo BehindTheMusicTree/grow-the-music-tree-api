@@ -34,7 +34,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
-    "entity_additions": {"entity_kind": ("cultural_region", "macro_region", "city")},
+    "entity_additions": {"entity_kind": ("cultural_region", "macro_region", "city", "admin_unit")},
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
