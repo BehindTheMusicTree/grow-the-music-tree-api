@@ -79,17 +79,24 @@ def _check_index(index: Any, hidden: Any) -> None:
 
 
 def _check_boundary(region: dict[str, Any]) -> None:
-    status = region.get("boundaryStatus", "available")
-    if status not in ("available", "missing"):
+    """A region without a boundary has null coordinates, all together; `boundaryStatus` is optional but must agree.
+
+    The lean index omits `boundaryStatus` (null `bbox` says it) and `mainBbox` when it equals `bbox`.
+    """
+    declared = "boundaryStatus" in region
+    status = region.get("boundaryStatus")
+    if declared and status not in ("available", "missing"):
         raise ValueError("region boundaryStatus must be available or missing")
-    if status == "missing":
-        if any(key not in region or region[key] is not None for key in ("bbox", "mainBbox", "centroid")):
-            raise ValueError("a missing boundary requires null bbox, mainBbox and centroid")
-    elif any(
-        (key in region and region[key] is None) or ("boundaryStatus" in region and key not in region)
-        for key in ("bbox", "mainBbox", "centroid")
+    if (declared or any(key in region for key in ("bbox", "mainBbox", "centroid"))) and not all(
+        k in region for k in ("bbox", "centroid")
     ):
-        raise ValueError("an available boundary requires coordinates")
+        raise ValueError("a region boundary requires bbox and centroid coordinates, null when it has none")
+    coordinates = [region[key] for key in ("bbox", "mainBbox", "centroid") if key in region]
+    unset = [value is None for value in coordinates]
+    if any(unset) and not all(unset):
+        raise ValueError("boundary coordinates must be all null (no boundary) or all set")
+    if declared and (status == "missing") != all(unset):
+        raise ValueError("region boundaryStatus disagrees with its coordinates")
 
 
 def _check_level_ids(index: dict[str, Any]) -> None:
