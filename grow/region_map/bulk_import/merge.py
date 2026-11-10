@@ -87,7 +87,7 @@ def _check_boundary(region: dict[str, Any]) -> None:
     status = region.get("boundaryStatus")
     if declared and status not in ("available", "missing"):
         raise ValueError("region boundaryStatus must be available or missing")
-    if (declared or ("bbox" in region and region["bbox"] is None)) and not all(
+    if (declared or any(key in region for key in ("bbox", "mainBbox", "centroid"))) and not all(
         k in region for k in ("bbox", "centroid")
     ):
         raise ValueError("a region boundary requires bbox and centroid coordinates, null when it has none")

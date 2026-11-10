@@ -30,6 +30,9 @@ def test_lean_index_omits_boundary_status_and_main_bbox():
         {"bbox": None, "mainBbox": [0, 0, 1, 1], "centroid": None},
         {"boundaryStatus": "missing", "bbox": [0, 0, 1, 1], "centroid": [0.5, 0.5]},
         {"boundaryStatus": "available", "bbox": None, "centroid": None},
+        {"centroid": None},
+        {"mainBbox": None},
+        {"bbox": [0, 0, 1, 1]},
     ],
 )
 def test_boundary_status_rejects_inconsistent_coordinates(region):
