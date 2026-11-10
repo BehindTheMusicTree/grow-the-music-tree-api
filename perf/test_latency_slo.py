@@ -34,6 +34,17 @@ SLO_MS = {
     "playlist-detail (largest genre)": 120,
     "genre-playlist-tracks?page_size=100 (largest genre)": 260,
     "artist-genre-counts (Canned Heat)": 30,
+    # Provisional: 3x a single local p50 (326 / 59 ms), not yet pooled over CI self-comparisons like the rest.
+    "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": 990,
+    "genre-playlist-tracks (front: viewer FR, genre_only)": 180,
+}
+
+VIEWER_TOKEN = "perf-viewer-token"
+# The front always sends the trusted viewer headers, so regional policies are evaluated per row, not skipped.
+VIEWER_HEADERS = {"HTTP_X_VIEWER_CONTEXT_TOKEN": VIEWER_TOKEN, "HTTP_X_VIEWER_COUNTRY": "FR"}
+HEADERS = {
+    "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": VIEWER_HEADERS,
+    "genre-playlist-tracks (front: viewer FR, genre_only)": VIEWER_HEADERS,
 }
 
 
@@ -59,22 +70,32 @@ PATHS = {
         {"page_size": 100},
     ),
     "artist-genre-counts (Canned Heat)": lambda: (_largest_artist_genre_counts(), {}),
+    "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": lambda: (
+        _large_playlist("genre-playlist-tracks"),
+        {"page_size": 100, "coverage": "genre_and_subgenres", "subgenres": "all"},
+    ),
+    "genre-playlist-tracks (front: viewer FR, genre_only)": lambda: (
+        _large_playlist("genre-playlist-tracks"),
+        {"page_size": 100, "coverage": "genre_only"},
+    ),
 }
 
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("scenario", SLO_MS)
-def test_median_latency_within_slo(scenario, perf_record):
+def test_median_latency_within_slo(scenario, perf_record, settings):
+    settings.VIEWER_CONTEXT_TOKEN = VIEWER_TOKEN
     path, params = PATHS[scenario]()
+    headers = HEADERS.get(scenario, {})
     client = AppApiClient()
     for _ in range(WARMUPS):
-        assert client.get(path, params).status_code == status.HTTP_200_OK
+        assert client.get(path, params, **headers).status_code == status.HTTP_200_OK
 
     timings = []
     for _ in range(RUNS):
         start = time.perf_counter()
         with CaptureQueriesContext(connection) as queries:
-            response = client.get(path, params)
+            response = client.get(path, params, **headers)
         assert response.status_code == status.HTTP_200_OK, response.content[:500]
         timings.append((time.perf_counter() - start) * 1000)
 

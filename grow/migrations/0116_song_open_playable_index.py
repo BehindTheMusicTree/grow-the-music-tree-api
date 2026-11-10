@@ -23,7 +23,7 @@ def _forwards(apps, schema_editor):
     if row is not None and not row[0]:
         schema_editor.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {INDEX}")
     sql = str(_index().create_sql(model, schema_editor, concurrently=True))
-    schema_editor.execute(sql.replace("CREATE INDEX", "CREATE INDEX IF NOT EXISTS", 1))
+    schema_editor.execute(sql.replace("CREATE INDEX CONCURRENTLY", "CREATE INDEX CONCURRENTLY IF NOT EXISTS", 1))
 
 
 def _backwards(apps, schema_editor):
