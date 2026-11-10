@@ -3,6 +3,7 @@ from rest_framework import serializers
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 
 from grow.model.artist.Artist import Artist
+from grow.model.song.playable import PLAYABLE
 from grow.serializer.model.album.minimum import AlbumMinimumSerializer
 
 from .Fields import Fields
@@ -12,6 +13,15 @@ def tracks_count(prefix: str = "") -> Count:
     # Genreless songs are hidden from the library, so they are not counted either.
     tracks = f"{prefix}{Fields.TRACKS_RELATED_NAME}"
     return Count(tracks, filter=Q(**{f"{tracks}__genre__isnull": False}), distinct=True)
+
+
+def playable_tracks_count(prefix: str = "") -> Count:
+    tracks = f"{prefix}{Fields.TRACKS_RELATED_NAME}"
+    # Youtube fields live on Song, the child of the artist's Track relation.
+    prefixed = Q(**{f"{tracks}__genre__isnull": False})
+    for lookup, value in PLAYABLE.children:
+        prefixed &= Q(**{f"{tracks}__{Fields.SONG_RELATED_NAME}__{lookup}": value})
+    return Count(tracks, filter=prefixed, distinct=True)
 
 
 class ArtistSimpleSerializer(EagerLoadingMixin, serializers.ModelSerializer):

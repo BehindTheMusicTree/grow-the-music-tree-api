@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
+
 ### Changed
 
 - Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
