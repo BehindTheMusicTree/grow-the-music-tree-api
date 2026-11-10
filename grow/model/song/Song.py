@@ -8,6 +8,7 @@ from the_music_tree_genre_kit.track.Track import Track as KitTrack
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
 
 from grow.model.artist.Artist import Artist
+from grow.model.song.playable import OPEN_PLAYABLE
 from grow.model.track.Fields import Fields
 from grow.model.track.TrackManager import TrackManager
 
@@ -32,6 +33,9 @@ class Song(KitTrack):
 
     class Meta:
         db_table = "grow_song"
+        indexes = [
+            models.Index(fields=["track"], name="grow_song_open_playable_idx", condition=OPEN_PLAYABLE),
+        ]
         verbose_name = "Song"
         verbose_name_plural = "Songs"
 
