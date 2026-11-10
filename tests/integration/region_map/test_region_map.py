@@ -381,6 +381,14 @@ class TestRegionMapImportRun(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         assert json.loads(response.content)["regions"][0] == region
 
+    def test_lean_region_without_boundary_status_or_main_bbox_is_kept(self):
+        regions = [
+            {**_index()["regions"][0], "id": "JO", "bbox": None, "centroid": None},
+            {**_index()["regions"][0], "id": "FR", "bbox": [0, 0, 1, 1], "centroid": [0.5, 0.5]},
+        ]
+        assert self._sync(_parts(_index(regions=regions, worldZoneIds=["JO", "FR"])))["imported"] == 2
+        assert json.loads(APIClient().get(INDEX).content)["regions"] == regions
+
     def test_boundary_status_must_agree_with_coordinates(self):
         base = {**_index()["regions"][0], "bbox": None, "mainBbox": None, "centroid": None}
         invalid = [

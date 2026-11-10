@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- The region map import accepts the lean index the pipelines are moving to: `boundaryStatus` and `mainBbox` are optional (a region with no boundary is one whose `bbox` and `centroid` are both null; a stated `boundaryStatus` must still agree), and the genres' `rule` and `drillable` are not read. Tested on both formats.
+
 - Add a sparse database-maintained shadow projection of canonical song catalogue counts, including genreless and unplayable songs. Maintain both Song/Track halves across ORM and SQL writes, rollback and truncation; independently compare it and the legacy counters with `verify_genre_catalogue_counts`, with explicit atomic repair.
 
 - Deployment: migration `0115` (catalogue projection) takes exclusive locks on the song and track tables and backfills in one transaction, about 97 s with a warm cache and about 29 minutes with a cold one; it fails fast with NOWAIT when a writer holds a lock, so it can be retried. Warm the join first and run `verify_genre_catalogue_counts` afterwards (`docs/operations/catalogue-projection.md`, "Migration locks"). Migration `0117` builds its index `CONCURRENTLY`.
