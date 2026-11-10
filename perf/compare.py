@@ -10,6 +10,8 @@ A side is unstable when its round medians split into two groups (a gap above RAT
 sorted values): its pooled median would sit between two plans that no request actually took. Runner drift moves every
 scenario of a round together, so it is estimated within the side (median over scenarios of round p50 / usual p50) and
 removed before that test; what is left is a scenario diverging from the others.
+With four rounds or more, each group must hold at least MIN_SPLIT_ROUNDS rounds: one odd round is noise (it leaves the
+pooled median on the majority plan), while fewer rounds cannot tell, so the gap stays suspect and the runner measures more.
 Limit: a shift of most scenarios in the same round of one side reads as drift; only `slower` (paired ratios) can still
 catch it, and only when about half the rounds are affected. A scenario missing from some rounds is judged raw.
 Exit 0 when clean, 1 on an SLO breach, a regression or an unstable side.
@@ -33,6 +35,9 @@ FLOOR_MS = 5.0
 # Drift is the median over scenarios of a round's p50 relative to the usual one. With few scenarios, one plan flip
 # would move that median, so below this count the rounds are judged raw.
 MIN_DRIFT_SCENARIOS = 10
+# A real plan flip repeats, and a lone round on one side of a gap does not move the pooled median. With enough rounds,
+# a gap counts only when each group holds at least this many; with fewer, a gap stays suspect so the verdict escalates.
+MIN_SPLIT_ROUNDS = 2
 
 OK, SLOWER, SLO_BREACH, MORE_QUERIES, NEW, REMOVED = "ok", "slower", "over SLO", "more queries", "new", "removed"
 UNSTABLE_BASE, UNSTABLE_HEAD = "unstable base", "unstable head"
@@ -57,7 +62,15 @@ class Side:
     def unstable(self) -> bool:
         """Two groups of rounds further apart than a slowdown would need: the side measured two plans, not one."""
         values = sorted(self.settled)
-        return any(high > low * RATIO and high - low > FLOOR_MS for low, high in pairwise(values))
+        if len(values) < 2 * MIN_SPLIT_ROUNDS:
+            lowest, highest = 1, len(values) - 1
+        else:
+            lowest, highest = MIN_SPLIT_ROUNDS, len(values) - MIN_SPLIT_ROUNDS
+        return any(
+            high > low * RATIO and high - low > FLOOR_MS
+            for size, (low, high) in enumerate(pairwise(values), start=1)
+            if lowest <= size <= highest
+        )
 
 
 @dataclass(frozen=True)
@@ -197,7 +210,8 @@ def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str
         lines.append(
             f"p50 of all runs, base and head interleaved on the same runner. A scenario is slower when the median of "
             f"the head/base ratios of the paired rounds exceeds {RATIO}x **and** adds {FLOOR_MS:.0f} ms. A side is "
-            f"unstable when its drift-corrected round p50s split into two groups that far apart (an unstable head "
+            f"unstable when its drift-corrected round p50s split into two groups that far apart, each of at least "
+            f"{MIN_SPLIT_ROUNDS} rounds once there are {2 * MIN_SPLIT_ROUNDS} (an unstable head "
             f"fails even with the label)."
         )
         drift_line = _drift_line(rows)
