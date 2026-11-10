@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [16.1.0] - 2026-11-10
+
 ### Changed
 
 - `AGENTS.md` now states that perf investigations (request replay, `EXPLAIN (ANALYZE, BUFFERS)`) run read-only on the staging VPS rather than locally, since the local fixture does not reproduce prod-scale plans.
@@ -19,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The region map import accepts the hidden regions (attachable places kept out of the map, read only by `GET regions/map/attachable/`) as their own `hidden_regions.json` document, `{"regions": [{id, name, kind, parentId}]}`, instead of the index's `hiddenRegions`, which made up 37 % of the index that every map load downloads and validates. Both formats are accepted during the transition, never together. `RegionMapSnapshot.hidden_regions_checksum` (migration `0116`, null for the previous format) records the file; an unchanged snapshot needs both checksums to match, and files of replaced snapshots are purged. `RegionMapAttachableView` reads the file (or the index for a previous-format snapshot) and re-reads on a concurrent merge. Tested on both formats, the rejection of both at once and of unknown paths, a changed file under an identical index, and the purge, plus the attachable list. The pipelines release that produces the file requires this one to be deployed first.
 
 ### Fixed
+
+- Reload songs under the source-write gate before managed updates and deletions, preventing stale instances from corrupting playlist membership and legacy catalogue deltas. Genre deletion transfers the actual source count instead of propagating a corrupted legacy bucket. Cover stale concurrent moves/deletes and corrupted-count deletion.
 
 - `GET genre-playlists/<uuid>/tracks/` no longer times out (503) on the largest genres. Its cost followed playlist membership: every member probed `grow_song`, the region policy and the track genre, then the paginator repeated it all in a COUNT. Genre playlists hold only playable songs, so the PLAYABLE probe is dropped and the region filter is a top-level `NOT EXISTS` over the new partial index `grow_song_restricted_idx` (migration `0117`, built `CONCURRENTLY`; about 0.4 % of songs), and the total comes from the membership buckets minus the blocked restricted members, in one query (row-level count only with `artist` or `from`). On staging, Rock page 1 with the ordered membership index is about 30 ms instead of a timeout; that index is owned by the genre-kit and must land there first. Tested on the writer invariant (create, `update_instance`), bucket count against the exact count over coverage, subgenre scope and country, the query budget and the plan (no `grow_song` scan, no hashed subplan); the provisional SLOs are recalibrated.
 - The `Perf` A/B gate no longer flags a side `unstable` for one odd round (#440). With four rounds or more, `perf/compare.py` requires each group of a gap to hold at least `MIN_SPLIT_ROUNDS` (2) rounds, since a lone round does not move the pooled median; with two rounds a gap stays suspect, so `scripts/perf_ab.sh` still measures two more before the verdict. Tested on the false positive of run 42798826743 (24 / 16 / 26 / 23 ms), a repeated split and the two-round case.
@@ -30,6 +34,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
 
 ### Added
+
+- Add a sparse database-maintained shadow projection of canonical song catalogue counts, including genreless and unplayable songs. Maintain both Song/Track halves across ORM and SQL writes, rollback and truncation; independently compare it and the legacy counters with `verify_genre_catalogue_counts`, with explicit atomic repair.
+
+- Deployment: migration `0115` (catalogue projection) takes exclusive locks on the song and track tables and backfills in one transaction, about 97 s with a warm cache and about 29 minutes with a cold one; it fails fast with NOWAIT when a writer holds a lock, so it can be retried. Warm the join first and run `verify_genre_catalogue_counts` afterwards (`docs/operations/catalogue-projection.md`, "Migration locks"). Migration `0117` builds its index `CONCURRENTLY`.
 
 - `entity_additions` accepts `entity_kind` `historical_country`: a curated item (a civilization such as Ancient Egypt, a colony such as Acadia) becomes a drawn former state on the region map, outlined by the pipeline's pinned historical source and replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated. Test in `tests/integration/curation/test_curation_api.py`.
 - The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
@@ -66,7 +74,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `scripts/rehearse-migration.sh` applies pending migrations to a disposable copy of the latest prod backup and reports duration, WAL, temp files, lock waits and an optional verification command, then removes the copy. See `docs/operations/migration-rehearsal.md`.
 
 - Curation: the five edge lists (`canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews`, `secondary_parents`) become one `GenreEdgeRule` table (`curation/edges/` endpoints, `genre_edges.csv` seed) with database constraints (one primary parent per item and axis, one rule per pair, roots only canonical, no self edge). Migration `0112` moves the data both ways and refuses conflicting rules. `curation/export/` adds `edges` (the five legacy lists it first kept alongside are removed in this release, see Removed); resolutions and review items designate a rule by `rule_id` or by the legacy `(list, key)`. Tested at the constraint, manager, endpoint, export-parity and migration levels.
-- Add a sparse database-maintained shadow projection of canonical song catalogue counts, including genreless and unplayable songs. Maintain both Song/Track halves across ORM and SQL writes, rollback and truncation; independently compare it and the legacy counters with `verify_genre_catalogue_counts`, with explicit atomic repair.
 
 - Measure nine region index/lexicon latency scenarios on pinned data, including gzip and conditional requests, with relative regression and stability gates while absolute ceilings await CI calibration.
 
@@ -109,8 +116,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `POST genres/{uuid}/set-root/` (admin) makes a canonical genre a root: it detaches the parent, replaces the item's `canonical_parent` rule with an `accepted_canonical_roots` rule so the pipeline keeps it a root, locks the genre and records `parent_changed` history. Already-root, regional and excluded genres return 400; `PUT` with `parent: null` is still rejected for Wikidata-backed genres. Tests in `test_edit_curation_rules.py`.
 
 ### Fixed
-
-- Reload songs under the source-write gate before managed updates and deletions, preventing stale instances from corrupting playlist membership and legacy catalogue deltas. Genre deletion transfers the actual source count instead of propagating a corrupted legacy bucket. Cover stale concurrent moves/deletes and corrupted-count deletion.
 
 - Bound playlist-track hydration to the selected page and materialize genre selection once on PostgreSQL, restoring the four-query playback budget and the 150 ms median latency target on the pinned fixture.
 
