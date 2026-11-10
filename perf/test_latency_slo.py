@@ -34,9 +34,9 @@ SLO_MS = {
     "playlist-detail (largest genre)": 120,
     "genre-playlist-tracks?page_size=100 (largest genre)": 260,
     "artist-genre-counts (Canned Heat)": 30,
-    # Provisional: 3x a single local p50 (326 / 59 ms), not yet pooled over CI self-comparisons like the rest.
-    "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": 990,
-    "genre-playlist-tracks (front: viewer FR, genre_only)": 180,
+    # Provisional: 3x a single local p50 (287 / 22 ms) on the bucket-count path, not yet pooled over CI self-comparisons.
+    "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": 870,
+    "genre-playlist-tracks (front: viewer FR, genre_only)": 70,
 }
 
 VIEWER_TOKEN = "perf-viewer-token"

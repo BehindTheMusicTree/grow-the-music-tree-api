@@ -1,6 +1,6 @@
 import pytest
 
-from grow.model.song.playable import OPEN_PLAYABLE
+from grow.model.song.playable import RESTRICTED_POLICY
 from grow.model.song.Song import Song
 from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import RegionPlaylistTracksMixin
 
@@ -14,14 +14,16 @@ class _Mixin(RegionPlaylistTracksMixin):
 
 
 @pytest.mark.django_db
-def test_playable_check_is_two_per_row_probes_joined_by_or():
-    mixin = _Mixin()
-    sql = str(mixin.get_track_playlist_rel_queryset(_Playlist()).values("pk").query)
-    assert sql.count("EXISTS(") == 2
-    assert " OR " in sql.split("WHERE", 1)[1]
+def test_region_filter_is_one_top_level_anti_join_without_playable_probe():
+    sql = str(_Mixin().get_track_playlist_rel_queryset(_Playlist()).values("pk").query)
+    where = sql.split("WHERE", 1)[1]
+    assert where.count("EXISTS(") == 1
+    assert "NOT EXISTS(" in where
+    assert "youtube_video_id" not in where
 
 
-def test_open_playable_matches_the_partial_index_condition():
-    index = next(i for i in Song._meta.indexes if i.name == "grow_song_open_playable_idx")
-    assert index.condition == OPEN_PLAYABLE
+def test_restricted_policy_matches_the_partial_index_condition():
+    index = next(i for i in Song._meta.indexes if i.name == "grow_song_restricted_idx")
+    assert index.condition == RESTRICTED_POLICY
     assert index.fields == ["track"]
+    assert index.include == ("youtube_region_restriction",)

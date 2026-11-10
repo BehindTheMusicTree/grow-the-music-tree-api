@@ -1,12 +1,14 @@
 from django.db import migrations, models
 
-from grow.model.song.playable import OPEN_PLAYABLE
+from grow.model.song.playable import RESTRICTED_POLICY
 
-INDEX = "grow_song_open_playable_idx"
+INDEX = "grow_song_restricted_idx"
 
 
 def _index() -> models.Index:
-    return models.Index(fields=["track"], name=INDEX, condition=OPEN_PLAYABLE)
+    return models.Index(
+        fields=["track"], include=["youtube_region_restriction"], name=INDEX, condition=RESTRICTED_POLICY
+    )
 
 
 def _forwards(apps, schema_editor):
@@ -14,12 +16,11 @@ def _forwards(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
         schema_editor.add_index(model, _index())
         return
-    # grow_song is ~31M rows: a plain CREATE INDEX would block writes. CONCURRENTLY cannot run in a transaction, and an
+    # grow_song is ~32M rows: a plain CREATE INDEX would block writes. CONCURRENTLY cannot run in a transaction, and an
     # interrupted build leaves an INVALID index that IF NOT EXISTS would keep, so drop it first.
-    valid = schema_editor.connection.cursor()
-    with valid:
-        valid.execute("SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass(%s)", [INDEX])
-        row = valid.fetchone()
+    with schema_editor.connection.cursor() as cursor:
+        cursor.execute("SELECT indisvalid FROM pg_index WHERE indexrelid = to_regclass(%s)", [INDEX])
+        row = cursor.fetchone()
     if row is not None and not row[0]:
         schema_editor.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {INDEX}")
     sql = str(_index().create_sql(model, schema_editor, concurrently=True))
@@ -38,7 +39,7 @@ class Migration(migrations.Migration):
     atomic = False
 
     dependencies = [
-        ("grow", "0115_maintain_genre_catalogue_counts"),
+        ("grow", "0116_region_map_snapshot_hidden_regions_checksum"),
     ]
 
     operations = [
