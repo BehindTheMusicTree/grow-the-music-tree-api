@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [16.1.0] - 2026-11-10
+
 ### Changed
 
 - The genre kit is bumped to 0.57.0, which adds the `tpr_playlist_position_idx` index on `TrackPlaylistRel` `(playlist_id, position, id)` (kit migration `0013`, built `CONCURRENTLY`), so the first page of a large genre playlist walks the index instead of sorting every member. Building it on a large database is a deployment step.
