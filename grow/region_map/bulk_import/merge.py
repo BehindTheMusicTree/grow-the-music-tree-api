@@ -14,6 +14,8 @@ from grow.region_map.bulk_import.part_loader import SHA256
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 
 INDEX_PATH = "index.json"
+# Hidden regions are curation-only targets, so they ship beside the index instead of inflating the map's document.
+HIDDEN_REGIONS_PATH = "hidden_regions.json"
 # Tradition genres come from the genealogy, not the genre trees, so grow has no `Genre` for them.
 UNRESOLVED_RELATION = "tradition"
 LISTED_MAX = 20
@@ -26,7 +28,8 @@ def merge_region_map_import_run(
     Swaps in the committed run's region map index as the only snapshot, in one transaction. The geometry is not stored
     here: the index references the immutable tileset (`tileset`, a sha256) that the pipeline published to object storage
     before this commit, so clients flip between geometry and stats atomically with the index. An index identical to the
-    latest snapshot's is recorded as skipped.
+    latest snapshot's is recorded as skipped. The hidden regions (attachable targets kept out of the map) come either as
+    `hidden_regions.json` or, in the previous format, as the index's `hiddenRegions`, never both.
     """
     return execute_merge(run_id, attempt_id, RegionMapFileStaging, lambda: _merge(run_id, record))
 
@@ -44,7 +47,7 @@ def _staged_hashes(run_id: int) -> dict[str, str]:
     return hashes
 
 
-def _check_index(index: Any) -> None:
+def _check_index(index: Any, hidden: Any) -> None:
     if not isinstance(index, dict) or not isinstance(index.get("regions"), list):
         raise ValueError("index must be an object with a regions list")
     if not isinstance(index.get("tileset"), str) or not SHA256.fullmatch(index["tileset"]):
@@ -70,7 +73,7 @@ def _check_index(index: Any) -> None:
                 f"region {region.get('id')} overviewItemId {overview!r} must be one of its non-tradition genres"
             )
     _check_level_ids(index)
-    _check_hidden_regions(index)
+    _check_hidden_regions(index, hidden)
     if unknown := item_ids - set(Genre.objects.filter(wikidata_id__in=item_ids).values_list("wikidata_id", flat=True)):
         raise ValueError(f"region genres missing from grow: {_listed(unknown)}")
 
@@ -108,11 +111,10 @@ def _check_level_ids(index: dict[str, Any]) -> None:
             raise ValueError(f"{owner} {key} name unknown regions: {_listed(missing)}")
 
 
-def _check_hidden_regions(index: dict[str, Any]) -> None:
+def _check_hidden_regions(index: dict[str, Any], hidden: Any) -> None:
     """Hidden regions are attachable targets kept out of the map: unique ids, never shadowing a drawn region."""
-    hidden = index.get("hiddenRegions", [])
     if not isinstance(hidden, list):
-        raise ValueError("hiddenRegions must be a list")
+        raise ValueError("hidden regions must be a list")
     region_ids = {region["id"] for region in index["regions"] if "id" in region}
     hidden_ids: set[str] = set()
     for region in hidden:
@@ -129,20 +131,37 @@ def _check_hidden_regions(index: dict[str, Any]) -> None:
             raise ValueError(f"hidden region {region['id']} parentId {parent!r} is unknown")
 
 
+def _hidden_regions(run_id: int, index: Any, hidden_checksum: str | None) -> Any:
+    """The run's hidden regions: from its own file, or from the index in the previous format."""
+    has_inline = isinstance(index, dict) and "hiddenRegions" in index
+    if hidden_checksum is None:
+        return index.get("hiddenRegions", []) if isinstance(index, dict) else []
+    if has_inline:
+        raise ValueError(f"import run {run_id} has hidden regions in both {INDEX_PATH} and {HIDDEN_REGIONS_PATH}")
+    body = RegionMapFileStaging.objects.get(run_id=run_id, path=HIDDEN_REGIONS_PATH).body
+    document = json.loads(gzip.decompress(body))
+    if not isinstance(document, dict) or set(document) != {"regions"}:
+        raise ValueError(f"{HIDDEN_REGIONS_PATH} must be an object with only a regions list")
+    return document["regions"]
+
+
 def _merge(run_id: int, record: bool) -> dict[str, Any]:
     paths = _staged_hashes(run_id)
-    if extra := paths.keys() - {INDEX_PATH}:
-        raise ValueError(f"import run {run_id} uploads files other than {INDEX_PATH}: {_listed(extra)}")
+    if extra := paths.keys() - {INDEX_PATH, HIDDEN_REGIONS_PATH}:
+        raise ValueError(
+            f"import run {run_id} uploads files other than {INDEX_PATH} and {HIDDEN_REGIONS_PATH}: {_listed(extra)}"
+        )
     if INDEX_PATH not in paths:
         raise ValueError(f"import run {run_id} has no {INDEX_PATH}")
     checksum = paths[INDEX_PATH]
+    hidden_checksum = paths.get(HIDDEN_REGIONS_PATH)
     staged = RegionMapFileStaging.objects.get(run_id=run_id, path=INDEX_PATH)
     index = json.loads(gzip.decompress(staged.body))
     with report_step("validate_index"):
-        _check_index(index)
+        _check_index(index, _hidden_regions(run_id, index, hidden_checksum))
     count = len(index["regions"])
     latest = RegionMapSnapshot.objects.first()
-    unchanged = latest is not None and latest.checksum == checksum
+    unchanged = latest is not None and (latest.checksum, latest.hidden_regions_checksum) == (checksum, hidden_checksum)
     with report_step("publish_snapshot"), transaction.atomic():
         run = None
         if record:
@@ -151,11 +170,16 @@ def _merge(run_id: int, record: bool) -> dict[str, Any]:
             )
         if unchanged:
             return {"imported": 0, "skipped": count}
+        files = [(checksum, staged.body)]
+        if hidden_checksum is not None:
+            files.append(
+                (hidden_checksum, RegionMapFileStaging.objects.get(run_id=run_id, path=HIDDEN_REGIONS_PATH).body)
+            )
         RegionMapFile.objects.bulk_create(
-            [RegionMapFile(sha256=checksum, body=staged.body, size=len(staged.body))], ignore_conflicts=True
+            [RegionMapFile(sha256=sha, body=body, size=len(body)) for sha, body in files], ignore_conflicts=True
         )
         # Only the latest index is served; the tilesets it references are immutable and live in object storage.
         RegionMapSnapshot.objects.all().delete()
-        RegionMapSnapshot.objects.create(checksum=checksum, import_run=run)
-        RegionMapFile.objects.exclude(sha256=checksum).delete()
+        RegionMapSnapshot.objects.create(checksum=checksum, hidden_regions_checksum=hidden_checksum, import_run=run)
+        RegionMapFile.objects.exclude(sha256__in=[sha for sha, _ in files]).delete()
     return {"imported": count, "skipped": 0}

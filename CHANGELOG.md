@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The region map import accepts the hidden regions (attachable places kept out of the map, read only by `GET regions/map/attachable/`) as their own `hidden_regions.json` document, `{"regions": [{id, name, kind, parentId}]}`, instead of the index's `hiddenRegions`, which made up 37 % of the index that every map load downloads and validates. Both formats are accepted during the transition, never together. `RegionMapSnapshot.hidden_regions_checksum` (migration `0116`, null for the previous format) records the file; an unchanged snapshot needs both checksums to match, and files of replaced snapshots are purged. `RegionMapAttachableView` reads the file (or the index for a previous-format snapshot) and re-reads on a concurrent merge. Tested on both formats, the rejection of both at once and of unknown paths, a changed file under an identical index, and the purge, plus the attachable list. The pipelines release that produces the file requires this one to be deployed first.
+
 ### Fixed
 
 - The `Perf` A/B gate no longer flags a side `unstable` for one odd round (#440). With four rounds or more, `perf/compare.py` requires each group of a gap to hold at least `MIN_SPLIT_ROUNDS` (2) rounds, since a lone round does not move the pooled median; with two rounds a gap stays suspect, so `scripts/perf_ab.sh` still measures two more before the verdict. Tested on the false positive of run 42798826743 (24 / 16 / 26 / 23 ms), a repeated split and the two-round case.
