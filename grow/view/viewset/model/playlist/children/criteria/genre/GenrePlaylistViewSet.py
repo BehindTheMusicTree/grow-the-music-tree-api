@@ -4,7 +4,8 @@ from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import F, OuterRef, Subquery
+from django.db.models import Count, F, OuterRef, Q, Subquery, Sum
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseNotModified
 from django.utils.http import parse_etags
 from redis.exceptions import RedisError
@@ -21,9 +22,12 @@ from the_music_tree_genre_kit.criteria.selection.coverage import (
     CriteriaCoverage,
     parse_coverage,
 )
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
+from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.track.Track import Track
+from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import FROM_QUERY_PARAM
 
 from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
@@ -33,9 +37,12 @@ from grow.model.artist.Artist import Artist
 from grow.model.criteria.Criteria import Criteria
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.query_expressions import InSubquery
 from grow.view.pagination.PlaylistTracksPagination import PlaylistTracksPagination
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
+from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import blocked_restricted_songs
+from grow.youtube_regions import viewer_country
 
 TREE_CACHE_TTL = timedelta(days=7).total_seconds()
 
@@ -185,30 +192,35 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         self.check_object_permissions(self.request, playlist)
         return playlist
 
-    def get_track_playlist_rel_queryset(self, playlist):
+    def _genre_selection(self, playlist, field: str) -> Q | InSubquery:
+        """The requested coverage as a filter on `field`, a genre id column or alias (a bare expression, which the
+        kit queryset cannot hold inside a Q)."""
         coverage = parse_coverage(self.request.query_params.get("coverage"))
-        # Keep the recursive selection outside the per-member song lookup, while
-        # the scalar genre lookup prevents a full-catalogue join before membership.
-        queryset = (
-            super()
-            .get_track_playlist_rel_queryset(playlist)
-            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
-        )
         if playlist.criteria_id is None:
             if self.request.query_params.get("coverage") is not None:
                 raise ValidationError({"coverage": "Genreless has no coverage selection."})
             if self.request.query_params.get("subgenres") is not None:
                 raise ValidationError({"subgenres": "Genreless has no subgenres."})
-            queryset = queryset.filter(_selected_genre__isnull=True)
-        elif coverage == CriteriaCoverage.ONLY:
+            return Q(**{f"{field}__isnull": True})
+        if coverage == CriteriaCoverage.ONLY:
             parse_subgenres(self.request.query_params.get("subgenres"), coverage, "canonical")
-            queryset = queryset.filter(_selected_genre=playlist.criteria_id)
-        else:
-            scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, playlist.criteria.tree_name)
-            selected = selected_genres_query(
-                playlist.criteria_id, playlist.criteria.tree_name, scope, using=queryset.db
-            )
-            queryset = queryset.filter(InSubquery(F("_selected_genre"), selected))
+            return Q(**{field: playlist.criteria_id})
+        scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, playlist.criteria.tree_name)
+        selected = selected_genres_query(
+            playlist.criteria_id, playlist.criteria.tree_name, scope, using=TrackPlaylistRel.objects.db
+        )
+        return InSubquery(F(field), selected)
+
+    def get_track_playlist_rel_queryset(self, playlist):
+        # Keep the recursive selection outside the per-member song lookup, while
+        # the scalar genre lookup prevents a full-catalogue join before membership.
+        self._tracks_playlist = playlist
+        queryset = (
+            super()
+            .get_track_playlist_rel_queryset(playlist)
+            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
+            .filter(self._genre_selection(playlist, "_selected_genre"))
+        )
         artist_id = self.request.query_params.get("artist")
         if artist_id is not None:
             try:
@@ -219,6 +231,38 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
                 raise NotFound("Artist not found.")
             queryset = queryset.filter(track__artists=artist_uuid)
         return queryset
+
+    def get_tracks_count(self):
+        """Exact size of the `tracks/` list from the membership buckets, or None when it must be counted from rows.
+
+        Membership is playable-only, so the list is the selected buckets minus the restricted members blocked for
+        this viewer. Counting rows instead probes every member's song and genre, which exceeds the statement timeout
+        on the largest genres. `artist` and `from` narrow the list to a bounded, row-level count.
+        """
+        params = self.request.query_params
+        if params.get("artist") is not None or params.get(FROM_QUERY_PARAM) is not None:
+            return None
+        playlist = self._tracks_playlist
+        in_buckets = (
+            GenreMembershipCount.objects.filter(playlist_id=OuterRef("pk"))
+            .filter(self._genre_selection(playlist, "genre_id"))
+            .values("playlist_id")
+            .annotate(total=Sum("tracks_count"))
+            .values("total")
+        )
+        blocked = (
+            TrackPlaylistRel.objects.filter(playlist=OuterRef("pk"))
+            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
+            .filter(self._genre_selection(playlist, "_selected_genre"))
+            .filter(track_id__in=blocked_restricted_songs(viewer_country(self.request)).values("pk"))
+            .values("playlist")
+            .annotate(total=Count("pk"))
+            .values("total")
+        )
+        # One statement, so the count costs a single query whatever the selection.
+        return Playlist.objects.filter(pk=playlist.pk).values_list(
+            Coalesce(Subquery(in_buckets), 0) - Coalesce(Subquery(blocked), 0), flat=True
+        )[0]
 
     @action(detail=False, methods=["get"], url_path="tree")
     def tree(self, request: Request) -> HttpResponse:
