@@ -12,15 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Added
+### Fixed
 
-- The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
+- The `Perf` A/B gate no longer flags a side `unstable` for one odd round (#440). With four rounds or more, `perf/compare.py` requires each group of a gap to hold at least `MIN_SPLIT_ROUNDS` (2) rounds, since a lone round does not move the pooled median; with two rounds a gap stays suspect, so `scripts/perf_ab.sh` still measures two more before the verdict. Tested on the false positive of run 42798826743 (24 / 16 / 26 / 23 ms), a repeated split and the two-round case.
+- The `Perf` A/B gate no longer fails on runner drift shared by base and head. `perf/compare.py` now judges `slower` on the median of the head/base ratios of paired rounds, estimates each round's drift within a side (median over scenarios) and removes it before the `unstable` test, and flags a side only when its rounds split into two groups (a gap above `RATIO` and `FLOOR_MS`) instead of by max/min range, so the 4-round retry no longer widens it. The summary lists the drift per round. Result files must be named `<side>-<round>.json`. Tested on a shared step, a one-sided plan flip, a uniform head slowdown and round ordering; replayed on the incident's artifacts and the negative control.
 
 ### Changed
 
 - Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
 
 ### Added
+
+- The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
 
 - Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
 
