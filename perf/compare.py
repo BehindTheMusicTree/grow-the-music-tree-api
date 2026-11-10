@@ -2,26 +2,35 @@
 
 Usage: python -m perf.compare --head head-*.json [--base base-*.json] [--summary out.md] [--accept-regressions]
 
-Every input is a file written by perf/conftest.py (PERF_RESULTS), one per round. Timings of all rounds of one side are
-pooled, so interleaved base/head runs cancel out the runner's drift. A side whose round medians disagree is unstable:
-its pooled median would sit between two plans that no request actually took, so it fails instead of being judged.
+Every input is a file named <side>-<round>.json written by perf/conftest.py (PERF_RESULTS), one per round. Base and
+head run back to back in strict alternation, so round i of one is paired with round i of the other: `slower` is judged
+on the median of the head/base ratios of the pairs, which cancels the runner's drift.
+
+A side is unstable when its round medians split into two groups (a gap above RATIO and FLOOR_MS between consecutive
+sorted values): its pooled median would sit between two plans that no request actually took. Runner drift moves every
+scenario of a round together, so it is estimated within the side (median over scenarios of round p50 / usual p50) and
+removed before that test; what is left is a scenario diverging from the others.
 Exit 0 when clean, 1 on an SLO breach, a regression or an unstable side.
 """
 
 import argparse
 import json
+import re
 import statistics
 import sys
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 
 # A slowdown counts only when it exceeds both the ratio and the absolute floor, so ~10 ms endpoints don't flag on a
 # few ms of jitter. Starting values, to be confirmed with base == head runs on GitHub-hosted runners: the spread seen
 # on a laptop came from stale planner statistics after the bulk merges (fixed by their ANALYZE) plus load spikes, so
-# these constants are not meant to be calibrated locally. A cold first round that persists in CI shows up as
-# `unstable`, and the 4-round retry widens the spread.
+# these constants are not meant to be calibrated locally.
 RATIO = 1.3
 FLOOR_MS = 5.0
+# Drift is the median over scenarios of a round's p50 relative to the usual one. With few scenarios, one plan flip
+# would move that median, so below this count the rounds are judged raw.
+MIN_DRIFT_SCENARIOS = 10
 
 OK, SLOWER, SLO_BREACH, MORE_QUERIES, NEW, REMOVED = "ok", "slower", "over SLO", "more queries", "new", "removed"
 UNSTABLE_BASE, UNSTABLE_HEAD = "unstable base", "unstable head"
@@ -33,14 +42,20 @@ class Side:
     slo_ms: float | None
     queries: int | None
     rounds: tuple[float, ...] = ()
+    drift: tuple[float, ...] = ()
+
+    @property
+    def settled(self) -> tuple[float, ...]:
+        """Round medians with the runner's drift of that round removed."""
+        if not self.drift:
+            return self.rounds
+        return tuple(value / factor for value, factor in zip(self.rounds, self.drift, strict=True))
 
     @property
     def unstable(self) -> bool:
-        """Round medians apart by more than a slowdown would need: the side measured two plans, not one."""
-        if len(self.rounds) < 2:
-            return False
-        low, high = min(self.rounds), max(self.rounds)
-        return high > low * RATIO and high - low > FLOOR_MS
+        """Two groups of rounds further apart than a slowdown would need: the side measured two plans, not one."""
+        values = sorted(self.settled)
+        return any(high > low * RATIO and high - low > FLOOR_MS for low, high in pairwise(values))
 
 
 @dataclass(frozen=True)
@@ -49,6 +64,7 @@ class Row:
     base: Side | None
     head: Side | None
     statuses: tuple[str, ...]
+    ratio: float | None = None
 
     @property
     def failing(self) -> bool:
@@ -57,9 +73,29 @@ class Row:
         )
 
 
+def _round_number(path: Path) -> int:
+    match = re.fullmatch(r"(?:base|head)-(\d+)\.json", path.name)
+    if match is None:
+        raise ValueError(f"{path}: expected a name like head-1.json, the round number pairs base with head")
+    return int(match.group(1))
+
+
+def _drift(rounds: dict[str, list[float]]) -> tuple[float, ...]:
+    """Per round, how much slower the runner was for every scenario at once, within one side."""
+    count = max(len(values) for values in rounds.values())
+    full = [values for values in rounds.values() if len(values) == count]
+    if len(full) < MIN_DRIFT_SCENARIOS or count < 2:
+        return ()
+    usual = [statistics.median(values) for values in full]
+    return tuple(
+        statistics.median(values[i] / ref for values, ref in zip(full, usual, strict=True)) for i in range(count)
+    )
+
+
 def load(paths: list[Path]) -> dict[str, Side]:
     if not paths:
         raise ValueError("no result files given")
+    paths = sorted(paths, key=_round_number)
     timings: dict[str, list[float]] = {}
     rounds: dict[str, list[float]] = {}
     meta: dict[str, tuple[float | None, int | None]] = {}
@@ -76,10 +112,20 @@ def load(paths: list[Path]) -> dict[str, Side]:
             if previous is not None and previous[1] is not None and queries is not None:
                 queries = max(queries, previous[1])
             meta[scenario] = (result["slo_ms"], queries)
+    drift = _drift(rounds)
     return {
-        name: Side(statistics.median(values), *meta[name], rounds=tuple(rounds[name]))
+        name: Side(statistics.median(values), *meta[name], rounds=tuple(rounds[name]), drift=drift)
         for name, values in timings.items()
     }
+
+
+def paired_ratio(before: Side, after: Side) -> float:
+    """Median of head/base over rounds measured back to back, so drift common to both cancels."""
+    if before.rounds and after.rounds:
+        if len(before.rounds) != len(after.rounds):
+            raise ValueError("base and head were measured over a different number of rounds")
+        return statistics.median(a / b for a, b in zip(after.rounds, before.rounds, strict=True))
+    return after.p50 / before.p50
 
 
 def compare(base: dict[str, Side] | None, head: dict[str, Side], *, accept_regressions: bool = False) -> list[Row]:
@@ -87,6 +133,7 @@ def compare(base: dict[str, Side] | None, head: dict[str, Side], *, accept_regre
     for scenario in sorted(set(head) | set(base or {})):
         before, after = (base or {}).get(scenario), head.get(scenario)
         statuses: list[str] = []
+        ratio = paired_ratio(before, after) if before is not None and after is not None else None
         if after is None:
             statuses.append(REMOVED)
         else:
@@ -102,11 +149,11 @@ def compare(base: dict[str, Side] | None, head: dict[str, Side], *, accept_regre
                 # A slowdown against a base median that no request took means nothing either way.
                 statuses.append(UNSTABLE_BASE)
             elif before is not None and not accept_regressions:
-                if after.p50 > before.p50 * RATIO and after.p50 - before.p50 > FLOOR_MS:
+                if ratio is not None and ratio > RATIO and before.p50 * (ratio - 1) > FLOOR_MS:
                     statuses.append(SLOWER)
                 if before.queries is not None and after.queries is not None and after.queries > before.queries:
                     statuses.append(MORE_QUERIES)
-        rows.append(Row(scenario, before, after, tuple(statuses) or (OK,)))
+        rows.append(Row(scenario, before, after, tuple(statuses) or (OK,), ratio))
     return rows
 
 
@@ -126,15 +173,29 @@ def _queries(row: Row) -> str:
     return str(after) if before in (None, after) else f"{before} → {after}"
 
 
+def _drift_line(rows: list[Row]) -> str | None:
+    parts = []
+    for name, sides in (("base", [row.base for row in rows]), ("head", [row.head for row in rows])):
+        drift = next((side.drift for side in sides if side and side.drift), ())
+        if drift:
+            parts.append(f"{name} " + " / ".join(f"{factor:.2f}" for factor in drift))
+    return f"Runner drift per round (removed before the unstable test): {'; '.join(parts)}." if parts else None
+
+
 def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str:
     failing = [row for row in rows if row.failing]
     title = "❌ Perf regression" if failing else "✅ Perf"
     lines = [f"## {title}", ""]
     if with_base:
         lines.append(
-            f"p50 of all runs, base and head interleaved on the same runner. A scenario is slower when head > "
-            f"{RATIO}x base **and** +{FLOOR_MS:.0f} ms. A side is unstable when its round p50s differ by as much (an unstable head fails even with the label)."
+            f"p50 of all runs, base and head interleaved on the same runner. A scenario is slower when the median of "
+            f"the head/base ratios of the paired rounds exceeds {RATIO}x **and** adds {FLOOR_MS:.0f} ms. A side is "
+            f"unstable when its drift-corrected round p50s split into two groups that far apart (an unstable head "
+            f"fails even with the label)."
         )
+        drift_line = _drift_line(rows)
+        if drift_line:
+            lines += ["", drift_line]
         if accept_regressions:
             lines.append("")
             lines.append("⚠️ `perf-regression-accepted` label: slowdowns and query increases are reported, not failed.")
@@ -150,7 +211,7 @@ def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str
         status = f"**{status}**" if row.failing else status
         slo = f"{row.head.slo_ms:.0f}" if row.head and row.head.slo_ms is not None else "pending calibration"
         if with_base:
-            delta = f"{(row.head.p50 / row.base.p50 - 1) * 100:+.0f}%" if row.base and row.head else "-"
+            delta = f"{(row.ratio - 1) * 100:+.0f}%" if row.ratio is not None else "-"
             cells = [row.scenario, _ms(row.base), _ms(row.head), delta, _rounds(row.base), _rounds(row.head)]
             cells += [_queries(row), slo, status]
         else:

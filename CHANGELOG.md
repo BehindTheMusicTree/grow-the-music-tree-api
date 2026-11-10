@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- The `Perf` A/B gate no longer fails on runner drift shared by base and head. `perf/compare.py` now judges `slower` on the median of the head/base ratios of paired rounds, estimates each round's drift within a side (median over scenarios) and removes it before the `unstable` test, and flags a side only when its rounds split into two groups (a gap above `RATIO` and `FLOOR_MS`) instead of by max/min range, so the 4-round retry no longer widens it. The summary lists the drift per round. Result files must be named `<side>-<round>.json`. Tested on a shared step, a one-sided plan flip, a uniform head slowdown and round ordering; replayed on the incident's artifacts and the negative control.
+
 ### Changed
 
 - Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
