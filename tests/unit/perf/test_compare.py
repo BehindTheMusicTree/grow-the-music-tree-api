@@ -120,6 +120,12 @@ def test_a_gap_repeated_over_two_rounds_each_side_is_unstable():
     assert Side(180, 150, 3, rounds=(178, 1170, 1160, 1150, 180)).unstable
 
 
+def test_split_size_bounds_at_three_and_six_rounds():
+    assert Side(100, 150, 3, rounds=(100, 100, 300)).unstable  # under four rounds any gap stays suspect
+    assert not Side(100, 150, 3, rounds=(100, 100, 100, 100, 100, 300)).unstable
+    assert Side(100, 150, 3, rounds=(100, 100, 300, 300, 300, 300)).unstable
+
+
 def test_two_rounds_cannot_tell_so_the_gap_stays_suspect():
     assert Side(16, 150, 3, rounds=(24, 8)).unstable
 
