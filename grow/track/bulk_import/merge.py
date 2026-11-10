@@ -383,10 +383,12 @@ AFTER_STALE_STEPS = [
     (
         "insert_playlist_rels",
         """WITH inserted AS (
-        INSERT INTO the_music_tree_genre_kit_track_playlist_rel (created_on, playlist_id, track_id, user_id, position)
+        INSERT INTO the_music_tree_genre_kit_track_playlist_rel
+            (created_on, playlist_id, track_id, user_id, position, genre_id)
         SELECT now(), d.playlist_id, d.track_id, %(user)s,
-            row_number() OVER (PARTITION BY d.playlist_id ORDER BY d.track_id DESC)
+            row_number() OVER (PARTITION BY d.playlist_id ORDER BY d.track_id DESC), t.genre_id
         FROM desired_rel d
+        JOIN the_music_tree_genre_kit_track t ON t.uuid = d.track_id
         WHERE NOT EXISTS (
             SELECT 1 FROM the_music_tree_genre_kit_track_playlist_rel r
             WHERE r.track_id = d.track_id AND r.playlist_id = d.playlist_id
