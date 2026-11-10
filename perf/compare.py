@@ -10,6 +10,8 @@ A side is unstable when its round medians split into two groups (a gap above RAT
 sorted values): its pooled median would sit between two plans that no request actually took. Runner drift moves every
 scenario of a round together, so it is estimated within the side (median over scenarios of round p50 / usual p50) and
 removed before that test; what is left is a scenario diverging from the others.
+Limit: a shift of most scenarios in the same round of one side reads as drift; only `slower` (paired ratios) can still
+catch it, and only when about half the rounds are affected. A scenario missing from some rounds is judged raw.
 Exit 0 when clean, 1 on an SLO breach, a regression or an unstable side.
 """
 
@@ -114,7 +116,12 @@ def load(paths: list[Path]) -> dict[str, Side]:
             meta[scenario] = (result["slo_ms"], queries)
     drift = _drift(rounds)
     return {
-        name: Side(statistics.median(values), *meta[name], rounds=tuple(rounds[name]), drift=drift)
+        name: Side(
+            statistics.median(values),
+            *meta[name],
+            rounds=tuple(rounds[name]),
+            drift=drift if len(rounds[name]) == len(drift) else (),
+        )
         for name, values in timings.items()
     }
 

@@ -225,3 +225,18 @@ def test_load_orders_rounds_by_number_and_rejects_other_names(tmp_path):
 def test_base_and_head_must_cover_the_same_rounds():
     with pytest.raises(ValueError, match="different number of rounds"):
         compare({"x": Side(10, 100, 2, rounds=(10, 10))}, {"x": Side(10, 100, 2, rounds=(10,))})
+
+
+def test_load_estimates_drift_per_round_and_judges_a_scenario_missing_a_round_raw(tmp_path):
+    factors = (1.0, 1.2)
+    for n, factor in enumerate(factors, start=1):
+        scenarios = {f"s{i}": _result((60 + i) * factor, queries=2) for i in range(MIN_DRIFT_SCENARIOS)}
+        if n == 2:
+            scenarios["late"] = _result(30, queries=2)
+        _write(tmp_path / f"head-{n}.json", scenarios)
+
+    sides = load([tmp_path / "head-1.json", tmp_path / "head-2.json"])
+
+    assert sides["s0"].drift == pytest.approx((1 / 1.1, 1.2 / 1.1), abs=1e-3)
+    assert sides["late"].drift == () and sides["late"].rounds == (30,)
+    assert not any(side.unstable for side in sides.values())
