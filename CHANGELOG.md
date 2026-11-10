@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
+
 - Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
 
 - `entity_additions` accepts `entity_kind` `admin_unit`: a curated item (a former region such as Alsace or Bourgogne) becomes a drawn administrative unit on the region map, replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated.
