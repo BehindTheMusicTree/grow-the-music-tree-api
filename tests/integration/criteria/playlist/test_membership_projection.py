@@ -155,3 +155,9 @@ class TestMembershipProjection(AppTestCase):
         connection.cursor().execute("DELETE FROM grow_genre_catalogue_count")
         catalogue.create(apps, editor)
         self.assert_projection()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT genre_id, tracks_count FROM grow_genre_catalogue_count")
+            stored = sorted(cursor.fetchall(), key=repr)
+            cursor.execute(catalogue.source_query())
+            live = sorted(cursor.fetchall(), key=repr)
+        assert stored == live
