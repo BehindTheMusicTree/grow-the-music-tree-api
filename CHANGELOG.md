@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
+
 ### Added
 
 - Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
