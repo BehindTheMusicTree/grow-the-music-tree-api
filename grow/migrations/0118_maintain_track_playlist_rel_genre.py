@@ -1,4 +1,4 @@
-from django.db import migrations
+from django.db import migrations, transaction
 
 REL = "the_music_tree_genre_kit_track_playlist_rel"
 TRACK = "the_music_tree_genre_kit_track"
@@ -69,15 +69,21 @@ def forwards(apps, schema_editor):
         low, high = cursor.fetchone()
         if low is None:
             return
-        # One short statement per id range (the migration is non-atomic): the membership write gate is held only
-        # for a batch, never for the whole backfill. NULL-genre rows already match their genreless track.
+        # One short transaction per id range (the migration is non-atomic): the membership write gate is held only
+        # for a batch, never for the whole backfill. The gate is taken before the UPDATE so that its snapshot is
+        # fresh: a writer that held the gate cannot be overwritten with a genre read before it committed. The
+        # DISTINCT FROM test makes a re-run a full reconcile, e.g. after the triggers were dropped by a reverse.
+        differs = "IS DISTINCT FROM" if vendor == "postgresql" else "IS NOT"
         for start in range(low, high + 1, BATCH):
-            cursor.execute(
-                f"""UPDATE {REL} SET genre_id = t.genre_id FROM {TRACK} t
-                WHERE t.uuid = {REL}.track_id AND {REL}.id >= %s AND {REL}.id < %s
-                AND t.genre_id IS NOT NULL AND {REL}.genre_id IS NULL""",
-                [start, start + BATCH],
-            )
+            with transaction.atomic(using=schema_editor.connection.alias):
+                if vendor == "postgresql":
+                    cursor.execute("SELECT pg_advisory_xact_lock(716731928417)")
+                cursor.execute(
+                    f"""UPDATE {REL} SET genre_id = t.genre_id FROM {TRACK} t
+                    WHERE t.uuid = {REL}.track_id AND {REL}.id >= %s AND {REL}.id < %s
+                    AND {REL}.genre_id {differs} t.genre_id""",
+                    [start, start + BATCH],
+                )
 
 
 def backwards(apps, schema_editor):

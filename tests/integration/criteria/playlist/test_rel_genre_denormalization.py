@@ -56,3 +56,16 @@ class TestRelGenreDenormalization(AppTestCase):
         editor = SimpleNamespace(connection=connection, execute=lambda sql: connection.cursor().execute(sql))
         migration.forwards(None, editor)
         self.assert_in_sync()
+
+    def test_backfill_repairs_a_stale_genre(self):
+        factory = self.model_fixture_factory
+        genre = factory.create_genre("Genre")
+        other = factory.create_genre("Other")
+        song = factory.create_song("Song", genre=genre)
+        migration = import_module("grow.migrations.0118_maintain_track_playlist_rel_genre")
+        editor = SimpleNamespace(connection=connection, execute=lambda sql: connection.cursor().execute(sql))
+        migration.backwards(None, editor)
+        Track.objects.filter(pk=song.pk).update(genre=other)
+        assert TrackPlaylistRel.objects.filter(track=song).exclude(genre_id=other.pk).exists()
+        migration.forwards(None, editor)
+        self.assert_in_sync()
