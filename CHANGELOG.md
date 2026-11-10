@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `entity_additions` accepts `entity_kind` `historical_country`: a curated item (a civilization such as Ancient Egypt, a colony such as Acadia) becomes a drawn former state on the region map, outlined by the pipeline's pinned historical source and replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated. Test in `tests/integration/curation/test_curation_api.py`.
 - The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
 
 - Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
