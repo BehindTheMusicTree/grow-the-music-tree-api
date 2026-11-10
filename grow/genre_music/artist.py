@@ -74,12 +74,18 @@ def playlist_counts(
             .values_list("playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__genre_id")
             .annotate(count=Count("pk", distinct=True))
         )
+    trees, edges = graph if graph is not None else genre_graph()
+    return playlist_counts_from_rows(rows, (trees, edges), selections=selections)
+
+
+def playlist_counts_from_rows(rows, graph, *, selections=None) -> dict:
+    """Project already-loaded exact membership buckets without another database read."""
     grouped = defaultdict(dict)
     owners = {}
     for playlist, genre, track_genre, count in rows:
         grouped[playlist][track_genre] = count
         owners[playlist] = genre
-    trees, edges = graph if graph is not None else genre_graph()
+    trees, edges = graph
     if selections is None:
         selections = all_genre_selections(
             trees, edges, genres={genre for genre in owners.values() if genre is not None}

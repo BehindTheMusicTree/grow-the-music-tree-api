@@ -6,11 +6,11 @@ from rest_framework import serializers
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
-from grow.genre_music.artist import playlist_counts
+from grow.genre_music.artist import playlist_counts_from_rows
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
 from grow.genre_music.selection import all_genre_selections
+from grow.genre_music.summary_inputs import summary_inputs
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
-from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 
 
 def playlist_tracks_count_annotation():
@@ -52,22 +52,11 @@ def _catalogue_projection(rows: tuple, playlist_ids: frozenset):
 
 
 def genre_playlist_summaries(playlist_ids) -> dict:
-    """Two bounded queries for catalogue and actual membership summaries for all genres."""
+    """One statement snapshot for catalogue and actual membership summaries."""
     playlist_ids = frozenset(playlist_ids)
-    rows = tuple(
-        GenrePlaylist.objects.filter(user__isnull=True)
-        .order_by("pk", "criteria__additional_primary_parents__pk")
-        .values_list(
-            "pk",
-            "criteria_id",
-            "direct_songs_count",
-            "criteria__tree_name",
-            "criteria__parent_id",
-            "criteria__additional_primary_parents__pk",
-        )
-    )
+    rows, membership_rows = summary_inputs(playlist_ids)
     graph, selections, catalogue, selected_rows = _catalogue_projection(rows, playlist_ids)
-    memberships = playlist_counts(None, graph, playlist_ids=playlist_ids, selections=selections)
+    memberships = playlist_counts_from_rows(membership_rows, graph, selections=selections)
     summaries = {}
     for playlist, (genre, tree) in selected_rows.items():
         scopes = {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0}

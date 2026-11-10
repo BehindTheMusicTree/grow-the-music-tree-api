@@ -52,11 +52,34 @@ def _gzip_ndjson(lines: list[dict]) -> bytes:
     return gzip.compress("".join(json.dumps(line) + "\n" for line in lines).encode())
 
 
-def _snapshot(body: bytes) -> RegionMapSnapshot:
+def _file(body: bytes) -> str:
     sha256 = hashlib.sha256(body).hexdigest()
     compressed = gzip.compress(body)
     RegionMapFile.objects.get_or_create(sha256=sha256, defaults={"body": compressed, "size": len(compressed)})
-    return RegionMapSnapshot.objects.create(checksum=sha256)
+    return sha256
+
+
+def _snapshot(body: bytes, hidden_body: bytes | None = None) -> RegionMapSnapshot:
+    hidden_checksum = None if hidden_body is None else _file(hidden_body)
+    return RegionMapSnapshot.objects.create(checksum=_file(body), hidden_regions_checksum=hidden_checksum)
+
+
+DRAWN = {
+    "id": "Q142",
+    "name": "Europe",
+    "kind": "continent",
+    "genres": [{"itemId": GENRE, "rule": "anchor", "relation": "origin"}],
+}
+HIDDEN = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "world"}
+
+
+def _hidden_parts(hidden: list[dict] | None = None, index: dict | None = None) -> list[list[dict]]:
+    return [
+        [
+            _line("index.json", index or _index(regions=[DRAWN])),
+            _line("hidden_regions.json", {"regions": [HIDDEN] if hidden is None else hidden}),
+        ]
+    ]
 
 
 class TestRegionMapReads(AppTestCase):
@@ -146,6 +169,14 @@ class TestRegionMapAttachable(AppTestCase):
             {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "hidden": False},
             {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "hidden": True},
         ]
+
+    def test_lists_hidden_regions_from_their_own_file(self):
+        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        _snapshot(json.dumps(_index(regions=[drawn])).encode(), json.dumps({"regions": [HIDDEN]}).encode())
+
+        response = APIClient().get(reverse("region-map-attachable"))
+
+        assert [(t["id"], t["hidden"]) for t in response.json()] == [("Q1356", False), ("Q1", True)]
 
     def test_index_without_hidden_regions(self):
         drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
@@ -430,4 +461,59 @@ class TestRegionMapImportRun(AppTestCase):
 
         assert json.loads(APIClient().get(INDEX).content)["tileset"] == "b" * 64
         assert RegionMapSnapshot.objects.count() == 1
+        assert RegionMapFile.objects.count() == 1
+
+    def test_hidden_regions_file_imported_and_served_as_attachable(self):
+        assert self._sync(_hidden_parts())["imported"] == 1
+
+        snapshot = RegionMapSnapshot.objects.get()
+        assert snapshot.hidden_regions_checksum == _sha256({"regions": [HIDDEN]})
+        assert "hiddenRegions" not in json.loads(APIClient().get(INDEX).content)
+        assert [t["id"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Q1"]
+
+    def test_previous_format_still_imported(self):
+        self._sync(_parts(_index(regions=[DRAWN], hiddenRegions=[HIDDEN])))
+
+        assert RegionMapSnapshot.objects.get().hidden_regions_checksum is None
+        assert [t["id"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Q1"]
+
+    def test_hidden_regions_in_both_formats_refused(self):
+        assert self._commit(_hidden_parts(index=_index(hiddenRegions=[HIDDEN]))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
+    def test_hidden_regions_file_is_validated_like_the_inline_list(self):
+        invalid = [
+            [HIDDEN, HIDDEN],
+            [{**HIDDEN, "parentId": "Q404"}],
+            [{"id": "Q142", "name": "x", "kind": "admin_unit"}],
+        ]
+        for hidden in invalid:
+            assert self._commit(_hidden_parts(hidden)).status_code == 500
+        document = {"regions": [], "other": 1}
+        assert self._commit([[*_parts()[0], _line("hidden_regions.json", document)]]).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
+    def test_unknown_path_refused_even_with_hidden_regions_file(self):
+        parts = [[*_hidden_parts()[0], _line("other.json", _index())]]
+
+        assert self._commit(parts).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
+    def test_changed_hidden_regions_replace_snapshot_for_identical_index(self):
+        self._sync(_hidden_parts())
+        assert self._sync(_hidden_parts(), client=self.pipeline) == {"imported": 0, "skipped": 1}
+
+        assert self._sync(_hidden_parts([{**HIDDEN, "name": "Uno"}]))["imported"] == 1
+
+        assert RegionMapSnapshot.objects.get().hidden_regions_checksum == _sha256(
+            {"regions": [{**HIDDEN, "name": "Uno"}]}
+        )
+        assert RegionMapFile.objects.count() == 2
+        assert [t["name"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Uno"]
+
+    def test_switching_formats_purges_the_old_files(self):
+        self._sync(_hidden_parts())
+        self._sync(_parts())
+
+        assert RegionMapSnapshot.objects.get().hidden_regions_checksum is None
         assert RegionMapFile.objects.count() == 1

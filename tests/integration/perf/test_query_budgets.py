@@ -17,21 +17,21 @@ from grow.model.song.Song import Song
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
-# Genre playlist summaries add two batched queries: the genre/catalogue graph and
-# actual per-playlist membership buckets. This is independent of page and song counts;
+# Genre playlist summaries read the graph, catalogue and membership buckets in one
+# statement. This is independent of page and song counts;
 # playback keeps its four-query budget. The cold tree reuses its graph and adds one query.
 # Artist genre counts read the genre tree version, then the graph only when that version changed (as
 # here: each seed bumps it), then the artist's exact counts and memberships.
 # Exact queries per request, whatever the number of rows or tracks: a gain must lower its budget, so the next
 # regression cannot spend the slack. Raising one is a reviewed decision, not a fix.
 BUDGETS = {
-    "genre-playlist-list": 6,
+    "genre-playlist-list": 5,
     "tag-playlist-list": 4,
-    "playlist-list": 4,
+    "playlist-list": 3,
     "genre-list": 4,
     "tag-list": 4,
-    "genre-playlist-detail": 4,
-    "playlist-detail": 4,
+    "genre-playlist-detail": 3,
+    "playlist-detail": 3,
     "tag-playlist-detail": 2,
     "genre-playlist-tracks": 4,
     "playlist-tracks": 4,

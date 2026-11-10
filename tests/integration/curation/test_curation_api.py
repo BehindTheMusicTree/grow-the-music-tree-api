@@ -308,8 +308,18 @@ class TestCase(AppTestCase):
             {"entity_id": "Q7057805", "entity_kind": "cultural_region", "reason": "testing"}, "entity_additions"
         )
         city = self._create({"entity_id": "Q12345", "entity_kind": "city", "reason": "testing"}, "entity_additions")
+        admin = self._create(
+            {"entity_id": "Q1173", "entity_kind": "admin_unit", "reason": "testing"}, "entity_additions"
+        )
+        former_state = self._create(
+            {"entity_id": "Q11768", "entity_kind": "historical_country", "reason": "testing"}, "entity_additions"
+        )
         bad = self._create({"entity_id": "Q128011", "entity_kind": "country", "reason": "testing"}, "entity_additions")
 
+        assert former_state.status_code == status.HTTP_201_CREATED
+        assert former_state.json()["row"]["entity_kind"] == "historical_country"
+        assert admin.status_code == status.HTTP_201_CREATED
+        assert admin.json()["row"]["entity_kind"] == "admin_unit"
         assert city.status_code == status.HTTP_201_CREATED
         assert city.json()["row"]["entity_kind"] == "city"
         assert blank.status_code == status.HTTP_201_CREATED

@@ -12,6 +12,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [16.1.0] - 2026-11-10
+
+### Changed
+
+- The genre kit is bumped to 0.57.0, which adds the `tpr_playlist_position_idx` index on `TrackPlaylistRel` `(playlist_id, position, id)` (kit migration `0013`, built `CONCURRENTLY`), so the first page of a large genre playlist walks the index instead of sorting every member. Building it on a large database is a deployment step.
+- The region map import accepts the hidden regions (attachable places kept out of the map, read only by `GET regions/map/attachable/`) as their own `hidden_regions.json` document, `{"regions": [{id, name, kind, parentId}]}`, instead of the index's `hiddenRegions`, which made up 37 % of the index that every map load downloads and validates. Both formats are accepted during the transition, never together. `RegionMapSnapshot.hidden_regions_checksum` (migration `0116`, null for the previous format) records the file; an unchanged snapshot needs both checksums to match, and files of replaced snapshots are purged. `RegionMapAttachableView` reads the file (or the index for a previous-format snapshot) and re-reads on a concurrent merge. Tested on both formats, the rejection of both at once and of unknown paths, a changed file under an identical index, and the purge, plus the attachable list. The pipelines release that produces the file requires this one to be deployed first.
+
+### Fixed
+
+- Reload songs under the source-write gate before managed updates and deletions, preventing stale instances from corrupting playlist membership and legacy catalogue deltas. Genre deletion transfers the actual source count instead of propagating a corrupted legacy bucket. Cover stale concurrent moves/deletes and corrupted-count deletion.
+
+- `GET genre-playlists/<uuid>/tracks/` no longer times out (503) on the largest genres. Its cost followed playlist membership: every member probed `grow_song`, the region policy and the track genre, then the paginator repeated it all in a COUNT. Genre playlists hold only playable songs, so the PLAYABLE probe is dropped and the region filter is a top-level `NOT EXISTS` over the new partial index `grow_song_restricted_idx` (migration `0117`, built `CONCURRENTLY`; about 0.4 % of songs), and the total comes from the membership buckets minus the blocked restricted members, in one query (row-level count only with `artist` or `from`). On staging, Rock page 1 with the ordered membership index is about 30 ms instead of a timeout; that index is owned by the genre-kit and must land there first. Tested on the writer invariant (create, `update_instance`), bucket count against the exact count over coverage, subgenre scope and country, the query budget and the plan (no `grow_song` scan, no hashed subplan); the provisional SLOs are recalibrated.
+- The `Perf` A/B gate no longer flags a side `unstable` for one odd round (#440). With four rounds or more, `perf/compare.py` requires each group of a gap to hold at least `MIN_SPLIT_ROUNDS` (2) rounds, since a lone round does not move the pooled median; with two rounds a gap stays suspect, so `scripts/perf_ab.sh` still measures two more before the verdict. Tested on the false positive of run 42798826743 (24 / 16 / 26 / 23 ms), a repeated split and the two-round case.
+- The `Perf` A/B gate no longer fails on runner drift shared by base and head. `perf/compare.py` now judges `slower` on the median of the head/base ratios of paired rounds, estimates each round's drift within a side (median over scenarios) and removes it before the `unstable` test, and flags a side only when its rounds split into two groups (a gap above `RATIO` and `FLOOR_MS`) instead of by max/min range, so the 4-round retry no longer widens it. The summary lists the drift per round. Result files must be named `<side>-<round>.json`. Tested on a shared step, a one-sided plan flip, a uniform head slowdown and round ordering; replayed on the incident's artifacts and the negative control.
+
+### Changed
+
+- Removed the graphify `merge=graphify` git attribute, which pointed at a machine-specific merge driver; the global agent-config freshness hook keeps the graph fresh.
+- Removed the per-repo graphify `hook-guard` in `.claude/settings.json`; the global agent-config freshness hook replaces it.
+
+### Added
+
+- Add a sparse database-maintained shadow projection of canonical song catalogue counts, including genreless and unplayable songs. Maintain both Song/Track halves across ORM and SQL writes, rollback and truncation; independently compare it and the legacy counters with `verify_genre_catalogue_counts`, with explicit atomic repair.
+
+- Deployment: migration `0115` (catalogue projection) takes exclusive locks on the song and track tables and backfills in one transaction, about 97 s with a warm cache and about 29 minutes with a cold one; it fails fast with NOWAIT when a writer holds a lock, so it can be retried. Warm the join first and run `verify_genre_catalogue_counts` afterwards (`docs/operations/catalogue-projection.md`, "Migration locks"). Migration `0117` builds its index `CONCURRENTLY`.
+
+- `entity_additions` accepts `entity_kind` `historical_country`: a curated item (a civilization such as Ancient Egypt, a colony such as Acadia) becomes a drawn former state on the region map, outlined by the pipeline's pinned historical source and replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated. Test in `tests/integration/curation/test_curation_api.py`.
+- The detailed artist (`GET /artists/<id>/`) now returns `playable_tracks_count`, the number of its songs with a genre and a playable YouTube video, so clients can enable or disable Play without loading the tracklist. Covered by an artist detail test.
+
+- Read the genre playlist summaries' graph, catalogue counts and membership buckets in one statement snapshot, reusing the graph rows while the genre tree version is unchanged. Genre playlist list/detail drop one query each (budgets lowered). Tested on cached-read invalidation after a count change.
+
+- `entity_additions` accepts `entity_kind` `admin_unit`: a curated item (a former region such as Alsace or Bourgogne) becomes a drawn administrative unit on the region map, replacing its Wikidata type. No migration: the choices live in code. Must be deployed before such a row is curated.
+
+- Benchmark genre and tag detail on pinned fixtures across repeated, alternating, cleared-cache and post-write requests, asserting successful responses before recording timings. Detail ceilings await stable CI self-comparisons.
+
+### Removed
+
+- Stray `CHANGELOG.md-e` backup file committed by mistake in #434.
+
 ## [16.0.0] - 2026-11-09
 
 ### CI

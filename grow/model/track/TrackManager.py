@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from django.db import transaction
 from the_music_tree_genre_kit.track.AbstractTrackManager import AbstractTrackManager
 
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.track.direct_songs_count import adjust_direct_songs_count
@@ -26,6 +27,20 @@ class TrackManager(AbstractTrackManager[T]):
                 adjust_direct_songs_count(instance.genre_id, 1)
             self._refresh_search(instance)
         return instance
+
+    @transaction.atomic
+    def update_instance(self, old_instance: T, actor: Any = None, **kwargs) -> T:
+        # A trigger cannot refresh the application's already-loaded old genre.
+        # Serialize before reloading, so membership and legacy deltas use committed state.
+        lock_catalogue_sources(using=self.db)
+        old_instance.refresh_from_db(using=self.db)
+        return super().update_instance(old_instance, actor=actor, **kwargs)
+
+    @transaction.atomic
+    def delete_instance(self, instance: T, actor: Any = None):
+        lock_catalogue_sources(using=self.db)
+        instance.refresh_from_db(using=self.db)
+        return super().delete_instance(instance, actor=actor)
 
     def _on_updated(self, old_instance: T, updated_instance: T) -> None:
         self._refresh_search(updated_instance)

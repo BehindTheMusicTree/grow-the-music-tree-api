@@ -134,25 +134,42 @@ class RegionMapGenresView(View):
         return JsonResponse(payload, safe=False, headers=headers)
 
 
+def _file_bodies(checksum: str, hidden_checksum: str | None) -> tuple[bytes, bytes | None] | None:
+    bodies = dict(RegionMapFile.objects.filter(pk__in=[checksum, hidden_checksum]).values_list("pk", "body"))
+    if checksum not in bodies or (hidden_checksum is not None and hidden_checksum not in bodies):
+        return None
+    return bytes(bodies[checksum]), bytes(bodies[hidden_checksum]) if hidden_checksum is not None else None
+
+
 class RegionMapAttachableView(View):
     """Every place a curator can attach a tradition to: the drawn regions and the hidden ones the latest index keeps
-    out of the map, so `tradition_placement_overrides` can name a subdivision that has no genre yet."""
+    out of the map (listed in the latest snapshot's hidden regions file, or in the index's `hiddenRegions` for a snapshot
+    imported in the previous format), so `tradition_placement_overrides` can name a subdivision that has no genre yet."""
 
     def get(self, request: HttpRequest) -> JsonResponse:
-        snapshot = RegionMapSnapshot.objects.first()
-        if snapshot is None:
-            return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)
-        key = f"region-map-attachable:{snapshot.checksum}"
-        targets = cache.get(key)
-        if targets is None:
-            body = RegionMapFile.objects.filter(pk=snapshot.checksum).values_list("body", flat=True).first()
-            if body is None:
-                return JsonResponse({"detail": "No region map file has this sha256."}, status=404)
-            index = json.loads(gzip.decompress(bytes(body)))
-            targets = [
-                {"id": region["id"], "name": region["name"], "kind": region["kind"], "hidden": hidden}
-                for hidden, regions in ((False, index["regions"]), (True, index.get("hiddenRegions", [])))
-                for region in regions
-            ]
-            cache.set(key, targets, LEXICON_TTL_SECONDS)
-        return JsonResponse(targets, safe=False)
+        # A merge that commits between the snapshot read and the file reads deletes the files just resolved: read again.
+        for _ in range(2):
+            snapshot = RegionMapSnapshot.objects.first()
+            if snapshot is None:
+                break
+            key = f"region-map-attachable:{snapshot.checksum}:{snapshot.hidden_regions_checksum}"
+            targets = cache.get(key)
+            if targets is None:
+                bodies = _file_bodies(snapshot.checksum, snapshot.hidden_regions_checksum)
+                if bodies is None:
+                    continue
+                index_body, hidden_body = bodies
+                index = json.loads(gzip.decompress(index_body))
+                hidden_regions = (
+                    json.loads(gzip.decompress(hidden_body))["regions"]
+                    if hidden_body is not None
+                    else index.get("hiddenRegions", [])
+                )
+                targets = [
+                    {"id": region["id"], "name": region["name"], "kind": region["kind"], "hidden": hidden}
+                    for hidden, regions in ((False, index["regions"]), (True, hidden_regions))
+                    for region in regions
+                ]
+                cache.set(key, targets, LEXICON_TTL_SECONDS)
+            return JsonResponse(targets, safe=False)
+        return JsonResponse({"detail": "No region map snapshot has been imported yet."}, status=404)

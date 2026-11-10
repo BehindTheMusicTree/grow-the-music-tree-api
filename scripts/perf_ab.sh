@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Same-runner A/B perf gate: runs perf/ on the base and head checkouts in turn (base, head, base, head), each against
-# its own seeded Postgres database, then judges the pooled results with perf/compare.py. Interleaving cancels the
-# runner's drift, so a slowdown shows against the base instead of against a fixed threshold.
+# its own seeded Postgres database, then judges the results with perf/compare.py. Round i of base and round i of head
+# run back to back and are paired there, so drift shared by both cancels and a slowdown shows against the base instead
+# of against a fixed threshold. Keep the strict alternation and the <side>-<round>.json names: the pairing relies on them.
 #
 # Usage: PERF_PG_URL=postgres://user:pass@host:port scripts/perf_ab.sh <base-dir|none> <head-dir> <out-dir>
 # With `none` as base (pushes), only the head's SLOs are judged, still on the median pooled over two runs.

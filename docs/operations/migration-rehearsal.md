@@ -26,7 +26,7 @@ scripts/rehearse-migration.sh --image gtmt-api:branch --pg-image postgres:16.4 -
 scripts/rehearse-migration.sh ... --hold-lock "grow_song:ACCESS SHARE" --expect-failure
 ```
 
-`--target "grow 0114"` limits the migration, `--keep` leaves the containers up and prints the command that destroys them. Each run starts from a fresh `CREATE DATABASE ... TEMPLATE` clone of the restored dump, so runs are independent.
+`--target "grow 0115"` limits the migration, `--keep` leaves the containers up and prints the command that destroys them. Each run starts from a fresh `CREATE DATABASE ... TEMPLATE` clone of the restored dump, so runs are independent.
 
 ## Reading the report
 

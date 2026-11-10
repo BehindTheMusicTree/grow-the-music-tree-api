@@ -10,9 +10,11 @@ class Fields:
     ALBUMS = ArtistFields.ALBUMS
     ALBUM_ARTISTS = AlbumFields.ALBUM_ARTISTS
     TRACKS_RELATED_NAME = ArtistFields.TRACKS_RELATED_NAME
+    SONG_RELATED_NAME = "song"
     TRACKS_COUNT_PUBLIC = ArtistFields.TRACKS_COUNT_PUBLIC
     # The model's `tracks_count` property runs one query per artist, so serializers read this annotation instead.
     TRACKS_COUNT_ANNOTATED = "tracks_count_annotated"
+    PLAYABLE_TRACKS_COUNT = "playable_tracks_count"
     MUSICBRAINZ_ARTIST_ID = ArtistFields.MUSICBRAINZ_ARTIST_ID
     TYPE = ArtistFields.TYPE
     COUNTRY = ArtistFields.COUNTRY

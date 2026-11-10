@@ -10,7 +10,7 @@ from grow.model.artist_link.Fields import Fields as LinkFields
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.artist_membership.Fields import Fields as MembershipFields
 from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
-from grow.serializer.model.artist.simple import tracks_count
+from grow.serializer.model.artist.simple import playable_tracks_count, tracks_count
 
 from .Fields import Fields
 
@@ -61,6 +61,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     member_of = _GroupSerializer(many=True)
     albums = _AlbumSerializer(many=True)
     tracks_count = serializers.IntegerField(source=Fields.TRACKS_COUNT_ANNOTATED)
+    playable_tracks_count = serializers.IntegerField()
     image = serializers.SerializerMethodField()
 
     def get_image(self, artist: Artist) -> dict | None:
@@ -79,7 +80,12 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
         def ordered(model, *order_by):
             return model._default_manager.order_by(*order_by, "pk")
 
-        return queryset.annotate(**{Fields.TRACKS_COUNT_ANNOTATED: tracks_count(prefix)}).prefetch_related(
+        return queryset.annotate(
+            **{
+                Fields.TRACKS_COUNT_ANNOTATED: tracks_count(prefix),
+                Fields.PLAYABLE_TRACKS_COUNT: playable_tracks_count(prefix),
+            }
+        ).prefetch_related(
             Prefetch(f"{prefix}{Fields.LINKS}", ordered(ArtistLink, LinkFields.KIND, LinkFields.URL)),
             Prefetch(
                 f"{prefix}{Fields.MEMBERS}",
@@ -109,6 +115,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             Fields.MEMBER_OF,
             Fields.ALBUMS,
             Fields.TRACKS_COUNT_PUBLIC,
+            Fields.PLAYABLE_TRACKS_COUNT,
             Fields.CREATED_ON,
             Fields.UPDATED_ON,
         ]

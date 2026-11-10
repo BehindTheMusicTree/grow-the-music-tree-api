@@ -35,6 +35,18 @@ class TestCase(AppTestCase):
         assert response.data["links"] == [{"kind": "wikidata", "url": "https://www.wikidata.org/wiki/Q2306"}]
         assert response.data["albums"][0]["primary_type"] == "Album"
 
+    def test_detail_then_playable_tracks_count_excludes_unplayable_songs(self):
+        factory = self.model_fixture_factory
+        prog = factory.create_genre("Prog")
+        factory.create_song(title="No Video", genre=prog, artists=[self.band], youtube_video_id=None)
+        factory.create_song(
+            title="Blocked", genre=prog, artists=[self.band], youtube_unplayable_reason="embedding_disabled"
+        )
+
+        response = self.api_client.get(path=reverse("artist-detail", kwargs={"pk": self.band.uuid}))
+
+        assert (response.data["tracks_count"], response.data["playable_tracks_count"]) == (3, 1)
+
     def test_unknown_artist_then_404(self):
         response = self.api_client.get(
             path=reverse("artist-detail", kwargs={"pk": "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"})
