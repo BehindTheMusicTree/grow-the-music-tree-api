@@ -110,6 +110,20 @@ def test_a_side_whose_round_medians_disagree_is_unstable():
     assert not Side(30, 150, 3, rounds=(30,)).unstable
 
 
+def test_one_odd_round_among_four_is_noise_not_a_split():
+    assert not Side(24, 150, 3, rounds=(24, 16, 26, 23)).unstable  # run 42798826743
+    assert not Side(178, 150, 3, rounds=(178, 1170, 180, 179)).unstable
+
+
+def test_a_gap_repeated_over_two_rounds_each_side_is_unstable():
+    assert Side(180, 150, 3, rounds=(178, 1170, 180, 1160)).unstable
+    assert Side(180, 150, 3, rounds=(178, 1170, 1160, 1150, 180)).unstable
+
+
+def test_two_rounds_cannot_tell_so_the_gap_stays_suspect():
+    assert Side(16, 150, 3, rounds=(24, 8)).unstable
+
+
 def test_an_unstable_head_fails_even_against_a_matching_base():
     base = {"x": Side(100, 1000, 3, rounds=(100, 100))}
     head = {"x": Side(100, 1000, 3, rounds=(30, 170))}
@@ -200,7 +214,7 @@ def test_noise_without_a_gap_between_rounds_is_not_unstable():
 
 
 def test_unstable_needs_a_gap_not_just_a_wide_range():
-    assert Side(100, 1000, 3, rounds=(100, 100, 100, 300)).unstable
+    assert Side(100, 1000, 3, rounds=(100, 100, 300, 300)).unstable
     assert not Side(100, 1000, 3, rounds=(100, 120, 140, 160, 180)).unstable
 
 
