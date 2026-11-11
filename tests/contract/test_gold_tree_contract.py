@@ -54,11 +54,17 @@ CANONICAL_NODES = [
                     {"id": "Q1004", "name": "Contract underground", "scene": "underground", "children": []},
                 ],
             },
-            {"id": "Q1005", "name": "Contract sibling", "side": "pop", "children": []},
+            {"id": "Q1005", "name": "Contract sibling", "children": []},
             {"id": "Q1006", "name": "Contract secondary", "secondaryParents": ["Q1005"], "children": []},
         ],
     },
     {"id": "Q1007", "name": "Contract unaccepted", "isUnacceptedRoot": True, "children": []},
+    # `side` is only valid on a direct child of a root other than Mainstream Pop.
+    {
+        "id": "Q1008",
+        "name": "Contract core",
+        "children": [{"id": "Q1009", "name": "Contract pop side", "side": "pop", "children": []}],
+    },
 ]
 REGIONAL_NODES = [
     {
