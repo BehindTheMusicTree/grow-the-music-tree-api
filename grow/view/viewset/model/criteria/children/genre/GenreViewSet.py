@@ -1,7 +1,10 @@
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 
+from django.conf import settings
 from django.db import transaction
 from django.http import QueryDict
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -11,11 +14,22 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
-from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
+from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
 
 from grow.bulk_import.analyze import analyze
+from grow.bulk_import.BulkImportRun import GENRE_TREES_KIND, BulkImportRun
+from grow.bulk_import.lifecycle import queue_attempt
+from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
+from grow.genre_tree.bulk_import.merge import (
+    CURATION_EXPORTED_ON,
+    TREE_IMPORT_MODELS,
+    TREE_IMPORT_RUN_KINDS,
+    merge_genre_trees_import_run,
+    node_count,
+    parse_curation_exported_on,
+)
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
@@ -43,53 +57,20 @@ from grow.serializer.model.criteria.children.genre.search import GenreSearchQuer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
+from grow.view.viewset.mixin.BulkImportRunMixin import enqueue_merge, import_run_status_action
 from grow.view.viewset.model.criteria.CriteriaViewSet import CriteriaViewSet
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 
-CURATION_EXPORTED_ON = "curation_exported_on"
 # Bump when the search payload shape changes: the tree version token only moves on genre writes, so results cached
 # in the old shape would otherwise be served until the next write or TTL.
 GENRE_SEARCH_PAYLOAD_VERSION = 2
 
-TREE_IMPORT_RUN_KINDS = {
-    CriteriaTreeName.CANONICAL: ImportRun.Kind.CANONICAL_TREE,
-    CriteriaTreeName.REGIONAL: ImportRun.Kind.REGIONAL_TREE,
-}
-
 
 def _curation_exported_on(request: Request, state: CurationSyncState) -> datetime:
-    """The curation export the imported tree was built from, popped so the tree serializer sees only its own fields.
-
-    A replayed older Gold carries an older export, so edits made since stay pending.
-    """
+    """The curation export the imported tree was built from, popped so the tree serializer sees only its own fields."""
     is_json_object = isinstance(request.data, dict) and not isinstance(request.data, QueryDict)
     value = request.data.pop(CURATION_EXPORTED_ON, None) if is_json_object else None
-    if value is None:
-        raise ValidationError({CURATION_EXPORTED_ON: "Required: the curation export this tree was built from"})
-    try:
-        exported_on = serializers.DateTimeField().run_validation(value)
-    except ValidationError as e:
-        raise ValidationError({CURATION_EXPORTED_ON: e.detail}) from e
-    if state.exported_on is None or exported_on > state.exported_on:
-        raise ValidationError({CURATION_EXPORTED_ON: "Later than the last curation export"})
-    return exported_on
-
-
-def _node_count(nodes: list[dict]) -> int:
-    return sum(1 + _node_count(node.get(Fields.CHILDREN) or []) for node in nodes)
-
-
-# The tables a tree import rewrites. Analyzed in its transaction so the first requests after it (and the songs
-# import that follows it nightly) don't plan against the pre-import row counts.
-TREE_IMPORT_MODELS = (
-    Criteria,
-    Genre,
-    *(field.remote_field.through for field in Criteria._meta.many_to_many),
-    CriteriaLineageRel,
-    Playlist,
-    CriteriaPlaylist,
-    GenreCatalogueCount,
-)
+    return parse_curation_exported_on(value, state)
 
 
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
@@ -143,10 +124,47 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
                 state.save(update_fields=["applied_export_on"])
                 ImportRun.objects.create(
                     kind=TREE_IMPORT_RUN_KINDS[request.data[Fields.TREE_NAME]],
-                    count=_node_count(request.data[Fields.TREE]),
+                    count=node_count(request.data[Fields.TREE]),
                 )
 
         return response
+
+    import_run_status = import_run_status_action("trees/", GENRE_TREES_KIND, merge_genre_trees_import_run)
+
+    @action(detail=False, methods=["post"], url_path="trees/import-runs", permission_classes=[IsPipelineOrAdmin])
+    def import_trees(self, request):
+        """
+        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        tree keeps its pk and songs. The body is `{curation_exported_on (pipeline only), trees: [<tree import>]}`.
+        """
+        owner = get_request_owner(request)
+        record = request.auth.role == "pipeline"
+        body = request.data if isinstance(request.data, dict) and not isinstance(request.data, QueryDict) else {}
+        exported_on = body.get(CURATION_EXPORTED_ON)
+        if record:
+            parse_curation_exported_on(exported_on, CurationSyncState.load())
+        serializer = CriteriaTreeImportSerializer(data=body.get("trees"), many=True)
+        serializer.is_valid(raise_exception=True)
+        trees = [dict(tree) for tree in serializer.validated_data]
+        if not trees:
+            raise ValidationError({"trees": "At least one tree is required"})
+        payload = {"trees": trees, CURATION_EXPORTED_ON: exported_on if record else None}
+        with transaction.atomic():
+            # Drop the runs of an earlier merge django-q killed without cleanup (see bulk_import_run_actions).
+            stale = BulkImportRun.objects.filter(
+                kind=GENRE_TREES_KIND,
+                committed_on__lt=timezone.now() - timedelta(seconds=2 * settings.Q_CLUSTER["timeout"]),
+            )
+            GenreTreeImportPayload.objects.filter(run_id__in=stale.values("pk")).delete()
+            stale.delete()
+            now = timezone.now()
+            run = BulkImportRun.objects.create(
+                kind=GENRE_TREES_KIND, committed_on=now, user_id=owner and owner.pk, record=record
+            )
+            GenreTreeImportPayload.objects.create(run_id=run.pk, payload=json.loads(json.dumps(payload, default=str)))
+            attempt = queue_attempt(run)
+        enqueue_merge(merge_genre_trees_import_run, run, attempt)
+        return Response({"task_id": attempt.task_id}, status=status.HTTP_202_ACCEPTED)
 
     @action(detail=True, methods=["post"])
     def exclude(self, request: Request, *args, **kwargs) -> Response:

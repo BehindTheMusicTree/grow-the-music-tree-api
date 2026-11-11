@@ -47,10 +47,22 @@ def _seed() -> None:
     client = AppApiClient()
     client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
     exported_on = export_curation(client)
+    trees = []
     for fixture in TREES:
         with gzip.open(FIXTURES / fixture) as file:
-            payload = {**json.load(file), "curationExportedOn": exported_on}
-        _timed(fixture, lambda payload=payload: client.post(reverse("genre-list") + "tree/import/", payload))
+            trees.append(json.load(file))
+    body = {"curationExportedOn": exported_on, "trees": trees}
+    started = _timed(
+        "genre trees (queue+merge)", lambda: client.post(reverse("genre-list") + "trees/import-runs/", body)
+    )
+    task_id = started.json()["taskId"]
+    status_url = reverse("genre-list") + f"trees/import/{task_id}/status/"
+    start = time.perf_counter()
+    while (polled := client.get(status_url).json())["status"] not in ("success", "failure"):
+        assert time.perf_counter() - start < 1800, polled
+        time.sleep(1)
+    assert polled["status"] == "success", polled
+    print(f"\nimport {'genre trees (merge)':<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
     with gzip.open(FIXTURES / SONGS) as file:
         part = gzip.compress(
             "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()

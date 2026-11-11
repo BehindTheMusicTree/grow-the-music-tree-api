@@ -58,9 +58,67 @@ def spooled_body(request) -> IO[bytes]:
     return spool
 
 
+def enqueue_merge(merge: Callable[..., dict[str, int]], run: BulkImportRun, attempt: ImportAttempt) -> None:
+    try:
+        async_task(merge, run.pk, run.user_id, run.record, group=attempt.task_id, attempt_id=attempt.pk)
+    except Exception:
+        ImportAttempt.objects.filter(pk=attempt.pk).update(
+            state=ImportAttempt.State.FAILED,
+            error="Could not enqueue import; see API logs",
+            finished_at=timezone.now(),
+        )
+        raise
+
+
+def import_run_status_action(url_prefix: str, kind: str, merge: Callable[..., dict[str, int]]) -> Callable:
+    """The poll action of a `kind`'s import runs: the latest attempt's state, or the legacy django-q task of `merge`."""
+
+    @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
+    def import_run_status(self, request, task_id=None):
+        privileged = request.auth is not None and request.auth.role in {"admin", "pipeline"}
+        attempt = ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
+        if attempt is not None:
+            if not privileged:
+                if attempt.state == ImportAttempt.State.SUCCEEDED:
+                    return Response({"status": "success", "result": attempt.result})
+                if attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
+                    return Response({"status": "failed", "error": "Import failed"})
+                return Response({"status": "pending"})
+            retry = reconcile(attempt)
+            if retry is not None:
+                run = BulkImportRun.objects.get(pk=retry.run_id)
+                enqueue_merge(merge, run, retry)
+                return Response({"status": "pending", "progress": progress_payload(retry)})
+            attempt = (
+                ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
+            )
+            payload = {"status": "pending", "progress": progress_payload(attempt)}
+            if attempt.state == ImportAttempt.State.SUCCEEDED:
+                payload.update(status="success", result=attempt.result)
+            elif attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
+                payload.update(status="failed", error=attempt.error)
+            return Response(payload)
+        # Retain the legacy task contract, scoped to this endpoint's merge function.
+        task = Task.objects.filter(group=task_id).order_by("-stopped").first()
+        if task is not None and task.func != f"{merge.__module__}.{merge.__name__}":
+            task = None
+        if task is None:
+            if privileged and task_id.startswith(GROUP_PREFIX) and task_id[len(GROUP_PREFIX) :].isdigit():
+                lost = claim_lost_merge(int(task_id[len(GROUP_PREFIX) :]), kind)
+                if lost is not None:
+                    attempt = queue_attempt(lost)
+                    enqueue_merge(merge, lost, attempt)
+            return Response({"status": "pending"})
+        if task.success:
+            return Response({"status": "success", "result": task.result})
+        return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
+
+    return import_run_status
+
+
 def bulk_import_run_actions(
     url_prefix: str,
-    kind: ImportRun.Kind,
+    kind: str,
     staging_model: type[models.Model],
     load_part: Callable[[int, int, IO[bytes]], int],
     merge: Callable[[int, int | None, bool], dict[str, int]],
@@ -86,17 +144,6 @@ def bulk_import_run_actions(
         if run.committed_on is not None:
             raise ValidationError("import run is already committed")
         return run
-
-    def enqueue(run: BulkImportRun, attempt: ImportAttempt) -> None:
-        try:
-            async_task(merge, run.pk, run.user_id, run.record, group=attempt.task_id, attempt_id=attempt.pk)
-        except Exception:
-            ImportAttempt.objects.filter(pk=attempt.pk).update(
-                state=ImportAttempt.State.FAILED,
-                error="Could not enqueue import; see API logs",
-                finished_at=timezone.now(),
-            )
-            raise
 
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
@@ -161,47 +208,13 @@ def bulk_import_run_actions(
                 raise ValidationError("import run is already committed")
             run.user_id, run.record = user_id, record
             attempt = queue_attempt(run)
-        enqueue(run, attempt)
+        enqueue_merge(merge, run, attempt)
         return Response({"task_id": attempt.task_id}, status=status.HTTP_202_ACCEPTED)
 
-    @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
-    def import_run_status(self, request, task_id=None):
-        privileged = request.auth is not None and request.auth.role in {"admin", "pipeline"}
-        attempt = ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
-        if attempt is not None:
-            if not privileged:
-                if attempt.state == ImportAttempt.State.SUCCEEDED:
-                    return Response({"status": "success", "result": attempt.result})
-                if attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
-                    return Response({"status": "failed", "error": "Import failed"})
-                return Response({"status": "pending"})
-            retry = reconcile(attempt)
-            if retry is not None:
-                run = BulkImportRun.objects.get(pk=retry.run_id)
-                enqueue(run, retry)
-                return Response({"status": "pending", "progress": progress_payload(retry)})
-            attempt = (
-                ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
-            )
-            payload = {"status": "pending", "progress": progress_payload(attempt)}
-            if attempt.state == ImportAttempt.State.SUCCEEDED:
-                payload.update(status="success", result=attempt.result)
-            elif attempt.state in {ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED}:
-                payload.update(status="failed", error=attempt.error)
-            return Response(payload)
-        # Retain the legacy task contract, scoped to this endpoint's merge function.
-        task = Task.objects.filter(group=task_id).order_by("-stopped").first()
-        if task is not None and task.func != f"{merge.__module__}.{merge.__name__}":
-            task = None
-        if task is None:
-            if privileged and task_id.startswith(GROUP_PREFIX) and task_id[len(GROUP_PREFIX) :].isdigit():
-                lost = claim_lost_merge(int(task_id[len(GROUP_PREFIX) :]), kind)
-                if lost is not None:
-                    attempt = queue_attempt(lost)
-                    enqueue(lost, attempt)
-            return Response({"status": "pending"})
-        if task.success:
-            return Response({"status": "success", "result": task.result})
-        return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
-
-    return create_import_run, upload_import_run_part, upload_import_run_deletions, commit_import_run, import_run_status
+    return (
+        create_import_run,
+        upload_import_run_part,
+        upload_import_run_deletions,
+        commit_import_run,
+        import_run_status_action(url_prefix, kind, merge),
+    )
