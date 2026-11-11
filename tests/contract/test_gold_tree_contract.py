@@ -38,7 +38,8 @@ IMAGE = {
 CANONICAL_NODES = [
     {
         "id": "Q1001",
-        "name": "Contract pop",
+        # grow requires a root genre with this exact name (REQUIRED_ROOT_GENRE_NAMES)
+        "name": "Mainstream Pop",
         "isUmbrella": True,
         "summary": "A genre used to exercise the contract.",
         "summarySourceUrl": "https://en.wikipedia.org/wiki/Pop_music",
