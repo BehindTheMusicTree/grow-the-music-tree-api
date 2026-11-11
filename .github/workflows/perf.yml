@@ -1,7 +1,7 @@
 name: Perf
 
 # Separate from validate.yml so (un)labeling a PR reruns only this job. Keep the job name `Perf` and never add a paths
-# filter: once `Perf` is a required check, PRs that skip it would wait forever.
+# filter: `Perf` is a required check on develop, so PRs that skip it would wait forever.
 on:
   push:
     branches: [main, develop]
