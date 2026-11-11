@@ -34,7 +34,9 @@ def drawn_region_ids() -> frozenset[str]:
         body = RegionMapFile.objects.filter(pk=snapshot.checksum).values_list("body", flat=True).first()
         if body is None:
             continue
-        ids = frozenset(region["id"] for region in json.loads(gzip.decompress(bytes(body)))["regions"])
+        ids = frozenset(
+            region["id"] for region in json.loads(gzip.decompress(bytes(body)))["regions"] if "id" in region
+        )
         try:
             cache.set(key, ids, DRAWN_TTL_SECONDS)
         except RedisError:
