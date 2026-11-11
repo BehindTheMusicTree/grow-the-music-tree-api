@@ -54,14 +54,20 @@ CANONICAL_NODES = [
                     {"id": "Q1004", "name": "Contract underground", "scene": "underground", "children": []},
                 ],
             },
-            {"id": "Q1005", "name": "Contract sibling", "primaryParents": ["Q1001"], "children": []},
+            {"id": "Q1005", "name": "Contract sibling", "children": []},
             {"id": "Q1006", "name": "Contract secondary", "secondaryParents": ["Q1005"], "children": []},
         ],
     },
     {"id": "Q1007", "name": "Contract unaccepted", "isUnacceptedRoot": True, "children": []},
 ]
 REGIONAL_NODES = [
-    {"id": "Q2001", "name": "Contract region", "children": [{"id": "Q2002", "name": "Contract local", "children": []}]}
+    {
+        "id": "Q2001",
+        "name": "Contract region",
+        # Only the regional tree takes extra primary parents, and never its own structural parent.
+        "primaryParents": ["Q1001"],
+        "children": [{"id": "Q2002", "name": "Contract local", "children": []}],
+    }
 ]
 
 
