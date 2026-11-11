@@ -110,9 +110,7 @@ class Artist(TrackMixin, CommonsImage):
             models.CheckConstraint(condition=~models.Q(_name=""), name="artist_non_empty_name"),
             commons_image_complete_constraint("artist_image_complete"),
             models.CheckConstraint(
-                condition=models.Q(
-                    origin_name__isnull=False, origin_kind__isnull=False, origin_source__isnull=False
-                )
+                condition=models.Q(origin_name__isnull=False, origin_kind__isnull=False, origin_source__isnull=False)
                 | models.Q(
                     origin_name__isnull=True,
                     origin_kind__isnull=True,
