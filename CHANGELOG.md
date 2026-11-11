@@ -29,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `GET genre-playlists/<uuid>/tracks/` (for example Mainstream Pop with `coverage=genre_and_subgenres&subgenres=regional`) no longer times out (503) on its `blocked` count. The count filters on the membership's own `genre_id` instead of probing the track table per member. Migration `0118` keeps the column in sync with database triggers (PostgreSQL and SQLite: fill on insert when null, follow `Track.genre` updates) and backfills existing rows in batches of 50 000 (non-atomic). The bulk import merge writes `genre_id` with the membership. Tested on the denormalization invariant and, in `perf/`, on the plan (no per-member track probe).
 
+### CI
+
+- Pin the shared release workflows to the lag-tolerant github-workflows commit 79c1362, so tag creation tolerates GitHub read-after-write delays.
+
 ## [16.1.0] - 2026-11-10
 
 ### Changed
