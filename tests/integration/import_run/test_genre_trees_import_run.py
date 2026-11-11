@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from django.conf import settings
 from django.urls import reverse
@@ -6,6 +8,7 @@ from rest_framework.test import APIClient
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.criteria.children.genre.Genre import Genre
@@ -82,6 +85,28 @@ class TestGenreTreesImportRun(AppTestCase):
         response = self.api_client.post(self.url, data={"trees": []}, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_curator_key_then_403(self):
+        curator = APIClient()
+        curator.credentials(HTTP_X_API_KEY=settings.CURATION_API_KEY)
+
+        response = curator.post(self.url, data=self._body([("canonical", [POP, ROCK])]), format="json")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_merge_failure_then_nothing_applied_and_run_cleaned_up(self):
+        body = self._body([("canonical", [POP, ROCK])])
+        body["curationExportedOn"] = export_curation(self.pipeline)
+
+        with patch("grow.genre_tree.bulk_import.merge.analyze", side_effect=RuntimeError("boom")):
+            # Django-q runs the task inline under test, so the failure also surfaces on the request.
+            self.pipeline.raise_request_exception = False
+            self.pipeline.post(self.url, data=body, format="json")
+
+        assert ImportAttempt.objects.get().state == ImportAttempt.State.FAILED
+        assert not Genre.objects.filter(wikidata_id="Q373342").exists()
+        assert not ImportRun.objects.exists()
+        assert not GenreTreeImportPayload.objects.exists()
 
     def test_anonymous_then_401(self):
         assert APIClient().post(self.url, data={"trees": []}, format="json").status_code == 401
