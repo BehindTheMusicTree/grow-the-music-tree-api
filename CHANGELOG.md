@@ -15,10 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - `POST genres/trees/import-runs/` imports the canonical and regional genre trees in one asynchronous run (body `{curationExportedOn, trees: [{treeName, tree, crossTreeSecondaryParents?}]}`, 202 `{taskId}`; poll `GET genres/trees/import/<taskId>/status/`), replacing the synchronous pipeline call that timed out on staging after 120 s. Both trees go through a single `import_criteria_trees` call, so a genre moved between trees keeps its pk and songs. A pipeline run records its curation export and one `ImportRun` per tree, atomically with the run. The synchronous `tree/import/` stays for admin use. The genre kit is bumped to 0.59.0 (set-based delete); genre deletes use batch hooks that reparent songs and refresh counts. Migration `0119`. Tests cover the contract (SQLite) and, on Postgres, a cross-tree move, a delete that reparents songs, and the owner-less path; the perf seed uses the new endpoint.
+- Genres carry a Wikimedia Commons image (`image_url`, `image_page_url`, `image_author`, `image_license`, `image_license_url`) from the kit's `CommonsImage` mixin, written by the genre tree import (an `image` object on each node, cleared when absent) and returned as `image` (`url`, `pageUrl`, `author`, `license`, `licenseUrl`, or `null`) in `genres/<uuid>/overview/`. Migration `0119` adds the columns and the `grow_genre_image_complete` constraint. Tests cover the overview, the import (set, clear, invalid) and the database backstop.
 - The `root` of a detailed genre now carries its `wikidata_id`, so clients can color a genre from its tree root (the genre detail panel fell back to gray without it). The shared minimum criteria serializer is unchanged, and the root's genre is loaded with the same query. Tests cover a genre root and a tag.
 
 ### Changed
 
+- `Artist` takes its image columns, constraint and output from api-kit's `CommonsImage` (no schema change, `makemigrations --check` stays empty), and the artist import part loader validates `image` with api-kit's `validate_commons_image`.
 - The genre kit is bumped to 0.58.0, which adds `TrackPlaylistRel.genre` (kit migrations `0014`, the foreign key with brief locks, and `0015`, its index built `CONCURRENTLY`). Applying them on a large database is a deployment step.
 
 ### Fixed

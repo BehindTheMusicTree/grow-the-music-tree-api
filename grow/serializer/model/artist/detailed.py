@@ -1,5 +1,6 @@
 from django.db.models import Prefetch
 from rest_framework import serializers
+from the_music_tree_api_kit.commons_image.helpers import commons_image_representation
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 
 from grow.model.album.Album import Album
@@ -65,15 +66,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
 
     def get_image(self, artist: Artist) -> dict | None:
-        if artist.image_url is None:
-            return None
-        return {
-            "url": artist.image_url,
-            "page_url": artist.image_page_url,
-            "author": artist.image_author,
-            "license": artist.image_license,
-            "license_url": artist.image_license_url,
-        }
+        return commons_image_representation(artist)
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
