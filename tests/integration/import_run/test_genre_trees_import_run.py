@@ -92,7 +92,7 @@ class TestGenreTreesImportRun(AppTestCase):
         response = self.pipeline.post(self.url, data=body, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "trees" in response.json()
+        assert "trees" in response.json()["details"]["fieldErrors"]
         assert not BulkImportRun.objects.exists()
 
     def test_top_level_key_other_than_trees_then_400(self):
@@ -101,7 +101,7 @@ class TestGenreTreesImportRun(AppTestCase):
         response = self.pipeline.post(self.url, data=body, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "curationExportedOn" in response.json()
+        assert "curationExportedOn" in response.json()["details"]["fieldErrors"]
         assert not BulkImportRun.objects.exists()
 
     def test_admin_run_with_per_tree_curation_export_then_400(self):

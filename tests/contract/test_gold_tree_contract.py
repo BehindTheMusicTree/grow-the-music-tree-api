@@ -39,7 +39,6 @@ CANONICAL_NODES = [
     {
         "id": "Q1001",
         "name": "Contract pop",
-        "side": "pop",
         "isUmbrella": True,
         "summary": "A genre used to exercise the contract.",
         "summarySourceUrl": "https://en.wikipedia.org/wiki/Pop_music",
@@ -54,7 +53,7 @@ CANONICAL_NODES = [
                     {"id": "Q1004", "name": "Contract underground", "scene": "underground", "children": []},
                 ],
             },
-            {"id": "Q1005", "name": "Contract sibling", "children": []},
+            {"id": "Q1005", "name": "Contract sibling", "side": "pop", "children": []},
             {"id": "Q1006", "name": "Contract secondary", "secondaryParents": ["Q1005"], "children": []},
         ],
     },
