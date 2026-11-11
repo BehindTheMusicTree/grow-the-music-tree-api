@@ -49,7 +49,7 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `origin` is the place of origin, `null` when MusicBrainz has none: `source` is `begin_area` (born / formed there) or `area`
 (the artist's area, used when there is no begin area). `kind` is the MusicBrainz area type, lowercased (`country`,
 `subdivision`, `city`…), `null` when the area has no type. `wikidataId`, `longitude`/`latitude` and `regionId` (the region map's id, for `/map?region=`)
-are each `null` when unknown.
+are each `null` when unknown. `regionId` is also `null` when the latest region map does not draw that region, so `/map?region=` always resolves.
 `tracksCount` counts the songs with a genre, the ones the library lists.
 
 #### Genre counts

@@ -10,6 +10,7 @@ from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_link.Fields import Fields as LinkFields
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.artist_membership.Fields import Fields as MembershipFields
+from grow.region_map.drawn_regions import drawn_region_ids
 from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
 from grow.serializer.model.artist.simple import playable_tracks_count, tracks_count
 
@@ -72,6 +73,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     def get_origin(self, artist: Artist) -> dict | None:
         if artist.origin_name is None:
             return None
+        region_id = artist.origin_region_id
         return {
             "name": artist.origin_name,
             "kind": artist.origin_kind,
@@ -79,7 +81,8 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             "wikidata_id": artist.origin_wikidata_id,
             "longitude": artist.origin_longitude,
             "latitude": artist.origin_latitude,
-            "region_id": artist.origin_region_id,
+            # Imported separately from the region map, so only a region the latest index draws resolves on /map.
+            "region_id": region_id if region_id is not None and region_id in drawn_region_ids() else None,
         }
 
     @classmethod
