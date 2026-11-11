@@ -29,8 +29,10 @@ class TestGenreTreesImportRun(AppTestCase):
         self.pipeline.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
         self.url = reverse("genre-list") + "trees/import-runs/"
 
-    def _body(self, trees):
-        return {"trees": [{"treeName": name, "tree": tree} for name, tree in trees]}
+    def _body(self, trees, exported_on=None):
+        """A batch of Gold tree files: the pipeline's files each carry the curation export they were built from."""
+        extra = {"curationExportedOn": exported_on} if exported_on else {}
+        return {"trees": [{"treeName": name, "tree": tree, **extra} for name, tree in trees]}
 
     def _status(self, client, task_id):
         return client.get(reverse("genre-list") + f"trees/import/{task_id}/status/")
@@ -53,8 +55,9 @@ class TestGenreTreesImportRun(AppTestCase):
         assert all(report.valid for report in verify_catalogue_counts().values())
 
     def test_pipeline_run_then_both_trees_imported_and_recorded(self):
-        body = self._body([("canonical", [POP, ROCK]), ("regional", [BRITTANY])])
-        body["curationExportedOn"] = export_curation(self.pipeline)
+        body = self._body(
+            [("canonical", [POP, ROCK]), ("regional", [BRITTANY])], exported_on=export_curation(self.pipeline)
+        )
 
         response = self.pipeline.post(self.url, data=body, format="json")
 
@@ -81,6 +84,34 @@ class TestGenreTreesImportRun(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not BulkImportRun.objects.exists()
 
+    def test_pipeline_run_with_mixed_curation_exports_then_400(self):
+        exported_on = export_curation(self.pipeline)
+        body = self._body([("canonical", [POP, ROCK]), ("regional", [BRITTANY])], exported_on=exported_on)
+        body["trees"][1]["curationExportedOn"] = "2000-01-01T00:00:00Z"
+
+        response = self.pipeline.post(self.url, data=body, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "trees" in response.json()["details"]["fieldErrors"]
+        assert not BulkImportRun.objects.exists()
+
+    def test_top_level_key_other_than_trees_then_400(self):
+        body = {**self._body([("canonical", [POP, ROCK])]), "curationExportedOn": export_curation(self.pipeline)}
+
+        response = self.pipeline.post(self.url, data=body, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "curationExportedOn" in response.json()["details"]["fieldErrors"]
+        assert not BulkImportRun.objects.exists()
+
+    def test_admin_run_with_per_tree_curation_export_then_400(self):
+        body = self._body([("canonical", [POP, ROCK])], exported_on="2026-01-01T00:00:00Z")
+
+        response = self.api_client.post(self.url, data=body, format="json")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not BulkImportRun.objects.exists()
+
     def test_empty_trees_then_400(self):
         response = self.api_client.post(self.url, data={"trees": []}, format="json")
 
@@ -95,8 +126,7 @@ class TestGenreTreesImportRun(AppTestCase):
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_merge_failure_then_nothing_applied_and_run_cleaned_up(self):
-        body = self._body([("canonical", [POP, ROCK])])
-        body["curationExportedOn"] = export_curation(self.pipeline)
+        body = self._body([("canonical", [POP, ROCK])], exported_on=export_curation(self.pipeline))
 
         with patch("grow.genre_tree.bulk_import.merge.analyze", side_effect=RuntimeError("boom")):
             # Django-q runs the task inline under test, so the failure also surfaces on the request.
