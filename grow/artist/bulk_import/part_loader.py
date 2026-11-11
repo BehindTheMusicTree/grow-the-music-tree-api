@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from typing import IO, Any
 
@@ -12,6 +13,8 @@ from grow.model.artist.Artist import Artist
 from grow.model.artist_link.ArtistLink import ArtistLink
 
 TYPES = set(Artist.Type.values)
+ORIGIN_SOURCES = set(Artist.OriginSource.values)
+WIKIDATA_ID = re.compile(r"Q[1-9][0-9]*")
 LINK_KINDS = set(ArtistLink.Kind.values)
 # A btree key (artist, kind, url) must stay under ~2.7 kB.
 LINK_URL_LEN_MAX = 2048  # bytes
@@ -42,6 +45,34 @@ def _is_year(value: Any) -> bool:
 
 def _is_text_list(value: Any) -> bool:
     return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _is_number_in(value: Any, low: float, high: float) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and low <= value <= high
+
+
+def _validate_origin(line_number: int, origin: Any) -> None:
+    _require(isinstance(origin, dict), line_number, "origin must be an object")
+    _require(_is_text(origin.get("name")), line_number, "origin name must be a non-empty string")
+    _require(_is_text(origin.get("kind")), line_number, "origin kind must be a non-empty string")
+    _require(origin.get("source") in ORIGIN_SOURCES, line_number, "unknown origin source")
+    wikidata_id = origin.get("wikidata_id")
+    _require(
+        wikidata_id is None or (isinstance(wikidata_id, str) and WIKIDATA_ID.fullmatch(wikidata_id) is not None),
+        line_number,
+        "origin wikidata_id must be a QID",
+    )
+    longitude, latitude = origin.get("longitude"), origin.get("latitude")
+    _require(
+        (longitude is None) == (latitude is None)
+        and (longitude is None or (_is_number_in(longitude, -180, 180) and _is_number_in(latitude, -90, 90))),
+        line_number,
+        "origin longitude and latitude must be set together and in range",
+    )
+    region_id = origin.get("region_id")
+    _require(
+        region_id is None or _is_text(region_id, 64), line_number, "origin region_id must be a string of at most 64"
+    )
 
 
 def _row(line_number: int, line: bytes) -> tuple:
@@ -78,6 +109,10 @@ def _row(line_number: int, line: bytes) -> tuple:
     if image is not None:
         image_error = validate_commons_image(image)
         _require(image_error is None, line_number, str(image_error))
+    # Parts exported before origins existed have no `origin` key: it stages as null.
+    origin = artist.get("origin")
+    if origin is not None:
+        _validate_origin(line_number, origin)
     for key in ("members", "links", "release_groups"):
         _require(
             isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),

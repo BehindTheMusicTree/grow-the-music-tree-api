@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Genres carry a Wikimedia Commons image (`image_url`, `image_page_url`, `image_author`, `image_license`, `image_license_url`) from the kit's `CommonsImage` mixin, written by the genre tree import (an `image` object on each node, cleared when absent) and returned as `image` (`url`, `pageUrl`, `author`, `license`, `licenseUrl`, or `null`) in `genres/<uuid>/overview/`. Migration `0120` adds the columns and the `grow_genre_image_complete` constraint. Tests cover the overview, the import (set, clear, invalid) and the database backstop.
 - The `root` of a detailed genre now carries its `wikidata_id`, so clients can color a genre from its tree root (the genre detail panel fell back to gray without it). The shared minimum criteria serializer is unchanged, and the root's genre is loaded with the same query. Tests cover a genre root and a tag.
 
+- Artists carry an origin place (`origin_name`, `origin_kind`, `origin_source`, `origin_wikidata_id`, `origin_longitude`, `origin_latitude`, `origin_region_id`), set by the artist import (an optional `origin` object on each artist, cleared when absent) and returned as `origin` in the detailed artist. The `artist_origin_complete` constraint requires name, kind and source together. Migration `0121`. Tests cover the import (set, update, clear, invalid parts) and the detail.
+
 ### Changed
 
 - `Artist` takes its image columns, constraint and output from api-kit's `CommonsImage` (no schema change, `makemigrations --check` stays empty), and the artist import part loader validates `image` with api-kit's `validate_commons_image`.

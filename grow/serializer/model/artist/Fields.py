@@ -25,3 +25,4 @@ class Fields:
     MEMBERS = ArtistFields.MEMBERS
     MEMBER_OF = ArtistFields.MEMBER_OF
     IMAGE = "image"
+    ORIGIN = "origin"

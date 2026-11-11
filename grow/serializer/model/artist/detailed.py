@@ -64,9 +64,23 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     tracks_count = serializers.IntegerField(source=Fields.TRACKS_COUNT_ANNOTATED)
     playable_tracks_count = serializers.IntegerField()
     image = serializers.SerializerMethodField()
+    origin = serializers.SerializerMethodField()
 
     def get_image(self, artist: Artist) -> dict | None:
         return commons_image_representation(artist)
+
+    def get_origin(self, artist: Artist) -> dict | None:
+        if artist.origin_name is None:
+            return None
+        return {
+            "name": artist.origin_name,
+            "kind": artist.origin_kind,
+            "source": artist.origin_source,
+            "wikidata_id": artist.origin_wikidata_id,
+            "longitude": artist.origin_longitude,
+            "latitude": artist.origin_latitude,
+            "region_id": artist.origin_region_id,
+        }
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
@@ -103,6 +117,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             Fields.END_YEAR,
             Fields.ENDED,
             Fields.IMAGE,
+            Fields.ORIGIN,
             Fields.LINKS,
             Fields.MEMBERS,
             Fields.MEMBER_OF,

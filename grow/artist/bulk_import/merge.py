@@ -39,7 +39,12 @@ EXPANDED_STEPS = [
         {YEAR.format("data->>'end_year'")} AS end_year, (data->>'ended')::boolean AS ended,
         data->>'disambiguation' AS disambiguation, data->'image'->>'url' AS image_url,
         data->'image'->>'page_url' AS image_page_url, data->'image'->>'author' AS image_author,
-        data->'image'->>'license' AS image_license, data->'image'->>'license_url' AS image_license_url
+        data->'image'->>'license' AS image_license, data->'image'->>'license_url' AS image_license_url,
+        data->'origin'->>'name' AS origin_name, data->'origin'->>'kind' AS origin_kind,
+        data->'origin'->>'source' AS origin_source, data->'origin'->>'wikidata_id' AS origin_wikidata_id,
+        (data->'origin'->>'longitude')::double precision AS origin_longitude,
+        (data->'origin'->>'latitude')::double precision AS origin_latitude,
+        data->'origin'->>'region_id' AS origin_region_id
     FROM grow_artist_import_staging WHERE run_id = %(run)s ORDER BY musicbrainz_artist_id, part DESC""",
     ),
     ("artist_import_pkey", "ALTER TABLE artist_import ADD PRIMARY KEY (mbid)"),
@@ -109,12 +114,18 @@ RESOLVE_STEPS = [
         name = i.name, type = i.type, country = i.country, begin_year = i.begin_year, end_year = i.end_year,
         ended = i.ended, disambiguation = i.disambiguation, image_url = i.image_url,
         image_page_url = i.image_page_url, image_author = i.image_author, image_license = i.image_license,
-        image_license_url = i.image_license_url, updated_on = now()
+        image_license_url = i.image_license_url, origin_name = i.origin_name, origin_kind = i.origin_kind,
+        origin_source = i.origin_source, origin_wikidata_id = i.origin_wikidata_id,
+        origin_longitude = i.origin_longitude, origin_latitude = i.origin_latitude,
+        origin_region_id = i.origin_region_id, updated_on = now()
     FROM artist_import i WHERE a.musicbrainz_artist_id = i.mbid
         AND (a.name, a.type, a.country, a.begin_year, a.end_year, a.ended, a.disambiguation, a.image_url,
-            a.image_page_url, a.image_author, a.image_license, a.image_license_url) IS DISTINCT FROM
+            a.image_page_url, a.image_author, a.image_license, a.image_license_url, a.origin_name, a.origin_kind,
+            a.origin_source, a.origin_wikidata_id, a.origin_longitude, a.origin_latitude, a.origin_region_id)
+        IS DISTINCT FROM
         (i.name, i.type, i.country, i.begin_year, i.end_year, i.ended, i.disambiguation, i.image_url,
-            i.image_page_url, i.image_author, i.image_license, i.image_license_url)""",
+            i.image_page_url, i.image_author, i.image_license, i.image_license_url, i.origin_name, i.origin_kind,
+            i.origin_source, i.origin_wikidata_id, i.origin_longitude, i.origin_latitude, i.origin_region_id)""",
     ),
     (
         "upsert_song_search",
@@ -127,9 +138,11 @@ RESOLVE_STEPS = [
         "insert_artists",
         """INSERT INTO grow_artist
         (uuid, created_on, name, user_id, musicbrainz_artist_id, type, country, begin_year, end_year, ended,
-        disambiguation, image_url, image_page_url, image_author, image_license, image_license_url)
+        disambiguation, image_url, image_page_url, image_author, image_license, image_license_url, origin_name,
+        origin_kind, origin_source, origin_wikidata_id, origin_longitude, origin_latitude, origin_region_id)
     SELECT gen_random_uuid(), now(), name, %(user)s, mbid, type, country, begin_year, end_year, ended, disambiguation,
-        image_url, image_page_url, image_author, image_license, image_license_url
+        image_url, image_page_url, image_author, image_license, image_license_url, origin_name, origin_kind,
+        origin_source, origin_wikidata_id, origin_longitude, origin_latitude, origin_region_id
     FROM artist_import i
     WHERE NOT EXISTS (SELECT 1 FROM grow_artist a WHERE a.musicbrainz_artist_id = i.mbid)
     ORDER BY mbid""",
