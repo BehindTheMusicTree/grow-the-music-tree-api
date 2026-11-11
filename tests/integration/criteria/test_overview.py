@@ -94,6 +94,7 @@ class TestCase(GenreTestCase):
         assert response.json()["essentialSongs"] == []
         assert response.json()["description"] is None
         assert response.json()["summarySourceUrl"] is None
+        assert response.json()["image"] is None
 
     def test_unknown_uuid_returns_404(self):
         response = self._get_overview(uuid.uuid4())

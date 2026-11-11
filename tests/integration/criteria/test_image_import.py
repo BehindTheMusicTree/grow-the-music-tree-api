@@ -41,6 +41,20 @@ class TestCase(GenreTestCase):
         assert "image" in response.content.decode()
         assert not Genre.objects.filter(wikidata_id="Q101").exists()
 
+    def test_partial_image_is_rejected(self):
+        partial = {k: v for k, v in IMAGE.items() if k != "license"}
+
+        response = self._import(partial)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not Genre.objects.filter(wikidata_id="Q101").exists()
+
+    def test_unknown_image_key_is_rejected(self):
+        response = self._import({**IMAGE, "caption": "x"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not Genre.objects.filter(wikidata_id="Q101").exists()
+
     def test_database_refuses_a_partial_image(self):
         genre = self.model_fixture_factory.create_genre("EDM")
 
