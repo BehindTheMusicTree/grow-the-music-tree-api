@@ -39,6 +39,10 @@ SPECIAL_PURPOSE_ARTIST_MBIDS = frozenset(
 
 
 class Artist(TrackMixin, CommonsImage):
+    class OriginSource(models.TextChoices):
+        BEGIN_AREA = "begin_area"
+        AREA = "area"
+
     class Type(models.TextChoices):
         PERSON = "person"
         GROUP = "group"
@@ -69,6 +73,15 @@ class Artist(TrackMixin, CommonsImage):
     disambiguation = models.TextField(null=True, blank=True)
     # Songs crediting the artist, playable or not, kept by the songs import merge to rank search results.
     recording_count = models.PositiveIntegerField(db_default=0)
+    # Place of origin: MusicBrainz begin_area, else area (`origin_source`). Wikidata id, point and map region are
+    # best-effort enrichments, null when Wikidata or the region map doesn't know the place.
+    origin_name = models.TextField(null=True, blank=True)
+    origin_kind = models.TextField(null=True, blank=True)
+    origin_source = models.TextField(choices=OriginSource.choices, null=True, blank=True)
+    origin_wikidata_id = models.CharField(max_length=32, null=True, blank=True)
+    origin_longitude = models.FloatField(null=True, blank=True)
+    origin_latitude = models.FloatField(null=True, blank=True)
+    origin_region_id = models.CharField(max_length=64, null=True, blank=True)
 
     @property
     def name(self) -> str:
@@ -96,6 +109,21 @@ class Artist(TrackMixin, CommonsImage):
         constraints = [
             models.CheckConstraint(condition=~models.Q(_name=""), name="artist_non_empty_name"),
             commons_image_complete_constraint("artist_image_complete"),
+            models.CheckConstraint(
+                condition=models.Q(
+                    origin_name__isnull=False, origin_kind__isnull=False, origin_source__isnull=False
+                )
+                | models.Q(
+                    origin_name__isnull=True,
+                    origin_kind__isnull=True,
+                    origin_source__isnull=True,
+                    origin_wikidata_id__isnull=True,
+                    origin_longitude__isnull=True,
+                    origin_latitude__isnull=True,
+                    origin_region_id__isnull=True,
+                ),
+                name="artist_origin_complete",
+            ),
         ]
 
     def __str__(self) -> str:

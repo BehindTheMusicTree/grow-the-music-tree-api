@@ -35,6 +35,31 @@ class TestCase(AppTestCase):
         assert response.data["links"] == [{"kind": "wikidata", "url": "https://www.wikidata.org/wiki/Q2306"}]
         assert response.data["albums"][0]["primary_type"] == "Album"
 
+    def test_detail_then_origin_null_until_set(self):
+        url = reverse("artist-detail", kwargs={"pk": self.band.uuid})
+
+        assert self.api_client.get(path=url).data["origin"] is None
+
+        Artist.objects.filter(pk=self.band.pk).update(
+            origin_name="Liverpool",
+            origin_kind="city",
+            origin_source="begin_area",
+            origin_wikidata_id="Q24826",
+            origin_longitude=-2.99,
+            origin_latitude=53.41,
+            origin_region_id="Q23",
+        )
+
+        assert self.api_client.get(path=url).data["origin"] == {
+            "name": "Liverpool",
+            "kind": "city",
+            "source": "begin_area",
+            "wikidata_id": "Q24826",
+            "longitude": -2.99,
+            "latitude": 53.41,
+            "region_id": "Q23",
+        }
+
     def test_detail_then_playable_tracks_count_excludes_unplayable_songs(self):
         factory = self.model_fixture_factory
         prog = factory.create_genre("Prog")
