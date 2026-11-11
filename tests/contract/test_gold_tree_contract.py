@@ -77,7 +77,7 @@ def _tree_files(exported_on: str) -> list[dict]:
             "treeName": "regional",
             "curationExportedOn": exported_on,
             "tree": REGIONAL_NODES,
-            "crossTreeSecondaryParents": [{"id": "Q2002", "secondaryParents": ["Q1005"]}],
+            "crossTreeSecondaryParents": [{"id": "Q1005", "secondaryParents": ["Q2002"]}],
         },
     ]
 
