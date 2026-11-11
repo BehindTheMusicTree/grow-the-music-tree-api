@@ -6,6 +6,7 @@ from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
+from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
@@ -62,6 +63,7 @@ __all__ = [
     "GenreEdgeRule",
     "GenreMembershipCount",
     "GenrePlaylist",
+    "GenreTreeImportPayload",
     "GenreTreeVersion",
     "HistoryEntry",
     "ImportAttempt",

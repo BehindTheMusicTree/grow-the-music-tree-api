@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `POST genres/trees/import-runs/` imports the canonical and regional genre trees in one asynchronous run (body `{curationExportedOn, trees: [{treeName, tree, crossTreeSecondaryParents?}]}`, 202 `{taskId}`; poll `GET genres/trees/import/<taskId>/status/`), replacing the synchronous pipeline call that timed out on staging after 120 s. Both trees go through a single `import_criteria_trees` call, so a genre moved between trees keeps its pk and songs. A pipeline run records its curation export and one `ImportRun` per tree, atomically with the run. The synchronous `tree/import/` stays for admin use. The genre kit is bumped to 0.59.0 (set-based delete); genre deletes use batch hooks that reparent songs and refresh counts. Migration `0119`. Tests cover the contract (SQLite) and, on Postgres, a cross-tree move, a delete that reparents songs, and the owner-less path; the perf seed uses the new endpoint.
 - The `root` of a detailed genre now carries its `wikidata_id`, so clients can color a genre from its tree root (the genre detail panel fell back to gray without it). The shared minimum criteria serializer is unchanged, and the root's genre is loaded with the same query. Tests cover a genre root and a tag.
 
 ### Changed

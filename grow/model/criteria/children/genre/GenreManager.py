@@ -1,10 +1,13 @@
+from collections import defaultdict
+from collections.abc import Iterable
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.search import TrigramWordSimilarity
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.db.models import F
+from django.db.models import Count, F, QuerySet
 from django.db.models.functions import Coalesce
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
@@ -33,12 +36,15 @@ if TYPE_CHECKING:
 # Extension point: add future required root labels here (see ARCHITECTURE.md).
 REQUIRED_ROOT_GENRE_NAMES: frozenset[str] = frozenset({"Mainstream Pop"})
 
+# Songs a batch delete left genreless, handed from `_on_tracks_genre_moved` to `_on_before_delete_many`.
+_genreless_song_pks: ContextVar[list | None] = ContextVar("genreless_song_pks", default=None)
+
 
 class GenreManager(AbstractGenreManager, CriteriaManager):
     model: Genre
 
-    def _get_direct_tracks(self, instance: Genre) -> list:
-        return list(instance.tracks.all())
+    def _get_direct_tracks(self, instance: Genre) -> QuerySet:
+        return instance.tracks.all()
 
     def _is_required_root(self, instance: Genre) -> bool:
         return instance.parent_id is None and instance.name in REQUIRED_ROOT_GENRE_NAMES
@@ -254,27 +260,55 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
         lock_catalogue_sources(using=self.db)
         instance.refresh_from_db(using=self.db)
-        was_required_root = self._is_required_root(instance)
-        user = instance.user
-        HistoryEntry.objects.record(instance, action=HistoryAction.DELETED, actor=actor, old_value=instance.name)
         super().delete_instance(instance, actor=actor)
-        if was_required_root:
-            self.assert_required_roots_present(user)
 
     @transaction.atomic
-    def _on_before_delete(self, instance: Genre, *, actor: Any = None) -> None:
+    def delete_instances(self, instances: Iterable[Genre], actor: Any = None) -> None:
+        instances = list(instances)
+        lock_catalogue_sources(using=self.db)
+        content_type = ContentType.objects.get_for_model(self.model)
+        required_root_owners = {i.user_id: i.user for i in instances if self._is_required_root(i)}
+        HistoryEntry.objects.bulk_create(
+            HistoryEntry(
+                user_id=instance.user_id,
+                content_type=content_type,
+                content_uuid=instance.pk,
+                action=HistoryAction.DELETED,
+                actor=actor,
+                old_value=instance.name,
+            )
+            for instance in instances
+        )
+        super().delete_instances(instances, actor=actor)
+        for user in required_root_owners.values():
+            self.assert_required_roots_present(user)
+
+    def _on_tracks_genre_moved(self, moves: dict[Any, Any], *, actor: Any = None) -> None:
         from grow.model.song.Song import Song
+
+        super()._on_tracks_genre_moved(moves, actor=actor)
+        # The deleted genres' playlists go with them while their songs move to the nearest surviving ancestor (or
+        # become genreless). Transferring a possibly drifted legacy bucket propagates its error to the surviving
+        # parent. The source gate keeps this source count stable. One grouped count, not one per genre.
+        songs = Song.objects.filter(user__isnull=True, genre__in=list(moves)).order_by()
+        moved_by_target: dict[Any, int] = defaultdict(int)
+        for genre_pk, count in songs.values_list("genre").annotate(n=Count("pk")):
+            moved_by_target[moves[genre_pk]] += count
+        for target, count in moved_by_target.items():
+            adjust_direct_songs_count(target, count)
+        # Songs left genreless change their search rank. They are re-derived once the tracks are updated, in
+        # `_on_before_delete_many`, so remember them while they still point at the deleted genres.
+        orphaned = [pk for pk, target in moves.items() if target is None]
+        _genreless_song_pks.set(
+            list(Song.objects.filter(genre__in=orphaned).order_by().values_list("pk", flat=True)) if orphaned else []
+        )
+
+    def _on_before_delete_many(self, instances: list[Genre], *, actor: Any = None) -> None:
         from grow.model.song_search.SongSearch import SongSearch
 
-        # The playlist goes with the genre while its songs are re-pointed to the parent (or become genreless).
-        # Transferring a possibly drifted legacy bucket propagates its error to
-        # the surviving parent. The source gate keeps this source count stable.
-        moved = Song.objects.filter(user__isnull=True, genre=instance).count() if instance.user_id is None else 0
-        # A root's songs become genreless, which changes their search rank; elsewhere they keep a genre.
-        genreless = [] if instance.parent_id else list(Song.objects.filter(genre=instance).values_list("pk", flat=True))
-        super()._on_before_delete(instance, actor=actor)
-        if moved:
-            adjust_direct_songs_count(instance.parent_id, moved)
+        super()._on_before_delete_many(instances, actor=actor)
+        genreless = _genreless_song_pks.get() or []
+        _genreless_song_pks.set(None)
         SongSearch.objects.refresh(genreless)
 
     @transaction.atomic
