@@ -353,6 +353,12 @@ class TestImportRunMerge(AppTestCase):
 
         assert origin() == (None,) * 7
 
+    def test_origin_without_kind_imported(self):
+        self._sync([{**ARTIST, "origin": {**ORIGIN, "kind": None}}])
+
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).origin_kind is None
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).origin_name == "Liverpool"
+
     def test_deleted_artist_takes_its_aliases(self):
         self._sync([{**ARTIST, "aliases": ["Floyd"]}, PERSON])
 
@@ -466,6 +472,7 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**ARTIST, "disambiguation": 3}]),
             _gzip_ndjson([{**ARTIST, "origin": "Liverpool"}]),
             _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "name": ""}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "kind": ""}}]),
             _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "source": "birthplace"}}]),
             _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "wikidata_id": "24826"}}]),
             _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "latitude": None}}]),

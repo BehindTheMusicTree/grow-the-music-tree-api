@@ -54,7 +54,8 @@ def _is_number_in(value: Any, low: float, high: float) -> bool:
 def _validate_origin(line_number: int, origin: Any) -> None:
     _require(isinstance(origin, dict), line_number, "origin must be an object")
     _require(_is_text(origin.get("name")), line_number, "origin name must be a non-empty string")
-    _require(_is_text(origin.get("kind")), line_number, "origin kind must be a non-empty string")
+    kind = origin.get("kind")
+    _require(kind is None or _is_text(kind), line_number, "origin kind must be null or a non-empty string")
     _require(origin.get("source") in ORIGIN_SOURCES, line_number, "unknown origin source")
     wikidata_id = origin.get("wikidata_id")
     _require(
