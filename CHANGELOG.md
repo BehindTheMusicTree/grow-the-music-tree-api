@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The `root` of a detailed genre now carries its `wikidata_id`, so clients can color a genre from its tree root (the genre detail panel fell back to gray without it). The shared minimum criteria serializer is unchanged, and the root's genre is loaded with the same query. Tests cover a genre root and a tag.
+
 ### Changed
 
 - The genre kit is bumped to 0.58.0, which adds `TrackPlaylistRel.genre` (kit migrations `0014`, the foreign key with brief locks, and `0015`, its index built `CONCURRENTLY`). Applying them on a large database is a deployment step.
