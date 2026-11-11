@@ -536,7 +536,7 @@ requires-dist = [
     { name = "pytest-django", marker = "extra == 'dev'", specifier = "==4.8.0" },
     { name = "redis", specifier = "==8.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.9" },
-    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.58.0" },
+    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.59.0" },
 ]
 provides-extras = ["dev"]
 
@@ -853,8 +853,8 @@ dependencies = [
 
 [[package]]
 name = "the-music-tree-genre-kit"
-version = "0.58.0"
-source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.58.0#04ddcb1d3de588454010ada25f13f626aa1c3e9f" }
+version = "0.59.0"
+source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.59.0#ff8370cd377d9f80e12b4fb55f70f50128996e38" }
 dependencies = [
     { name = "django" },
     { name = "djangorestframework" },
