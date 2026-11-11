@@ -50,8 +50,8 @@ def _seed() -> None:
     trees = []
     for fixture in TREES:
         with gzip.open(FIXTURES / fixture) as file:
-            trees.append(json.load(file))
-    body = {"curationExportedOn": exported_on, "trees": trees}
+            trees.append({**json.load(file), "curationExportedOn": exported_on})
+    body = {"trees": trees}
     started = _timed(
         "genre trees (queue+merge)", lambda: client.post(reverse("genre-list") + "trees/import-runs/", body)
     )

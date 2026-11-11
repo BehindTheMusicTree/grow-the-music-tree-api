@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timedelta
+from typing import Any
 
 from django.conf import settings
 from django.db import transaction
@@ -66,11 +67,17 @@ from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 GENRE_SEARCH_PAYLOAD_VERSION = 2
 
 
+def _is_json_object(data: Any) -> bool:
+    return isinstance(data, dict) and not isinstance(data, QueryDict)
+
+
+def _pop_curation_exported_on(tree_file: Any) -> Any:
+    """The raw curation export of a Gold tree file, popped so the tree serializer sees only its own fields."""
+    return tree_file.pop(CURATION_EXPORTED_ON, None) if _is_json_object(tree_file) else None
+
+
 def _curation_exported_on(request: Request, state: CurationSyncState) -> datetime:
-    """The curation export the imported tree was built from, popped so the tree serializer sees only its own fields."""
-    is_json_object = isinstance(request.data, dict) and not isinstance(request.data, QueryDict)
-    value = request.data.pop(CURATION_EXPORTED_ON, None) if is_json_object else None
-    return parse_curation_exported_on(value, state)
+    return parse_curation_exported_on(_pop_curation_exported_on(request.data), state)
 
 
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
@@ -135,20 +142,30 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def import_trees(self, request):
         """
         Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
-        tree keeps its pk and songs. The body is `{curation_exported_on (pipeline only), trees: [<tree import>]}`.
+        tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
+        takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
         """
         owner = get_request_owner(request)
         record = request.auth.role == "pipeline"
-        body = request.data if isinstance(request.data, dict) and not isinstance(request.data, QueryDict) else {}
-        exported_on = body.get(CURATION_EXPORTED_ON)
-        if record:
-            parse_curation_exported_on(exported_on, CurationSyncState.load())
-        serializer = CriteriaTreeImportSerializer(data=body.get("trees"), many=True)
+        body = request.data if _is_json_object(request.data) else {}
+        unknown = sorted(set(body) - {"trees"})
+        if unknown:
+            raise ValidationError(dict.fromkeys(unknown, "Unknown field: only `trees` is accepted at the top level"))
+        entries = body.get("trees")
+        exports = []
+        if record and isinstance(entries, list):
+            state = CurationSyncState.load()
+            exports = [_pop_curation_exported_on(entry) for entry in entries]
+            parsed = {parse_curation_exported_on(value, state) for value in exports}
+            if len(parsed) > 1:
+                raise ValidationError({"trees": "Mixed curation exports: every tree needs the same curationExportedOn"})
+        serializer = CriteriaTreeImportSerializer(data=entries, many=True)
         serializer.is_valid(raise_exception=True)
         trees = [dict(tree) for tree in serializer.validated_data]
         if not trees:
             raise ValidationError({"trees": "At least one tree is required"})
-        payload = {"trees": trees, CURATION_EXPORTED_ON: exported_on if record else None}
+        exported_on = exports[0] if exports else None
+        payload = {"trees": trees, CURATION_EXPORTED_ON: exported_on}
         with transaction.atomic():
             # Drop the runs of an earlier merge django-q killed without cleanup (see bulk_import_run_actions).
             stale = BulkImportRun.objects.filter(

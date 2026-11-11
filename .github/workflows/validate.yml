@@ -5,9 +5,13 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # The pipelines schema can change without a grow commit: catch the drift before the next staging run.
+  schedule:
+    - cron: "17 5 * * *"
 
 jobs:
   lint:
+    if: github.event_name != 'schedule'
     name: Lint
     runs-on: ubuntu-latest
     # Dummy config only, no DB/secrets: mypy just needs settings.py importable via the django-stubs plugin.
@@ -42,6 +46,7 @@ jobs:
         run: uv run mypy grow
 
   migration-check:
+    if: github.event_name != 'schedule'
     name: Migration check
     runs-on: ubuntu-latest
     env:
@@ -63,6 +68,7 @@ jobs:
         run: uv run django-admin makemigrations grow --check --dry-run
 
   pytest:
+    if: github.event_name != 'schedule'
     name: Pytest
     runs-on: ubuntu-latest
     services:
@@ -99,3 +105,34 @@ jobs:
       - name: Run Postgres-only pytest
         run: uv run pytest -m postgres --ds=tests.postgres_settings --no-cov
 
+  gold-contract:
+    name: Gold contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Sync dependencies
+        run: uv sync --all-extras
+
+      # The pipelines branch mirroring grow's: develop for develop/feature work, main for main/hotfix.
+      - name: Fetch the Gold tree schema
+        env:
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: |
+          case "$TARGET_BRANCH" in
+            main) ref=main ;;
+            *) ref=develop ;;
+          esac
+          curl --fail --silent --show-error --location \
+            "https://raw.githubusercontent.com/BehindTheMusicTree/the-music-tree-pipelines/${ref}/pipelines/gold/src/gold/schemas/genre_tree.schema.json" \
+            --output "$RUNNER_TEMP/genre_tree.schema.json"
+          echo "GOLD_SCHEMA_PATH=$RUNNER_TEMP/genre_tree.schema.json" >> "$GITHUB_ENV"
+
+      - name: Run the contract tests
+        run: uv run pytest -m contract --no-cov
