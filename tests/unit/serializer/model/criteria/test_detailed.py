@@ -98,3 +98,18 @@ class TestCase(AppTestCase):
         data = CriteriaDetailedSerializer(tag).data
 
         assert data["wikidata_id"] is None
+
+    def test_serializes_wikidata_id_of_the_root_genre(self):
+        root = self.model_fixture_factory.create_genre("Pop", wikidata_id="Q37073")
+        child = self.model_fixture_factory.create_genre("Dance-pop", parent=root, wikidata_id="Q1")
+
+        data = CriteriaDetailedSerializer(child).data
+
+        assert data["root"]["wikidata_id"] == "Q37073"
+
+    def test_serializes_root_wikidata_id_as_none_for_tag(self):
+        tag = self.model_fixture_factory.create_tag("Live")
+
+        data = CriteriaDetailedSerializer(tag).data
+
+        assert data["root"]["wikidata_id"] is None
