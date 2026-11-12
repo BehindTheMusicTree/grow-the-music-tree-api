@@ -22,7 +22,7 @@ class ApiKeyAuthentication(BaseAuthentication):
     """
     Authenticates requests against two static keys. PIPELINE_API_KEY is the `pipeline` role: a service principal
     with no `User` row. CURATION_API_KEY is the `curator` role: it writes curation history, whose actor is a `User`
-    FK, so it resolves to the `curation-bot` user.
+    FK, so it resolves to the `curation-bot` user, seeded with its profile by migration 0123.
     """
 
     def authenticate(self, request: Request) -> tuple[PipelineUser | User, Principal] | None:
@@ -32,6 +32,6 @@ class ApiKeyAuthentication(BaseAuthentication):
         if hmac.compare_digest(api_key.encode(), settings.PIPELINE_API_KEY.encode()):
             return PipelineUser(), Principal(role="pipeline", email=None, sub=None)
         if hmac.compare_digest(api_key.encode(), settings.CURATION_API_KEY.encode()):
-            bot, _ = User.objects.get_or_create(username=CURATION_BOT_USERNAME)
+            bot = User.objects.get(username=CURATION_BOT_USERNAME)
             return bot, Principal(role="curator", email=None, sub=None)
         return None
