@@ -253,8 +253,17 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         essential_songs = kwargs.pop("essential_songs", None)
         instance = super().create(actor=actor, **kwargs)
         if essential_songs is not None:
-            instance.essential_songs.set(essential_songs)
+            self.set_essential_songs(instance, essential_songs)
         return instance
+
+    def set_essential_songs(self, genre: Genre, songs: list[Any]) -> None:
+        """The one writer of a genre's ordered essential songs: positions are 1..n in `songs` order."""
+        through = self.model.essential_songs.through
+        with transaction.atomic(using=self.db):
+            through.objects.using(self.db).filter(genre=genre).delete()
+            through.objects.using(self.db).bulk_create(
+                [through(genre=genre, song=song, position=position) for position, song in enumerate(songs, start=1)]
+            )
 
     @transaction.atomic
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
@@ -463,7 +472,10 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             kwargs["summary_source_url"] = None
         if actor is not None and essential_songs_changed:
             self._write_essential_songs_rules(instance, kwargs["essential_songs"], actor)
+        essential_songs = kwargs.pop("essential_songs", None)
         updated = super().update_instance(instance, actor=actor, **kwargs)
+        if essential_songs is not None:
+            self.set_essential_songs(updated, essential_songs)
         if dropped_secondary_edge:
             self._drop_secondary_add_rule(updated, new_parent.pk, actor)
         if (updated.side or CriteriaSide.CORE) != old_side:
@@ -478,9 +490,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         return updated
 
     def _essential_track_pks(self, instance: Genre) -> list[Any]:
-        """In insertion order, the closest the M2M keeps to the order the rules' positions record."""
         through = self.model.essential_songs.through
-        return list(through.objects.filter(genre=instance).order_by("pk").values_list("song_id", flat=True))
+        return list(through.objects.filter(genre=instance).order_by("position").values_list("song_id", flat=True))
 
     def _write_essential_songs_rules(self, instance: Genre, songs: list[Any], actor: Any) -> None:
         """The rows are the genre's whole ordered list: a row per song, and none left for dropped ones."""

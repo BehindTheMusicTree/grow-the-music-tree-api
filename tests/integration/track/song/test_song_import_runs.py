@@ -32,6 +32,7 @@ from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.essential_songs import add_essential_song
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
 OTHER_MBID = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
@@ -832,7 +833,7 @@ class TestImportRunMerge(AppTestCase):
     def test_stale_essential_track_removed_from_genre_essentials(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         stale = self.model_fixture_factory.create_song(title="Stale", genre=rock, youtube_video_id="stalevideo1")
-        rock.essential_songs.add(stale)
+        add_essential_song(rock, stale)
 
         self._sync([SONG])
 

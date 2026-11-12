@@ -184,7 +184,7 @@ CURATION_LISTS: dict[str, CurationList] = {
         "gold",
         ("item_id", "musicbrainz_recording_id"),
         ("item_id", "musicbrainz_recording_id", "position", "reason"),
-        "Songs an admin picked as essential for a genre, in order.",
+        "Songs an admin picked as essential for a genre, in order. Grow applies edits to the genre at once; Gold only checks each MBID exists.",
     ),
     "summary_overrides": CurationList(
         "gold",

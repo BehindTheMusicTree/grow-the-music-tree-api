@@ -1,6 +1,7 @@
 from rest_framework import status
 
 from tests.integration.criteria.GenreTestCase import GenreTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCase(GenreTestCase):
@@ -17,7 +18,7 @@ class TestCase(GenreTestCase):
     def test_clears_essential_songs(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
         track = self.model_fixture_factory.create_song("Strobe", genre=genre)
-        genre.essential_songs.add(track)
+        add_essential_song(genre, track)
 
         response = self._put_genre(genre.uuid, data={"essentialSongs": []})
 

@@ -13,6 +13,7 @@ from grow.model.song.Song import Song
 from grow.youtube import YoutubeLookupError
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.essential_songs import add_essential_song
 
 FETCH = "grow.model.song.SongCurationManager.fetch_video_metadata"
 MB_ID = "11111111-1111-4111-8111-111111111111"
@@ -274,7 +275,7 @@ class TestCase(AppTestCase):
         source = self.model_fixture_factory.create_genre("alt rock", parent=root)
         child = self.model_fixture_factory.create_genre("Child", parent=source)
         song = self._song("Song", source)
-        source.essential_songs.add(song)
+        add_essential_song(source, song)
         url = reverse("genre-alias-of", kwargs={"pk": source.uuid})
 
         preview = self.api_client.get(
@@ -332,6 +333,20 @@ class TestCase(AppTestCase):
         self._forbidden_and_unauthorized("post", reverse("genre-alias-of", kwargs={"pk": pk}), {"target": str(pk)})
         self._forbidden_and_unauthorized("get", reverse("genre-alias-of-preview", kwargs={"pk": pk}))
 
+    def test_put_reorder_essential_songs_then_output_reordered_and_same_put_writes_nothing(self):
+        genre = self._rock()
+        a = self._song("A", genre)
+        b = self._song("B", genre, "77777777-7777-4777-8777-777777777777")
+        url = reverse("genre-detail", kwargs={"pk": genre.uuid})
+
+        self.api_client.put(url, {"essentialSongs": [str(a.uuid), str(b.uuid)]}, format="json")
+        response = self.api_client.put(url, {"essentialSongs": [str(b.uuid), str(a.uuid)]}, format="json")
+
+        assert [s["uuid"] for s in response.json()["essentialSongs"]] == [str(b.uuid), str(a.uuid)]
+        history = HistoryEntry.objects.count()
+        self.api_client.put(url, {"essentialSongs": [str(b.uuid), str(a.uuid)]}, format="json")
+        assert HistoryEntry.objects.count() == history
+
     def test_put_summary_and_essential_songs_then_rules(self):
         genre = self._rock()
         a = self._song("A", genre)
@@ -377,7 +392,7 @@ class TestCase(AppTestCase):
     def test_put_unchanged_then_no_rule_and_no_lock(self):
         genre = self._rock()
         a = self._song("A", genre)
-        genre.essential_songs.add(a)
+        add_essential_song(genre, a)
         genre.summary = "Loud."
         genre.save(update_fields=["summary"])
 

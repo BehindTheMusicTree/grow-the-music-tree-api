@@ -1,8 +1,18 @@
+from django.db.models import Prefetch
 from rest_framework import serializers
 
+from grow.model.criteria.children.genre.GenreEssentialSong import GenreEssentialSong
 from grow.serializer.model.track.output.simple.simple_without_album_and_genre import (
     TrackWithoutAlbumPlaylistGenreSerializer,
 )
+
+
+def essential_song_rows_prefetch(genre_path: str) -> Prefetch:
+    """Position-ordered through rows (Meta.ordering) with their songs and artists, read by `get_essential_songs`."""
+    return Prefetch(
+        f"{genre_path}__genreessentialsong_set",
+        GenreEssentialSong.objects.select_related("song").prefetch_related("song__artists"),
+    )
 
 
 class CriteriaEssentialSongsSerializerMixin:
@@ -24,6 +34,5 @@ class CriteriaEssentialSongsSerializerMixin:
         genre = getattr(obj, "genre", None)
         if not genre:
             return []
-        return TrackWithoutAlbumPlaylistGenreSerializer(
-            genre.essential_songs.all(), many=True, context=self.context
-        ).data
+        songs = [row.song for row in genre.genreessentialsong_set.all()]
+        return TrackWithoutAlbumPlaylistGenreSerializer(songs, many=True, context=self.context).data
