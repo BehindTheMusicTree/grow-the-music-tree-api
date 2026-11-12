@@ -1,5 +1,5 @@
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.db import DatabaseError, connection, transaction
@@ -131,3 +131,30 @@ def test_reporter_initialization_failure_prevents_business_writes():
         execute_merge(run.pk, attempt.pk, SongImportStaging, write_data)
     assert not ImportRun.objects.exists()
     assert BulkImportRun.objects.filter(pk=run.pk).exists()
+
+
+def test_receipt_path_finalizes_without_merging():
+    run, attempt = make_attempt()
+    ImportReceipt.objects.create(run_id=run.pk, result={"imported": 4})
+    merge = Mock(side_effect=AssertionError("must not merge"))
+    invalidate = Mock()
+    assert execute_merge(run.pk, attempt.pk, SongImportStaging, merge, invalidate) == {"imported": 4}
+    merge.assert_not_called()
+    invalidate.assert_called_once()
+    assert not BulkImportRun.objects.filter(pk=run.pk).exists()
+    attempt.refresh_from_db()
+    assert attempt.state == "succeeded"
+    assert attempt.data_applied
+    assert attempt.result == {"imported": 4}
+
+
+def test_receipt_path_marks_run_started_before_reporting():
+    run, attempt = make_attempt()
+    BulkImportRun.objects.filter(pk=run.pk).update(started_on=None)
+    ImportReceipt.objects.create(run_id=run.pk, result={"imported": 4})
+    with (
+        patch("grow.bulk_import.lifecycle.ProgressReporter.start", side_effect=RuntimeError("worker died")),
+        pytest.raises(RuntimeError),
+    ):
+        execute_merge(run.pk, attempt.pk, SongImportStaging, Mock())
+    assert BulkImportRun.objects.get(pk=run.pk).started_on is not None
