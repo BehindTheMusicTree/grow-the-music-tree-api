@@ -39,7 +39,7 @@ def backfill_positions(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("grow", "0122_artist_origin_kind_nullable"),
+        ("grow", "0123_curation_bot_profile"),
     ]
 
     operations = [

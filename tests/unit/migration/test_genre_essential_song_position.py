@@ -8,7 +8,7 @@ from grow.model.criteria.children.genre.GenreEssentialSong import GenreEssential
 from grow.model.curation.CurationEntry import CurationEntry
 from tests.utils.AppTestCase import AppTestCase
 
-migration_module = import_module("grow.migrations.0123_genre_essential_song_position")
+migration_module = import_module("grow.migrations.0124_genre_essential_song_position")
 
 MBIDS = [f"{n}{n}{n}{n}{n}{n}{n}{n}-1111-4111-8111-111111111111" for n in "123"]
 
@@ -27,7 +27,7 @@ class TestCase(AppTestCase):
             CurationEntry.objects.create(
                 user=None, list_name="essential_songs", key=f"Q11399\t{mbid}", values={"position": position}
             )
-        apps = MigrationLoader(connection).project_state(("grow", "0123_genre_essential_song_position")).apps
+        apps = MigrationLoader(connection).project_state(("grow", "0124_genre_essential_song_position")).apps
 
         migration_module.backfill_positions(apps, SimpleNamespace(connection=connection))
 
