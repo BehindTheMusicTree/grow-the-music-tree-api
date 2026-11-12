@@ -2,9 +2,11 @@ import importlib
 import json
 
 from django.apps import apps
+from django.conf import settings
 from django.urls import reverse
 from rest_framework import status
 
+from grow.authentication.Principal import Principal
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.utils.AppTestCase import AppTestCase
@@ -48,6 +50,18 @@ class TestCurationHistory(AppTestCase):
         assert [h["entry"] for h in self._history(list="theme_genres")] == [theme]
         assert [h["entry"] for h in self._history(item_id="Q999999991")] == [theme]
         assert self._history(item_id="Q99999999") == []
+
+    def test_curator_key_edit_then_history_actor_is_curation_bot_pseudo(self):
+        self.api_client.credentials(HTTP_X_API_KEY=settings.CURATION_API_KEY)
+        self._create(ITEM)
+        self.api_client.credentials()
+        self.api_client.force_authenticate(
+            user=self.admin, token=Principal(role="admin", email=self.admin.email, sub=settings.ADMIN_GOOGLE_SUB)
+        )
+
+        [entry] = self._history()
+
+        assert entry["actorPseudo"] == "curation-bot"
 
     def test_pipeline_edit_then_null_actor(self):
         CurationEntry.objects.upsert("theme_genres", ITEM)
