@@ -74,6 +74,10 @@ DRAWN = {
 HIDDEN = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "world"}
 
 
+def _alerts_parts(alerts: list[dict], index: dict | None = None) -> list[list[dict]]:
+    return [[*_parts(index)[0], _line("synthesized_overview_alerts.json", {"alerts": alerts})]]
+
+
 def _hidden_parts(hidden: list[dict] | None = None, index: dict | None = None) -> list[list[dict]]:
     return [
         [
@@ -365,7 +369,7 @@ class TestRegionMapImportRun(AppTestCase):
 
     def test_alerts_replace_the_synthetic_overview_review_items(self):
         alert = {"regionId": "Q142", "itemId": "LOCAL:region-q142", "reason": "superseded", "targetItemId": GENRE}
-        self._sync(_parts(_index(synthesizedOverviewAlerts=[alert])))
+        self._sync(_alerts_parts([alert]))
 
         item = CurationReviewItem.objects.get()
         assert (item.item_id, item.reason, item.target_item_id, item.list_name) == (
@@ -374,13 +378,45 @@ class TestRegionMapImportRun(AppTestCase):
             GENRE,
             None,
         )
-        self._sync(_parts(_index(synthesizedOverviewAlerts=[])))
+        self._sync(_alerts_parts([]))
         assert not CurationReviewItem.objects.exists()
+
+    def test_alerts_are_replaced_when_the_index_is_unchanged(self):
+        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
+        self._sync(_alerts_parts([alert]))
+        self._sync(_parts())
+
+        assert not CurationReviewItem.objects.exists()
+        assert RegionMapSnapshot.objects.count() == 1
+
+    def test_alerts_are_not_stored_or_served(self):
+        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
+        self._sync(_alerts_parts([alert]))
+
+        assert RegionMapFile.objects.count() == 1
+
+    def test_alerts_file_is_validated_as_an_object_with_only_alerts(self):
+        parts = [[*_parts()[0], _line("synthesized_overview_alerts.json", {"alerts": [], "other": 1})]]
+
+        assert self._commit(parts).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
+    def test_alerts_must_be_a_list(self):
+        parts = [[*_parts()[0], _line("synthesized_overview_alerts.json", {"alerts": {}})]]
+
+        assert self._commit(parts).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
+    def test_index_with_an_unknown_key_is_refused(self):
+        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
+
+        assert self._commit(_parts(_index(synthesizedOverviewAlerts=[alert]))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
 
     def test_unknown_alert_reason_fails(self):
         alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "bogus", "targetItemId": None}
 
-        assert self._commit(_parts(_index(synthesizedOverviewAlerts=[alert]))).status_code == 500
+        assert self._commit(_alerts_parts([alert])).status_code == 500
         assert not RegionMapSnapshot.objects.exists()
 
     def test_overview_item_id_may_be_null_or_absent(self):
