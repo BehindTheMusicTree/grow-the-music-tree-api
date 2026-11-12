@@ -17,7 +17,7 @@ from grow.serializer.model.criteria_lineage_rel.without_descendant import (
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
-from .essential_songs import CriteriaEssentialSongsSerializerMixin
+from .essential_songs import CriteriaEssentialSongsSerializerMixin, essential_song_rows_prefetch
 
 
 class WikidataIdSerializerMixin(serializers.Serializer):
@@ -67,7 +67,7 @@ class CriteriaDetailedSerializer(
                 CriteriaLineageRel.objects.select_related(LineageFields.ASCENDANT),
             ),
             f"{prefix}{ModelFields.CHILDREN}",
-            f"{prefix}{TrackFields.GENRE}__{CriteriaOutputFieldKey.ESSENTIAL_SONGS}__{TrackFields.ARTISTS}",
+            essential_song_rows_prefetch(f"{prefix}{TrackFields.GENRE}"),
         )
 
     class Meta:
