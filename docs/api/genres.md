@@ -29,11 +29,11 @@ single-tenant service — this is the canonical reference dataset, not scoped pe
 
 `PUT {base}{id}/`
 
-#### Set as root
+#### Make root
 
-`POST {base}{id}/set-root/` (admin only, empty body)
+`PUT {base}{id}/` with `parent: null` (admin only)
 
-Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-backed genre it also replaces the item's `canonical_parent` edge with a parentless one (a root), so the next pipeline import keeps it a root. The genre is locked and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 when the genre is already a root, regional, or excluded. `PUT` with `parent: null` stays rejected for Wikidata-backed genres. Giving the root a parent again (`PUT` with a non-null `parent`) replaces that parentless edge, since an item holds a single `canonical_parent` edge.
+Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-backed genre it also replaces the item's `canonical_parent` edge with a parentless one (a root), so the next pipeline import keeps it a root. The genre is locked, `isUnacceptedRoot` is cleared and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 for regional or excluded genres; a genre that is already a root is a no-op. Giving the root a parent again (`PUT` with a non-null `parent`) replaces that parentless edge, since an item holds a single `canonical_parent` edge.
 
 #### Delete
 

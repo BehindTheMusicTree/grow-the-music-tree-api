@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
+
+### Removed
+
+- **Breaking:** `POST genres/{uuid}/set-root/`, replaced by `PUT` with `parent: null`.
+
 ### Added
 
 - CI job `Gold contract` (`pytest -m contract`, also run daily) checks grow's tree import against the pipelines' `genre_tree.schema.json`, fetched from the matching branch: the sample file covers every schema property, grow's required fields are required by the schema, and a batch of Gold files imports end to end. A schema change grow does not accept now fails there instead of on the next staging run.
