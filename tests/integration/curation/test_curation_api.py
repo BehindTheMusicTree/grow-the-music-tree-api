@@ -643,8 +643,9 @@ class TestEssentialSongsApply(AppTestCase):
 
     @skipUnless(connection.vendor == "postgresql", "advisory locks are Postgres-only")
     def test_post_then_write_lock_held_until_commit(self):
-        # The apply rewrites the genre's through rows, so it must run under the curation write lock that
-        # `check_edit` takes: a concurrent apply on the same genre would otherwise hit the unique constraint.
+        # The apply rewrites the genre's through rows, so a POST must hold the curation write lock `check_edit`
+        # takes: without it a concurrent apply on the same genre could hit the unique constraint. Only the lock is
+        # observed here, not its order relative to the apply.
         def try_lock_from_other_connection() -> bool:
             try:
                 with connection.cursor() as cursor:
