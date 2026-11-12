@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Bumped the-music-tree-genre-kit to v0.60.2 (and with it the-music-tree-api-kit to v0.12.2): 401 responses now carry a `WWW-Authenticate: Bearer` challenge, so anonymous public GETs are not mistaken for expired admin sessions.
 - **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
 
 ### Removed
