@@ -29,6 +29,10 @@ class TestCase(GenreTestCase):
         super().setUp()
         self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q888001")
         self.punk = self.model_fixture_factory.create_genre("Punk", wikidata_id="Q888002")
+        # The migrations seed curated `LOCAL:` nodes: the assertions only look at the ones a test adds.
+        self.seeded_locals = set(
+            CurationEntry.objects.filter(user=None, key__startswith="LOCAL:").values_list("key", flat=True)
+        )
 
     def test_list_by_wikidata_id_then_genre_with_its_qid(self):
         self._list_genres(wikidata_id="Q888002")
@@ -183,11 +187,15 @@ class TestCase(GenreTestCase):
         entries = CurationEntry.objects.filter(
             user=None, list_name="canonical_parent_additions", key__startswith="LOCAL:"
         )
-        return {e.key: e.row["label"] for e in entries}
+        return {e.key: e.row["label"] for e in entries if e.key not in self.seeded_locals}
 
     def _local_edges(self) -> list[tuple]:
         rules = GenreEdgeRule.objects.filter(user=None).order_by("item_id", "parent_item_id")
-        return [(r.item_id, r.parent_item_id) for r in rules if r.item_id.startswith(("Q888", "LOCAL:"))]
+        return [
+            (r.item_id, r.parent_item_id)
+            for r in rules
+            if r.item_id.startswith(("Q888", "LOCAL:")) and r.item_id not in self.seeded_locals
+        ]
 
     def test_reparent_under_app_created_genre_then_parent_adopted_as_local_node(self):
         local = self.model_fixture_factory.create_genre("Local genre")

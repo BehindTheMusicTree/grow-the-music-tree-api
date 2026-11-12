@@ -20,9 +20,8 @@ from the_music_tree_genre_kit.criteria.Fields import Fields
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
-from grow.curation.lists import EXCLUDED_GENRE_LISTS
+from grow.curation.lists import ADDITION_LISTS, EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
-from grow.curation.rule_set import ADDITION_LISTS
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -90,8 +89,10 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             return genre.wikidata_id
         if genre.tree_name != CriteriaTreeName.CANONICAL or genre.is_excluded:
             raise self._invalid("parent", "A regional or excluded genre can't become a new parent")
-        parent = genre.parent
-        parent_item_id = self._ensure_pipeline_item(parent, actor) if parent is not None else None
+        # `parent` is the base `Criteria` row: the adoption reads the `Genre` fields.
+        parent_item_id = (
+            self._ensure_pipeline_item(self.get(pk=genre.parent_id), actor) if genre.parent_id is not None else None
+        )
         item_id = self._mint_local_id(genre.name)
         upsert_admin_rule(
             "canonical_parent_additions",
@@ -173,7 +174,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         elif instance.parent_id is None:
             return None
         else:
-            return self._ensure_pipeline_item(instance.parent, actor)
+            return self._ensure_pipeline_item(self.get(pk=instance.parent_id), actor)
         raise self._invalid("parent", message)
 
     def _on_created(self, instance: Genre, *, actor: Any = None) -> None:

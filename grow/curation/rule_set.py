@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from django.db import models
 
 from grow.curation.edges import Relation
-from grow.curation.lists import EXCLUSIVE_LISTS
+from grow.curation.lists import ADDITION_LISTS, EXCLUSIVE_LISTS
 from grow.curation.rows import (
     POP_SIDE_LIST,
     SCENE_LIST,
@@ -60,9 +60,6 @@ def find_excluded_edge_conflicts(excluded: dict[str, str], edges: Iterable[Genre
 
 def excluded_items(entries: models.QuerySet) -> dict[str, str]:
     return dict(entries.filter(list_name__in=EXCLUSIVE_LISTS).values_list("key", "list_name"))
-
-
-ADDITION_LISTS = ("canonical_parent_additions", "regional_overview_additions")
 
 
 def declared_additions(entries: models.QuerySet) -> set[str]:
