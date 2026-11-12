@@ -17,6 +17,10 @@ from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStagin
 INDEX_PATH = "index.json"
 # Hidden regions are curation-only targets, so they ship beside the index instead of inflating the map's document.
 HIDDEN_REGIONS_PATH = "hidden_regions.json"
+# Curation-only too: the import signal for `CurationReviewItem`, never served, so it must not travel in the index.
+OVERVIEW_ALERTS_PATH = "synthesized_overview_alerts.json"
+# The index is served byte for byte to a strict client schema: any other key would break it.
+INDEX_KEYS = {"regions", "tileset", "worldChildIds", "worldZoneIds", "hiddenRegions"}
 # Tradition genres come from the genealogy, not the genre trees, so grow has no `Genre` for them.
 UNRESOLVED_RELATION = "tradition"
 LISTED_MAX = 20
@@ -31,7 +35,8 @@ def merge_region_map_import_run(
     here: the index references the immutable tileset (`tileset`, a sha256) that the pipeline published to object storage
     before this commit, so clients flip between geometry and stats atomically with the index. An index identical to the
     latest snapshot's is recorded as skipped. The hidden regions (attachable targets kept out of the map) come either as
-    `hidden_regions.json` or, in the previous format, as the index's `hiddenRegions`, never both.
+    `hidden_regions.json` or, in the previous format, as the index's `hiddenRegions`, never both. The synthesized overview
+    alerts come as `synthesized_overview_alerts.json` and only feed the curation review items.
     """
     return execute_merge(run_id, attempt_id, RegionMapFileStaging, lambda: _merge(run_id, record))
 
@@ -49,13 +54,15 @@ def _staged_hashes(run_id: int) -> dict[str, str]:
     return hashes
 
 
-def _check_index(index: Any, hidden: Any) -> None:
+def _check_index(index: Any, hidden: Any, alerts: Any) -> None:
     if not isinstance(index, dict) or not isinstance(index.get("regions"), list):
         raise ValueError("index must be an object with a regions list")
     if not isinstance(index.get("tileset"), str) or not SHA256.fullmatch(index["tileset"]):
         raise ValueError("index tileset must be the sha256 of the published tileset")
     if "files" in index:
         raise ValueError("index must not list files: the geometry is the tileset")
+    if unknown_keys := set(index) - INDEX_KEYS:
+        raise ValueError(f"index has keys the public endpoint does not serve: {_listed(unknown_keys)}")
     item_ids: set[str] = set()
     for region in index["regions"]:
         if not isinstance(region, dict) or not isinstance(region.get("genres"), list):
@@ -75,17 +82,16 @@ def _check_index(index: Any, hidden: Any) -> None:
                 f"region {region.get('id')} overviewItemId {overview!r} must be one of its non-tradition genres"
             )
     _check_level_ids(index)
-    _check_overview_alerts(index)
+    _check_overview_alerts(alerts)
     _check_hidden_regions(index, hidden)
     if unknown := item_ids - set(Genre.objects.filter(wikidata_id__in=item_ids).values_list("wikidata_id", flat=True)):
         raise ValueError(f"region genres missing from grow: {_listed(unknown)}")
 
 
-def _check_overview_alerts(index: dict[str, Any]) -> None:
-    """The alerts are optional until the pipeline publishes them; each needs the `LOCAL:` id and a known reason."""
-    alerts = index.get("synthesizedOverviewAlerts", [])
+def _check_overview_alerts(alerts: Any) -> None:
+    """Each alert needs the `LOCAL:` id and a known reason."""
     if not isinstance(alerts, list):
-        raise ValueError("synthesizedOverviewAlerts must be a list")
+        raise ValueError("synthesized overview alerts must be a list")
     reasons = {reason.removeprefix(_ALERT_PREFIX) for reason in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS}
     for alert in alerts:
         if (
@@ -101,7 +107,7 @@ def _check_overview_alerts(index: dict[str, Any]) -> None:
             )
 
 
-def _replace_overview_alerts(index: dict[str, Any]) -> None:
+def _replace_overview_alerts(alerts: list[dict[str, Any]]) -> None:
     CurationReviewItem.objects.filter(reason__in=CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS).delete()
     CurationReviewItem.objects.bulk_create(
         [
@@ -112,7 +118,7 @@ def _replace_overview_alerts(index: dict[str, Any]) -> None:
                 target_item_id=alert["targetItemId"],
                 evidence={"regionId": alert.get("regionId")},
             )
-            for alert in index.get("synthesizedOverviewAlerts", [])
+            for alert in alerts
         ]
     )
 
@@ -191,12 +197,22 @@ def _hidden_regions(run_id: int, index: Any, hidden_checksum: str | None) -> Any
     return document["regions"]
 
 
+def _overview_alerts(run_id: int, alerts_checksum: str | None) -> Any:
+    """The run's alerts from their own file; optional until the pipeline publishes them."""
+    if alerts_checksum is None:
+        return []
+    body = RegionMapFileStaging.objects.get(run_id=run_id, path=OVERVIEW_ALERTS_PATH).body
+    document = json.loads(gzip.decompress(body))
+    if not isinstance(document, dict) or set(document) != {"alerts"}:
+        raise ValueError(f"{OVERVIEW_ALERTS_PATH} must be an object with only an alerts list")
+    return document["alerts"]
+
+
 def _merge(run_id: int, record: bool) -> dict[str, Any]:
     paths = _staged_hashes(run_id)
-    if extra := paths.keys() - {INDEX_PATH, HIDDEN_REGIONS_PATH}:
-        raise ValueError(
-            f"import run {run_id} uploads files other than {INDEX_PATH} and {HIDDEN_REGIONS_PATH}: {_listed(extra)}"
-        )
+    allowed = {INDEX_PATH, HIDDEN_REGIONS_PATH, OVERVIEW_ALERTS_PATH}
+    if extra := paths.keys() - allowed:
+        raise ValueError(f"import run {run_id} uploads files other than {_listed(allowed)}: {_listed(extra)}")
     if INDEX_PATH not in paths:
         raise ValueError(f"import run {run_id} has no {INDEX_PATH}")
     checksum = paths[INDEX_PATH]
@@ -204,7 +220,8 @@ def _merge(run_id: int, record: bool) -> dict[str, Any]:
     staged = RegionMapFileStaging.objects.get(run_id=run_id, path=INDEX_PATH)
     index = json.loads(gzip.decompress(staged.body))
     with report_step("validate_index"):
-        _check_index(index, _hidden_regions(run_id, index, hidden_checksum))
+        alerts = _overview_alerts(run_id, paths.get(OVERVIEW_ALERTS_PATH))
+        _check_index(index, _hidden_regions(run_id, index, hidden_checksum), alerts)
     count = len(index["regions"])
     latest = RegionMapSnapshot.objects.first()
     unchanged = latest is not None and (latest.checksum, latest.hidden_regions_checksum) == (checksum, hidden_checksum)
@@ -214,7 +231,7 @@ def _merge(run_id: int, record: bool) -> dict[str, Any]:
             run = ImportRun.objects.create(
                 kind=ImportRun.Kind.REGION_MAP, count=count, skipped_count=count if unchanged else None
             )
-        _replace_overview_alerts(index)
+        _replace_overview_alerts(alerts)
         if unchanged:
             return {"imported": 0, "skipped": count}
         files = [(checksum, staged.body)]
