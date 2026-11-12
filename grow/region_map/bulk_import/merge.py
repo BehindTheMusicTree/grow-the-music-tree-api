@@ -7,6 +7,7 @@ from django.db import transaction
 from grow.bulk_import.lifecycle import execute_merge
 from grow.bulk_import.progress import report_step
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
@@ -19,6 +20,7 @@ HIDDEN_REGIONS_PATH = "hidden_regions.json"
 # Tradition genres come from the genealogy, not the genre trees, so grow has no `Genre` for them.
 UNRESOLVED_RELATION = "tradition"
 LISTED_MAX = 20
+_ALERT_PREFIX = "synthetic_overview_"
 
 
 def merge_region_map_import_run(
@@ -73,9 +75,46 @@ def _check_index(index: Any, hidden: Any) -> None:
                 f"region {region.get('id')} overviewItemId {overview!r} must be one of its non-tradition genres"
             )
     _check_level_ids(index)
+    _check_overview_alerts(index)
     _check_hidden_regions(index, hidden)
     if unknown := item_ids - set(Genre.objects.filter(wikidata_id__in=item_ids).values_list("wikidata_id", flat=True)):
         raise ValueError(f"region genres missing from grow: {_listed(unknown)}")
+
+
+def _check_overview_alerts(index: dict[str, Any]) -> None:
+    """The alerts are optional until the pipeline publishes them; each needs the `LOCAL:` id and a known reason."""
+    alerts = index.get("synthesizedOverviewAlerts", [])
+    if not isinstance(alerts, list):
+        raise ValueError("synthesizedOverviewAlerts must be a list")
+    reasons = {reason.removeprefix(_ALERT_PREFIX) for reason in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS}
+    for alert in alerts:
+        if (
+            not isinstance(alert, dict)
+            or not isinstance(alert.get("itemId"), str)
+            or not alert["itemId"].startswith("LOCAL:region-")
+            or alert.get("reason") not in reasons
+            or "targetItemId" not in alert
+            or not isinstance(alert["targetItemId"], str | None)
+        ):
+            raise ValueError(
+                "each synthesized overview alert needs a LOCAL:region- itemId, a known reason and a targetItemId"
+            )
+
+
+def _replace_overview_alerts(index: dict[str, Any]) -> None:
+    CurationReviewItem.objects.filter(reason__in=CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS).delete()
+    CurationReviewItem.objects.bulk_create(
+        [
+            CurationReviewItem(
+                column="item_id",
+                item_id=alert["itemId"],
+                reason=_ALERT_PREFIX + alert["reason"],
+                target_item_id=alert["targetItemId"],
+                evidence={"regionId": alert.get("regionId")},
+            )
+            for alert in index.get("synthesizedOverviewAlerts", [])
+        ]
+    )
 
 
 def _check_boundary(region: dict[str, Any]) -> None:
@@ -175,6 +214,7 @@ def _merge(run_id: int, record: bool) -> dict[str, Any]:
             run = ImportRun.objects.create(
                 kind=ImportRun.Kind.REGION_MAP, count=count, skipped_count=count if unchanged else None
             )
+        _replace_overview_alerts(index)
         if unchanged:
             return {"imported": 0, "skipped": count}
         files = [(checksum, staged.body)]

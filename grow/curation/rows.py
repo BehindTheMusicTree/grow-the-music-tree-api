@@ -65,6 +65,18 @@ def _parse_bool(value: Any) -> bool:
     raise ValueError
 
 
+def _check_synthetic_overview_resolution(parsed: dict[str, Any], errors: dict[str, str]) -> None:
+    if not parsed["item_id"].startswith("LOCAL:region-"):
+        errors["item_id"] = "Must be a generated LOCAL:region-<slug> overview"
+    replacement = parsed["replacement_item_id"]
+    if parsed["action"] == "replace" and not replacement:
+        errors["replacement_item_id"] = "Required to replace an overview"
+    elif parsed["action"] == "remove" and replacement:
+        errors["replacement_item_id"] = "Must be empty to remove an overview"
+    elif replacement == parsed["item_id"]:
+        errors["replacement_item_id"] = "Must differ from item_id"
+
+
 def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
     """Validates a row keyed by the list's CSV column names into the entry's stored fields."""
     curation_list = CURATION_LISTS[list_name]
@@ -118,6 +130,8 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         and parsed["child_entity_id"] == parsed["parent_entity_id"]
     ):
         errors["parent_entity_id"] = "Must differ from child_entity_id"
+    if not errors and list_name == "synthetic_overview_resolutions":
+        _check_synthetic_overview_resolution(parsed, errors)
     if errors:
         raise InvalidRow(errors)
     key = KEY_SEPARATOR.join(parsed[c] for c in curation_list.key)

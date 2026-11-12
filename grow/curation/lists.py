@@ -17,6 +17,7 @@ ITEM_ID_COLUMNS = frozenset(
         "context_item_id",
         "root_item_id",
         "pop_child_item_id",
+        "replacement_item_id",
     }
 )
 ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
@@ -33,6 +34,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
+    "synthetic_overview_resolutions": {"action": ("replace", "remove")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
         "entity_kind": ("cultural_region", "macro_region", "city", "admin_unit", "historical_country")
@@ -42,7 +44,16 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default", "is_cultural"})
 OPTIONAL_COLUMNS = frozenset(
-    {"genre_item_id", "entity_id", "entity_kind", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
+    {
+        "genre_item_id",
+        "replacement_item_id",
+        "entity_id",
+        "entity_kind",
+        "youtube_video_id",
+        "unplayable_reason",
+        "summary",
+        *INT_COLUMNS,
+    }
 )
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
@@ -121,6 +132,13 @@ CURATION_LISTS: dict[str, CurationList] = {
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
+    "synthetic_overview_resolutions": CurationList(
+        "gold",
+        ("item_id",),
+        ("item_id", "action", "replacement_item_id", "reason"),
+        "Generated `LOCAL:region-*` overviews retired by hand: `replace` moves its children under "
+        "`replacement_item_id`, `remove` drops the node. Without an entry, the pipeline keeps the overview.",
+    ),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
     "umbrella_non_stylistic_genres": _item_list(
