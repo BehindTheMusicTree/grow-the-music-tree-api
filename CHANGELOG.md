@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
+
+### Removed
+
+- **Breaking:** `POST genres/{uuid}/set-root/`, replaced by `PUT` with `parent: null`.
+
 ### Added
 
 - CI job `Gold contract` (`pytest -m contract`, also run daily) checks grow's tree import against the pipelines' `genre_tree.schema.json`, fetched from the matching branch: the sample file covers every schema property, grow's required fields are required by the schema, and a batch of Gold files imports end to end. A schema change grow does not accept now fails there instead of on the next staging run.
@@ -20,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - The `root` of a detailed genre now carries its `wikidata_id`, so clients can color a genre from its tree root (the genre detail panel fell back to gray without it). The shared minimum criteria serializer is unchanged, and the root's genre is loaded with the same query. Tests cover a genre root and a tag.
 
 - Artists carry an origin place (`origin_name`, `origin_kind`, `origin_source`, `origin_wikidata_id`, `origin_longitude`, `origin_latitude`, `origin_region_id`), set by the artist import (an optional `origin` object on each artist, cleared when absent) and returned as `origin` in the detailed artist. The `artist_origin_complete` constraint requires name, kind and source together. Migration `0121`. Tests cover the import (set, update, clear, invalid parts) and the detail.
-- Curation writes to `essential_songs` (POST/PATCH/DELETE on the entry endpoints) now apply to `Genre.essential_songs` immediately, in the same transaction, with their order: a `GenreEssentialSong` through model (same table, new `position` column, unique per genre) is written only by `GenreManager.set_essential_songs`, and the serializer returns songs by position. Essential-song history no longer counts toward the pending curation count, and a stale essential MBID still fails Gold. Migration `0124` backfills positions from the curation rules. Tests cover each write path, the migration and the pending count.
+- Curation writes to `essential_songs` (POST/PATCH/DELETE on the entry endpoints) now apply to `Genre.essential_songs` immediately, in the same transaction, with their order: a `GenreEssentialSong` through model (same table, new `position` column, unique per genre) is written only by `GenreManager.set_essential_songs`, and the serializer returns songs by position. Essential-song history no longer counts toward the pending curation count, and a stale essential MBID still fails Gold. Migration `0124` backfills positions from the curation rules. Tests cover each write path, the migration, the pending count and (on Postgres) that an essential-songs POST holds the curation write lock.
 
 ### Changed
 
@@ -31,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - **A redeploy no longer breaks a songs/artists import**: a worker killed after the merge committed (run 95 on staging) used to end `failed` with the run left uncleaned. Reconcile now queues a finalizing attempt (up to 3) that skips the merge and only cleans up; a run already cleaned counts as succeeded. The deploy workflow waits for running imports to drain (`manage.py wait_for_import_drain`, skipped with the `skip_import_drain` dispatch input). Tests cover reconcile, the drain command and the resumed attempt (SQLite and Postgres).
+- The genre tree import keeps each node's `primaryParents` / `secondaryParents` again: with api-kit 0.12.0 every non-empty list was validated to `None`, so `grow_criteria_additional_primary_parents` stayed empty on staging and Music of Ireland showed 0 songs. The kits are bumped to genre-kit 0.60.1 (api-kit 0.12.1). A regional-tree import test checks the parent and both M2M links.
 - `GET curation/history/` returned 500 once the `curation-bot` user had written an entry, because that user had no profile and the history serializer requires an actor pseudo. Migration `0123` seeds the bot with its profile (pseudo `curation-bot`), and the curator key now looks the bot up instead of creating it on first use. Tests cover the migration (idempotent, keeps an existing pseudo) and a curator write followed by an admin reading the history.
 - A detailed artist's `origin.region_id` is `null` unless the latest region map index draws that region. The artist and region map imports run separately, so the id could name a region the map does not draw, and the `/map?region=` link opened a blank map. The check runs at read time (cached per index checksum), so the id comes back once a map that draws it is imported. Tests cover no snapshot, a region not drawn, and a newer snapshot that draws it.
 - An artist's origin `kind` may be null (a MusicBrainz area without a type): the bulk import accepts `kind: null` and still rejects an empty string, and the `artist_origin_complete` constraint no longer requires a kind (migration `0122`). Pipelines must not export a null kind before this is deployed. Tests cover both import cases.
@@ -38,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- The `Perf` gate measures with `jit=off`, like the app's connections (`grow/settings.py`). It ran with Postgres JIT on, so a larger parent graph (higher estimated cost on the tracks-count query) triggered a ~0.8 s JIT compilation that production never pays, failing the `genre-playlist-tracks` SLO.
 - `GET genre-playlists/<uuid>/tracks/` (for example Mainstream Pop with `coverage=genre_and_subgenres&subgenres=regional`) no longer times out (503) on its `blocked` count. The count filters on the membership's own `genre_id` instead of probing the track table per member. Migration `0118` keeps the column in sync with database triggers (PostgreSQL and SQLite: fill on insert when null, follow `Track.genre` updates) and backfills existing rows in batches of 50 000 (non-atomic). The bulk import merge writes `genre_id` with the membership. Tested on the denormalization invariant and, in `perf/`, on the plan (no per-member track probe).
 
 ### CI

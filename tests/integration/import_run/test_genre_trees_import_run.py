@@ -54,6 +54,20 @@ class TestGenreTreesImportRun(AppTestCase):
         assert song.genre_id == Genre.objects.get(wikidata_id="Q1059").pk
         assert all(report.valid for report in verify_catalogue_counts().values())
 
+    def test_regional_node_with_parents_then_additional_primary_and_secondary_parents_stored(self):
+        # Regression: api-kit < 0.12.1 emptied every non-empty list, so these links were silently dropped.
+        folk = {**FOLK, Fields.PRIMARY_PARENTS: [ROCK[Fields.ID]], Fields.SECONDARY_PARENTS: [POP[Fields.ID]]}
+
+        self._import([("canonical", [POP, ROCK]), ("regional", [{**BRITTANY, Fields.CHILDREN: [folk]}])])
+
+        stored = Genre.objects.get(wikidata_id="Q1342372")
+        pk = {
+            wikidata_id: Genre.objects.get(wikidata_id=wikidata_id).pk for wikidata_id in ("Q1059", "Q11399", "Q373342")
+        }
+        assert stored.parent_id == pk["Q1059"]
+        assert set(stored.additional_primary_parents.values_list("pk", flat=True)) == {pk["Q11399"]}
+        assert set(stored.secondary_parents.values_list("pk", flat=True)) == {pk["Q373342"]}
+
     def test_pipeline_run_then_both_trees_imported_and_recorded(self):
         body = self._body(
             [("canonical", [POP, ROCK]), ("regional", [BRITTANY])], exported_on=export_curation(self.pipeline)

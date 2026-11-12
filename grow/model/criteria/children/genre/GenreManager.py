@@ -107,8 +107,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         except ValidationError as e:
             raise invalid("parent", f"Can't record this edit as a {relation} edge: {'; '.join(e.messages)}") from e
 
-    def _reparent_target(self, instance: Genre) -> str:
-        """The parent item id of an admin reparent, or a 400 when no edge can express it."""
+    def _reparent_target(self, instance: Genre) -> str | None:
+        """The parent item id of an admin reparent (None for a root), or a 400 when no edge can express it."""
         parent_item_id, parent_excluded = self.filter(pk=instance.parent_id).values_list(
             "wikidata_id", "is_excluded"
         ).first() or (None, False)
@@ -116,12 +116,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             # The new parent may be a regional overview (`regional_overviews`) or a regional genre
             # (`regional_genre_parent`), which grow can't tell apart.
             message = "Regional genres can't be reparented here; edit the regional curation lists instead"
-        elif instance.parent_id is None:
-            message = "A wikidata-backed genre can't be made a root; no curation list expresses it"
-        elif parent_item_id is None:
-            message = "A wikidata-backed genre's new parent must be wikidata-backed too"
         elif instance.is_excluded or parent_excluded:
             message = "An excluded genre can't be reparented or be a new parent; the pipeline prunes it"
+        elif instance.parent_id is None:
+            return None
+        elif parent_item_id is None:
+            message = "A wikidata-backed genre's new parent must be wikidata-backed too"
         else:
             return parent_item_id
         raise self._invalid("parent", message)
@@ -154,9 +154,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                     actor,
                     exclude_other_parents=True,
                 )
-            if instance.parent_id is not None:
-                instance.is_unaccepted_root = False
-                instance.save(update_fields=["is_unaccepted_root"])
+            instance.is_unaccepted_root = False
+            instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
         HistoryEntry.objects.record(
             instance,
@@ -426,36 +425,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                     genre, GenreEdgeRule.Relation.CANONICAL_PARENT, None, actor, exclude_other_parents=True
                 )
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
-
-    @transaction.atomic
-    def set_root(self, instance: Genre, actor: Any) -> Genre:
-        """Detaches a canonical genre from its parent so it becomes a root.
-
-        Kept apart from a `parent: null` update, which stays a 400 for wikidata-backed genres: making a root is a
-        deliberate admin action. The pipeline pins every `accepted_canonical_roots` item as a root, and rejects an
-        item that also has a `canonical_parent` rule, so the latter is dropped.
-        """
-        self._lock_curation_writes(actor)
-        if instance.parent_id is None:
-            raise self._invalid("parent", "The genre is already a root")
-        if instance.tree_name != CriteriaTreeName.CANONICAL:
-            raise self._invalid("parent", "Regional genres can't be made a root here; edit the regional curation lists")
-        if instance.is_excluded:
-            raise self._invalid("parent", "An excluded genre can't be made a root; the pipeline prunes it")
-        updated = self.update_instance(instance, actor=None, parent=None)
-        self._upsert_edge(updated, GenreEdgeRule.Relation.CANONICAL_PARENT, None, actor, exclude_other_parents=True)
-        updated.is_unaccepted_root = False
-        updated.save(update_fields=["is_unaccepted_root"])
-        self._lock(updated)
-        # The parent hook ran with no actor (a null actor would bypass `_reparent_rule`) and logged the change as the
-        # pipeline's; attribute that entry to the admin.
-        HistoryEntry.objects.filter(
-            content_type=ContentType.objects.get_for_model(updated),
-            content_uuid=updated.uuid,
-            action=HistoryAction.PARENT_CHANGED,
-            actor=None,
-        ).update(actor=actor)
-        return updated
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
