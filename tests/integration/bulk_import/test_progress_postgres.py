@@ -4,19 +4,23 @@ import sys
 import threading
 import time
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.parse import urlsplit
 
 import pytest
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import DatabaseError, connection, connections
 from django.test import override_settings
 from django.utils import timezone
+from django_q.models import Task
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.lifecycle import execute_merge, queue_attempt
+from grow.bulk_import.merge_lock import IMPORT_LOCK_KEY
 from grow.bulk_import.progress import ProgressReporter, report_step
-from grow.bulk_import.status import reconcile, sql_activity
+from grow.bulk_import.status import MAX_ATTEMPTS, reconcile, sql_activity
 from grow.model.import_run.ImportRun import ImportRun
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
@@ -113,7 +117,7 @@ def test_commit_receipt_prevents_retry_during_result_persistence_gap():
     attempt.refresh_from_db()
     assert attempt.data_applied
     assert attempt.result == {"imported": 12}
-    assert attempt.state == "failed"
+    assert attempt.state == "succeeded"
     assert ImportAttempt.objects.count() == 1
 
 
@@ -200,10 +204,119 @@ execute_merge(int(sys.argv[1]), int(sys.argv[2]), SongImportStaging, merge, paus
     attempt.refresh_from_db()
     assert attempt.data_applied == after_commit
     if after_commit:
-        assert retry is None
+        assert retry.attempt == 2
+        assert attempt.state == "interrupted"
         assert ImportRun.objects.count() == 1
-        assert execute_merge(run.pk, attempt.pk, SongImportStaging, lambda: {"imported": 999}) == {"imported": 1}
+        merge = Mock(side_effect=AssertionError("applied data must never be merged again"))
+        invalidate = Mock()
+        result = execute_merge(run.pk, retry.pk, SongImportStaging, merge, invalidate)
+        assert result == {"imported": 1}
+        merge.assert_not_called()
+        invalidate.assert_called_once()
+        assert not BulkImportRun.objects.filter(pk=run.pk).exists()
+        assert ImportRun.objects.count() == 1
+        retry.refresh_from_db()
+        assert retry.state == "succeeded"
     else:
         assert retry.attempt == 2
         assert attempt.state == "interrupted"
         assert not ImportRun.objects.exists()
+
+
+def applied_run(state="running", error=None):
+    run = BulkImportRun.objects.create(kind="songs", started_on=timezone.now(), committed_on=timezone.now())
+    attempt = queue_attempt(run)
+    attempt.state = state
+    attempt.error = error
+    attempt.save()
+    ImportReceipt.objects.create(run_id=run.pk, result={"imported": 12})
+    return run, attempt
+
+
+def test_worker_lost_after_commit_queues_a_finalizing_attempt():
+    run, attempt = applied_run()
+    retry = reconcile(attempt)
+    assert retry.attempt == 2
+    attempt.refresh_from_db()
+    assert attempt.state == "interrupted"
+    assert attempt.data_applied
+    BulkImportRun.objects.get(pk=run.pk)
+
+
+def test_worker_lost_after_commit_with_run_already_cleaned_succeeds():
+    run, attempt = applied_run()
+    run.delete()
+    assert reconcile(attempt) is None
+    attempt.refresh_from_db()
+    assert attempt.state == "succeeded"
+    assert attempt.result == {"imported": 12}
+
+
+def test_failed_task_after_commit_stays_failed():
+    run, attempt = applied_run()
+    Task.objects.create(
+        id="t1",
+        name="t1",
+        func="x",
+        group=attempt.task_id,
+        kwargs={"attempt_id": attempt.pk},
+        started=timezone.now(),
+        stopped=timezone.now(),
+        success=False,
+    )
+    assert reconcile(attempt) is None
+    attempt.refresh_from_db()
+    assert attempt.state == "failed"
+    assert BulkImportRun.objects.filter(pk=run.pk).exists()
+
+
+def test_finalization_gives_up_after_max_attempts():
+    _run, attempt = applied_run()
+    ImportAttempt.objects.filter(pk=attempt.pk).update(attempt=MAX_ATTEMPTS)
+    attempt.refresh_from_db()
+    assert reconcile(attempt) is None
+    attempt.refresh_from_db()
+    assert attempt.state == "failed"
+    assert "gave up" in attempt.error
+
+
+def test_terminal_worker_stopped_attempt_is_resumed():
+    _run, attempt = applied_run("failed", "Worker stopped after data commit; inspect cleanup before continuing")
+    retry = reconcile(attempt)
+    assert retry.attempt == 2
+    attempt.refresh_from_db()
+    assert attempt.state == "interrupted"
+    assert reconcile(attempt) is None
+
+
+def test_terminal_real_failure_is_not_resumed():
+    run, attempt = applied_run("failed", "Import failed; see worker logs")
+    assert reconcile(attempt) is None
+    assert ImportAttempt.objects.filter(run_id=run.pk).count() == 1
+
+
+def hold_lock(run_id):
+    conn = connections["default"].copy()
+    cursor = conn.cursor()
+    cursor.execute("SELECT pg_advisory_lock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
+    return conn
+
+
+def test_drain_returns_when_nothing_is_active():
+    call_command("wait_for_import_drain", timeout=1, interval=1)
+
+
+def test_drain_ignores_dead_worker():
+    applied_run("running")
+    call_command("wait_for_import_drain", timeout=1, interval=1)
+
+
+def test_drain_fails_at_timeout_while_a_lock_is_held():
+    run, _ = applied_run("running")
+    conn = hold_lock(run.pk)
+    try:
+        with pytest.raises(CommandError, match=f"run={run.pk}"):
+            call_command("wait_for_import_drain", timeout=1, interval=1)
+    finally:
+        conn.close()
+    call_command("wait_for_import_drain", timeout=1, interval=1)

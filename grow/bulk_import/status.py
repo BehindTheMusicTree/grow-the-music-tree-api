@@ -69,17 +69,35 @@ def progress_payload(attempt: ImportAttempt):
     return payload
 
 
+MAX_ATTEMPTS = 3
+WORKER_STOPPED_AFTER_COMMIT = "Worker stopped after data commit; finalizing"
+
+
+def _can_resume_finalization(attempt: ImportAttempt) -> bool:
+    """A terminal attempt whose worker vanished after the data commit, with the run still to clean up."""
+    return (
+        attempt.state in (ImportAttempt.State.FAILED, ImportAttempt.State.INTERRUPTED)
+        and (attempt.error or "").startswith("Worker stopped after data commit")
+        and ImportReceipt.objects.filter(pk=attempt.run_id).exists()
+        and BulkImportRun.objects.filter(pk=attempt.run_id).exists()
+        and not ImportAttempt.objects.filter(run_id=attempt.run_id, attempt__gt=attempt.attempt).exists()
+        and attempt.attempt < MAX_ATTEMPTS
+    )
+
+
 def reconcile(attempt: ImportAttempt) -> ImportAttempt | None:
     """Only disappearance of the session lock permits recovery; heartbeat age is never evidence of death."""
+    resume = False
     if attempt.state in TERMINAL_STATES:
         receipt = ImportReceipt.objects.filter(pk=attempt.run_id).first()
+        resume = _can_resume_finalization(attempt)
         if receipt is not None and not attempt.data_applied:
-            ImportAttempt.objects.filter(pk=attempt.pk).update(
-                data_applied=True,
-                result=receipt.result,
-                error="Data committed; inspect worker logs and cleanup before continuing",
-            )
-        return None
+            fields = {"data_applied": True, "result": receipt.result}
+            if not resume:
+                fields["error"] = "Data committed; inspect worker logs and cleanup before continuing"
+            ImportAttempt.objects.filter(pk=attempt.pk).update(**fields)
+        if not resume:
+            return None
     if connection.vendor != "postgresql":
         return None
     with connection.cursor() as cursor:
@@ -89,7 +107,10 @@ def reconcile(attempt: ImportAttempt) -> ImportAttempt | None:
     try:
         with transaction.atomic():
             current = ImportAttempt.objects.select_for_update().get(pk=attempt.pk)
-            if current.state in TERMINAL_STATES:
+            if resume:
+                if not _can_resume_finalization(current):
+                    return None
+            elif current.state in TERMINAL_STATES:
                 return None
             receipt = ImportReceipt.objects.filter(pk=attempt.run_id).first()
             run = BulkImportRun.objects.filter(pk=attempt.run_id).first()
@@ -98,17 +119,25 @@ def reconcile(attempt: ImportAttempt) -> ImportAttempt | None:
                 task = None
             if current.state == "queued" and task is None and (run is None or run.started_on is None):
                 return None
+            finalize = False
             if receipt is not None:
-                current.state = (
-                    ImportAttempt.State.SUCCEEDED if task is not None and task.success else ImportAttempt.State.FAILED
-                )
                 current.data_applied = True
                 current.result = receipt.result
-                current.error = (
-                    None
-                    if current.state == ImportAttempt.State.SUCCEEDED
-                    else "Worker stopped after data commit; inspect cleanup before continuing"
-                )
+                if (task is not None and task.success) or (task is None and run is None):
+                    current.state = ImportAttempt.State.SUCCEEDED
+                    current.error = None
+                elif task is None and attempt.attempt < MAX_ATTEMPTS:
+                    current.state = ImportAttempt.State.INTERRUPTED
+                    current.error = WORKER_STOPPED_AFTER_COMMIT
+                    finalize = True
+                else:
+                    current.state = ImportAttempt.State.FAILED
+                    current.error = (
+                        "Worker stopped after data commit; finalization gave up after "
+                        f"{MAX_ATTEMPTS} attempts, inspect cleanup before continuing"
+                        if task is None
+                        else "Import failed after data commit; see worker logs"
+                    )
             elif task is not None:
                 current.state = ImportAttempt.State.SUCCEEDED if task.success else ImportAttempt.State.FAILED
                 current.result = task.result if task.success else None
@@ -118,7 +147,7 @@ def reconcile(attempt: ImportAttempt) -> ImportAttempt | None:
                 current.error = "Worker session ended before a durable result was recorded"
             current.finished_at = timezone.now()
             current.save()
-            if receipt is None and task is None and run is not None:
+            if run is not None and task is None and (receipt is None or finalize):
                 BulkImportRun.objects.filter(pk=run.pk).update(started_on=None)
                 return queue_attempt(run)
     finally:
