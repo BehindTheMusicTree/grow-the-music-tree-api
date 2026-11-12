@@ -1,5 +1,6 @@
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.criteria.children.genre.CriteriaSource import CriteriaSource
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
@@ -28,6 +29,10 @@ class TestCase(GenreTestCase):
         super().setUp()
         self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q888001")
         self.punk = self.model_fixture_factory.create_genre("Punk", wikidata_id="Q888002")
+        # The migrations seed curated `LOCAL:` nodes: the assertions only look at the ones a test adds.
+        self.seeded_locals = set(
+            CurationEntry.objects.filter(user=None, key__startswith="LOCAL:").values_list("key", flat=True)
+        )
 
     def test_list_by_wikidata_id_then_genre_with_its_qid(self):
         self._list_genres(wikidata_id="Q888002")
@@ -175,13 +180,141 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert Genre.objects.get(pk=punk.pk).parent_id == self.rock.pk
 
-    def test_reparent_under_app_created_genre_then_400(self):
+    def _adopted(self, name: str) -> Genre:
+        return Genre.objects.get(name=name)
+
+    def _additions(self) -> dict[str, str]:
+        entries = CurationEntry.objects.filter(
+            user=None, list_name="canonical_parent_additions", key__startswith="LOCAL:"
+        )
+        return {e.key: e.row["label"] for e in entries if e.key not in self.seeded_locals}
+
+    def _local_edges(self) -> list[tuple]:
+        rules = GenreEdgeRule.objects.filter(user=None).order_by("item_id", "parent_item_id")
+        return [
+            (r.item_id, r.parent_item_id)
+            for r in rules
+            if r.item_id.startswith(("Q888", "LOCAL:")) and r.item_id not in self.seeded_locals
+        ]
+
+    def test_reparent_under_app_created_genre_then_parent_adopted_as_local_node(self):
         local = self.model_fixture_factory.create_genre("Local genre")
 
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
 
+        assert response.status_code == status.HTTP_200_OK
+        local = Genre.objects.get(pk=local.pk)
+        assert local.wikidata_id == "LOCAL:local-genre"
+        assert local.source == CriteriaSource.APP
+        assert local.is_manually_edited
+        assert self._additions() == {"LOCAL:local-genre": "Local genre"}
+        assert self._local_edges() == [("LOCAL:local-genre", None), ("Q888002", "LOCAL:local-genre")]
+        assert GenreEdgeRule.objects.get(item_id="Q888002").exclude_other_parents
+        assert HistoryEntry.objects.filter(
+            content_uuid=local.pk, action=HistoryAction.UPDATED, new_value__startswith="adopted"
+        ).exists()
+        assert HistoryEntry.objects.filter(content_uuid=self.punk.pk, action=HistoryAction.PARENT_CHANGED).exists()
+
+    def test_reparent_under_nested_app_created_genres_then_whole_chain_adopted(self):
+        outer = self.model_fixture_factory.create_genre("Outer", parent=self.rock)
+        inner = self.model_fixture_factory.create_genre("Inner", parent=outer)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(inner.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert self._additions() == {"LOCAL:inner": "Inner", "LOCAL:outer": "Outer"}
+        assert self._local_edges() == [
+            ("LOCAL:inner", "LOCAL:outer"),
+            ("LOCAL:outer", "Q888001"),
+            ("Q888002", "LOCAL:inner"),
+        ]
+
+    def test_reparent_under_app_created_genres_with_same_slug_then_ids_suffixed(self):
+        first = self.model_fixture_factory.create_genre("Fusion")
+        second = self.model_fixture_factory.create_genre("fusion!")
+        other = self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q888006")
+
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(first.uuid)})
+        self._put_genre(other.uuid, data={"name": "Jazz", "parent": str(second.uuid)})
+
+        assert Genre.objects.get(pk=first.pk).wikidata_id == "LOCAL:fusion"
+        assert Genre.objects.get(pk=second.pk).wikidata_id == "LOCAL:fusion-2"
+
+    def test_reparent_under_second_child_of_adopted_genre_then_reuses_id(self):
+        local = self.model_fixture_factory.create_genre("Local genre")
+        other = self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q888006")
+
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+        self._put_genre(other.uuid, data={"name": "Jazz", "parent": str(local.uuid)})
+
+        assert list(self._additions()) == ["LOCAL:local-genre"]
+
+    def test_reparent_under_excluded_app_created_genre_then_400_and_nothing_adopted(self):
+        local = self.model_fixture_factory.create_genre("Local genre")
+        Genre.objects.filter(pk=local.pk).update(is_excluded=True)
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert Genre.objects.get(pk=self.punk.pk).parent_id is None
+        assert Genre.objects.get(pk=local.pk).wikidata_id is None
+        assert self._additions() == {}
+
+    def test_reparent_under_regional_app_created_genre_then_400(self):
+        local = self.model_fixture_factory.create_genre("Local region", tree_name="regional")
+
+        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert Genre.objects.get(pk=local.pk).wikidata_id is None
+
+    def test_rename_adopted_genre_then_addition_label_updated_and_id_kept(self):
+        local = self.model_fixture_factory.create_genre("Local genre")
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+
+        assert self._put_genre(local.uuid, data={"name": "Renamed"}).status_code == status.HTTP_200_OK
+
+        assert Genre.objects.get(pk=local.pk).wikidata_id == "LOCAL:local-genre"
+        assert self._additions() == {"LOCAL:local-genre": "Renamed"}
+
+    def test_delete_adopted_genre_then_children_edges_repointed_and_addition_dropped(self):
+        outer = self.model_fixture_factory.create_genre("Outer", parent=self.rock)
+        inner = self.model_fixture_factory.create_genre("Inner", parent=outer)
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(inner.uuid)})
+
+        Genre.objects.delete_instance(Genre.objects.get(pk=inner.pk), actor=self.admin)
+
+        assert self._additions() == {"LOCAL:outer": "Outer"}
+        assert self._local_edges() == [("LOCAL:outer", "Q888001"), ("Q888002", "LOCAL:outer")]
+
+    def test_delete_chained_adopted_genres_then_child_spliced_to_nearest_surviving_ancestor(self):
+        outer = self.model_fixture_factory.create_genre("Outer", parent=self.rock)
+        inner = self.model_fixture_factory.create_genre("Inner", parent=outer)
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(inner.uuid)})
+
+        Genre.objects.delete_instances(
+            [Genre.objects.get(pk=outer.pk), Genre.objects.get(pk=inner.pk)], actor=self.admin
+        )
+
+        assert self._additions() == {}
+        assert self._local_edges() == [("Q888002", "Q888001")]
+
+    def test_delete_adopted_root_genre_then_children_become_accepted_roots(self):
+        local = self.model_fixture_factory.create_genre("Local genre")
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+
+        Genre.objects.delete_instance(Genre.objects.get(pk=local.pk), actor=self.admin)
+
+        assert self._additions() == {}
+        assert self._local_edges() == [("Q888002", None)]
+
+    def test_export_after_adoption_then_200_and_dangling_local_edge_then_409(self):
+        local = self.model_fixture_factory.create_genre("Local genre")
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
+
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
+
+        GenreEdgeRule.objects.filter(item_id="Q888002").update(parent_item_id="LOCAL:ghost")
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_409_CONFLICT
 
     def test_regional_reparent_then_400(self):
         region = self.model_fixture_factory.create_genre("Music of Peru", wikidata_id="Q888004", tree_name="regional")

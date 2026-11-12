@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from collections import defaultdict
 from collections.abc import Iterable
 from contextvars import ContextVar
@@ -18,7 +20,7 @@ from the_music_tree_genre_kit.criteria.Fields import Fields
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
-from grow.curation.lists import EXCLUDED_GENRE_LISTS
+from grow.curation.lists import ADDITION_LISTS, EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
@@ -60,6 +62,59 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         return instance.wikidata_id is not None and instance.wikidata_id.startswith("Q")
 
     @staticmethod
+    def _is_pipeline_item(instance: Genre) -> bool:
+        """Wikidata items and the curated `LOCAL:` nodes: the ids the pipeline's edge rules can name."""
+        return instance.wikidata_id is not None
+
+    @staticmethod
+    def _is_local_item(instance: Genre) -> bool:
+        return instance.wikidata_id is not None and instance.wikidata_id.startswith("LOCAL:")
+
+    def _mint_local_id(self, name: str) -> str:
+        slug = re.sub(
+            r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
+        )
+        slug = slug.strip("-") or "genre"
+        taken = set(CurationEntry.objects.filter(user=None, list_name__in=ADDITION_LISTS).values_list("key", flat=True))
+        candidate, n = f"LOCAL:{slug}", 1
+        while candidate in taken or self.filter(wikidata_id=candidate).exists():
+            n += 1
+            candidate = f"LOCAL:{slug}-{n}"
+        return candidate
+
+    def _ensure_pipeline_item(self, genre: Genre, actor: Any) -> str:
+        """The genre's pipeline item id. An app-created genre is adopted as a curated `LOCAL:` grouping node (and,
+        recursively, so are its app-created ancestors), so the edge rules can name it and the next run rebuilds it."""
+        if self._is_pipeline_item(genre):
+            return genre.wikidata_id
+        if genre.tree_name != CriteriaTreeName.CANONICAL or genre.is_excluded:
+            raise self._invalid("parent", "A regional or excluded genre can't become a new parent")
+        # `parent` is the base `Criteria` row: the adoption reads the `Genre` fields.
+        parent_item_id = (
+            self._ensure_pipeline_item(self.get(pk=genre.parent_id), actor) if genre.parent_id is not None else None
+        )
+        item_id = self._mint_local_id(genre.name)
+        upsert_admin_rule(
+            "canonical_parent_additions",
+            {
+                "item_id": item_id,
+                "label": genre.name,
+                "reason": f"grow admin: app-created genre adopted as a parent by {actor.profile.pseudo}",
+            },
+            actor,
+        )
+        genre.wikidata_id = item_id
+        genre.save(update_fields=["wikidata_id"])
+        self._lock(genre)
+        self._upsert_edge(
+            genre, GenreEdgeRule.Relation.CANONICAL_PARENT, parent_item_id, actor, exclude_other_parents=True
+        )
+        HistoryEntry.objects.record(
+            genre, action=HistoryAction.UPDATED, actor=actor, new_value=f"adopted into curation as {item_id}"
+        )
+        return item_id
+
+    @staticmethod
     def _lock_curation_writes(actor: Any) -> None:
         """Admin edits upsert curation rules after locking genre rows; taking the curation write lock first keeps
         that order the same in every transaction, so two concurrent edits can't deadlock on it."""
@@ -88,8 +143,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         action: str | None = None,
         exclude_other_parents: bool | None = None,
     ) -> None:
-        """Mirrors an admin edit of a wikidata item's parent into the edge rules the pipeline reads."""
-        if not self._is_wikidata_item(instance):
+        """Mirrors an admin edit of a pipeline item's parent into the edge rules the pipeline reads."""
+        if not self._is_pipeline_item(instance):
             return
         try:
             GenreEdgeRule.objects.upsert(
@@ -107,11 +162,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         except ValidationError as e:
             raise invalid("parent", f"Can't record this edit as a {relation} edge: {'; '.join(e.messages)}") from e
 
-    def _reparent_target(self, instance: Genre) -> str | None:
+    def _reparent_target(self, instance: Genre, actor: Any) -> str | None:
         """The parent item id of an admin reparent (None for a root), or a 400 when no edge can express it."""
-        parent_item_id, parent_excluded = self.filter(pk=instance.parent_id).values_list(
-            "wikidata_id", "is_excluded"
-        ).first() or (None, False)
+        parent_excluded = self.filter(pk=instance.parent_id).values_list("is_excluded", flat=True).first() or False
         if instance.tree_name != CriteriaTreeName.CANONICAL:
             # The new parent may be a regional overview (`regional_overviews`) or a regional genre
             # (`regional_genre_parent`), which grow can't tell apart.
@@ -120,10 +173,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             message = "An excluded genre can't be reparented or be a new parent; the pipeline prunes it"
         elif instance.parent_id is None:
             return None
-        elif parent_item_id is None:
-            message = "A wikidata-backed genre's new parent must be wikidata-backed too"
         else:
-            return parent_item_id
+            return self._ensure_pipeline_item(self.get(pk=instance.parent_id), actor)
         raise self._invalid("parent", message)
 
     def _on_created(self, instance: Genre, *, actor: Any = None) -> None:
@@ -144,13 +195,13 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance, old_parent=old_parent, old_root=old_root, root_changed=root_changed, actor=actor
         )
         if actor is not None:
-            if self._is_wikidata_item(instance):
+            if self._is_pipeline_item(instance):
                 # One canonical assertion per item: the edge replaces a root or an earlier parent, and an edge of
                 # the same pair in another relation (such as a secondary `add`).
                 self._upsert_edge(
                     instance,
                     GenreEdgeRule.Relation.CANONICAL_PARENT,
-                    self._reparent_target(instance),
+                    self._reparent_target(instance, actor),
                     actor,
                     exclude_other_parents=True,
                 )
@@ -203,9 +254,66 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             instance.save(update_fields=["has_name_conflict"])
             self._lock(instance)
             self._upsert_rule(instance, "label_overrides", actor, display_label=instance.name)
+            if self._is_local_item(instance):
+                self._relabel_addition(instance, actor)
         HistoryEntry.objects.record(
             instance, action=HistoryAction.RENAMED, actor=actor, old_value=old_name, new_value=instance.name
         )
+
+    @staticmethod
+    def _relabel_addition(instance: Genre, actor: Any) -> None:
+        entry = CurationEntry.objects.filter(
+            user=None, list_name="canonical_parent_additions", key=instance.wikidata_id
+        ).first()
+        if entry is not None:
+            upsert_admin_rule("canonical_parent_additions", {**entry.row, "label": instance.name}, actor)
+
+    def _release_local_items(self, instances: list[Genre], actor: Any) -> None:
+        """Deleting a curated `LOCAL:` node splices it out of the edge rules like the kit does for the rows: its
+        children's edges move to its parent item (or the accepted root), and its own edges and addition go."""
+        if actor is None:
+            return
+        gone = {i.wikidata_id for i in instances if self._is_local_item(i)}
+        # Snapshot before any deletion: a chain of deleted nodes splices to the nearest surviving ancestor.
+        parent_of = dict(
+            GenreEdgeRule.objects.filter(
+                user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id__in=gone
+            ).values_list("item_id", "parent_item_id")
+        )
+
+        def survivor(item_id: str) -> str | None:
+            parent = parent_of.get(item_id)
+            while parent in gone:
+                parent = parent_of.get(parent)
+            return parent
+
+        for item_id in sorted(gone):
+            new_parent = survivor(item_id)
+            for rule in list(GenreEdgeRule.objects.filter(user=None, parent_item_id=item_id)):
+                if rule.relation == GenreEdgeRule.Relation.CANONICAL_PARENT:
+                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+                    if rule.item_id not in gone:
+                        self._upsert_edge_by_id(rule.item_id, new_parent, actor)
+                else:
+                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+            for rule in list(GenreEdgeRule.objects.filter(user=None, item_id=item_id)):
+                GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+            for entry in list(CurationEntry.objects.filter(user=None, key=item_id, list_name__in=ADDITION_LISTS)):
+                CurationEntry.objects.delete_instance(entry, actor=actor)
+
+    @staticmethod
+    def _upsert_edge_by_id(item_id: str, parent_item_id: str | None, actor: Any) -> None:
+        try:
+            GenreEdgeRule.objects.upsert(
+                GenreEdgeRule.Relation.CANONICAL_PARENT,
+                item_id,
+                parent_item_id,
+                exclude_other_parents=True,
+                reason=f"grow admin edit by {actor.profile.pseudo}",
+                actor=actor,
+            )
+        except (InvalidRow, ValidationError) as e:
+            raise invalid("parent", f"Can't repoint the edge of {item_id}: {e}") from e
 
     def _on_side_changed(self, instance: Genre, *, old_side: str, actor: Any = None) -> None:
         if actor is not None:
@@ -268,12 +376,16 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
         lock_catalogue_sources(using=self.db)
         instance.refresh_from_db(using=self.db)
+        self._lock_curation_writes(actor)
+        self._release_local_items([instance], actor)
         super().delete_instance(instance, actor=actor)
 
     @transaction.atomic
     def delete_instances(self, instances: Iterable[Genre], actor: Any = None) -> None:
         instances = list(instances)
         lock_catalogue_sources(using=self.db)
+        self._lock_curation_writes(actor)
+        self._release_local_items(instances, actor)
         content_type = ContentType.objects.get_for_model(self.model)
         required_root_owners = {i.user_id: i.user for i in instances if self._is_required_root(i)}
         HistoryEntry.objects.bulk_create(
@@ -328,7 +440,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         was_required_root = self._is_required_root(instance)
         instance.is_excluded = True
         instance.save(update_fields=["is_excluded"])
-        if actor is not None and self._is_wikidata_item(instance):
+        if actor is not None and self._is_pipeline_item(instance):
             rule = find_edge_parent_rule(instance.wikidata_id)
             if rule is not None:
                 raise self._invalid(

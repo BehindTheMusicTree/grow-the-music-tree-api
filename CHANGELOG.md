@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- An admin can reparent a Wikidata genre under an app-created genre. The app-created parent (and any app-created ancestors) is adopted as a curated `LOCAL:<slug>` grouping node: it gets a `canonical_parent_additions` entry and its own `canonical_parent` edge, so the move survives the nightly pipeline. Admin reparents of `LOCAL:` genres are now recorded as edge rules, a rename updates the addition's label, and deleting one repoints its children's edges. The rule set now flags a `LOCAL:` id used in an edge but declared in no addition list (export 409, and a 400 on the write). Tests in `test_edit_curation_rules.py`.
+
 ### Changed
 
 - **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
