@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- The genre tree import keeps each node's `primaryParents` / `secondaryParents` again: with api-kit 0.12.0 every non-empty list was validated to `None`, so `grow_criteria_additional_primary_parents` stayed empty on staging and Music of Ireland showed 0 songs. The kits are bumped to genre-kit 0.60.1 (api-kit 0.12.1). A regional-tree import test checks the parent and both M2M links.
 - A detailed artist's `origin.region_id` is `null` unless the latest region map index draws that region. The artist and region map imports run separately, so the id could name a region the map does not draw, and the `/map?region=` link opened a blank map. The check runs at read time (cached per index checksum), so the id comes back once a map that draws it is imported. Tests cover no snapshot, a region not drawn, and a newer snapshot that draws it.
 - An artist's origin `kind` may be null (a MusicBrainz area without a type): the bulk import accepts `kind: null` and still rejects an empty string, and the `artist_origin_complete` constraint no longer requires a kind (migration `0122`). Pipelines must not export a null kind before this is deployed. Tests cover both import cases.
 - The README and the `Perf` workflow say `Perf` is a required check on `develop` (it is, since 2026-11-07) and not yet on `main`; they still said it was optional everywhere.
