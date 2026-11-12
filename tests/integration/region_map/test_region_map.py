@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
@@ -361,6 +362,26 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._commit(_parts(index("Q404"))).status_code == 500
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(index(GENRE)))["imported"] == 1
+
+    def test_alerts_replace_the_synthetic_overview_review_items(self):
+        alert = {"regionId": "Q142", "itemId": "LOCAL:region-q142", "reason": "superseded", "targetItemId": GENRE}
+        self._sync(_parts(_index(synthesizedOverviewAlerts=[alert])))
+
+        item = CurationReviewItem.objects.get()
+        assert (item.item_id, item.reason, item.target_item_id, item.list_name) == (
+            "LOCAL:region-q142",
+            "synthetic_overview_superseded",
+            GENRE,
+            None,
+        )
+        self._sync(_parts(_index(synthesizedOverviewAlerts=[])))
+        assert not CurationReviewItem.objects.exists()
+
+    def test_unknown_alert_reason_fails(self):
+        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "bogus", "targetItemId": None}
+
+        assert self._commit(_parts(_index(synthesizedOverviewAlerts=[alert]))).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
 
     def test_overview_item_id_may_be_null_or_absent(self):
         region = {**_index()["regions"][0], "id": "Q142", "overviewItemId": None}

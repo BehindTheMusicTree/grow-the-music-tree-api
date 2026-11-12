@@ -227,3 +227,29 @@ class TestWikidataResolutions(AppTestCase):
         with patch(VERIFY, return_value=VIEWER_CLAIMS):
             assert self.api_client.post(path=url, data={"remaps": [], "review": []}).status_code == 403
             assert self.api_client.get(path=reverse("curation-review")).status_code == 403
+
+
+class TestSyntheticOverviewReviewItemsSurvive(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self.pipeline = APIClient()
+        self.pipeline.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
+
+    def _report(self, remaps):
+        return self.pipeline.post(
+            path=reverse("curation-wikidata-resolutions"), data={"remaps": remaps, "review": []}, format="json"
+        )
+
+    def test_wikidata_report_keeps_synthetic_overview_items(self):
+        CurationReviewItem.objects.create(
+            column="item_id",
+            item_id="LOCAL:region-q1",
+            reason=CurationReviewItem.Reason.SYNTHETIC_OVERVIEW_ORPHANED,
+        )
+        CurationReviewItem.objects.create(
+            list_name="duplicate_genres", key=OLD, column="item_id", item_id=OLD, reason="missing"
+        )
+
+        assert self._report([]).status_code == status.HTTP_200_OK
+
+        assert list(CurationReviewItem.objects.values_list("item_id", flat=True)) == ["LOCAL:region-q1"]
