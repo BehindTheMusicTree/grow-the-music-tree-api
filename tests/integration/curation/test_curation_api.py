@@ -641,6 +641,23 @@ class TestEssentialSongsApply(AppTestCase):
         assert self._essential(self.genre) == [self.MB_B, self.MB_A]
         assert not self.genre.is_manually_edited
 
+    @skipUnless(connection.vendor == "postgresql", "advisory locks are Postgres-only")
+    def test_post_then_write_lock_held_until_commit(self):
+        # The apply rewrites the genre's through rows, so it must run under the curation write lock that
+        # `check_edit` takes: a concurrent apply on the same genre would otherwise hit the unique constraint.
+        def try_lock_from_other_connection() -> bool:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_try_advisory_xact_lock(%s)", [WRITE_LOCK_ID])
+                    return cursor.fetchone()[0]
+            finally:
+                connection.close()
+
+        assert self._post(self._row("Q999999991", self.MB_A, 1)).status_code == status.HTTP_201_CREATED
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            assert executor.submit(try_lock_from_other_connection).result() is False
+
     def test_patch_then_applied_including_moved_item_id(self):
         entry = self._post(self._row("Q999999991", self.MB_A, 1)).json()
 
