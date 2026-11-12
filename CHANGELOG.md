@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `GET curation/history/` returned 500 once the `curation-bot` user had written an entry, because that user had no profile and the history serializer requires an actor pseudo. Migration `0123` seeds the bot with its profile (pseudo `curation-bot`), and the curator key now looks the bot up instead of creating it on first use. Tests cover the migration (idempotent, keeps an existing pseudo) and a curator write followed by an admin reading the history.
 - A detailed artist's `origin.region_id` is `null` unless the latest region map index draws that region. The artist and region map imports run separately, so the id could name a region the map does not draw, and the `/map?region=` link opened a blank map. The check runs at read time (cached per index checksum), so the id comes back once a map that draws it is imported. Tests cover no snapshot, a region not drawn, and a newer snapshot that draws it.
 - An artist's origin `kind` may be null (a MusicBrainz area without a type): the bulk import accepts `kind: null` and still rejects an empty string, and the `artist_origin_complete` constraint no longer requires a kind (migration `0122`). Pipelines must not export a null kind before this is deployed. Tests cover both import cases.
 - The README and the `Perf` workflow say `Perf` is a required check on `develop` (it is, since 2026-11-07) and not yet on `main`; they still said it was optional everywhere.
