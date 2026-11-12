@@ -671,3 +671,24 @@ class TestEssentialSongsApply(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not CurationEntry.objects.filter(list_name="essential_songs").exists()
         assert self._essential(self.genre) == []
+
+    def test_stale_rules_then_genre_stays_editable_and_stale_songs_are_skipped(self):
+        stale_a, stale_b = (f"{n}{n}{n}{n}{n}{n}{n}{n}-4444-4444-8444-444444444444" for n in "56")
+        for position, mbid in enumerate((stale_a, stale_b), start=1):
+            CurationEntry.objects.create(
+                user=None,
+                list_name="essential_songs",
+                key=f"Q999999991\t{mbid}",
+                values={"position": str(position)},
+                reason="stale",
+            )
+
+        added = self._post(self._row("Q999999991", self.MB_A, 3))
+        assert added.status_code == status.HTTP_201_CREATED, added.content
+        assert self._essential(self.genre) == [self.MB_A]
+
+        stale_entry = CurationEntry.objects.get(list_name="essential_songs", key=f"Q999999991\t{stale_a}")
+        response = self.api_client.delete(path=self._entry_url({"uuid": str(stale_entry.uuid)}))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT, response.content
+        assert self._essential(self.genre) == [self.MB_A]
