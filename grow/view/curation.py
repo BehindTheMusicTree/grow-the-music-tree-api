@@ -490,7 +490,13 @@ class _EvidenceSerializer(_StrictSerializer):
 
 class _ReviewItemSerializer(_CurationItemSerializer):
     item_id = _item_id_field()
-    reason = serializers.ChoiceField(choices=CurationReviewItem.Reason.choices)
+    reason = serializers.ChoiceField(
+        choices=[
+            choice
+            for choice in CurationReviewItem.Reason.choices
+            if choice[0] not in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS
+        ]
+    )
     target = _item_id_field(required=False, allow_null=True)
     evidence = _EvidenceSerializer(required=False, allow_null=True)
 
@@ -572,24 +578,29 @@ class CurationItemsView(CurationView):
         return Response({"results": results[:ITEM_SEARCH_LIMIT]})
 
 
+def _review_list(item: CurationReviewItem) -> str | None:
+    """None for a synthetic overview alert, which concerns no list or rule."""
+    return item.list_name or (legacy_list_name(item.rule) if item.rule else None)
+
+
+def _review_key(item: CurationReviewItem) -> str | None:
+    return item.key or (legacy_key(item.rule) if item.rule else None)
+
+
 class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
     def get(self, request: Request) -> Response:
         items = sorted(
             CurationReviewItem.objects.select_related("rule"),
-            key=lambda i: (
-                i.list_name or legacy_list_name(i.rule),
-                i.key or legacy_key(i.rule),
-                i.column,
-            ),
+            key=lambda i: (_review_list(i) or "", _review_key(i) or "", i.column, i.item_id),
         )
         return Response(
             [
                 {
                     "rule_id": i.rule.uuid if i.rule else None,
-                    "list": i.list_name or legacy_list_name(i.rule),
-                    "key": i.key or legacy_key(i.rule),
+                    "list": _review_list(i),
+                    "key": _review_key(i),
                     "column": i.column,
                     "item_id": i.item_id,
                     "reason": i.reason,

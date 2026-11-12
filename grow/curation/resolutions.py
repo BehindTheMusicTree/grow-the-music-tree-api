@@ -61,8 +61,8 @@ def _remap_edges(remaps: list[dict[str, Any]], review: list[dict[str, Any]]) -> 
 @transaction.atomic
 def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[str, Any]]) -> dict[str, int]:
     """Rewrites each entry's redirected item ids (history actor null: the pipeline), then replaces the review items
-    with `review` plus the remaps clashing with another entry (the region map's synthetic overview alerts are left alone). A remap whose entry or `from` id is gone is skipped:
-    an admin already fixed it."""
+    with `review` plus the remaps clashing with another entry; the region map's synthetic overview alerts are left
+    alone. A remap whose entry or `from` id is gone is skipped: an admin already fixed it."""
     entries = CurationEntry.objects.filter(user=None)
     lock_writes(entries)
     review = list(review)

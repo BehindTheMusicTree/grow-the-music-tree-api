@@ -91,10 +91,14 @@ def _check_overview_alerts(index: dict[str, Any]) -> None:
         if (
             not isinstance(alert, dict)
             or not isinstance(alert.get("itemId"), str)
+            or not alert["itemId"].startswith("LOCAL:region-")
             or alert.get("reason") not in reasons
-            or not isinstance(alert.get("targetItemId"), str | None)
+            or "targetItemId" not in alert
+            or not isinstance(alert["targetItemId"], str | None)
         ):
-            raise ValueError("each synthesized overview alert needs a string itemId, a known reason and a targetItemId")
+            raise ValueError(
+                "each synthesized overview alert needs a LOCAL:region- itemId, a known reason and a targetItemId"
+            )
 
 
 def _replace_overview_alerts(index: dict[str, Any]) -> None:

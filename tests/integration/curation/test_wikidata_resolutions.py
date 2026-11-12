@@ -253,3 +253,26 @@ class TestSyntheticOverviewReviewItemsSurvive(AppTestCase):
         assert self._report([]).status_code == status.HTTP_200_OK
 
         assert list(CurationReviewItem.objects.values_list("item_id", flat=True)) == ["LOCAL:region-q1"]
+
+    def test_review_endpoint_lists_synthetic_overview_items_without_list_or_key(self):
+        CurationReviewItem.objects.create(
+            column="item_id",
+            item_id="LOCAL:region-q1",
+            reason=CurationReviewItem.Reason.SYNTHETIC_OVERVIEW_RENAMED,
+        )
+        response = self.api_client.get(path=reverse("curation-review"))
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert [(i["list"], i["key"], i["itemId"], i["target"]) for i in response.json()] == [
+            (None, None, "LOCAL:region-q1", None)
+        ]
+
+    def test_pipeline_cannot_report_synthetic_overview_reasons(self):
+        item = {"list": "duplicate_genres", "key": OLD, "column": "item_id", "item_id": OLD}
+        response = self.pipeline.post(
+            path=reverse("curation-wikidata-resolutions"),
+            data={"remaps": [], "review": [{**item, "reason": "synthetic_overview_orphaned"}]},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
