@@ -76,19 +76,6 @@ fi
 
 seed base "$base_dir"
 seed head "$head_dir"
-
-# TEMPORARY diagnostic for PR #468: counts and EXPLAIN ANALYZE on each side, then stop. Remove before merge.
-cp "$head_dir/perf/diag_parents.py" "$base_dir/perf/diag_parents.py"
-for side in base head; do
-  dir=$([[ $side == base ]] && echo "$base_dir" || echo "$head_dir")
-  psql -v ON_ERROR_STOP=1 -q "$PERF_PG_URL/test_perf_$side" -c "VACUUM (FREEZE, ANALYZE)"
-  echo "::group::diag $side"
-  (cd "$dir" && PERF_DATABASE_URL="$PERF_PG_URL/perf_$side" PERF_DIAG_OUT="$out_dir/diag-$side.txt" \
-    uv run --frozen pytest perf/diag_parents.py --no-cov -q -s --ds=perf.settings --reuse-db -p no:cacheprovider) || true
-  echo "::endgroup::"
-done
-echo "Diagnostic run: measurements skipped." >&2
-exit 1
 rounds=0
 measure() {
   for _ in 1 2; do
