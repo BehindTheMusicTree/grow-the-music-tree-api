@@ -67,5 +67,4 @@ class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criter
     @action(detail=True, methods=["get"])
     def overview(self, request: Request, *args, **kwargs) -> Response:
         instance = self.get_object()
-        prefetch_related_objects([instance], "genre__essential_songs__artists")
         return Response(data=CriteriaOverviewSerializer(instance).data)

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from grow.model.song.Song import Song
 from grow.serializer.model.track.output.simple.simple_without_album_and_genre import (
     TrackWithoutAlbumPlaylistGenreSerializer,
 )
@@ -24,6 +25,9 @@ class CriteriaEssentialSongsSerializerMixin:
         genre = getattr(obj, "genre", None)
         if not genre:
             return []
-        return TrackWithoutAlbumPlaylistGenreSerializer(
-            genre.essential_songs.all(), many=True, context=self.context
-        ).data
+        songs = (
+            Song.objects.filter(genreessentialsong__genre=genre)
+            .order_by("genreessentialsong__position")
+            .prefetch_related("artists")
+        )
+        return TrackWithoutAlbumPlaylistGenreSerializer(songs, many=True, context=self.context).data

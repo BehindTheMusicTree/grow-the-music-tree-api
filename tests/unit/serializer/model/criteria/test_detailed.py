@@ -3,6 +3,7 @@ from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from grow.model.criteria.Criteria import Criteria
 from grow.serializer.model.criteria.output.detailed import CriteriaDetailedSerializer
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCase(AppTestCase):
@@ -63,7 +64,7 @@ class TestCase(AppTestCase):
     def test_serializes_essential_songs(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
         track = self.model_fixture_factory.create_song("Strobe", genre=genre)
-        genre.essential_songs.add(track)
+        add_essential_song(genre, track)
 
         data = CriteriaDetailedSerializer(genre).data
 

@@ -20,7 +20,10 @@ from .GenreManager import REQUIRED_ROOT_GENRE_NAMES, GenreManager
 class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-missing]
     criteria_ptr = PrivateOneToOneField(Criteria, on_delete=models.CASCADE, parent_link=True, related_name="genre")
     essential_songs = PrivateManyToManyField(
-        settings.TRACK_MODEL, blank=True, related_name=TrackFields.ESSENTIAL_FOR_GENRES_RELATED_NAME
+        settings.TRACK_MODEL,
+        blank=True,
+        related_name=TrackFields.ESSENTIAL_FOR_GENRES_RELATED_NAME,
+        through="grow.GenreEssentialSong",
     )
     """Curated per-genre, not inherited from or propagated to subgenres."""
 
