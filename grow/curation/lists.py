@@ -161,6 +161,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_genre_name", "reason"),
         "MusicBrainz genre tags that are permanent non-genre noise, accepted as unmatched.",
     ),
+    "musicbrainz_free_genre_tags": CurationList(
+        "musicbrainz",
+        ("musicbrainz_tag_name",),
+        ("musicbrainz_tag_name", "reason"),
+        "Free MusicBrainz tags that are not official MusicBrainz genres but are kept as genre tags.",
+    ),
     "canonical_genre_pop_side": CurationList(
         "gold",
         ("root_item_id", "pop_child_item_id"),

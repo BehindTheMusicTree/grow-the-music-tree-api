@@ -229,6 +229,17 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"]["is_default"] is True
 
+    def test_musicbrainz_free_genre_tag_then_listed_and_keyed_by_tag_name(self):
+        row = {"musicbrainz_tag_name": "vgm", "reason": "video game music is a genre"}
+
+        response = self._create(row, "musicbrainz_free_genre_tags")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["row"] == row
+        assert self._create(row, "musicbrainz_free_genre_tags").status_code == status.HTTP_400_BAD_REQUEST
+        lists = {lst["name"]: lst for lst in self.api_client.get(path=reverse("curation-lists")).json()}
+        assert lists["musicbrainz_free_genre_tags"]["keyColumns"] == ["musicbrainz_tag_name"]
+
     def test_genre_disambiguation_then_candidates_per_tag(self):
         default = self._create(
             {"musicbrainz_genre_name": "rap", "item_id": "Q45981", "is_default": "true", "reason": "testing"},
