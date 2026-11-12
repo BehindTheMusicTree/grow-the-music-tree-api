@@ -61,6 +61,16 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["details"]["code"] == "invalid_audience"
 
+    def test_missing_or_list_audience_then_401_invalid_audience(self):
+        self._use_token()
+        no_aud = {k: v for k, v in ADMIN_CLAIMS.items() if k != "aud"}
+        for claims in (no_aud, {**ADMIN_CLAIMS, "aud": [AUD]}):
+            with patch(VERIFY, return_value=claims):
+                response = self._post_genre()
+
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+            assert response.json()["details"]["code"] == "invalid_audience"
+
     def test_wrong_audience_on_public_get_then_401(self):
         self._use_token()
         with patch(VERIFY, return_value={**VIEWER_CLAIMS, "aud": "another-client.apps.googleusercontent.com"}):
