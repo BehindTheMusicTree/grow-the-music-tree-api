@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- The genre tree import keeps each node's `primaryParents` / `secondaryParents` again: with api-kit 0.12.0 every non-empty list was validated to `None`, so `grow_criteria_additional_primary_parents` stayed empty on staging and Music of Ireland showed 0 songs. The kits are bumped to genre-kit 0.60.1 (api-kit 0.12.1). A regional-tree import test checks the parent and both M2M links.
 - `GET curation/history/` returned 500 once the `curation-bot` user had written an entry, because that user had no profile and the history serializer requires an actor pseudo. Migration `0123` seeds the bot with its profile (pseudo `curation-bot`), and the curator key now looks the bot up instead of creating it on first use. Tests cover the migration (idempotent, keeps an existing pseudo) and a curator write followed by an admin reading the history.
 - A detailed artist's `origin.region_id` is `null` unless the latest region map index draws that region. The artist and region map imports run separately, so the id could name a region the map does not draw, and the `/map?region=` link opened a blank map. The check runs at read time (cached per index checksum), so the id comes back once a map that draws it is imported. Tests cover no snapshot, a region not drawn, and a newer snapshot that draws it.
 - An artist's origin `kind` may be null (a MusicBrainz area without a type): the bulk import accepts `kind: null` and still rejects an empty string, and the `artist_origin_complete` constraint no longer requires a kind (migration `0122`). Pipelines must not export a null kind before this is deployed. Tests cover both import cases.
@@ -37,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- The `Perf` gate measures with `jit=off`, like the app's connections (`grow/settings.py`). It ran with Postgres JIT on, so a larger parent graph (higher estimated cost on the tracks-count query) triggered a ~0.8 s JIT compilation that production never pays, failing the `genre-playlist-tracks` SLO.
 - `GET genre-playlists/<uuid>/tracks/` (for example Mainstream Pop with `coverage=genre_and_subgenres&subgenres=regional`) no longer times out (503) on its `blocked` count. The count filters on the membership's own `genre_id` instead of probing the track table per member. Migration `0118` keeps the column in sync with database triggers (PostgreSQL and SQLite: fill on insert when null, follow `Track.genre` updates) and backfills existing rows in batches of 50 000 (non-atomic). The bulk import merge writes `genre_id` with the membership. Tested on the denormalization invariant and, in `perf/`, on the plan (no per-member track probe).
 
 ### CI
