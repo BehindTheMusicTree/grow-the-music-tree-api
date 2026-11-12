@@ -401,6 +401,12 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._commit(parts).status_code == 500
         assert not RegionMapSnapshot.objects.exists()
 
+    def test_alerts_must_be_a_list(self):
+        parts = [[*_parts()[0], _line("synthesized_overview_alerts.json", {"alerts": {}})]]
+
+        assert self._commit(parts).status_code == 500
+        assert not RegionMapSnapshot.objects.exists()
+
     def test_index_with_an_unknown_key_is_refused(self):
         alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
 
