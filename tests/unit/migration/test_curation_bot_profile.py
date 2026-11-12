@@ -14,6 +14,8 @@ class TestCase(AppTestCase):
         migration_module.seed_curation_bot_profile(apps, None)
 
     def test_seed_then_bot_has_profile(self):
+        UserProfile.objects.filter(user__username="curation-bot").delete()
+
         self._seed()
 
         assert UserProfile.objects.get(user__username="curation-bot").pseudo == "curation-bot"
@@ -26,16 +28,17 @@ class TestCase(AppTestCase):
         assert UserProfile.objects.filter(user__username="curation-bot").count() == 1
 
     def test_seed_with_existing_bot_and_custom_pseudo_then_kept(self):
-        bot = User.objects.create(username="curation-bot")
-        UserProfile.objects.create(user=bot, pseudo="Gardener Bot")
+        # Migration 0123 already seeded the bot in the test DB.
+        UserProfile.objects.filter(user__username="curation-bot").update(pseudo="Gardener Bot")
 
         self._seed()
 
-        assert UserProfile.objects.get(user=bot).pseudo == "Gardener Bot"
+        assert UserProfile.objects.get(user__username="curation-bot").pseudo == "Gardener Bot"
 
     def test_seed_with_existing_bot_without_profile_then_profile_created(self):
-        bot = User.objects.create(username="curation-bot")
+        UserProfile.objects.filter(user__username="curation-bot").delete()
+        assert User.objects.filter(username="curation-bot").exists()
 
         self._seed()
 
-        assert UserProfile.objects.get(user=bot).pseudo == "curation-bot"
+        assert UserProfile.objects.get(user__username="curation-bot").pseudo == "curation-bot"
