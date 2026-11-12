@@ -76,11 +76,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
         )
         slug = slug.strip("-") or "genre"
-        taken = set(
-            CurationEntry.objects.filter(user=None, list_name="canonical_parent_additions").values_list(
-                "key", flat=True
-            )
-        )
+        taken = set(CurationEntry.objects.filter(user=None, list_name__in=ADDITION_LISTS).values_list("key", flat=True))
         candidate, n = f"LOCAL:{slug}", 1
         while candidate in taken or self.filter(wikidata_id=candidate).exists():
             n += 1
@@ -277,13 +273,21 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         if actor is None:
             return
         gone = {i.wikidata_id for i in instances if self._is_local_item(i)}
-        for item_id in gone:
-            own = GenreEdgeRule.objects.filter(
-                user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id=item_id
-            ).first()
-            new_parent = own.parent_item_id if own is not None else None
-            if new_parent in gone:
-                new_parent = None
+        # Snapshot before any deletion: a chain of deleted nodes splices to the nearest surviving ancestor.
+        parent_of = dict(
+            GenreEdgeRule.objects.filter(
+                user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id__in=gone
+            ).values_list("item_id", "parent_item_id")
+        )
+
+        def survivor(item_id: str) -> str | None:
+            parent = parent_of.get(item_id)
+            while parent in gone:
+                parent = parent_of.get(parent)
+            return parent
+
+        for item_id in sorted(gone):
+            new_parent = survivor(item_id)
             for rule in list(GenreEdgeRule.objects.filter(user=None, parent_item_id=item_id)):
                 if rule.relation == GenreEdgeRule.Relation.CANONICAL_PARENT:
                     GenreEdgeRule.objects.delete_instance(rule, actor=actor)
@@ -371,6 +375,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def delete_instance(self, instance: Genre, actor: Any = None) -> None:
         lock_catalogue_sources(using=self.db)
         instance.refresh_from_db(using=self.db)
+        self._lock_curation_writes(actor)
+        self._release_local_items([instance], actor)
         super().delete_instance(instance, actor=actor)
 
     @transaction.atomic
@@ -433,7 +439,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         was_required_root = self._is_required_root(instance)
         instance.is_excluded = True
         instance.save(update_fields=["is_excluded"])
-        if actor is not None and self._is_wikidata_item(instance):
+        if actor is not None and self._is_pipeline_item(instance):
             rule = find_edge_parent_rule(instance.wikidata_id)
             if rule is not None:
                 raise self._invalid(

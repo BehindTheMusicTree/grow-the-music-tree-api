@@ -278,6 +278,18 @@ class TestCase(GenreTestCase):
         assert self._additions() == {"LOCAL:outer": "Outer"}
         assert self._local_edges() == [("LOCAL:outer", "Q888001"), ("Q888002", "LOCAL:outer")]
 
+    def test_delete_chained_adopted_genres_then_child_spliced_to_nearest_surviving_ancestor(self):
+        outer = self.model_fixture_factory.create_genre("Outer", parent=self.rock)
+        inner = self.model_fixture_factory.create_genre("Inner", parent=outer)
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(inner.uuid)})
+
+        Genre.objects.delete_instances(
+            [Genre.objects.get(pk=outer.pk), Genre.objects.get(pk=inner.pk)], actor=self.admin
+        )
+
+        assert self._additions() == {}
+        assert self._local_edges() == [("Q888002", "Q888001")]
+
     def test_delete_adopted_root_genre_then_children_become_accepted_roots(self):
         local = self.model_fixture_factory.create_genre("Local genre")
         self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(local.uuid)})
