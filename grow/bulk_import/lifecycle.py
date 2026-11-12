@@ -71,8 +71,7 @@ def execute_merge(
         latest = ImportAttempt.objects.filter(run_id=run_id).order_by("-attempt").first()
         if latest is None or latest.pk != attempt.pk:
             raise ValueError(f"import run {run_id} attempt {attempt.attempt} is superseded")
-        if receipt is None:
-            BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
+        BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
         reporter = ProgressReporter(attempt)
         reporter.start()
         token = activate(reporter)

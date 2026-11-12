@@ -320,3 +320,15 @@ def test_drain_fails_at_timeout_while_a_lock_is_held():
     finally:
         conn.close()
     call_command("wait_for_import_drain", timeout=1, interval=1)
+
+
+def test_drain_waits_for_a_queued_finalization():
+    run, _ = applied_run("queued")
+    with pytest.raises(CommandError, match=f"run={run.pk}"):
+        call_command("wait_for_import_drain", timeout=1, interval=1)
+
+
+def test_drain_ignores_a_queued_attempt_without_receipt():
+    run = BulkImportRun.objects.create(kind="songs", started_on=timezone.now(), committed_on=timezone.now())
+    queue_attempt(run)
+    call_command("wait_for_import_drain", timeout=1, interval=1)

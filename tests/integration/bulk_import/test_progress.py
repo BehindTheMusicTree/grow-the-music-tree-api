@@ -146,3 +146,15 @@ def test_receipt_path_finalizes_without_merging():
     assert attempt.state == "succeeded"
     assert attempt.data_applied
     assert attempt.result == {"imported": 4}
+
+
+def test_receipt_path_marks_run_started_before_reporting():
+    run, attempt = make_attempt()
+    BulkImportRun.objects.filter(pk=run.pk).update(started_on=None)
+    ImportReceipt.objects.create(run_id=run.pk, result={"imported": 4})
+    with (
+        patch("grow.bulk_import.lifecycle.ProgressReporter.start", side_effect=RuntimeError("worker died")),
+        pytest.raises(RuntimeError),
+    ):
+        execute_merge(run.pk, attempt.pk, SongImportStaging, Mock())
+    assert BulkImportRun.objects.get(pk=run.pk).started_on is not None

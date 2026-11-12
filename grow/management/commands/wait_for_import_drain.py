@@ -4,7 +4,7 @@ import time
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.merge_lock import merge_is_live
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,12 @@ ACTIVE_STATES = (ImportAttempt.State.RUNNING, ImportAttempt.State.COMMITTING, Im
 def live_attempts() -> list[ImportAttempt]:
     """Active attempts whose worker still holds the run's advisory lock; a dead worker never blocks a deploy."""
     attempts = ImportAttempt.objects.filter(state__in=ACTIVE_STATES).order_by("run_id", "attempt")
-    return [attempt for attempt in attempts if merge_is_live(attempt.run_id)]
+    live = [attempt for attempt in attempts if merge_is_live(attempt.run_id)]
+    # A queued finalization (receipt present) holds no lock yet but a restart would drop its queue entry.
+    pending = ImportAttempt.objects.filter(
+        state=ImportAttempt.State.QUEUED, run_id__in=ImportReceipt.objects.values("run_id")
+    ).order_by("run_id", "attempt")
+    return live + list(pending)
 
 
 class Command(BaseCommand):
