@@ -12,6 +12,10 @@ class QueryTimeout(APIException):
 
 def exception_handler(exc, context):
     """A statement_timeout cancel frees the worker; report it as retryable instead of a 500."""
+    import sys
+    import traceback
+
+    traceback.print_exception(exc, file=sys.stderr)  # DEBUG-500: temporary, remove before merge
     if isinstance(exc, OperationalError) and isinstance(exc.__cause__, QueryCanceled):
         exc = QueryTimeout()
     return custom_exception_handler(exc, context)
