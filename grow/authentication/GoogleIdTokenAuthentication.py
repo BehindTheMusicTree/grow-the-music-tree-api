@@ -43,11 +43,17 @@ class GoogleIdTokenAuthentication(BaseAuthentication):
         if scheme.lower() != "bearer" or not token:
             return None
         try:
-            claims = id_token.verify_oauth2_token(token, _google_request, audience=settings.GOOGLE_OAUTH_CLIENT_ID)
+            # audience=None skips only the aud check (signature, expiry and issuer still apply), so a token minted
+            # for another OAuth client can be told apart from a malformed one below.
+            claims = id_token.verify_oauth2_token(token, _google_request, audience=None)
         except TransportError as e:
             raise AuthProviderUnavailable from e
         except ValueError as e:
             raise AuthenticationFailed(detail={"detail": "Invalid token", "code": "invalid_token"}) from e
+        if claims.get("aud") != settings.GOOGLE_OAUTH_CLIENT_ID:
+            raise AuthenticationFailed(
+                detail={"detail": "Token was issued for another client", "code": "invalid_audience"}
+            )
         if not claims.get("email_verified"):
             raise AuthenticationFailed(detail={"detail": "Email not verified", "code": "invalid_token"})
         role = "admin" if claims["sub"] == settings.ADMIN_GOOGLE_SUB else "viewer"
