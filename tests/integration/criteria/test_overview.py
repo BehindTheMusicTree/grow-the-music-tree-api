@@ -7,6 +7,7 @@ from rest_framework import status
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 
 from tests.integration.criteria.GenreTestCase import GenreTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCase(GenreTestCase):
@@ -20,7 +21,7 @@ class TestCase(GenreTestCase):
                 self.model_fixture_factory.create_artist(f"Artist {index}a"),
                 self.model_fixture_factory.create_artist(f"Artist {index}b"),
             )
-            genre.essential_songs.add(track)
+            add_essential_song(genre, track)
 
     def test_returns_exactly_the_overview_fields_publicly(self):
         root = self.model_fixture_factory.create_genre("Electronic")

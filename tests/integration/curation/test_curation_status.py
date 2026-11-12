@@ -11,6 +11,7 @@ from grow.model.curation.CurationSyncState import CurationSyncState
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
 
+MB_ID = "11111111-1111-4111-8111-111111111111"
 ITEM = {"item_id": "Q999999991", "reason": "testing"}
 TREE = {
     Fields.TREE_NAME: "canonical",
@@ -53,6 +54,20 @@ class TestCurationStatus(AppTestCase):
         assert self._status()["pendingCount"] == 0
 
         self._edit({**ITEM, "item_id": "Q999999992"})
+        assert self._status()["pendingCount"] == 1
+
+    def test_essential_songs_edit_then_not_pending(self):
+        genre = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
+        self.model_fixture_factory.create_song("A", genre, musicbrainz_recording_id=MB_ID)
+        row = {"item_id": "Q999999991", "musicbrainz_recording_id": MB_ID, "position": "1", "reason": "r"}
+
+        response = self.api_client.post(
+            path=reverse("curation-entries", kwargs={"list_name": "essential_songs"}), data={"row": row}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        assert self._status()["pendingCount"] == 0
+        self._edit(ITEM)
         assert self._status()["pendingCount"] == 1
 
     def test_admin_export_then_not_recorded(self):

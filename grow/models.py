@@ -13,6 +13,7 @@ from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.criteria.children.genre.GenreEssentialSong import GenreEssentialSong
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
@@ -61,6 +62,7 @@ __all__ = [
     "Genre",
     "GenreCatalogueCount",
     "GenreEdgeRule",
+    "GenreEssentialSong",
     "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeImportPayload",
