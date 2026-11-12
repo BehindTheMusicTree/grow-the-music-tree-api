@@ -125,9 +125,11 @@ def find_edge_candidate_error(
 ) -> tuple[str, str] | None:
     """The `(field, message)` of the first rule-set violation a rule would add to the stored edges, if any."""
     from grow.curation.rule_set import (
+        declared_additions,
         excluded_items,
         find_excluded_edge_conflicts,
         find_root_regional_conflicts,
+        find_undeclared_local_edges,
         involving,
     )
 
@@ -139,5 +141,9 @@ def find_edge_candidate_error(
     violations = involving(find_root_regional_conflicts(edges), {item_id})
     violations += involving(
         find_excluded_edge_conflicts(excluded_items(CurationEntry.objects.filter(user=None)), [candidate]), own
+    )
+    violations += involving(
+        find_undeclared_local_edges(declared_additions(CurationEntry.objects.filter(user=None)), [candidate]),
+        {item_id, parent_item_id},
     )
     return ("item_id", violations[0].message) if violations else None
