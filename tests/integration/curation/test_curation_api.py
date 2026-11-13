@@ -404,6 +404,37 @@ class TestCase(AppTestCase):
         assert entity.status_code == status.HTTP_201_CREATED
         assert no_key.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_tradition_placement_override_then_one_row_per_tradition(self):
+        row = {"wikidata_id": "Q1236", "entity_id": "Q148", "start_year": "", "end_year": "", "reason": "testing"}
+
+        first = self._create(row, "tradition_placement_overrides")
+        second = self._create({**row, "entity_id": "Q865"}, "tradition_placement_overrides")
+
+        assert first.status_code == status.HTTP_201_CREATED
+        assert second.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_extra_places_then_keyed_by_tradition_and_entity(self):
+        row = {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
+
+        first = self._create(row, "tradition_extra_places")
+        other_place = self._create({**row, "entity_id": "Q865"}, "tradition_extra_places")
+        duplicate = self._create(row, "tradition_extra_places")
+        bad_tradition = self._create({**row, "wikidata_id": "bret1244"}, "tradition_extra_places")
+
+        assert first.status_code == status.HTTP_201_CREATED
+        assert other_place.status_code == status.HTTP_201_CREATED
+        assert duplicate.status_code == status.HTTP_400_BAD_REQUEST
+        assert bad_tradition.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_tradition_extra_places_rows(self):
+        self._create({"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}, "tradition_extra_places")
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["tradition_extra_places"] == [
+            {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
+        ]
+
     def test_tradition_link_override_then_kind_and_action_enumerated(self):
         row = {
             "from_wikidata_id": "Q1",
