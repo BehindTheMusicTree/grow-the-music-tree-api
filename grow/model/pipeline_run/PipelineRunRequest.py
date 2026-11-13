@@ -34,16 +34,20 @@ class PipelineRunRequest(models.Model):
 
     class Stage(models.TextChoices):
         FETCHING_RULES = "fetching_rules"
+        INGESTING_DISCOGS = "ingesting_discogs"
         INGESTING_MUSICBRAINZ = "ingesting_musicbrainz"
         INGESTING_WIKIDATA = "ingesting_wikidata"
         BUILDING_SONGS = "building_songs"
         BUILDING_GENRES = "building_genres"
         MATCHING_SONGS = "matching_songs"
+        BUILDING_GOLD = "building_gold"
         IMPORTING_TREE = "importing_tree"
         UPLOADING_SONGS = "uploading_songs"
         MERGING_SONGS = "merging_songs"
         UPLOADING_ARTISTS = "uploading_artists"
         MERGING_ARTISTS = "merging_artists"
+        UPLOADING_REGION_MAP = "uploading_region_map"
+        MERGING_REGION_MAP = "merging_region_map"
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     kind = models.TextField(choices=Kind.choices)
