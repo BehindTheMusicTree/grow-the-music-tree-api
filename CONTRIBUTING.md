@@ -118,6 +118,15 @@ using the organization release-automation procedure, and promote this policy to
 never creates a tag, including if a version bump is combined with it. Promoting to
 `main` deploys production and requires separate authorization.
 
+## CI secrets (maintainers)
+
+`PIPELINES_READ_TOKEN` lets the `Gold contract` job read the Gold schema from the private `the-music-tree-pipelines` repo.
+
+1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token.
+2. Name: `grow-api-ci-pipelines-read`. Resource owner: `BehindTheMusicTree`. Expiration: 1 year (put the renewal date in your calendar).
+3. Repository access: only `the-music-tree-pipelines`. Permissions: Contents → Read-only (Metadata read is added automatically). Nothing else.
+4. Add the value as a repository secret `PIPELINES_READ_TOKEN` under Settings → Secrets and variables → Actions, and again under Dependabot.
+
 ## License & Attribution
 
 All contributions are made under the project's Apache License 2.0. You retain authorship of your code; the project retains redistribution rights under the same license. See the [LICENSE](LICENSE) file for details.

@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- CI job `Gold contract` fetches the Gold schema from the now-private pipelines repo through the GitHub contents API with the `PIPELINES_READ_TOKEN` secret (fine-grained, Contents:read on `the-music-tree-pipelines`); the unauthenticated raw URL returned 404.
 - A Google ID token minted for another OAuth client now gets a 401 with code `invalid_audience` instead of the generic `invalid_token`, so a client pointed at the wrong API is diagnosable. Signature, expiry and issuer are still verified. Tests in `test_google_id_token_auth.py`.
 - **A redeploy no longer breaks a songs/artists import**: a worker killed after the merge committed (run 95 on staging) used to end `failed` with the run left uncleaned. Reconcile now queues a finalizing attempt (up to 3) that skips the merge and only cleans up; a run already cleaned counts as succeeded. The deploy workflow waits for running imports to drain (`manage.py wait_for_import_drain`, skipped with the `skip_import_drain` dispatch input). Tests cover reconcile, the drain command and the resumed attempt (SQLite and Postgres).
 - The genre tree import keeps each node's `primaryParents` / `secondaryParents` again: with api-kit 0.12.0 every non-empty list was validated to `None`, so `grow_criteria_additional_primary_parents` stayed empty on staging and Music of Ireland showed 0 songs. The kits are bumped to genre-kit 0.60.1 (api-kit 0.12.1). A regional-tree import test checks the parent and both M2M links.

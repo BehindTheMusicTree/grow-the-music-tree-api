@@ -124,13 +124,20 @@ jobs:
       - name: Fetch the Gold tree schema
         env:
           TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+          # The pipelines repo is private: a fine-grained token with Contents:read on it.
+          # It expires (renew it, a lapsed token shows as a curl 401/404), and Dependabot PRs
+          # need the same secret under Dependabot secrets; fork PRs get none and fail fast.
+          PIPELINES_READ_TOKEN: ${{ secrets.PIPELINES_READ_TOKEN }}
         run: |
           case "$TARGET_BRANCH" in
             main) ref=main ;;
             *) ref=develop ;;
           esac
+          : "${PIPELINES_READ_TOKEN:?PIPELINES_READ_TOKEN secret is not set}"
           curl --fail --silent --show-error --location \
-            "https://raw.githubusercontent.com/BehindTheMusicTree/the-music-tree-pipelines/${ref}/pipelines/gold/src/gold/schemas/genre_tree.schema.json" \
+            --header "Authorization: Bearer $PIPELINES_READ_TOKEN" \
+            --header "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/BehindTheMusicTree/the-music-tree-pipelines/contents/pipelines/gold/src/gold/schemas/genre_tree.schema.json?ref=${ref}" \
             --output "$RUNNER_TEMP/genre_tree.schema.json"
           echo "GOLD_SCHEMA_PATH=$RUNNER_TEMP/genre_tree.schema.json" >> "$GITHUB_ENV"
 
