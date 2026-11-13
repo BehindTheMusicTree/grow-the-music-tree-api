@@ -50,23 +50,28 @@ def autovacuum_off_on_locked_tables(django_db_setup, django_db_blocker):
     # Autovacuum/autoanalyze takes SHARE UPDATE EXCLUSIVE locks on these small, constantly
     # truncated tables, which makes the migration's LOCK ... NOWAIT fail regardless of the code under test.
     tables = import_module(MIGRATION_0115).LOCKED_TABLES
-    with django_db_blocker.unblock(), connection.cursor() as cursor:
-        for table in tables:
-            cursor.execute(f"ALTER TABLE {table} SET (autovacuum_enabled = false)")
-        deadline = monotonic() + 10
-        while True:
-            cursor.execute("SELECT count(*) FROM pg_stat_activity WHERE backend_type = 'autovacuum worker'")
-            if cursor.fetchone()[0] == 0:
-                break
-            if monotonic() >= deadline:
-                raise TimeoutError(
-                    "An autovacuum worker is still running; locks on the tables under test are not stable"
+    try:
+        with django_db_blocker.unblock(), connection.cursor() as cursor:
+            for table in tables:
+                cursor.execute(f"ALTER TABLE {table} SET (autovacuum_enabled = false)")
+            deadline = monotonic() + 10
+            while True:
+                cursor.execute(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE backend_type = 'autovacuum worker' AND datname = current_database()"
                 )
-            sleep(0.05)
-    yield
-    with django_db_blocker.unblock(), connection.cursor() as cursor:
-        for table in tables:
-            cursor.execute(f"ALTER TABLE {table} RESET (autovacuum_enabled)")
+                if cursor.fetchone()[0] == 0:
+                    break
+                if monotonic() >= deadline:
+                    raise TimeoutError(
+                        "An autovacuum worker is still running; locks on the tables under test are not stable"
+                    )
+                sleep(0.05)
+        yield
+    finally:
+        with django_db_blocker.unblock(), connection.cursor() as cursor:
+            for table in tables:
+                cursor.execute(f"ALTER TABLE {table} RESET (autovacuum_enabled)")
 
 
 def in_connection(operation):
