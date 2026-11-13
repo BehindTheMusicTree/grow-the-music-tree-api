@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  # The pipelines schema can change without a grow commit: catch the drift before the next staging run.
+  # Nightly run: catches dependency drift without a grow commit.
   schedule:
     - cron: "17 5 * * *"
 
@@ -119,27 +119,6 @@ jobs:
 
       - name: Sync dependencies
         run: uv sync --all-extras
-
-      # The pipelines branch mirroring grow's: develop for develop/feature work, main for main/hotfix.
-      - name: Fetch the Gold tree schema
-        env:
-          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
-          # The pipelines repo is private: a fine-grained token with Contents:read on it.
-          # It expires (renew it, a lapsed token shows as a curl 401/404), and Dependabot PRs
-          # need the same secret under Dependabot secrets; fork PRs get none and fail fast.
-          PIPELINES_READ_TOKEN: ${{ secrets.PIPELINES_READ_TOKEN }}
-        run: |
-          case "$TARGET_BRANCH" in
-            main) ref=main ;;
-            *) ref=develop ;;
-          esac
-          : "${PIPELINES_READ_TOKEN:?PIPELINES_READ_TOKEN secret is not set}"
-          curl --fail --silent --show-error --location \
-            --header "Authorization: Bearer $PIPELINES_READ_TOKEN" \
-            --header "Accept: application/vnd.github.raw+json" \
-            "https://api.github.com/repos/BehindTheMusicTree/the-music-tree-pipelines/contents/pipelines/gold/src/gold/schemas/genre_tree.schema.json?ref=${ref}" \
-            --output "$RUNNER_TEMP/genre_tree.schema.json"
-          echo "GOLD_SCHEMA_PATH=$RUNNER_TEMP/genre_tree.schema.json" >> "$GITHUB_ENV"
 
       - name: Run the contract tests
         run: uv run pytest -m contract --no-cov

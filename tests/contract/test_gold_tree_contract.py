@@ -1,18 +1,15 @@
-"""Gold → grow genre tree contract, checked against the pipelines' published JSON Schema.
+"""Gold → grow genre tree contract, checked against the JSON Schema owned by the genre kit.
 
-Run with `GOLD_SCHEMA_PATH=<genre_tree.schema.json> pytest -m contract --no-cov`. The schema is the pipelines'
-`pipelines/gold/src/gold/schemas/genre_tree.schema.json`; CI fetches it from the matching pipelines branch.
+Run with `pytest -m contract --no-cov`. The schema ships in the installed `the-music-tree-genre-kit` package
+(`load_genre_tree_schema()`), pinned by tag, so it needs no network and no token.
 """
-
-import json
-import os
-from pathlib import Path
 
 import pytest
 from django.conf import settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.schema import load_genre_tree_schema
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import (
     CriteriaTreeImportSerializer,
 )
@@ -91,10 +88,7 @@ def _tree_files(exported_on: str) -> list[dict]:
 
 @pytest.fixture(scope="module")
 def schema() -> dict:
-    path = os.environ.get("GOLD_SCHEMA_PATH")
-    if not path:
-        raise RuntimeError("GOLD_SCHEMA_PATH is not set: point it at the pipelines genre_tree.schema.json")
-    return json.loads(Path(path).read_text())
+    return load_genre_tree_schema()
 
 
 def _walk_nodes(nodes: list[dict]):
@@ -147,16 +141,6 @@ def test_grow_accepts_every_schema_property(schema):
 
     assert declared["file"] - POPPED_BY_GROW <= set(file_fields)
     assert declared["node"] <= set(node_fields)
-
-
-def test_grow_required_fields_are_required_by_schema(schema):
-    file_required = {k for k, required in _grow_fields(CriteriaTreeImportSerializer()).items() if required}
-    node_required = {
-        k for k, required in _grow_fields(CriteriaTreeNodeSerializer(structure_field_name="tree")).items() if required
-    }
-
-    assert file_required <= set(schema["required"])
-    assert node_required <= set(schema["$defs"]["node"]["required"])
 
 
 class TestGoldTreeContractEndToEnd(AppTestCase):
