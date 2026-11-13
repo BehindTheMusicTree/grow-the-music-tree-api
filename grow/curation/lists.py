@@ -298,7 +298,14 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("wikidata_id",),
         ("wikidata_id", "entity_id", "start_year", "end_year", "reason"),
         "Cultural entity and start and end year (BCE negative, no year 0) placing a music tradition, overriding the "
-        "derived ones; a blank field keeps the derived value.",
+        "derived ones; a blank field keeps the derived value. One row per tradition: further places go in "
+        "`tradition_extra_places`.",
+    ),
+    "tradition_extra_places": CurationList(
+        "geohistory",
+        ("wikidata_id", "entity_id"),
+        ("wikidata_id", "entity_id", "reason"),
+        "Further places a music tradition is listed on beside its anchor (a successor state's heirs).",
     ),
     "tradition_link_overrides": CurationList(
         "geohistory",
