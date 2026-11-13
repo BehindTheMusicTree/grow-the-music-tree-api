@@ -125,6 +125,8 @@ jobs:
         env:
           TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
           # The pipelines repo is private: a fine-grained token with Contents:read on it.
+          # It expires (renew it, a lapsed token shows as a curl 401/404), and Dependabot PRs
+          # need the same secret under Dependabot secrets; fork PRs get none and fail fast.
           PIPELINES_READ_TOKEN: ${{ secrets.PIPELINES_READ_TOKEN }}
         run: |
           case "$TARGET_BRANCH" in
