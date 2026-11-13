@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from importlib import import_module
 from threading import Event
-from time import monotonic
+from time import monotonic, sleep
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -35,6 +35,43 @@ from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
+
+MIGRATION_0115 = "grow.migrations.0115_maintain_genre_catalogue_counts"
+# Relations an old source writer can hold. A NOWAIT failure on any other locked table
+# (e.g. grow_criteria) comes from a lock holder that is not the writer under test.
+WRITER_RELATION_LOCK_ERROR = (
+    r'could not obtain lock on relation "(the_music_tree_genre_kit_track_playlist_rel|'
+    r'the_music_tree_genre_kit_track|grow_song)"'
+)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def autovacuum_off_on_locked_tables(django_db_setup, django_db_blocker):
+    # Autovacuum/autoanalyze takes SHARE UPDATE EXCLUSIVE locks on these small, constantly
+    # truncated tables, which makes the migration's LOCK ... NOWAIT fail regardless of the code under test.
+    tables = import_module(MIGRATION_0115).LOCKED_TABLES
+    try:
+        with django_db_blocker.unblock(), connection.cursor() as cursor:
+            for table in tables:
+                cursor.execute(f"ALTER TABLE {table} SET (autovacuum_enabled = false)")
+            deadline = monotonic() + 10
+            while True:
+                cursor.execute(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE backend_type = 'autovacuum worker' AND datname = current_database()"
+                )
+                if cursor.fetchone()[0] == 0:
+                    break
+                if monotonic() >= deadline:
+                    raise TimeoutError(
+                        "An autovacuum worker is still running; locks on the tables under test are not stable"
+                    )
+                sleep(0.05)
+        yield
+    finally:
+        with django_db_blocker.unblock(), connection.cursor() as cursor:
+            for table in tables:
+                cursor.execute(f"ALTER TABLE {table} RESET (autovacuum_enabled)")
 
 
 def in_connection(operation):
@@ -361,7 +398,7 @@ def test_summary_inputs_use_one_query(catalogue, warm, django_assert_num_queries
 
 @pytest.fixture
 def uninstalled_catalogue_projection(catalogue):
-    migration = import_module("grow.migrations.0115_maintain_genre_catalogue_counts")
+    migration = import_module(MIGRATION_0115)
     migration.drop(apps, connection.schema_editor())
     GenreCatalogueCount.objects.all().delete()
     try:
@@ -389,7 +426,7 @@ def test_migration_busy_old_writer_fails_cleanly(catalogue, uninstalled_catalogu
         writer = pool.submit(in_connection, old_writer)
         try:
             assert held.wait(5)
-            with pytest.raises(OperationalError, match="could not obtain lock"), transaction.atomic():
+            with pytest.raises(OperationalError, match=WRITER_RELATION_LOCK_ERROR), transaction.atomic():
                 uninstalled_catalogue_projection.create(apps, connection.schema_editor())
         finally:
             release.set()
@@ -471,7 +508,7 @@ def test_migration_rejects_writer_queued_at_old_source_gate(catalogue, uninstall
                 if monotonic() >= deadline:
                     raise TimeoutError("Old writer did not queue at source gate")
                 release.wait(0.01)
-            with pytest.raises(OperationalError, match="could not obtain lock"), transaction.atomic():
+            with pytest.raises(OperationalError, match=WRITER_RELATION_LOCK_ERROR), transaction.atomic():
                 uninstalled_catalogue_projection.create(apps, connection.schema_editor())
         finally:
             release.set()

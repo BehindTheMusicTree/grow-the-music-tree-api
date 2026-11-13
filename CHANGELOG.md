@@ -33,6 +33,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Breaking:** `POST genres/{uuid}/set-root/`, replaced by `PUT` with `parent: null`.
 
+### Fixed
+
+- The catalogue migration concurrency tests no longer fail at random: autovacuum, which locks the small, constantly truncated tables, is switched off on them for the module, and the `could not obtain lock` assertions now name the writer's relations, so a lock held by anything else cannot pass for the expected failure.
+
 ### Added
 
 - CI job `Gold contract` (`pytest -m contract`, also run daily) checks grow's tree import against the pipelines' `genre_tree.schema.json`, fetched from the matching branch: the sample file covers every schema property, grow's required fields are required by the schema, and a batch of Gold files imports end to end. A schema change grow does not accept now fails there instead of on the next staging run.
