@@ -15,6 +15,7 @@ from grow.model.artist_link.ArtistLink import ArtistLink
 TYPES = set(Artist.Type.values)
 ORIGIN_SOURCES = set(Artist.OriginSource.values)
 WIKIDATA_ID = re.compile(r"Q[1-9][0-9]*")
+COUNTRY = re.compile(r"[A-Z]{2}")
 LINK_KINDS = set(ArtistLink.Kind.values)
 # A btree key (artist, kind, url) must stay under ~2.7 kB.
 LINK_URL_LEN_MAX = 2048  # bytes
@@ -90,7 +91,11 @@ def _row(line_number: int, line: bytes) -> tuple:
     )
     _require(artist.get("type") in TYPES | {None}, line_number, "unknown type")
     country = artist.get("country")
-    _require(country is None or (_is_text(country) and len(country) == 2), line_number, "country must be ISO 3166-1")
+    _require(
+        country is None or (_is_text(country) and COUNTRY.fullmatch(country)),
+        line_number,
+        "country must be ISO 3166-1 alpha-2 uppercase",
+    )
     _require(_is_year(artist.get("begin_year")) and _is_year(artist.get("end_year")), line_number, "invalid year")
     _require(isinstance(artist.get("ended"), bool), line_number, "ended must be a boolean")
     disambiguation = artist.get("disambiguation")

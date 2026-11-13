@@ -17,11 +17,29 @@ TRADITION = {
     "sitelinks": 120,
 }
 DOCUMENT = {
-    "columns": [{"position": 0, "startYear": 1800}],
-    "bands": [{"columnId": "c0", "fragmentId": "b0"}],
-    "successions": [],
+    "columns": [
+        {
+            "id": "c0",
+            "position": 0,
+            "regionId": "r0",
+            "lanes": [{"entityId": "E1", "label": "Blues", "startYear": 1890, "endYear": 2000}],
+        }
+    ],
+    "regions": [{"id": "r0", "label": "North America", "startPosition": 0, "endPosition": 0}],
+    "bands": [
+        {
+            "entityId": "E1",
+            "label": "Blues",
+            "fragment": 0,
+            "startPosition": 0,
+            "endPosition": 0,
+            "startYear": 1890,
+            "endYear": None,
+        }
+    ],
+    "successions": [{"predecessorId": "E1", "successorId": "E2"}],
     "traditions": [TRADITION],
-    "traditionLinks": [{"sourceId": "Q1", "targetId": "Q2"}],
+    "traditionLinks": [{"sourceId": "Q1", "targetId": "Q2", "kind": "lineage"}],
 }
 
 
@@ -69,6 +87,8 @@ class TestGenealogy(AppTestCase):
             {**DOCUMENT, "traditions": [{"wikidataId": "Q1"}]},
             {**DOCUMENT, "traditions": [{k: v for k, v in TRADITION.items() if k != "sitelinks"}]},
             {**DOCUMENT, "traditions": [{**TRADITION, "sitelinks": -1}]},
+            {**DOCUMENT, "traditionLinks": [{"sourceId": "Q1", "targetId": "Q2", "kind": "unknown"}]},
+            {**DOCUMENT, "unexpected": []},
             [],
         ):
             assert self.pipeline.post(self.import_url, body, format="json").status_code == status.HTTP_400_BAD_REQUEST

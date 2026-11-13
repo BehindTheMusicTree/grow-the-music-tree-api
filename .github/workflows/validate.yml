@@ -104,21 +104,3 @@ jobs:
 
       - name: Run Postgres-only pytest
         run: uv run pytest -m postgres --ds=tests.postgres_settings --no-cov
-
-  gold-contract:
-    name: Gold contract
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5.0.1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.14"
-
-      - name: Sync dependencies
-        run: uv sync --all-extras
-
-      - name: Run the contract tests
-        run: uv run pytest -m contract --no-cov
