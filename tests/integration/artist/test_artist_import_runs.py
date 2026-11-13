@@ -70,6 +70,25 @@ IMAGE = {
     "license": "CC BY-SA 4.0",
     "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
 }
+ORIGIN = {
+    "name": "Liverpool",
+    "musicbrainz_area_id": "7a1b1b43-2d8e-4e0a-8b8a-5b3a3e0f6c11",
+    "kind": "city",
+    "source": "begin_area",
+    "wikidata_id": "Q24826",
+    "longitude": -2.99,
+    "latitude": 53.41,
+    "region_id": "Q23",
+}
+ORIGIN_COLUMNS = (
+    "origin_name",
+    "origin_kind",
+    "origin_source",
+    "origin_wikidata_id",
+    "origin_longitude",
+    "origin_latitude",
+    "origin_region_id",
+)
 OTHER = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
 RUNS = reverse("artist-list") + "import-runs/"
 
@@ -313,6 +332,33 @@ class TestImportRunMerge(AppTestCase):
 
         assert image() == (None,) * 5
 
+    def test_origin_imported_updated_and_cleared(self):
+        def origin() -> tuple:
+            return tuple(Artist.objects.filter(musicbrainz_artist_id=BAND).values_list(*ORIGIN_COLUMNS).get())
+
+        self._sync([{**ARTIST, "origin": ORIGIN}])
+
+        assert origin() == ("Liverpool", "city", "begin_area", "Q24826", -2.99, 53.41, "Q23")
+        updated_on = Artist.objects.get(musicbrainz_artist_id=BAND).updated_on
+
+        self._sync([{**ARTIST, "origin": ORIGIN}])
+
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).updated_on == updated_on
+
+        self._sync([{**ARTIST, "origin": {**ORIGIN, "source": "area", "wikidata_id": None, "region_id": None}}])
+
+        assert origin() == ("Liverpool", "city", "area", None, -2.99, 53.41, None)
+
+        self._sync([ARTIST])
+
+        assert origin() == (None,) * 7
+
+    def test_origin_without_kind_imported(self):
+        self._sync([{**ARTIST, "origin": {**ORIGIN, "kind": None}}])
+
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).origin_kind is None
+        assert Artist.objects.get(musicbrainz_artist_id=BAND).origin_name == "Liverpool"
+
     def test_deleted_artist_takes_its_aliases(self):
         self._sync([{**ARTIST, "aliases": ["Floyd"]}, PERSON])
 
@@ -424,6 +470,13 @@ class TestImportRunMerge(AppTestCase):
             _gzip_ndjson([{**ARTIST, "aliases": ["x" * 2049]}]),
             _gzip_ndjson([{**ARTIST, "disambiguation": ""}]),
             _gzip_ndjson([{**ARTIST, "disambiguation": 3}]),
+            _gzip_ndjson([{**ARTIST, "origin": "Liverpool"}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "name": ""}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "kind": ""}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "source": "birthplace"}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "wikidata_id": "24826"}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "latitude": None}}]),
+            _gzip_ndjson([{**ARTIST, "origin": {**ORIGIN, "longitude": 181}}]),
         ]
 
         codes = [self._upload(run_id, 0, body).status_code for body in invalid]

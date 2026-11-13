@@ -29,5 +29,6 @@ class CriteriaOverviewSerializer(
             CriteriaOutputFieldKey.DESCRIPTION.value,
             CriteriaOutputFieldKey.SUMMARY_SOURCE_URL.value,
             CriteriaOutputFieldKey.SIDE.value,
+            CriteriaOutputFieldKey.IMAGE.value,
             CriteriaOutputFieldKey.ESSENTIAL_SONGS.value,
         ]

@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from the_music_tree_api_kit.commons_image.CommonsImage import commons_image_complete_constraint
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
 from the_music_tree_api_kit.field.foreign_key.PrivateManyToManyField import PrivateManyToManyField
@@ -19,7 +20,10 @@ from .GenreManager import REQUIRED_ROOT_GENRE_NAMES, GenreManager
 class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-missing]
     criteria_ptr = PrivateOneToOneField(Criteria, on_delete=models.CASCADE, parent_link=True, related_name="genre")
     essential_songs = PrivateManyToManyField(
-        settings.TRACK_MODEL, blank=True, related_name=TrackFields.ESSENTIAL_FOR_GENRES_RELATED_NAME
+        settings.TRACK_MODEL,
+        blank=True,
+        related_name=TrackFields.ESSENTIAL_FOR_GENRES_RELATED_NAME,
+        through="grow.GenreEssentialSong",
     )
     """Curated per-genre, not inherited from or propagated to subgenres."""
 
@@ -27,6 +31,7 @@ class Genre(AbstractGenreCriteria, Criteria):  # type: ignore[django-manager-mis
 
     class Meta:
         db_table = "grow_genre"
+        constraints = [commons_image_complete_constraint("grow_genre_image_complete")]
 
     def save(self, *args, **kwargs):
         self.type = CriteriaType.objects.get(pk=CriteriaTypePks.GENRE)

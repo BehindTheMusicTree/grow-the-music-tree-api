@@ -32,6 +32,7 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
   "beginYear": 1985,
   "endYear": null,
   "ended": false,
+  "origin": {"name": "Abingdon", "kind": "city", "source": "begin_area", "wikidataId": "Q1111", "longitude": -1.28, "latitude": 51.67, "regionId": "Q21"},
   "links": [{"kind": "official", "url": "https://radiohead.com"}],
   "members": [{"artist": {"uuid": "…", "name": "Thom Yorke"}, "beginYear": 1985, "endYear": null, "ended": false, "roles": ["vocals"]}],
   "memberOf": [],
@@ -45,6 +46,10 @@ Reads are public. The import endpoints take the `X-API-Key` header (`PIPELINE_AP
 `type`: `person|group|orchestra|choir|character|other|null`. `links[].kind`:
 `official|wikipedia|wikidata|spotify|youtube|bandcamp|soundcloud|discogs|social`. `memberOf` has the `members` shape,
 `artist` being the group. Links are ordered by kind then URL, memberships by `beginYear`, albums by `year` (a four-digit string) then name.
+`origin` is the place of origin, `null` when MusicBrainz has none: `source` is `begin_area` (born / formed there) or `area`
+(the artist's area, used when there is no begin area). `kind` is the MusicBrainz area type, lowercased (`country`,
+`subdivision`, `city`…), `null` when the area has no type. `wikidataId`, `longitude`/`latitude` and `regionId` (the region map's id, for `/map?region=`)
+are each `null` when unknown. `regionId` is also `null` when the latest region map does not draw that region, so `/map?region=` always resolves.
 `tracksCount` counts the songs with a genre, the ones the library lists.
 
 #### Genre counts
@@ -92,7 +97,7 @@ their MBID):
 
 1. `POST {base}import-runs/` → `{runId}`
 2. `PUT {base}import-runs/<runId>/parts/<n>/` per gzip NDJSON part, one artist per line:
-   `{musicbrainz_artist_id, name, type, country, begin_year, end_year, ended, members: [{musicbrainz_artist_id, begin_year, end_year, ended, roles}], links: [{kind, url}], release_groups: [{musicbrainz_release_group_id, title, primary_type, secondary_types, first_release_year}]}`
+   `{musicbrainz_artist_id, name, type, country, begin_year, end_year, ended, origin: {name, kind (nullable), source, wikidata_id, longitude, latitude, region_id} | null (optional), members: [{musicbrainz_artist_id, begin_year, end_year, ended, roles}], links: [{kind, url}], release_groups: [{musicbrainz_release_group_id, title, primary_type, secondary_types, first_release_year}]}`
 3. `POST {base}import-runs/<runId>/commit/` → `{taskId}`
 4. `GET {base}import/<taskId>/status/`: polling also re-enqueues a merge lost to a worker restart (it stays `pending` until the re-run finishes)
 

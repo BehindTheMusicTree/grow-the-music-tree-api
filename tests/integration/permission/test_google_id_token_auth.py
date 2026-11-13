@@ -8,8 +8,9 @@ from rest_framework import status
 from tests.utils.AppTestCase import AppTestCase
 
 VERIFY = "grow.authentication.GoogleIdTokenAuthentication.id_token.verify_oauth2_token"
-ADMIN_CLAIMS = {"sub": settings.ADMIN_GOOGLE_SUB, "email": "admin@example.com", "email_verified": True}
-VIEWER_CLAIMS = {"sub": "someone-else", "email": "viewer@example.com", "email_verified": True}
+AUD = settings.GOOGLE_OAUTH_CLIENT_ID
+ADMIN_CLAIMS = {"sub": settings.ADMIN_GOOGLE_SUB, "email": "admin@example.com", "email_verified": True, "aud": AUD}
+VIEWER_CLAIMS = {"sub": "someone-else", "email": "viewer@example.com", "email_verified": True, "aud": AUD}
 
 
 class TestCase(AppTestCase):
@@ -27,7 +28,7 @@ class TestCase(AppTestCase):
             response = self._post_genre()
 
         assert response.status_code == status.HTTP_201_CREATED
-        assert verify.call_args.kwargs["audience"] == settings.GOOGLE_OAUTH_CLIENT_ID
+        assert verify.call_args.kwargs["audience"] is None
 
     def test_viewer_token_write_then_403_permission_denied(self):
         self._use_token()
@@ -51,6 +52,32 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         assert response.json()["details"]["code"] == "invalid_token"
+
+    def test_wrong_audience_then_401_invalid_audience(self):
+        self._use_token()
+        with patch(VERIFY, return_value={**ADMIN_CLAIMS, "aud": "another-client.apps.googleusercontent.com"}):
+            response = self._post_genre()
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.json()["details"]["code"] == "invalid_audience"
+
+    def test_missing_or_list_audience_then_401_invalid_audience(self):
+        self._use_token()
+        no_aud = {k: v for k, v in ADMIN_CLAIMS.items() if k != "aud"}
+        for claims in (no_aud, {**ADMIN_CLAIMS, "aud": [AUD]}):
+            with patch(VERIFY, return_value=claims):
+                response = self._post_genre()
+
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+            assert response.json()["details"]["code"] == "invalid_audience"
+
+    def test_wrong_audience_on_public_get_then_401(self):
+        self._use_token()
+        with patch(VERIFY, return_value={**VIEWER_CLAIMS, "aud": "another-client.apps.googleusercontent.com"}):
+            response = self.api_client.get(path=reverse(self.list_endpoint))
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        assert response.json()["details"]["code"] == "invalid_audience"
 
     def test_google_unreachable_then_503_auth_provider_unavailable(self):
         self._use_token()

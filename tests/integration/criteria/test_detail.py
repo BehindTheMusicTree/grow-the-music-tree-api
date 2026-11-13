@@ -6,6 +6,7 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.integration.criteria.GenreTestCase import GenreTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCriteriaDetail(GenreTestCase):
@@ -22,7 +23,7 @@ class TestCriteriaDetail(GenreTestCase):
             for index in range(count):
                 song = self.model_fixture_factory.create_song(f"{genre.name} {index}", genre=genre)
                 song.artists.add(self.model_fixture_factory.create_artist(f"{genre.name} artist {index}"))
-                genre.essential_songs.add(song)
+                add_essential_song(genre, song)
 
         def get(genre):
             return self.api_client.get(reverse("genre-detail", kwargs={"pk": genre.uuid}))
@@ -149,7 +150,7 @@ class TestCriteriaDetail(GenreTestCase):
             for index in range(count):
                 song = self.model_fixture_factory.create_song(f"{genre.name} {index}", genre=genre)
                 song.artists.add(self.model_fixture_factory.create_artist(f"{genre.name} artist {index}"))
-                genre.essential_songs.add(song)
+                add_essential_song(genre, song)
         with CaptureQueriesContext(connection) as small_queries:
             small_response = self._put_genre(small.uuid, {"summary": "Updated"})
         with CaptureQueriesContext(connection) as large_queries:

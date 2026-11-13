@@ -2,6 +2,9 @@ from django.db import models
 
 from grow.model.import_run.ImportRun import ImportRun
 
+# Not an `ImportRun.Kind`: its runs are recorded per tree (canonical / regional), so `/imports/latest/` never lists it.
+GENRE_TREES_KIND = "genre_trees"
+
 
 class BulkImportRun(models.Model):
     """A staged import of one `kind`: parts are uploaded into the kind's staging table, then one commit merges them."""
@@ -10,7 +13,7 @@ class BulkImportRun(models.Model):
         FULL = "full"
         DELTA = "delta"
 
-    kind = models.TextField(choices=ImportRun.Kind.choices)
+    kind = models.TextField(choices=[*ImportRun.Kind.choices, (GENRE_TREES_KIND, "Genre Trees")])
     # `full`: the run is the whole catalog, so owner rows missing from it are deleted. `delta`: only changed rows plus
     # explicit deletions (`BulkImportDeletion`), nothing else is deleted.
     mode = models.TextField(choices=Mode.choices, default=Mode.FULL)

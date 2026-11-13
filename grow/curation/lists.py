@@ -17,6 +17,7 @@ ITEM_ID_COLUMNS = frozenset(
         "context_item_id",
         "root_item_id",
         "pop_child_item_id",
+        "replacement_item_id",
     }
 )
 ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
@@ -33,6 +34,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
+    "synthetic_overview_resolutions": {"action": ("replace", "remove")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
         "entity_kind": ("cultural_region", "macro_region", "city", "admin_unit", "historical_country")
@@ -42,7 +44,16 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
 INT_COLUMNS = frozenset({"start_year", "end_year"})
 BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default", "is_cultural"})
 OPTIONAL_COLUMNS = frozenset(
-    {"genre_item_id", "entity_id", "entity_kind", "youtube_video_id", "unplayable_reason", "summary", *INT_COLUMNS}
+    {
+        "genre_item_id",
+        "replacement_item_id",
+        "entity_id",
+        "entity_kind",
+        "youtube_video_id",
+        "unplayable_reason",
+        "summary",
+        *INT_COLUMNS,
+    }
 )
 REASON_COLUMN = "reason"
 KEY_MAX_LENGTH = 512
@@ -121,6 +132,13 @@ CURATION_LISTS: dict[str, CurationList] = {
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
+    "synthetic_overview_resolutions": CurationList(
+        "gold",
+        ("item_id",),
+        ("item_id", "action", "replacement_item_id", "reason"),
+        "Generated `LOCAL:region-*` overviews retired by hand: `replace` moves its children under "
+        "`replacement_item_id`, `remove` drops the node. Without an entry, the pipeline keeps the overview.",
+    ),
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
     "umbrella_non_stylistic_genres": _item_list(
@@ -142,6 +160,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_genre_name",),
         ("musicbrainz_genre_name", "reason"),
         "MusicBrainz genre tags that are permanent non-genre noise, accepted as unmatched.",
+    ),
+    "musicbrainz_free_genre_tags": CurationList(
+        "musicbrainz",
+        ("musicbrainz_tag_name",),
+        ("musicbrainz_tag_name", "reason"),
+        "Free MusicBrainz tags that are not official MusicBrainz genres but are kept as genre tags.",
     ),
     "canonical_genre_pop_side": CurationList(
         "gold",
@@ -184,7 +208,7 @@ CURATION_LISTS: dict[str, CurationList] = {
         "gold",
         ("item_id", "musicbrainz_recording_id"),
         ("item_id", "musicbrainz_recording_id", "position", "reason"),
-        "Songs an admin picked as essential for a genre, in order.",
+        "Songs an admin picked as essential for a genre, in order. Grow applies edits to the genre at once; Gold only checks each MBID exists.",
     ),
     "summary_overrides": CurationList(
         "gold",
@@ -274,7 +298,14 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("wikidata_id",),
         ("wikidata_id", "entity_id", "start_year", "end_year", "reason"),
         "Cultural entity and start and end year (BCE negative, no year 0) placing a music tradition, overriding the "
-        "derived ones; a blank field keeps the derived value.",
+        "derived ones; a blank field keeps the derived value. One row per tradition: further places go in "
+        "`tradition_extra_places`.",
+    ),
+    "tradition_extra_places": CurationList(
+        "geohistory",
+        ("wikidata_id", "entity_id"),
+        ("wikidata_id", "entity_id", "reason"),
+        "Further places a music tradition is listed on beside its anchor (a successor state's heirs).",
     ),
     "tradition_link_overrides": CurationList(
         "geohistory",

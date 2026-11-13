@@ -7,6 +7,7 @@ from rest_framework import status
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 
 from tests.integration.criteria.GenreTestCase import GenreTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCase(GenreTestCase):
@@ -20,7 +21,7 @@ class TestCase(GenreTestCase):
                 self.model_fixture_factory.create_artist(f"Artist {index}a"),
                 self.model_fixture_factory.create_artist(f"Artist {index}b"),
             )
-            genre.essential_songs.add(track)
+            add_essential_song(genre, track)
 
     def test_returns_exactly_the_overview_fields_publicly(self):
         root = self.model_fixture_factory.create_genre("Electronic")
@@ -39,6 +40,7 @@ class TestCase(GenreTestCase):
             "description",
             "summarySourceUrl",
             "side",
+            "image",
             "essentialSongs",
         }
         assert body["name"] == "EDM"
@@ -58,6 +60,31 @@ class TestCase(GenreTestCase):
         assert body["description"] == "Dance music"
         assert body["summarySourceUrl"] == "https://en.wikipedia.org/wiki/EDM"
 
+    def test_returns_the_genre_image_with_its_attribution(self):
+        genre = self.model_fixture_factory.create_genre(
+            "EDM",
+            image_url="https://upload.wikimedia.org/edm.jpg",
+            image_page_url="https://commons.wikimedia.org/wiki/File:Edm.jpg",
+            image_author="Jane",
+            image_license="CC BY-SA 4.0",
+            image_license_url="https://creativecommons.org/licenses/by-sa/4.0",
+        )
+
+        body = self._get_overview(genre.uuid).json()
+
+        assert body["image"] == {
+            "url": "https://upload.wikimedia.org/edm.jpg",
+            "pageUrl": "https://commons.wikimedia.org/wiki/File:Edm.jpg",
+            "author": "Jane",
+            "license": "CC BY-SA 4.0",
+            "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+        }
+
+    def test_image_is_null_without_an_image(self):
+        genre = self.model_fixture_factory.create_genre("EDM")
+
+        assert self._get_overview(genre.uuid).json()["image"] is None
+
     def test_tag_overview_has_no_side_or_essential_songs(self):
         tag = self.model_fixture_factory.create_tag("Live")
 
@@ -68,6 +95,7 @@ class TestCase(GenreTestCase):
         assert response.json()["essentialSongs"] == []
         assert response.json()["description"] is None
         assert response.json()["summarySourceUrl"] is None
+        assert response.json()["image"] is None
 
     def test_unknown_uuid_returns_404(self):
         response = self._get_overview(uuid.uuid4())

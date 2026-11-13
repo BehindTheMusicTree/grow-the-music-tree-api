@@ -11,6 +11,11 @@ on:
   push:
     branches: [develop, main]
   workflow_dispatch:
+    inputs:
+      skip_import_drain:
+        description: Deploy without waiting for running imports (urgent hotfix only)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -77,6 +82,23 @@ jobs:
     runs-on: ubuntu-latest
     environment: STAGING
     steps:
+      - name: Wait for import drain
+        if: ${{ !inputs.skip_import_drain }}
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        with:
+          app_name: gtmt-api
+          coolify_environment: staging
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
+          image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
+          command: python3 manage.py wait_for_import_drain --timeout 2700
+          timeout_minutes: 50
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
+          server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
+          server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS }}
+
       # Release phase: migrations run once, from the exact image being deployed, outside Coolify's
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
@@ -132,6 +154,23 @@ jobs:
     runs-on: ubuntu-latest
     environment: PROD
     steps:
+      - name: Wait for import drain
+        if: ${{ !inputs.skip_import_drain }}
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        with:
+          app_name: gtmt-api
+          coolify_environment: production
+          coolify_subdomain: ${{ vars.COOLIFY_API_SUBDOMAIN }}
+          domain: ${{ vars.DOMAIN_NAME }}
+          coolify_api_token: ${{ secrets.COOLIFY_API_TOKEN }}
+          image: ${{ env.IMAGE }}@${{ needs.build.outputs.digest }}
+          command: python3 manage.py wait_for_import_drain --timeout 2700
+          timeout_minutes: 50
+          server_host: ${{ vars.DEPLOY_SSH_HOST }}
+          server_deploy_username: ${{ secrets.SERVER_DEPLOY_USERNAME }}
+          server_deploy_ssh_private_key: ${{ secrets.SERVER_DEPLOY_SSH_PRIVATE_KEY }}
+          discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
+
       # Release phase: migrations run once, from the exact image being deployed, outside Coolify's
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.

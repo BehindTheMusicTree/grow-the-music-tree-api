@@ -5,9 +5,13 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  # Nightly run: catches dependency drift without a grow commit.
+  schedule:
+    - cron: "17 5 * * *"
 
 jobs:
   lint:
+    if: github.event_name != 'schedule'
     name: Lint
     runs-on: ubuntu-latest
     # Dummy config only, no DB/secrets: mypy just needs settings.py importable via the django-stubs plugin.
@@ -42,6 +46,7 @@ jobs:
         run: uv run mypy grow
 
   migration-check:
+    if: github.event_name != 'schedule'
     name: Migration check
     runs-on: ubuntu-latest
     env:
@@ -63,6 +68,7 @@ jobs:
         run: uv run django-admin makemigrations grow --check --dry-run
 
   pytest:
+    if: github.event_name != 'schedule'
     name: Pytest
     runs-on: ubuntu-latest
     services:
@@ -98,4 +104,3 @@ jobs:
 
       - name: Run Postgres-only pytest
         run: uv run pytest -m postgres --ds=tests.postgres_settings --no-cov
-

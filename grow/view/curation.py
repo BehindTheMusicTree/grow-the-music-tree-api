@@ -29,6 +29,8 @@ from grow.curation.edges import (
     legacy_key,
     legacy_list_name,
 )
+from grow.curation.essential_songs import LIST_NAME as ESSENTIAL_SONGS_LIST
+from grow.curation.essential_songs import apply_essential_songs
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
 from grow.curation.lists import (
     ADDITION_LISTS,
@@ -39,7 +41,15 @@ from grow.curation.lists import (
     KEY_MAX_LENGTH,
 )
 from grow.curation.resolutions import apply_wikidata_resolutions
-from grow.curation.rows import InvalidRow, ParsedRow, RowConflict, check_edit, find_item_rules, lock_writes
+from grow.curation.rows import (
+    KEY_SEPARATOR,
+    InvalidRow,
+    ParsedRow,
+    RowConflict,
+    check_edit,
+    find_item_rules,
+    lock_writes,
+)
 from grow.curation.rule_set import Violation, find_stored_violations
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
@@ -81,6 +91,18 @@ def _validate(list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> Pa
         raise ValidationError({"row": e.errors}) from e
     except RowConflict as e:
         raise ValidationError({"row": str(e)}) from e
+
+
+def _apply_essential_songs(list_name: str, *item_ids: str | None, written_key: str | None = None) -> None:
+    """Same transaction as the entry write, so a rejected apply rolls the entry back. Kept out of the entry manager:
+    `GenreManager` writes these rows mid-update and must not trigger a re-apply from half-written rules."""
+    if list_name != ESSENTIAL_SONGS_LIST:
+        return
+    try:
+        required = [written_key.split(KEY_SEPARATOR)[1]] if written_key else []
+        apply_essential_songs([i for i in item_ids if i], required)
+    except InvalidRow as e:
+        raise ValidationError({"row": e.errors}) from e
 
 
 ORDERINGS = {"key": "key", "-updated_on": "-last_edited_on"}
@@ -170,6 +192,7 @@ class CurationEntriesView(CurationView):
             values=parsed.values,
             reason=parsed.reason,
         )
+        _apply_essential_songs(list_name, entry.row.get("item_id"), written_key=entry.key)
         return Response(_serialize(entry), status=status.HTTP_201_CREATED)
 
 
@@ -184,15 +207,20 @@ class CurationEntryView(CurationView):
     @transaction.atomic
     def patch(self, request: Request, list_name: str, uuid: str) -> Response:
         entry = self._get(list_name, uuid)
+        old_item_id = entry.row.get("item_id")
         parsed = _validate(list_name, {**entry.row, **_row(request)}, exclude_pk=entry.pk)
         entry = CurationEntry.objects.update_instance(
             entry, actor=request.user, key=parsed.key, values=parsed.values, reason=parsed.reason
         )
+        _apply_essential_songs(list_name, old_item_id, entry.row.get("item_id"), written_key=entry.key)
         return Response(_serialize(entry))
 
     @transaction.atomic
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
-        CurationEntry.objects.delete_instance(self._get(list_name, uuid), actor=request.user)
+        entry = self._get(list_name, uuid)
+        item_id = entry.row.get("item_id")
+        CurationEntry.objects.delete_instance(entry, actor=request.user)
+        _apply_essential_songs(list_name, item_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -462,7 +490,13 @@ class _EvidenceSerializer(_StrictSerializer):
 
 class _ReviewItemSerializer(_CurationItemSerializer):
     item_id = _item_id_field()
-    reason = serializers.ChoiceField(choices=CurationReviewItem.Reason.choices)
+    reason = serializers.ChoiceField(
+        choices=[
+            choice
+            for choice in CurationReviewItem.Reason.choices
+            if choice[0] not in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS
+        ]
+    )
     target = _item_id_field(required=False, allow_null=True)
     evidence = _EvidenceSerializer(required=False, allow_null=True)
 
@@ -544,24 +578,29 @@ class CurationItemsView(CurationView):
         return Response({"results": results[:ITEM_SEARCH_LIMIT]})
 
 
+def _review_list(item: CurationReviewItem) -> str | None:
+    """None for a synthetic overview alert, which concerns no list or rule."""
+    return item.list_name or (legacy_list_name(item.rule) if item.rule else None)
+
+
+def _review_key(item: CurationReviewItem) -> str | None:
+    return item.key or (legacy_key(item.rule) if item.rule else None)
+
+
 class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
     def get(self, request: Request) -> Response:
         items = sorted(
             CurationReviewItem.objects.select_related("rule"),
-            key=lambda i: (
-                i.list_name or legacy_list_name(i.rule),
-                i.key or legacy_key(i.rule),
-                i.column,
-            ),
+            key=lambda i: (_review_list(i) or "", _review_key(i) or "", i.column, i.item_id),
         )
         return Response(
             [
                 {
                     "rule_id": i.rule.uuid if i.rule else None,
-                    "list": i.list_name or legacy_list_name(i.rule),
-                    "key": i.key or legacy_key(i.rule),
+                    "list": _review_list(i),
+                    "key": _review_key(i),
                     "column": i.column,
                     "item_id": i.item_id,
                     "reason": i.reason,

@@ -30,6 +30,18 @@ def hold_merge_lock(run_id: int) -> Iterator[None]:
             cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
 
 
+def merge_is_live(run_id: int) -> bool:
+    """True while a worker holds the run's session lock; the only proof of life (heartbeat age is never one)."""
+    if connection.vendor != "postgresql":
+        return False
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_try_advisory_lock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
+        (free,) = cursor.fetchone()
+        if free:
+            cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
+    return not free
+
+
 def claim_lost_merge(run_id: int, kind: str) -> BulkImportRun | None:
     """
     The run if its merge started, holds no lock (its worker died) and this caller won the right to enqueue it again,

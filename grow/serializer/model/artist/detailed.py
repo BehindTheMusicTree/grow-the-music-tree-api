@@ -1,5 +1,6 @@
 from django.db.models import Prefetch
 from rest_framework import serializers
+from the_music_tree_api_kit.commons_image.helpers import commons_image_representation
 from the_music_tree_api_kit.serializer.EagerLoadingMixin import EagerLoadingMixin
 
 from grow.model.album.Album import Album
@@ -9,6 +10,7 @@ from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_link.Fields import Fields as LinkFields
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
 from grow.model.artist_membership.Fields import Fields as MembershipFields
+from grow.region_map.drawn_regions import drawn_region_ids
 from grow.serializer.model.artist.minimum import ArtistMinimumSerializer
 from grow.serializer.model.artist.simple import playable_tracks_count, tracks_count
 
@@ -63,16 +65,24 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
     tracks_count = serializers.IntegerField(source=Fields.TRACKS_COUNT_ANNOTATED)
     playable_tracks_count = serializers.IntegerField()
     image = serializers.SerializerMethodField()
+    origin = serializers.SerializerMethodField()
 
     def get_image(self, artist: Artist) -> dict | None:
-        if artist.image_url is None:
+        return commons_image_representation(artist)
+
+    def get_origin(self, artist: Artist) -> dict | None:
+        if artist.origin_name is None:
             return None
+        region_id = artist.origin_region_id
         return {
-            "url": artist.image_url,
-            "page_url": artist.image_page_url,
-            "author": artist.image_author,
-            "license": artist.image_license,
-            "license_url": artist.image_license_url,
+            "name": artist.origin_name,
+            "kind": artist.origin_kind,
+            "source": artist.origin_source,
+            "wikidata_id": artist.origin_wikidata_id,
+            "longitude": artist.origin_longitude,
+            "latitude": artist.origin_latitude,
+            # Imported separately from the region map, so only a region the latest index draws resolves on /map.
+            "region_id": region_id if region_id is not None and region_id in drawn_region_ids() else None,
         }
 
     @classmethod
@@ -110,6 +120,7 @@ class ArtistDetailedSerializer(EagerLoadingMixin, serializers.ModelSerializer):
             Fields.END_YEAR,
             Fields.ENDED,
             Fields.IMAGE,
+            Fields.ORIGIN,
             Fields.LINKS,
             Fields.MEMBERS,
             Fields.MEMBER_OF,

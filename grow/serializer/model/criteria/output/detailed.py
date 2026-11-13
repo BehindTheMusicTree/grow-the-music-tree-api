@@ -17,10 +17,26 @@ from grow.serializer.model.criteria_lineage_rel.without_descendant import (
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
 
 from .CriteriaOutputFieldKey import CriteriaOutputFieldKey
-from .essential_songs import CriteriaEssentialSongsSerializerMixin
+from .essential_songs import CriteriaEssentialSongsSerializerMixin, essential_song_rows_prefetch
+
+
+class WikidataIdSerializerMixin(serializers.Serializer):
+    wikidata_id = serializers.SerializerMethodField()
+
+    def get_wikidata_id(self, obj) -> str | None:
+        # `wikidata_id` lives on the `Genre` subtype; `obj` may be the base `Criteria` row, and a tag has no genre.
+        genre = getattr(obj, "genre", None)
+        return genre.wikidata_id if genre else None
+
+
+class CriteriaRootSerializer(WikidataIdSerializerMixin, CriteriaMinimumSerializer):  # type: ignore[misc,valid-type]
+    # The panel colors a genre from its root's Wikidata id, which the minimum serializer does not carry.
+    class Meta(CriteriaMinimumSerializer.Meta):  # type: ignore[name-defined]
+        fields = [*CriteriaMinimumSerializer.Meta.fields, CriteriaOutputFieldKey.WIKIDATA_ID.value]  # type: ignore[name-defined]
 
 
 class CriteriaDetailedSerializer(
+    WikidataIdSerializerMixin,
     EagerLoadingMixin,
     CriteriaSideSerializerMixin,
     CriteriaEssentialSongsSerializerMixin,
@@ -30,15 +46,18 @@ class CriteriaDetailedSerializer(
     tracks_count = serializers.IntegerField()
     parent = CriteriaMinimumSerializer()
     ascendants = CriteriaLineageRelWithoutDescendantSerializer(source=ModelFields.ASCENDANTS_RELS, many=True)
-    root = CriteriaMinimumSerializer()  # type: ignore
+    root = CriteriaRootSerializer()  # type: ignore
     children = CriteriaMinimumSerializer(many=True)
     criteria_playlist = CriteriaPlaylistMinimumSerializer()
     name = AppCharField(source=ModelFields.NAME_INTERNAL)
-    wikidata_id = serializers.SerializerMethodField()
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
-        queryset = queryset.select_related(f"{prefix}{ModelFields.PARENT}", f"{prefix}{ModelFields.ROOT}")
+        queryset = queryset.select_related(
+            f"{prefix}{ModelFields.PARENT}",
+            f"{prefix}{ModelFields.ROOT}",
+            f"{prefix}{ModelFields.ROOT}__{TrackFields.GENRE}",
+        )
         queryset = CriteriaPlaylistMinimumSerializer.setup_queryset(
             queryset, prefix=f"{prefix}{ModelFields.CRITERIA_PLAYLIST}__"
         )
@@ -48,13 +67,8 @@ class CriteriaDetailedSerializer(
                 CriteriaLineageRel.objects.select_related(LineageFields.ASCENDANT),
             ),
             f"{prefix}{ModelFields.CHILDREN}",
-            f"{prefix}{TrackFields.GENRE}__{CriteriaOutputFieldKey.ESSENTIAL_SONGS}__{TrackFields.ARTISTS}",
+            essential_song_rows_prefetch(f"{prefix}{TrackFields.GENRE}"),
         )
-
-    def get_wikidata_id(self, obj) -> str | None:
-        # `wikidata_id` lives on the `Genre` subtype; `obj` may be the base `Criteria` row, and a tag has no genre.
-        genre = getattr(obj, "genre", None)
-        return genre.wikidata_id if genre else None
 
     class Meta:
         model = Criteria

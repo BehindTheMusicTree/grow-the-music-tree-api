@@ -1,13 +1,30 @@
+import gzip
+import hashlib
+import json
+
+from django.core.cache import cache
 from django.urls import reverse
 from rest_framework import status
 
 from grow.model.artist.Artist import Artist
+from grow.model.region_map.RegionMapFile import RegionMapFile
+from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from tests.utils.AppTestCase import AppTestCase
+
+
+def _snapshot(*region_ids: str) -> RegionMapSnapshot:
+    body = json.dumps({"regions": [{"id": region_id} for region_id in region_ids]}).encode()
+    sha256 = hashlib.sha256(body).hexdigest()
+    compressed = gzip.compress(body)
+    RegionMapFile.objects.get_or_create(sha256=sha256, defaults={"body": compressed, "size": len(compressed)})
+    RegionMapSnapshot.objects.all().delete()
+    return RegionMapSnapshot.objects.create(checksum=sha256)
 
 
 class TestCase(AppTestCase):
     def setUp(self):
         super().setUp()
+        cache.clear()
         factory = self.model_fixture_factory
         self.band = factory.create_artist("Pink Floyd", type=Artist.Type.GROUP, country="GB", begin_year=1965)
         self.waters = factory.create_artist("Roger Waters", type=Artist.Type.PERSON)
@@ -34,6 +51,58 @@ class TestCase(AppTestCase):
         assert response.data["members"][0]["artist"]["name"] == "Roger Waters"
         assert response.data["links"] == [{"kind": "wikidata", "url": "https://www.wikidata.org/wiki/Q2306"}]
         assert response.data["albums"][0]["primary_type"] == "Album"
+
+    def _set_origin(self) -> str:
+        Artist.objects.filter(pk=self.band.pk).update(
+            origin_name="Liverpool",
+            origin_kind="city",
+            origin_source="begin_area",
+            origin_wikidata_id="Q24826",
+            origin_longitude=-2.99,
+            origin_latitude=53.41,
+            origin_region_id="Q23",
+        )
+        return reverse("artist-detail", kwargs={"pk": self.band.uuid})
+
+    def test_detail_then_origin_null_until_set(self):
+        url = reverse("artist-detail", kwargs={"pk": self.band.uuid})
+
+        assert self.api_client.get(path=url).data["origin"] is None
+
+        _snapshot("Q23")
+        self._set_origin()
+
+        assert self.api_client.get(path=url).data["origin"] == {
+            "name": "Liverpool",
+            "kind": "city",
+            "source": "begin_area",
+            "wikidata_id": "Q24826",
+            "longitude": -2.99,
+            "latitude": 53.41,
+            "region_id": "Q23",
+        }
+
+    def test_detail_then_origin_region_null_without_snapshot(self):
+        url = self._set_origin()
+
+        origin = self.api_client.get(path=url).data["origin"]
+
+        assert (origin["name"], origin["region_id"]) == ("Liverpool", None)
+
+    def test_detail_then_origin_region_null_when_not_drawn(self):
+        url = self._set_origin()
+        _snapshot("Q1")
+
+        assert self.api_client.get(path=url).data["origin"]["region_id"] is None
+
+    def test_detail_then_origin_region_follows_the_latest_snapshot(self):
+        url = self._set_origin()
+        _snapshot("Q1")
+        assert self.api_client.get(path=url).data["origin"]["region_id"] is None
+
+        _snapshot("Q1", "Q23")
+
+        assert self.api_client.get(path=url).data["origin"]["region_id"] == "Q23"
 
     def test_detail_then_playable_tracks_count_excludes_unplayable_songs(self):
         factory = self.model_fixture_factory

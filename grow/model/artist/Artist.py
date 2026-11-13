@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Func
+from the_music_tree_api_kit.commons_image.CommonsImage import CommonsImage, commons_image_complete_constraint
 from the_music_tree_api_kit.field.AppCharField import AppCharField
 from the_music_tree_genre_kit.track_mixin.TrackMixin import TrackMixin
 
@@ -37,7 +38,11 @@ SPECIAL_PURPOSE_ARTIST_MBIDS = frozenset(
 )
 
 
-class Artist(TrackMixin):
+class Artist(TrackMixin, CommonsImage):
+    class OriginSource(models.TextChoices):
+        BEGIN_AREA = "begin_area"
+        AREA = "area"
+
     class Type(models.TextChoices):
         PERSON = "person"
         GROUP = "group"
@@ -68,12 +73,15 @@ class Artist(TrackMixin):
     disambiguation = models.TextField(null=True, blank=True)
     # Songs crediting the artist, playable or not, kept by the songs import merge to rank search results.
     recording_count = models.PositiveIntegerField(db_default=0)
-    # Wikimedia Commons photo; its attribution (author, license linked to the Commons page) must be shown with it.
-    image_url = models.URLField(max_length=2048, null=True, blank=True)
-    image_page_url = models.URLField(max_length=2048, null=True, blank=True)
-    image_author = models.TextField(null=True, blank=True)
-    image_license = models.TextField(null=True, blank=True)
-    image_license_url = models.URLField(max_length=2048, null=True, blank=True)
+    # Place of origin: MusicBrainz begin_area, else area (`origin_source`). Wikidata id, point and map region are
+    # best-effort enrichments, null when Wikidata or the region map doesn't know the place.
+    origin_name = models.TextField(null=True, blank=True)
+    origin_kind = models.TextField(null=True, blank=True)
+    origin_source = models.TextField(choices=OriginSource.choices, null=True, blank=True)
+    origin_wikidata_id = models.CharField(max_length=32, null=True, blank=True)
+    origin_longitude = models.FloatField(null=True, blank=True)
+    origin_latitude = models.FloatField(null=True, blank=True)
+    origin_region_id = models.CharField(max_length=64, null=True, blank=True)
 
     @property
     def name(self) -> str:
@@ -100,16 +108,19 @@ class Artist(TrackMixin):
         db_table = "grow_artist"
         constraints = [
             models.CheckConstraint(condition=~models.Q(_name=""), name="artist_non_empty_name"),
+            commons_image_complete_constraint("artist_image_complete"),
             models.CheckConstraint(
-                condition=models.Q(image_url__isnull=False, image_page_url__isnull=False, image_license__isnull=False)
+                condition=models.Q(origin_name__isnull=False, origin_source__isnull=False)
                 | models.Q(
-                    image_url__isnull=True,
-                    image_page_url__isnull=True,
-                    image_author__isnull=True,
-                    image_license__isnull=True,
-                    image_license_url__isnull=True,
+                    origin_name__isnull=True,
+                    origin_kind__isnull=True,
+                    origin_source__isnull=True,
+                    origin_wikidata_id__isnull=True,
+                    origin_longitude__isnull=True,
+                    origin_latitude__isnull=True,
+                    origin_region_id__isnull=True,
                 ),
-                name="artist_image_complete",
+                name="artist_origin_complete",
             ),
         ]
 

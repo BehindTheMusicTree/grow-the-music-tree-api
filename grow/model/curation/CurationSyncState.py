@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models import Q
 
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -26,4 +27,7 @@ class CurationSyncState(models.Model):
         history = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if self.applied_export_on is not None:
             history = history.filter(created_on__gt=self.applied_export_on)
+        # grow applies essential-songs edits itself, so they are never waiting for a pipeline run.
+        fragment = CurationEntry.objects.snapshot_fragment("list_name", "essential_songs")
+        history = history.exclude(Q(old_value__contains=fragment) | Q(new_value__contains=fragment))
         return history.values("content_uuid").distinct().count()

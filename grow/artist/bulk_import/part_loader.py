@@ -1,9 +1,11 @@
 import json
+import re
 import uuid
 from typing import IO, Any
 
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
+from the_music_tree_api_kit.commons_image.validation import validate_commons_image
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.copy_part import copy_part
@@ -11,12 +13,14 @@ from grow.model.artist.Artist import Artist
 from grow.model.artist_link.ArtistLink import ArtistLink
 
 TYPES = set(Artist.Type.values)
+ORIGIN_SOURCES = set(Artist.OriginSource.values)
+WIKIDATA_ID = re.compile(r"Q[1-9][0-9]*")
+COUNTRY = re.compile(r"[A-Z]{2}")
 LINK_KINDS = set(ArtistLink.Kind.values)
 # A btree key (artist, kind, url) must stay under ~2.7 kB.
 LINK_URL_LEN_MAX = 2048  # bytes
 # Same btree key limit for the unique (artist, name) alias index.
 ALIAS_NAME_LEN_MAX = 2048  # bytes
-IMAGE_URL_LEN_MAX = 2048  # bytes
 
 
 def _require(condition: bool, line_number: int, message: str) -> None:
@@ -44,8 +48,33 @@ def _is_text_list(value: Any) -> bool:
     return isinstance(value, list) and all(_is_text(item) for item in value)
 
 
-def _is_https_url(value: Any) -> bool:
-    return _is_text(value) and value.startswith("https://") and len(value.encode()) <= IMAGE_URL_LEN_MAX
+def _is_number_in(value: Any, low: float, high: float) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and low <= value <= high
+
+
+def _validate_origin(line_number: int, origin: Any) -> None:
+    _require(isinstance(origin, dict), line_number, "origin must be an object")
+    _require(_is_text(origin.get("name")), line_number, "origin name must be a non-empty string")
+    kind = origin.get("kind")
+    _require(kind is None or _is_text(kind), line_number, "origin kind must be null or a non-empty string")
+    _require(origin.get("source") in ORIGIN_SOURCES, line_number, "unknown origin source")
+    wikidata_id = origin.get("wikidata_id")
+    _require(
+        wikidata_id is None or (isinstance(wikidata_id, str) and WIKIDATA_ID.fullmatch(wikidata_id) is not None),
+        line_number,
+        "origin wikidata_id must be a QID",
+    )
+    longitude, latitude = origin.get("longitude"), origin.get("latitude")
+    _require(
+        (longitude is None) == (latitude is None)
+        and (longitude is None or (_is_number_in(longitude, -180, 180) and _is_number_in(latitude, -90, 90))),
+        line_number,
+        "origin longitude and latitude must be set together and in range",
+    )
+    region_id = origin.get("region_id")
+    _require(
+        region_id is None or _is_text(region_id, 64), line_number, "origin region_id must be a string of at most 64"
+    )
 
 
 def _row(line_number: int, line: bytes) -> tuple:
@@ -62,7 +91,11 @@ def _row(line_number: int, line: bytes) -> tuple:
     )
     _require(artist.get("type") in TYPES | {None}, line_number, "unknown type")
     country = artist.get("country")
-    _require(country is None or (_is_text(country) and len(country) == 2), line_number, "country must be ISO 3166-1")
+    _require(
+        country is None or (_is_text(country) and COUNTRY.fullmatch(country)),
+        line_number,
+        "country must be ISO 3166-1 alpha-2 uppercase",
+    )
     _require(_is_year(artist.get("begin_year")) and _is_year(artist.get("end_year")), line_number, "invalid year")
     _require(isinstance(artist.get("ended"), bool), line_number, "ended must be a boolean")
     disambiguation = artist.get("disambiguation")
@@ -80,28 +113,12 @@ def _row(line_number: int, line: bytes) -> tuple:
     # Parts exported before images existed have no `image` key: it stages as null.
     image = artist.get("image")
     if image is not None:
-        _require(isinstance(image, dict), line_number, "image must be an object")
-        for key in ("url", "page_url"):
-            _require(
-                _is_https_url(image.get(key)),
-                line_number,
-                f"image {key} must be an https URL of at most {IMAGE_URL_LEN_MAX} bytes",
-            )
-        _require(_is_text(image.get("license")), line_number, "image license must be a non-empty string")
-        author = image.get("author")
-        _require(author is None or _is_text(author), line_number, "image author must be a non-empty string")
-        # Commons serves some license URLs as plain http, so only the scheme is checked: the frontend links it.
-        license_url = image.get("license_url")
-        _require(
-            license_url is None
-            or (
-                _is_text(license_url)
-                and license_url.startswith(("http://", "https://"))
-                and len(license_url.encode()) <= IMAGE_URL_LEN_MAX
-            ),
-            line_number,
-            f"image license_url must be an http(s) URL of at most {IMAGE_URL_LEN_MAX} bytes",
-        )
+        image_error = validate_commons_image(image)
+        _require(image_error is None, line_number, str(image_error))
+    # Parts exported before origins existed have no `origin` key: it stages as null.
+    origin = artist.get("origin")
+    if origin is not None:
+        _validate_origin(line_number, origin)
     for key in ("members", "links", "release_groups"):
         _require(
             isinstance(artist.get(key), list) and all(isinstance(item, dict) for item in artist[key]),

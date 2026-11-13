@@ -21,6 +21,10 @@ def _scene(item_id: str, scene: str) -> dict[str, str]:
 class TestCase(GenreTestCase):
     def setUp(self):
         super().setUp()
+        for item_id in (SPLIT, UNDERGROUND):
+            CurationEntry.objects.upsert(
+                "canonical_parent_additions", {"item_id": item_id, "label": item_id, "reason": "r"}
+            )
         # Scenes first: a node still holding a non-scene child can't become a split.
         for item_id, scene in ((COMMERCIAL, "commercial"), (UNDERGROUND, "underground")):
             CurationEntry.objects.upsert("canonical_genre_scene", _scene(item_id, scene))

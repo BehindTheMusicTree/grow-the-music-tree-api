@@ -53,11 +53,19 @@ def wait_for_server() -> None:
 
 def seed() -> None:
     exported_on = call("GET", "curation/export/")["exported_on"]
+    trees = []
     for fixture in TREES:
-        log(f"importing {fixture}")
         with gzip.open(FIXTURES / fixture) as file:
-            body = json.dumps({**json.load(file), "curationExportedOn": exported_on}).encode()
-        call("POST", "genres/tree/import/", body, {"Content-Type": "application/json"})
+            trees.append({**json.load(file), "curationExportedOn": exported_on})
+    log(f"importing {', '.join(TREES)}")
+    task_id = call(
+        "POST", "genres/trees/import-runs/", json.dumps({"trees": trees}).encode(), {"Content-Type": "application/json"}
+    )["taskId"]
+    # Songs resolve their genre against the imported trees, so wait for the merge.
+    while (polled := call("GET", f"genres/trees/import/{task_id}/status/"))["status"] not in ("success", "failure"):
+        time.sleep(2)
+    if polled["status"] != "success":
+        raise SystemExit(f"genre trees import failed: {polled}")
     log(f"importing {SONGS}")
     with gzip.open(FIXTURES / SONGS) as file:
         part = gzip.compress(

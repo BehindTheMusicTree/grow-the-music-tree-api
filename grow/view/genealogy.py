@@ -5,7 +5,6 @@ from typing import Any
 from django.db import transaction
 from django.http import HttpResponseNotModified
 from django.utils.http import parse_etags
-from djangorestframework_camel_case.util import underscoreize
 from rest_framework import status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import JSONParser
@@ -17,7 +16,7 @@ from rest_framework.views import APIView
 
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.import_run.ImportRun import ImportRun
-from grow.serializer.model.genealogy.GenealogyDocumentSerializer import GenealogyDocumentSerializer
+from grow.schemas import first_error
 from grow.view.curation import CurationView
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -38,8 +37,8 @@ class GenealogyImportView(CurationView):
         if not isinstance(request.data, dict):
             raise ValidationError({"non_field_errors": ["Expected a JSON object."]})
         document = request.data
-        serializer = GenealogyDocumentSerializer(data=underscoreize(document))
-        serializer.is_valid(raise_exception=True)
+        if (error := first_error("genealogy", document)) is not None:
+            raise ValidationError({"non_field_errors": [error]})
         checksum = _checksum(document)
         traditions_count = len(document["traditions"])
 

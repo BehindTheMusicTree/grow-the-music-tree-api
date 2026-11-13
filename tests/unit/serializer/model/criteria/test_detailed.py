@@ -3,6 +3,7 @@ from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from grow.model.criteria.Criteria import Criteria
 from grow.serializer.model.criteria.output.detailed import CriteriaDetailedSerializer
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.essential_songs import add_essential_song
 
 
 class TestCase(AppTestCase):
@@ -63,7 +64,7 @@ class TestCase(AppTestCase):
     def test_serializes_essential_songs(self):
         genre = self.model_fixture_factory.create_genre("Electronic")
         track = self.model_fixture_factory.create_song("Strobe", genre=genre)
-        genre.essential_songs.add(track)
+        add_essential_song(genre, track)
 
         data = CriteriaDetailedSerializer(genre).data
 
@@ -98,3 +99,18 @@ class TestCase(AppTestCase):
         data = CriteriaDetailedSerializer(tag).data
 
         assert data["wikidata_id"] is None
+
+    def test_serializes_wikidata_id_of_the_root_genre(self):
+        root = self.model_fixture_factory.create_genre("Pop", wikidata_id="Q37073")
+        child = self.model_fixture_factory.create_genre("Dance-pop", parent=root, wikidata_id="Q1")
+
+        data = CriteriaDetailedSerializer(child).data
+
+        assert data["root"]["wikidata_id"] == "Q37073"
+
+    def test_serializes_root_wikidata_id_as_none_for_tag(self):
+        tag = self.model_fixture_factory.create_tag("Live")
+
+        data = CriteriaDetailedSerializer(tag).data
+
+        assert data["root"]["wikidata_id"] is None

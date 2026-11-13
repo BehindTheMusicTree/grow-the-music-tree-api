@@ -212,15 +212,10 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         return InSubquery(F(field), selected)
 
     def get_track_playlist_rel_queryset(self, playlist):
-        # Keep the recursive selection outside the per-member song lookup, while
-        # the scalar genre lookup prevents a full-catalogue join before membership.
+        # The membership row carries the track's genre (`TrackPlaylistRel.genre`), so the selection filters the
+        # playlist's own index range instead of probing the track table once per member.
         self._tracks_playlist = playlist
-        queryset = (
-            super()
-            .get_track_playlist_rel_queryset(playlist)
-            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
-            .filter(self._genre_selection(playlist, "_selected_genre"))
-        )
+        queryset = super().get_track_playlist_rel_queryset(playlist).filter(self._genre_selection(playlist, "genre_id"))
         artist_id = self.request.query_params.get("artist")
         if artist_id is not None:
             try:
@@ -236,7 +231,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         """Exact size of the `tracks/` list from the membership buckets, or None when it must be counted from rows.
 
         Membership is playable-only, so the list is the selected buckets minus the restricted members blocked for
-        this viewer. Counting rows instead probes every member's song and genre, which exceeds the statement timeout
+        this viewer. Counting rows instead probes every member's song, which exceeds the statement timeout
         on the largest genres. `artist` and `from` narrow the list to a bounded, row-level count.
         """
         params = self.request.query_params
@@ -252,8 +247,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         )
         blocked = (
             TrackPlaylistRel.objects.filter(playlist=OuterRef("pk"))
-            .alias(_selected_genre=Subquery(Track.objects.filter(pk=OuterRef("track_id")).values("genre_id")[:1]))
-            .filter(self._genre_selection(playlist, "_selected_genre"))
+            .filter(self._genre_selection(playlist, "genre_id"))
             .filter(track_id__in=blocked_restricted_songs(viewer_country(self.request)).values("pk"))
             .values("playlist")
             .annotate(total=Count("pk"))

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from django.db import models
 
 from grow.curation.edges import Relation
-from grow.curation.lists import EXCLUSIVE_LISTS
+from grow.curation.lists import ADDITION_LISTS, EXCLUSIVE_LISTS
 from grow.curation.rows import (
     POP_SIDE_LIST,
     SCENE_LIST,
@@ -62,6 +62,23 @@ def excluded_items(entries: models.QuerySet) -> dict[str, str]:
     return dict(entries.filter(list_name__in=EXCLUSIVE_LISTS).values_list("key", "list_name"))
 
 
+def declared_additions(entries: models.QuerySet) -> set[str]:
+    """Items the pipeline injects as synthetic nodes before it applies the edge rules."""
+    return set(entries.filter(list_name__in=ADDITION_LISTS).values_list("key", flat=True))
+
+
+def find_undeclared_local_edges(declared: set[str], edges: Iterable[GenreEdgeRule]) -> list[Violation]:
+    """An edge naming a `LOCAL:` item that no addition list declares: the pipeline drops such a rule silently, and
+    fails the run once too many are dropped."""
+    used = {
+        item for e in edges for item in (e.item_id, e.parent_item_id) if item is not None and item.startswith("LOCAL:")
+    }
+    return [
+        Violation("undeclared_local", f"{item} is used in an edge but declared in no addition list", {item})
+        for item in sorted(used - declared)
+    ]
+
+
 def find_scene_split_violations(entries: models.QuerySet, edges: Iterable[GenreEdgeRule]) -> list[Violation]:
     scenes = dict(entries.filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
     parents = {
@@ -106,6 +123,7 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
     violations += find_scene_split_violations(entries, edges)
     violations += find_root_regional_conflicts(edges)
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
+    violations += find_undeclared_local_edges(declared_additions(entries), edges)
     return [Violation(v.kind, v.message, frozenset(v.items)) for v in violations]
 
 

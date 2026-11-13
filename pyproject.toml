@@ -1,6 +1,6 @@
 [project]
 name = "grow-the-music-tree-api"
-version = "16.1.0"
+version = "17.0.0"
 description = "Reference genre/tag/tree service for grow-the-music-tree-frontend"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -15,9 +15,10 @@ dependencies = [
     "djangorestframework-camel-case==1.4.2",
     "django-q2==1.11.1",
     "redis==8.1.0",
-    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.57.0",
+    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.61.0",
     "google-auth[requests]==2.58.0",
     "cachecontrol==0.14.4",
+    "jsonschema==4.25.1",
 ]
 
 [project.optional-dependencies]
@@ -94,4 +95,6 @@ testpaths = ["tests"]
 pythonpath = ["."]
 DJANGO_SETTINGS_MODULE = "tests.settings"
 addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85 -m 'not postgres'"
-markers = ["postgres: needs Postgres (COPY); run with -m postgres --ds=tests.postgres_settings --no-cov"]
+markers = [
+    "postgres: needs Postgres (COPY); run with -m postgres --ds=tests.postgres_settings --no-cov",
+]

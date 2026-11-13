@@ -229,6 +229,17 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"]["is_default"] is True
 
+    def test_musicbrainz_free_genre_tag_then_listed_and_keyed_by_tag_name(self):
+        row = {"musicbrainz_tag_name": "vgm", "reason": "video game music is a genre"}
+
+        response = self._create(row, "musicbrainz_free_genre_tags")
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert response.json()["row"] == row
+        assert self._create(row, "musicbrainz_free_genre_tags").status_code == status.HTTP_400_BAD_REQUEST
+        lists = {lst["name"]: lst for lst in self.api_client.get(path=reverse("curation-lists")).json()}
+        assert lists["musicbrainz_free_genre_tags"]["keyColumns"] == ["musicbrainz_tag_name"]
+
     def test_genre_disambiguation_then_candidates_per_tag(self):
         default = self._create(
             {"musicbrainz_genre_name": "rap", "item_id": "Q45981", "is_default": "true", "reason": "testing"},
@@ -392,6 +403,37 @@ class TestCase(AppTestCase):
         assert ok.status_code == status.HTTP_201_CREATED
         assert entity.status_code == status.HTTP_201_CREATED
         assert no_key.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_placement_override_then_one_row_per_tradition(self):
+        row = {"wikidata_id": "Q1236", "entity_id": "Q148", "start_year": "", "end_year": "", "reason": "testing"}
+
+        first = self._create(row, "tradition_placement_overrides")
+        second = self._create({**row, "entity_id": "Q865"}, "tradition_placement_overrides")
+
+        assert first.status_code == status.HTTP_201_CREATED
+        assert second.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_tradition_extra_places_then_keyed_by_tradition_and_entity(self):
+        row = {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
+
+        first = self._create(row, "tradition_extra_places")
+        other_place = self._create({**row, "entity_id": "Q865"}, "tradition_extra_places")
+        duplicate = self._create(row, "tradition_extra_places")
+        bad_tradition = self._create({**row, "wikidata_id": "bret1244"}, "tradition_extra_places")
+
+        assert first.status_code == status.HTTP_201_CREATED
+        assert other_place.status_code == status.HTTP_201_CREATED
+        assert duplicate.status_code == status.HTTP_400_BAD_REQUEST
+        assert bad_tradition.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_tradition_extra_places_rows(self):
+        self._create({"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}, "tradition_extra_places")
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["tradition_extra_places"] == [
+            {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
+        ]
 
     def test_tradition_link_override_then_kind_and_action_enumerated(self):
         row = {
@@ -599,3 +641,114 @@ class TestCase(AppTestCase):
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             assert executor.submit(try_lock_from_other_connection).result() is False
+
+
+class TestEssentialSongsApply(AppTestCase):
+    MB_A = "11111111-1111-4111-8111-111111111111"
+    MB_B = "22222222-2222-4222-8222-222222222222"
+
+    def setUp(self):
+        super().setUp()
+        self.genre = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
+        self.other = self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
+        self.song_a = self._song("A", self.MB_A)
+        self.song_b = self._song("B", self.MB_B)
+
+    def _song(self, title: str, mb_id: str):
+        return self.model_fixture_factory.create_song(title, self.genre, musicbrainz_recording_id=mb_id)
+
+    def _row(self, item_id: str, mbid: str, position: int) -> dict:
+        return {
+            "item_id": item_id,
+            "musicbrainz_recording_id": mbid,
+            "position": str(position),
+            "reason": "testing",
+        }
+
+    def _post(self, row: dict):
+        url = reverse("curation-entries", kwargs={"list_name": "essential_songs"})
+        return self.api_client.post(path=url, data={"row": row}, format="json")
+
+    def _entry_url(self, entry) -> str:
+        return reverse("curation-entry", kwargs={"list_name": "essential_songs", "uuid": entry["uuid"]})
+
+    def _essential(self, genre) -> list[str]:
+        return [str(s.musicbrainz_recording_id) for s in genre.essential_songs.order_by("genreessentialsong__position")]
+
+    def test_post_then_applied_in_position_order_without_lock(self):
+        assert self._post(self._row("Q999999991", self.MB_A, 2)).status_code == status.HTTP_201_CREATED
+        assert self._post(self._row("Q999999991", self.MB_B, 1)).status_code == status.HTTP_201_CREATED
+
+        self.genre.refresh_from_db()
+        assert self._essential(self.genre) == [self.MB_B, self.MB_A]
+        assert not self.genre.is_manually_edited
+
+    @skipUnless(connection.vendor == "postgresql", "advisory locks are Postgres-only")
+    def test_post_then_write_lock_held_until_commit(self):
+        # The apply rewrites the genre's through rows, so a POST must hold the curation write lock `check_edit`
+        # takes: without it a concurrent apply on the same genre could hit the unique constraint. Only the lock is
+        # observed here, not its order relative to the apply.
+        def try_lock_from_other_connection() -> bool:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_try_advisory_xact_lock(%s)", [WRITE_LOCK_ID])
+                    return cursor.fetchone()[0]
+            finally:
+                connection.close()
+
+        assert self._post(self._row("Q999999991", self.MB_A, 1)).status_code == status.HTTP_201_CREATED
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            assert executor.submit(try_lock_from_other_connection).result() is False
+
+    def test_patch_then_applied_including_moved_item_id(self):
+        entry = self._post(self._row("Q999999991", self.MB_A, 1)).json()
+
+        url = self._entry_url(entry)
+        response = self.api_client.patch(path=url, data={"row": {"item_id": "Q999999992"}}, format="json")
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert self._essential(self.genre) == []
+        assert self._essential(self.other) == [self.MB_A]
+
+    def test_delete_then_applied(self):
+        entry = self._post(self._row("Q999999991", self.MB_A, 1)).json()
+
+        response = self.api_client.delete(path=self._entry_url(entry))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert self._essential(self.genre) == []
+
+    def test_unknown_genre_then_400_and_no_entry(self):
+        response = self._post(self._row("Q999999999", self.MB_A, 1))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not CurationEntry.objects.filter(list_name="essential_songs").exists()
+
+    def test_unknown_mbid_then_400_and_no_entry(self):
+        response = self._post(self._row("Q999999991", "33333333-3333-4333-8333-333333333333", 1))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not CurationEntry.objects.filter(list_name="essential_songs").exists()
+        assert self._essential(self.genre) == []
+
+    def test_stale_rules_then_genre_stays_editable_and_stale_songs_are_skipped(self):
+        stale_a, stale_b = (f"{n}{n}{n}{n}{n}{n}{n}{n}-4444-4444-8444-444444444444" for n in "56")
+        for position, mbid in enumerate((stale_a, stale_b), start=1):
+            CurationEntry.objects.create(
+                user=None,
+                list_name="essential_songs",
+                key=f"Q999999991\t{mbid}",
+                values={"position": str(position)},
+                reason="stale",
+            )
+
+        added = self._post(self._row("Q999999991", self.MB_A, 3))
+        assert added.status_code == status.HTTP_201_CREATED, added.content
+        assert self._essential(self.genre) == [self.MB_A]
+
+        stale_entry = CurationEntry.objects.get(list_name="essential_songs", key=f"Q999999991\t{stale_a}")
+        response = self.api_client.delete(path=self._entry_url({"uuid": str(stale_entry.uuid)}))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT, response.content
+        assert self._essential(self.genre) == [self.MB_A]
