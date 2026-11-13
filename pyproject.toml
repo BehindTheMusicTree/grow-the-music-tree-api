@@ -18,6 +18,7 @@ dependencies = [
     "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.61.0",
     "google-auth[requests]==2.58.0",
     "cachecontrol==0.14.4",
+    "jsonschema==4.25.1",
 ]
 
 [project.optional-dependencies]
