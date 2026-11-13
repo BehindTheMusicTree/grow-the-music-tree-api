@@ -94,8 +94,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 DJANGO_SETTINGS_MODULE = "tests.settings"
-addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85 -m 'not postgres and not contract'"
+addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85 -m 'not postgres'"
 markers = [
     "postgres: needs Postgres (COPY); run with -m postgres --ds=tests.postgres_settings --no-cov",
-    "contract: Gold tree contract against the genre kit's schema; run with -m contract --no-cov",
 ]

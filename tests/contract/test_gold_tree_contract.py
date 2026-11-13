@@ -1,6 +1,6 @@
 """Gold → grow genre tree contract, checked against the JSON Schema owned by the genre kit.
 
-Run with `pytest -m contract --no-cov`. The schema ships in the installed `the-music-tree-genre-kit` package
+Runs in plain `pytest`. The schema ships in the installed `the-music-tree-genre-kit` package
 (`load_genre_tree_schema()`), pinned by tag, so it needs no network and no token.
 """
 
@@ -17,8 +17,6 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_node import C
 
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
-
-pytestmark = pytest.mark.contract
 
 # Written by grow's import, never by the tree serializer: popped from each entry before validation.
 POPPED_BY_GROW = {"curationExportedOn"}
