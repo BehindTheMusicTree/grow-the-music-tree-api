@@ -15,7 +15,7 @@ dependencies = [
     "djangorestframework-camel-case==1.4.2",
     "django-q2==1.11.1",
     "redis==8.1.0",
-    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.60.2",
+    "the-music-tree-genre-kit @ git+https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git@v0.61.0",
     "google-auth[requests]==2.58.0",
     "cachecontrol==0.14.4",
 ]
@@ -96,5 +96,5 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85 -m 'not postgres and not contract'"
 markers = [
     "postgres: needs Postgres (COPY); run with -m postgres --ds=tests.postgres_settings --no-cov",
-    "contract: Gold tree contract against the pipelines schema; run with GOLD_SCHEMA_PATH=... -m contract --no-cov",
+    "contract: Gold tree contract against the genre kit's schema; run with -m contract --no-cov",
 ]
