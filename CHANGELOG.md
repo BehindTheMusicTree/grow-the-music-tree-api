@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- The README and AGENTS.md no longer link to the-music-tree-pipelines, which is now a private repository.
 - Bumped the-music-tree-genre-kit to v0.61.0, which owns the Gold genre-tree JSON Schema. The `Gold contract` CI job reads it from the installed package instead of fetching it from the private pipelines repo, so `GOLD_SCHEMA_PATH` and the `PIPELINES_READ_TOKEN` secret are gone. The serializer-vs-schema required-fields test now lives in the genre kit.
 - Bumped the-music-tree-genre-kit to v0.60.2 (and with it the-music-tree-api-kit to v0.12.2): 401 responses now carry a `WWW-Authenticate: Bearer` challenge, so anonymous public GETs are not mistaken for expired admin sessions.
 - **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
