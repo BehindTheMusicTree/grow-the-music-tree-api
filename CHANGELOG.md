@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [17.0.0] - 2026-11-13
+
 ### Added
 
 - grow now owns the Gold `artist` and `genealogy` JSON Schemas (`grow/schemas/`, `load_gold_schema(name)`), with `$id`s on grow's public path and grow's real limits (artist name, disambiguation and release-group title lengths, year bounds, link URL scheme). The genealogy import validates its document against the schema (`jsonschema` is now a runtime dependency), replacing the shallow `GenealogyDocumentSerializer`; the 400 body keeps its `nonFieldErrors` shape. Artists keep the fast per-row checks, and `tests/contract/test_gold_artist_contract.py` fails when the schema and the loader drift (sample covering every property, one violation per constraint, enums and limits against the models and settings).
