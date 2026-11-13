@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [17.0.0] - 2026-11-13
+
 ### Added
 
 - grow now owns the Gold `artist` and `genealogy` JSON Schemas (`grow/schemas/`, `load_gold_schema(name)`), with `$id`s on grow's public path and grow's real limits (artist name, disambiguation and release-group title lengths, year bounds, link URL scheme). The genealogy import validates its document against the schema (`jsonschema` is now a runtime dependency), replacing the shallow `GenealogyDocumentSerializer`; the 400 body keeps its `nonFieldErrors` shape. Artists keep the fast per-row checks, and `tests/contract/test_gold_artist_contract.py` fails when the schema and the loader drift (sample covering every property, one violation per constraint, enums and limits against the models and settings).
@@ -19,26 +21,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - New `musicbrainz_free_genre_tags` curation list (`musicbrainz_tag_name`, `reason`, exported to the pipelines): MusicBrainz tags that are not official genres but are kept as genre tags, so Silver stops dropping them (pipelines #403). Migration `0126`. Test in `test_curation_api.py`.
 - Generated `LOCAL:region-*` overviews are no longer deleted silently. The region map merge reads the run's own `synthesized_overview_alerts.json` (`{"alerts": [...]}`, never stored or served) and refuses an index with any key its schema does not declare, so a curation signal can no longer leak into `GET /v1/regions/map/`; it and replaces the `synthetic_overview_superseded`, `_orphaned` and `_renamed` review items; they carry only the `LOCAL:` id and `target_item_id`, so the review-item constraint gains a third case. A Wikidata resolutions report no longer wipes them. The new `synthetic_overview_resolutions` curation list (`item_id`, `action` replace|remove, `replacement_item_id`, `reason`) is exported to the pipelines to retire an overview. Migration `0125`. Tests in `test_region_map.py`, `test_wikidata_resolutions.py` and `test_synthetic_overview_resolutions_list.py`.
 - An admin can reparent a Wikidata genre under an app-created genre. The app-created parent (and any app-created ancestors) is adopted as a curated `LOCAL:<slug>` grouping node: it gets a `canonical_parent_additions` entry and its own `canonical_parent` edge, so the move survives the nightly pipeline. Admin reparents of `LOCAL:` genres are now recorded as edge rules, a rename updates the addition's label, and deleting one repoints its children's edges. The rule set now flags a `LOCAL:` id used in an edge but declared in no addition list (export 409, and a 400 on the write). Tests in `test_edit_curation_rules.py`.
-
-### Changed
-
-- **Breaking:** grow owns the Gold region map schemas (`region_map`, `hidden_regions`, `synthesized_overview_alerts` in `grow/schemas/`) and the region map import validates each file against its own schema (strict, no unknown keys), keeping only the cross-reference checks in code. A run must carry exactly `index.json`, `hidden_regions.json` and `synthesized_overview_alerts.json`; a run missing one, or an index with inline `hiddenRegions`, `boundaryStatus`, `drillable`, `files` or `synthesizedOverviewAlerts`, is refused. Needs the pipelines change that moves the alerts into their own file (pipelines #405) deployed first. Snapshots already stored keep being served (the attachable list still reads inline `hiddenRegions` from them). Tests in `test_region_map.py` and `test_gold_region_map_contract.py`.
-- The Gold contract tests run in plain `pytest`: the `contract` marker and the separate `Gold contract` CI job are gone, since no test needs a network or a token any more.
-- The README and AGENTS.md no longer link to the-music-tree-pipelines, which is now a private repository.
-- Bumped the-music-tree-genre-kit to v0.61.0, which owns the Gold genre-tree JSON Schema. The `Gold contract` CI job reads it from the installed package instead of fetching it from the private pipelines repo, so `GOLD_SCHEMA_PATH` and the `PIPELINES_READ_TOKEN` secret are gone. The serializer-vs-schema required-fields test now lives in the genre kit.
-- Bumped the-music-tree-genre-kit to v0.60.2 (and with it the-music-tree-api-kit to v0.12.2): 401 responses now carry a `WWW-Authenticate: Bearer` challenge, so anonymous public GETs are not mistaken for expired admin sessions.
-- **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
-
-### Removed
-
-- **Breaking:** `POST genres/{uuid}/set-root/`, replaced by `PUT` with `parent: null`.
-
-### Fixed
-
-- The catalogue migration concurrency tests no longer fail at random: autovacuum, which locks the small, constantly truncated tables, is switched off on them for the module, and the `could not obtain lock` assertions now name the writer's relations, so a lock held by anything else cannot pass for the expected failure.
-
-### Added
-
 - CI job `Gold contract` (`pytest -m contract`, also run daily) checks grow's tree import against the pipelines' `genre_tree.schema.json`, fetched from the matching branch: the sample file covers every schema property, grow's required fields are required by the schema, and a batch of Gold files imports end to end. A schema change grow does not accept now fails there instead of on the next staging run.
 - `POST genres/trees/import-runs/` imports the canonical and regional genre trees in one asynchronous run (body `{trees: [<Gold tree file>]}`, 202 `{taskId}`; poll `GET genres/trees/import/<taskId>/status/`), replacing the synchronous pipeline call that timed out on staging after 120 s. Both trees go through a single `import_criteria_trees` call, so a genre moved between trees keeps its pk and songs. A pipeline run records its curation export and one `ImportRun` per tree, atomically with the run. The synchronous `tree/import/` stays for admin use. The genre kit is bumped to 0.59.0 (set-based delete); genre deletes use batch hooks that reparent songs and refresh counts. Migration `0119`. Tests cover the contract (SQLite) and, on Postgres, a cross-tree move, a delete that reparents songs, and the owner-less path; the perf seed uses the new endpoint.
 - Genres carry a Wikimedia Commons image (`image_url`, `image_page_url`, `image_author`, `image_license`, `image_license_url`) from the kit's `CommonsImage` mixin, written by the genre tree import (an `image` object on each node, cleared when absent) and returned as `image` (`url`, `pageUrl`, `author`, `license`, `licenseUrl`, or `null`) in `genres/<uuid>/overview/`. Migration `0120` adds the columns and the `grow_genre_image_complete` constraint. Tests cover the overview, the import (set, clear, invalid) and the database backstop.
@@ -49,12 +31,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Breaking:** grow owns the Gold region map schemas (`region_map`, `hidden_regions`, `synthesized_overview_alerts` in `grow/schemas/`) and the region map import validates each file against its own schema (strict, no unknown keys), keeping only the cross-reference checks in code. A run must carry exactly `index.json`, `hidden_regions.json` and `synthesized_overview_alerts.json`; a run missing one, or an index with inline `hiddenRegions`, `boundaryStatus`, `drillable`, `files` or `synthesizedOverviewAlerts`, is refused. Needs the pipelines change that moves the alerts into their own file (pipelines #405) deployed first. Snapshots already stored keep being served (the attachable list still reads inline `hiddenRegions` from them). Tests in `test_region_map.py` and `test_gold_region_map_contract.py`.
+- The Gold contract tests run in plain `pytest`: the `contract` marker and the separate `Gold contract` CI job are gone, since no test needs a network or a token any more.
+- The README and AGENTS.md no longer link to the-music-tree-pipelines, which is now a private repository.
+- Bumped the-music-tree-genre-kit to v0.61.0, which owns the Gold genre-tree JSON Schema. The `Gold contract` CI job reads it from the installed package instead of fetching it from the private pipelines repo, so `GOLD_SCHEMA_PATH` and the `PIPELINES_READ_TOKEN` secret are gone. The serializer-vs-schema required-fields test now lives in the genre kit.
+- Bumped the-music-tree-genre-kit to v0.60.2 (and with it the-music-tree-api-kit to v0.12.2): 401 responses now carry a `WWW-Authenticate: Bearer` challenge, so anonymous public GETs are not mistaken for expired admin sessions.
+- **Breaking:** `PUT genres/{uuid}/` with `parent: null` now makes a canonical genre a root, for Wikidata-backed genres too (it was a 400): the item's `canonical_parent` rule becomes a parentless one so the pipeline keeps it a root, the genre is locked, `isUnacceptedRoot` is cleared on any admin parent change, and `parent_changed` history is attributed to the admin. Regional and excluded genres still return 400. Tests in `test_edit_curation_rules.py`.
 - `POST genres/trees/import-runs/` takes the Gold tree files as they are: `{trees: [<Gold file>]}`, each entry carrying its own `curationExportedOn` (pipeline only, all equal, popped like `tree/import/`) instead of one top-level `curationExportedOn`, which the pipeline never sent and made staging runs fail with `Unknown field`. A top-level key other than `trees`, and mixed exports, are 400. Tests cover the per-entry export, the rejections and the perf seed.
 - `Artist` takes its image columns, constraint and output from api-kit's `CommonsImage` (no schema change, `makemigrations --check` stays empty), and the artist import part loader validates `image` with api-kit's `validate_commons_image`.
 - The genre kit is bumped to 0.58.0, which adds `TrackPlaylistRel.genre` (kit migrations `0014`, the foreign key with brief locks, and `0015`, its index built `CONCURRENTLY`). Applying them on a large database is a deployment step.
 
+### Improved
+
+- The `Perf` gate measures with `jit=off`, like the app's connections (`grow/settings.py`). It ran with Postgres JIT on, so a larger parent graph (higher estimated cost on the tracks-count query) triggered a ~0.8 s JIT compilation that production never pays, failing the `genre-playlist-tracks` SLO.
+- `GET genre-playlists/<uuid>/tracks/` (for example Mainstream Pop with `coverage=genre_and_subgenres&subgenres=regional`) no longer times out (503) on its `blocked` count. The count filters on the membership's own `genre_id` instead of probing the track table per member. Migration `0118` keeps the column in sync with database triggers (PostgreSQL and SQLite: fill on insert when null, follow `Track.genre` updates) and backfills existing rows in batches of 50 000 (non-atomic). The bulk import merge writes `genre_id` with the membership. Tested on the denormalization invariant and, in `perf/`, on the plan (no per-member track probe).
+
+### Removed
+
+- **Breaking:** `POST genres/{uuid}/set-root/`, replaced by `PUT` with `parent: null`.
+
 ### Fixed
 
+- The catalogue migration concurrency tests no longer fail at random: autovacuum, which locks the small, constantly truncated tables, is switched off on them for the module, and the `could not obtain lock` assertions now name the writer's relations, so a lock held by anything else cannot pass for the expected failure.
 - CI job `Gold contract` fetches the Gold schema from the now-private pipelines repo through the GitHub contents API with the `PIPELINES_READ_TOKEN` secret (fine-grained, Contents:read on `the-music-tree-pipelines`); the unauthenticated raw URL returned 404.
 - A Google ID token minted for another OAuth client now gets a 401 with code `invalid_audience` instead of the generic `invalid_token`, so a client pointed at the wrong API is diagnosable. Signature, expiry and issuer are still verified. Tests in `test_google_id_token_auth.py`.
 - **A redeploy no longer breaks a songs/artists import**: a worker killed after the merge committed (run 95 on staging) used to end `failed` with the run left uncleaned. Reconcile now queues a finalizing attempt (up to 3) that skips the merge and only cleans up; a run already cleaned counts as succeeded. The deploy workflow waits for running imports to drain (`manage.py wait_for_import_drain`, skipped with the `skip_import_drain` dispatch input). Tests cover reconcile, the drain command and the resumed attempt (SQLite and Postgres).
@@ -63,11 +61,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - A detailed artist's `origin.region_id` is `null` unless the latest region map index draws that region. The artist and region map imports run separately, so the id could name a region the map does not draw, and the `/map?region=` link opened a blank map. The check runs at read time (cached per index checksum), so the id comes back once a map that draws it is imported. Tests cover no snapshot, a region not drawn, and a newer snapshot that draws it.
 - An artist's origin `kind` may be null (a MusicBrainz area without a type): the bulk import accepts `kind: null` and still rejects an empty string, and the `artist_origin_complete` constraint no longer requires a kind (migration `0122`). Pipelines must not export a null kind before this is deployed. Tests cover both import cases.
 - The README and the `Perf` workflow say `Perf` is a required check on `develop` (it is, since 2026-11-07) and not yet on `main`; they still said it was optional everywhere.
-
-### Improved
-
-- The `Perf` gate measures with `jit=off`, like the app's connections (`grow/settings.py`). It ran with Postgres JIT on, so a larger parent graph (higher estimated cost on the tracks-count query) triggered a ~0.8 s JIT compilation that production never pays, failing the `genre-playlist-tracks` SLO.
-- `GET genre-playlists/<uuid>/tracks/` (for example Mainstream Pop with `coverage=genre_and_subgenres&subgenres=regional`) no longer times out (503) on its `blocked` count. The count filters on the membership's own `genre_id` instead of probing the track table per member. Migration `0118` keeps the column in sync with database triggers (PostgreSQL and SQLite: fill on insert when null, follow `Track.genre` updates) and backfills existing rows in batches of 50 000 (non-atomic). The bulk import merge writes `genre_id` with the membership. Tested on the denormalization invariant and, in `perf/`, on the plan (no per-member track probe).
 
 ### CI
 
