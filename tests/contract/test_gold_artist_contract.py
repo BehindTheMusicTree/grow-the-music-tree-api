@@ -105,9 +105,7 @@ VIOLATIONS = {
     "link not http": _mutated(("links", 0, "url"), "ftp://example.com"),
     "release group bad mbid": _mutated(("release_groups", 0, "musicbrainz_release_group_id"), "nope"),
     "release group empty title": _mutated(("release_groups", 0, "title"), ""),
-    "release group title too long": _mutated(
-        ("release_groups", 0, "title"), "x" * (settings.ALBUM_NAME_LEN_MAX + 1)
-    ),
+    "release group title too long": _mutated(("release_groups", 0, "title"), "x" * (settings.ALBUM_NAME_LEN_MAX + 1)),
     "release year not four digits": _mutated(("release_groups", 0, "first_release_year"), 999),
     "image not https": _mutated(("image", "url"), "http://example.com/a.jpg"),
     "origin unknown source": _mutated(("origin", "source"), "birthplace"),

@@ -7,8 +7,7 @@
     "regions",
     "tileset",
     "worldChildIds",
-    "worldZoneIds",
-    "synthesizedOverviewAlerts"
+    "worldZoneIds"
   ],
   "definitions": {
     "box": {
@@ -215,43 +214,6 @@
             }
           }
         ]
-      }
-    },
-    "synthesizedOverviewAlerts": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "regionId",
-          "itemId",
-          "reason",
-          "targetItemId"
-        ],
-        "properties": {
-          "regionId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "itemId": {
-            "type": "string"
-          },
-          "reason": {
-            "enum": [
-              "superseded",
-              "orphaned",
-              "renamed"
-            ]
-          },
-          "targetItemId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
       }
     }
   }

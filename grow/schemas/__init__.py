@@ -1,4 +1,4 @@
-"""JSON Schemas of the Gold exports grow imports (artist, genealogy, region map, hidden regions).
+"""JSON Schemas of the Gold exports grow imports (artist, genealogy, region map, hidden regions, overview alerts).
 
 grow implements these imports, so it owns their contract; the pipelines repo vendors byte copies pinned to a release tag.
 """
@@ -12,7 +12,7 @@ from jsonschema import Draft7Validator, Draft202012Validator
 from jsonschema.protocols import Validator
 
 SCHEMAS_DIR = Path(__file__).parent
-GOLD_SCHEMA_NAMES = ("artist", "genealogy", "region_map", "hidden_regions")
+GOLD_SCHEMA_NAMES = ("artist", "genealogy", "region_map", "hidden_regions", "synthesized_overview_alerts")
 
 
 def load_gold_schema(name: str) -> dict[str, Any]:
@@ -23,7 +23,7 @@ def load_gold_schema(name: str) -> dict[str, Any]:
 
 @cache
 def gold_validator(name: str) -> Validator:
-    """Validator for the schema's own draft: `genealogy` and `region_map` are draft-07, the others 2020-12."""
+    """Validator for the schema's own draft: `genealogy` and the region map ones are draft-07, the others 2020-12."""
     schema = load_gold_schema(name)
     cls = Draft7Validator if schema["$schema"].startswith("http://json-schema.org/draft-07") else Draft202012Validator
     cls.check_schema(schema)

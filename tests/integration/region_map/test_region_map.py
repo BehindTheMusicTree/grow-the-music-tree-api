@@ -31,12 +31,31 @@ def _sha256(document: dict) -> str:
     return hashlib.sha256(canonical_bytes(document)).hexdigest()
 
 
-def _index(genres: list[dict] | None = None, **overrides) -> dict:
+def _region(region_id: str = "Q142", genres: list[dict] | None = None, **overrides) -> dict:
     return {
-        "regions": [
-            {"itemId": "Q142", "genres": genres or [{"itemId": GENRE, "rule": "anchor", "relation": "origin"}]}
-        ],
+        "id": region_id,
+        "name": region_id,
+        "kind": "country",
+        "parentId": None,
+        "childIds": [],
+        "zoneIds": [],
+        "bbox": [0, 0, 1, 1],
+        "centroid": [0.5, 0.5],
+        "overviewItemId": None,
+        "inheritedOverviewItemId": None,
+        "genres": [{"itemId": GENRE, "relation": "canonical"}] if genres is None else genres,
+        "songCount": 1,
+        "genreCount": 1,
+        **overrides,
+    }
+
+
+def _index(regions: list[dict] | None = None, **overrides) -> dict:
+    return {
+        "regions": [_region()] if regions is None else regions,
         "tileset": TILESET,
+        "worldChildIds": [],
+        "worldZoneIds": [],
         **overrides,
     }
 
@@ -45,8 +64,15 @@ def _line(path: str, document: dict) -> dict:
     return {"path": path, "sha256": _sha256(document), "document": document}
 
 
-def _parts(index: dict | None = None) -> list[list[dict]]:
-    return [[_line("index.json", index or _index())]]
+def _parts(index: dict | None = None, hidden: list[dict] | None = None, alerts: list[dict] | None = None):
+    """One part with the three files every run carries."""
+    return [
+        [
+            _line("index.json", index or _index()),
+            _line("hidden_regions.json", {"regions": hidden or []}),
+            _line("synthesized_overview_alerts.json", {"alerts": alerts or []}),
+        ]
+    ]
 
 
 def _gzip_ndjson(lines: list[dict]) -> bytes:
@@ -65,26 +91,8 @@ def _snapshot(body: bytes, hidden_body: bytes | None = None) -> RegionMapSnapsho
     return RegionMapSnapshot.objects.create(checksum=_file(body), hidden_regions_checksum=hidden_checksum)
 
 
-DRAWN = {
-    "id": "Q142",
-    "name": "Europe",
-    "kind": "continent",
-    "genres": [{"itemId": GENRE, "rule": "anchor", "relation": "origin"}],
-}
 HIDDEN = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "world"}
-
-
-def _alerts_parts(alerts: list[dict], index: dict | None = None) -> list[list[dict]]:
-    return [[*_parts(index)[0], _line("synthesized_overview_alerts.json", {"alerts": alerts})]]
-
-
-def _hidden_parts(hidden: list[dict] | None = None, index: dict | None = None) -> list[list[dict]]:
-    return [
-        [
-            _line("index.json", index or _index(regions=[DRAWN])),
-            _line("hidden_regions.json", {"regions": [HIDDEN] if hidden is None else hidden}),
-        ]
-    ]
+ALERT = {"regionId": "Q142", "itemId": "LOCAL:region-q142", "reason": "superseded", "targetItemId": GENRE}
 
 
 class TestRegionMapReads(AppTestCase):
@@ -332,44 +340,79 @@ class TestRegionMapImportRun(AppTestCase):
         assert codes == [status.HTTP_400_BAD_REQUEST] * len(invalid)
         assert not RegionMapFileStaging.objects.exists()
 
+    def _refused(self, parts: list[list[dict]]) -> None:
+        assert self._commit(parts).status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
     def test_invalid_run_fails_and_keeps_snapshot(self):
         self._sync(_parts())
         kept = RegionMapSnapshot.objects.get()
-        geometry = [*_parts()[0], _line("geometry/world.geojson", {"type": "FeatureCollection"})]
+        files = _parts()[0]
         invalid = [
-            [geometry],
-            [[_line("other.json", _index())]],
+            [files[:1]],
+            [files[1:]],
+            [files[:2]],
+            [[*files, _line("geometry/world.geojson", {"type": "FeatureCollection"})]],
+            [[*files[:2], _line("other.json", _index())]],
             _parts(_index(tileset=None)),
             _parts(_index(tileset="nope")),
             _parts(_index(files={"geometry/world.geojson": TILESET})),
         ]
 
-        codes = [self._commit(parts).status_code for parts in invalid]
+        for parts in invalid:
+            self._refused(parts)
 
-        assert codes == [status.HTTP_500_INTERNAL_SERVER_ERROR] * len(invalid)
         assert list(RegionMapSnapshot.objects.all()) == [kept]
         assert not RegionMapFileStaging.objects.exists()
 
-    def test_unknown_genre_fails_but_tradition_allowed(self):
-        unknown = [{"itemId": "Q404", "rule": "anchor", "relation": "origin"}]
-        tradition = [{"itemId": TRADITION, "rule": "anchor", "relation": "tradition"}]
-
-        assert self._commit(_parts(_index(unknown))).status_code == 500
+    def test_documents_are_validated_against_their_schema(self):
+        index = _index()
+        invalid = {
+            "index.json": [
+                {**index, "synthesizedOverviewAlerts": []},
+                {**index, "hiddenRegions": []},
+                {key: value for key, value in index.items() if key != "worldChildIds"},
+                _index([{key: value for key, value in _region().items() if key != "songCount"}]),
+                _index([_region(boundaryStatus="available")]),
+                _index([_region(bbox=None)]),
+                _index([_region(mainBbox=[0, 0, 1, 1], bbox=None, centroid=None)]),
+                _index([_region(genres=[{"itemId": GENRE, "relation": "origin"}])]),
+            ],
+            "hidden_regions.json": [
+                {"regions": [], "other": 1},
+                {"regions": [{**HIDDEN, "centroid": [1, 49]}]},
+                {"regions": [{"id": "Q1", "name": "One", "kind": "admin_unit"}]},
+                {"regions": {}},
+            ],
+            "synthesized_overview_alerts.json": [
+                {"alerts": [], "other": 1},
+                {"alerts": {}},
+                {"alerts": [{**ALERT, "reason": "bogus"}]},
+                {"alerts": [{**ALERT, "itemId": "Q142"}]},
+                {"alerts": [{key: value for key, value in ALERT.items() if key != "targetItemId"}]},
+            ],
+        }
+        for path, documents in invalid.items():
+            for document in documents:
+                files = {line["path"]: line for line in _parts()[0]}
+                files[path] = _line(path, document)
+                self._refused([list(files.values())])
         assert not RegionMapSnapshot.objects.exists()
-        assert self._sync(_parts(_index(tradition)))["imported"] == 1
+
+    def test_unknown_genre_fails_but_tradition_allowed(self):
+        unknown = [{"itemId": "Q404", "relation": "canonical"}]
+        tradition = [{"itemId": TRADITION, "relation": "tradition"}]
+
+        self._refused(_parts(_index([_region(genres=unknown)])))
+        assert not RegionMapSnapshot.objects.exists()
+        assert self._sync(_parts(_index([_region(genres=tradition)])))["imported"] == 1
 
     def test_overview_item_id_must_be_a_listed_non_tradition_genre(self):
-        def index(overview):
-            region = {"id": "Q142", "genres": _index()["regions"][0]["genres"], "overviewItemId": overview}
-            return _index(regions=[region])
-
-        assert self._commit(_parts(index("Q404"))).status_code == 500
+        self._refused(_parts(_index([_region(overviewItemId="Q404")])))
         assert not RegionMapSnapshot.objects.exists()
-        assert self._sync(_parts(index(GENRE)))["imported"] == 1
+        assert self._sync(_parts(_index([_region(overviewItemId=GENRE)])))["imported"] == 1
 
     def test_alerts_replace_the_synthetic_overview_review_items(self):
-        alert = {"regionId": "Q142", "itemId": "LOCAL:region-q142", "reason": "superseded", "targetItemId": GENRE}
-        self._sync(_alerts_parts([alert]))
+        self._sync(_parts(alerts=[ALERT]))
 
         item = CurationReviewItem.objects.get()
         assert (item.item_id, item.reason, item.target_item_id, item.list_name) == (
@@ -378,124 +421,58 @@ class TestRegionMapImportRun(AppTestCase):
             GENRE,
             None,
         )
-        self._sync(_alerts_parts([]))
+        self._sync(_parts())
         assert not CurationReviewItem.objects.exists()
 
     def test_alerts_are_replaced_when_the_index_is_unchanged(self):
-        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
-        self._sync(_alerts_parts([alert]))
+        self._sync(_parts(alerts=[ALERT]))
         self._sync(_parts())
 
         assert not CurationReviewItem.objects.exists()
         assert RegionMapSnapshot.objects.count() == 1
 
     def test_alerts_are_not_stored_or_served(self):
-        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
-        self._sync(_alerts_parts([alert]))
+        self._sync(_parts(alerts=[ALERT]))
 
-        assert RegionMapFile.objects.count() == 1
+        assert RegionMapFile.objects.count() == 2
+        assert "synthesizedOverviewAlerts" not in json.loads(APIClient().get(INDEX).content)
 
-    def test_alerts_file_is_validated_as_an_object_with_only_alerts(self):
-        parts = [[*_parts()[0], _line("synthesized_overview_alerts.json", {"alerts": [], "other": 1})]]
+    def test_region_without_boundary_retains_identity_and_genres(self):
+        region = _region("JO", bbox=None, centroid=None)
 
-        assert self._commit(parts).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_alerts_must_be_a_list(self):
-        parts = [[*_parts()[0], _line("synthesized_overview_alerts.json", {"alerts": {}})]]
-
-        assert self._commit(parts).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_index_with_an_unknown_key_is_refused(self):
-        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "orphaned", "targetItemId": None}
-
-        assert self._commit(_parts(_index(synthesizedOverviewAlerts=[alert]))).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_unknown_alert_reason_fails(self):
-        alert = {"regionId": None, "itemId": "LOCAL:region-x", "reason": "bogus", "targetItemId": None}
-
-        assert self._commit(_alerts_parts([alert])).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_overview_item_id_may_be_null_or_absent(self):
-        region = {**_index()["regions"][0], "id": "Q142", "overviewItemId": None}
-
-        assert self._sync(_parts(_index(regions=[region])))["imported"] == 1
-
-    def test_missing_boundary_retains_region_and_genres(self):
-        region = {
-            **_index()["regions"][0],
-            "id": "JO",
-            "boundaryStatus": "missing",
-            "bbox": None,
-            "mainBbox": None,
-            "centroid": None,
-        }
-        assert self._sync(_parts(_index(regions=[region], worldZoneIds=["JO"])))["imported"] == 1
-        response = APIClient().get(INDEX)
-        assert response.status_code == status.HTTP_200_OK
-        assert json.loads(response.content)["regions"][0] == region
-
-    def test_lean_region_without_boundary_status_or_main_bbox_is_kept(self):
-        regions = [
-            {**_index()["regions"][0], "id": "JO", "bbox": None, "centroid": None},
-            {**_index()["regions"][0], "id": "FR", "bbox": [0, 0, 1, 1], "centroid": [0.5, 0.5]},
-        ]
-        assert self._sync(_parts(_index(regions=regions, worldZoneIds=["JO", "FR"])))["imported"] == 2
-        assert json.loads(APIClient().get(INDEX).content)["regions"] == regions
-
-    def test_boundary_status_must_agree_with_coordinates(self):
-        base = {**_index()["regions"][0], "bbox": None, "mainBbox": None, "centroid": None}
-        invalid = [
-            {**base, "boundaryStatus": "unknown"},
-            {**base, "boundaryStatus": "available"},
-            {**base, "boundaryStatus": "missing", "centroid": [0, 0]},
-        ]
-        for region in invalid:
-            assert self._commit(_parts(_index(regions=[region]))).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
+        assert self._sync(_parts(_index([region], worldZoneIds=["JO"])))["imported"] == 1
+        assert json.loads(APIClient().get(INDEX).content)["regions"] == [region]
 
     def test_level_ids_must_name_existing_regions(self):
-        genres = _index()["regions"][0]["genres"]
-        regions = [{"id": "Q142", "genres": genres, "childIds": []}]
+        regions = [_region()]
 
-        assert self._commit(_parts(_index(regions=regions, worldChildIds=["Q404"]))).status_code == 500
-        assert self._commit(_parts(_index(regions=regions, worldZoneIds="Q142"))).status_code == 500
+        self._refused(_parts(_index(regions, worldChildIds=["Q404"])))
+        self._refused(_parts(_index(regions, worldZoneIds="Q142")))
+        self._refused(_parts(_index([_region(childIds=["Q404"])])))
         assert not RegionMapSnapshot.objects.exists()
-        assert self._sync(_parts(_index(regions=regions, worldChildIds=["Q142"], worldZoneIds=[])))["imported"] == 1
+        assert self._sync(_parts(_index(regions, worldChildIds=["Q142"])))["imported"] == 1
 
     def test_city_ids_must_name_existing_regions(self):
-        genres = _index()["regions"][0]["genres"]
-
         def index(city_ids):
-            admin = {"id": "Q142", "genres": genres, "childIds": [], "cityIds": city_ids}
-            return _index(regions=[admin, {"id": "Q90", "genres": genres}], worldChildIds=["Q142"])
+            return _index([_region(cityIds=city_ids), _region("Q90")], worldChildIds=["Q142"])
 
-        assert self._commit(_parts(index(["Q404"]))).status_code == 500
-        assert self._commit(_parts(index("Q90"))).status_code == 500
+        self._refused(_parts(index(["Q404"])))
+        self._refused(_parts(index("Q90")))
         assert not RegionMapSnapshot.objects.exists()
         assert self._sync(_parts(index(["Q90"])))["imported"] == 2
 
     def test_hidden_regions_must_be_unique_undrawn_and_parented(self):
-        genres = _index()["regions"][0]["genres"]
-        drawn = {"id": "Q142", "genres": genres}
+        ok = {**HIDDEN, "parentId": "Q142"}
 
-        def index(hidden):
-            return _index(regions=[drawn], hiddenRegions=hidden)
-
-        ok = {"id": "Q1", "name": "One", "kind": "admin_unit", "parentId": "Q142"}
-        assert self._commit(_parts(index("Q1"))).status_code == 500
-        assert self._commit(_parts(index([{"id": "Q142", "name": "x", "kind": "admin_unit"}]))).status_code == 500
-        assert self._commit(_parts(index([ok, ok]))).status_code == 500
-        assert (
-            self._commit(_parts(index([{**ok, "parentId": "Q404"}, {"id": "Q9", "parentId": "world"}]))).status_code
-            == 500
-        )
+        for hidden in (
+            [ok, ok],
+            [{**ok, "id": "Q142"}],
+            [{**ok, "parentId": "Q404"}],
+        ):
+            self._refused(_parts(hidden=hidden))
         assert not RegionMapSnapshot.objects.exists()
         nested = [ok, {**ok, "id": "Q2", "parentId": "Q1"}, {**ok, "id": "Q3", "parentId": "world"}]
-        assert self._sync(_parts(index(nested)))["imported"] == 1
+        assert self._sync(_parts(hidden=nested))["imported"] == 1
 
     def test_delta_run_refused_at_creation(self):
         response = self.api_client.post(path=RUNS, data={"mode": "delta"})
@@ -510,7 +487,7 @@ class TestRegionMapImportRun(AppTestCase):
         assert self._sync(_parts(), client=self.pipeline) == {"imported": 0, "skipped": 1}
 
         assert RegionMapSnapshot.objects.count() == 1
-        assert RegionMapFile.objects.count() == 1
+        assert RegionMapFile.objects.count() == 2
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("region_map", 1, 1)]
 
     def test_changed_import_recorded_and_linked_to_snapshot(self):
@@ -520,65 +497,30 @@ class TestRegionMapImportRun(AppTestCase):
         assert (run.kind, run.count, run.skipped_count) == ("region_map", 1, None)
         assert RegionMapSnapshot.objects.get().import_run == run
 
-    def test_new_index_replaces_snapshot_and_drops_old_file(self):
+    def test_new_index_replaces_snapshot_and_drops_old_files(self):
         self._sync(_parts())
         self._sync(_parts(_index(tileset="b" * 64)))
 
         assert json.loads(APIClient().get(INDEX).content)["tileset"] == "b" * 64
         assert RegionMapSnapshot.objects.count() == 1
-        assert RegionMapFile.objects.count() == 1
+        assert RegionMapFile.objects.count() == 2
 
     def test_hidden_regions_file_imported_and_served_as_attachable(self):
-        assert self._sync(_hidden_parts())["imported"] == 1
+        assert self._sync(_parts(hidden=[HIDDEN]))["imported"] == 1
 
         snapshot = RegionMapSnapshot.objects.get()
         assert snapshot.hidden_regions_checksum == _sha256({"regions": [HIDDEN]})
         assert "hiddenRegions" not in json.loads(APIClient().get(INDEX).content)
         assert [t["id"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Q1"]
 
-    def test_previous_format_still_imported(self):
-        self._sync(_parts(_index(regions=[DRAWN], hiddenRegions=[HIDDEN])))
-
-        assert RegionMapSnapshot.objects.get().hidden_regions_checksum is None
-        assert [t["id"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Q1"]
-
-    def test_hidden_regions_in_both_formats_refused(self):
-        assert self._commit(_hidden_parts(index=_index(hiddenRegions=[HIDDEN]))).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_hidden_regions_file_is_validated_like_the_inline_list(self):
-        invalid = [
-            [HIDDEN, HIDDEN],
-            [{**HIDDEN, "parentId": "Q404"}],
-            [{"id": "Q142", "name": "x", "kind": "admin_unit"}],
-        ]
-        for hidden in invalid:
-            assert self._commit(_hidden_parts(hidden)).status_code == 500
-        document = {"regions": [], "other": 1}
-        assert self._commit([[*_parts()[0], _line("hidden_regions.json", document)]]).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
-    def test_unknown_path_refused_even_with_hidden_regions_file(self):
-        parts = [[*_hidden_parts()[0], _line("other.json", _index())]]
-
-        assert self._commit(parts).status_code == 500
-        assert not RegionMapSnapshot.objects.exists()
-
     def test_changed_hidden_regions_replace_snapshot_for_identical_index(self):
-        self._sync(_hidden_parts())
-        assert self._sync(_hidden_parts(), client=self.pipeline) == {"imported": 0, "skipped": 1}
+        self._sync(_parts(hidden=[HIDDEN]))
+        assert self._sync(_parts(hidden=[HIDDEN]), client=self.pipeline) == {"imported": 0, "skipped": 1}
 
-        assert self._sync(_hidden_parts([{**HIDDEN, "name": "Uno"}]))["imported"] == 1
+        assert self._sync(_parts(hidden=[{**HIDDEN, "name": "Uno"}]))["imported"] == 1
 
         assert RegionMapSnapshot.objects.get().hidden_regions_checksum == _sha256(
             {"regions": [{**HIDDEN, "name": "Uno"}]}
         )
         assert RegionMapFile.objects.count() == 2
         assert [t["name"] for t in APIClient().get(reverse("region-map-attachable")).json() if t["hidden"]] == ["Uno"]
-
-    def test_switching_formats_purges_the_old_files(self):
-        self._sync(_hidden_parts())
-        self._sync(_parts())
-
-        assert RegionMapSnapshot.objects.get().hidden_regions_checksum is None
-        assert RegionMapFile.objects.count() == 1

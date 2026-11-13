@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/grow/schemas/synthesized_overview_alerts.schema.json",
+  "title": "Synthesized overview alerts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "alerts"
+  ],
+  "properties": {
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "regionId",
+          "itemId",
+          "reason",
+          "targetItemId"
+        ],
+        "properties": {
+          "regionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "itemId": {
+            "type": "string",
+            "pattern": "^LOCAL:region-"
+          },
+          "reason": {
+            "enum": [
+              "superseded",
+              "orphaned",
+              "renamed"
+            ]
+          },
+          "targetItemId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
