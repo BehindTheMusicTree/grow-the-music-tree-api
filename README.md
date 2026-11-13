@@ -203,7 +203,7 @@ done
 
 ## Data sources and licenses
 
-The code in this repository is licensed under Apache 2.0. The data served by the `/v1/*` endpoints is produced by [the-music-tree-pipelines](https://github.com/BehindTheMusicTree/the-music-tree-pipelines) and keeps the license of its source:
+The code in this repository is licensed under Apache 2.0. The data served by the `/v1/*` endpoints is produced by `the-music-tree-pipelines` (a private repository) and keeps the license of its source:
 
 | Source | Used for | License |
 |---|---|---|
