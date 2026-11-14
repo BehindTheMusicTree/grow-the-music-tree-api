@@ -2,8 +2,6 @@ import base64
 import binascii
 from uuid import UUID
 
-from django.db.models import F
-from django.db.models.fields.tuple_lookups import TupleGreaterThan
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -13,7 +11,7 @@ from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import Pagin
 
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
-CURSOR_ORDERING = ("genre_id", "uuid")
+CURSOR_ORDERING = ("uuid",)
 
 
 def wants_no_total(request: Request) -> bool:
@@ -25,14 +23,13 @@ def wants_cursor(request: Request) -> bool:
     return wants_no_total(request) and "page" not in request.query_params
 
 
-def _encode_cursor(genre_id: UUID, uuid: UUID) -> str:
-    return base64.urlsafe_b64encode(f"{genre_id}:{uuid}".encode()).decode()
+def _encode_cursor(uuid: UUID) -> str:
+    return base64.urlsafe_b64encode(str(uuid).encode()).decode()
 
 
-def _decode_cursor(value: str) -> tuple[UUID, UUID]:
+def _decode_cursor(value: str) -> UUID:
     try:
-        genre_id, uuid = base64.urlsafe_b64decode(value.encode()).decode().split(":")
-        return UUID(genre_id), UUID(uuid)
+        return UUID(base64.urlsafe_b64decode(value.encode()).decode())
     except (ValueError, binascii.Error, UnicodeDecodeError) as error:
         raise ParseError("Invalid cursor.") from error
 
@@ -66,13 +63,11 @@ class OptionalTotalPagination(AppPagination):
         self._number = None
         raw_cursor = request.query_params.get(CURSOR_PARAM)
         if raw_cursor:
-            queryset = queryset.filter(
-                TupleGreaterThan((F(CURSOR_ORDERING[0]), F(CURSOR_ORDERING[1])), _decode_cursor(raw_cursor))
-            )
+            queryset = queryset.filter(uuid__gt=_decode_cursor(raw_cursor))
         rows = list(queryset[: self._size + 1])
         self._has_next = len(rows) > self._size
         rows = rows[: self._size]
-        self._next_cursor = _encode_cursor(rows[-1].genre_id, rows[-1].uuid) if self._has_next else None
+        self._next_cursor = _encode_cursor(rows[-1].uuid) if self._has_next else None
         return rows
 
     def get_paginated_response(self, data):

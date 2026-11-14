@@ -19,6 +19,12 @@ from grow.view.curation import (
     CurationWikidataResolutionsView,
 )
 from grow.view.genealogy import GenealogyImportView, GenealogyView
+from grow.view.genre_graph import (
+    ReferenceGraphRestoreView,
+    ReferenceGraphView,
+    SongAttributionsRestoreView,
+    SongAttributionsView,
+)
 from grow.view.health import HealthCheckView
 from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
 from grow.view.pipeline_run import (
@@ -65,6 +71,22 @@ router.register(r"regions/map", RegionMapViewSet, basename="region-map")
 urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
 
 urlpatterns += [
+    path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),
+    path(
+        f"{settings.API_ROOT_BASE}genres/graph/restore/",
+        ReferenceGraphRestoreView.as_view(),
+        name="reference-graph-restore",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}library/songs/<uuid:song_id>/attributions/",
+        SongAttributionsView.as_view(),
+        name="song-attributions",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}library/songs/<uuid:song_id>/attributions/restore/",
+        SongAttributionsRestoreView.as_view(),
+        name="song-attributions-restore",
+    ),
     path(f"{settings.API_ROOT_BASE}playback/context/", PlaybackContextView.as_view(), name="playback-context"),
     path(f"{settings.API_ROOT_BASE}auth/me/", AuthMeView.as_view(), name="auth-me"),
     path(f"{settings.API_ROOT_BASE}curation/lists/", CurationListsView.as_view(), name="curation-lists"),

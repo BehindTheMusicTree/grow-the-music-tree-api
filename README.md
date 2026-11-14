@@ -271,3 +271,27 @@ Migration `0115` installs shadow maintenance on both halves of the Song/Track jo
 source writers are excluded. Relation locks precede the advisory gate. A busy source relation or gate makes
 the migration fail immediately and roll back; retry after the writer completes. This migration temporarily
 takes exclusive source-table locks; its operational window must be measured on representative data.
+
+
+### Semantic reference graph (draft)
+
+This branch starts the reference graph v2 cutover and is not ready for deployment.
+`GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
+mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
+`graph`, a complete `mapping` (existing genre UUID or `null` for a new identity),
+and `expectedRevision` (`null` for the initial import). The graph must carry the
+current curation export timestamp. Missing mappings and stale revisions fail;
+labels never resolve identities. Check the route definitions in `grow/urls.py`
+for the graph restore endpoint.
+
+Song attribution endpoints accept explicit semantic identities and provenance,
+with both graph and membership revision tokens. Direct attributions are retained;
+effective attributions remove redundant broader assignments. Graph-only songs
+are included in song lists. Song cursors now contain a UUID alone; previous
+cursors must be restarted. Graph import is required before listing songs.
+
+Graph/membership archives and initial legacy-assignment backups are retained.
+Restoration currently supports retained identities only; removal/remapping and
+initial-assignment rollback remain unfinished. Catalogue/playlist counts, search,
+legacy writes and bulk imports still require migration to semantic memberships.
+Do not mix the old write APIs with graph attribution writes.

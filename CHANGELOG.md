@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Draft semantic reference graph API with explicit genre UUID mappings, revision-checked song attributions and archived graph restoration; song lists use normalized graph membership and UUID cursors. The catalogue, playlist, search and bulk-import cutover remains incomplete.
+
 - Pipeline run stages `ingesting_discogs`, `building_gold`, `uploading_region_map` and `merging_region_map`, so the admin panel shows the Discogs dump ingestion, the Gold build and the region map import instead of folding them into a neighbouring step (migration `0128`; the runner in `infrastructure` reports them once this ships). `ingesting_wikidata` stays accepted for older runs. Test in `test_pipeline_run.py`.
 
 ## [17.0.0] - 2026-11-13
