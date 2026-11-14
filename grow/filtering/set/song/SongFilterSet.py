@@ -7,9 +7,9 @@ from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
     PrivateUniqueResourceFilterSet,
 )
-from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage, parse_coverage
+from the_music_tree_genre_kit.criteria.selection.coverage import parse_coverage
 
-from grow.genre_music.selection import genre_graph, parse_subgenres, selected_genres
+from grow.genre_graph.selection import select_songs
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.criteria.Criteria import Fields as CriteriaFields
@@ -76,18 +76,14 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         fields = [Fields.TITLE, Fields.LANGUAGE, *PrivateUniqueResourceFilterSet.get_date_fields()]
 
     def filter_genre(self, queryset: QuerySet[Song], name: str, value) -> QuerySet[Song]:
-        """The genre's songs and its primary descendants', the same subtree its playlists cover."""
+        """Select normalized semantic attributions, independently of display parents."""
         coverage = parse_coverage(self.data.get("coverage"))
-        scope_value = self.data.get("subgenres")
-        if coverage == CriteriaCoverage.ONLY:
-            parse_subgenres(scope_value, coverage, "canonical")
-            return queryset.filter(genre=value)
-        trees, edges = genre_graph()
-        if value not in trees:
-            parse_subgenres(scope_value, coverage, "canonical")
-            return queryset.none()
-        scope = parse_subgenres(scope_value, coverage, trees[value])
-        return queryset.filter(genre__in=selected_genres(value, trees, edges, scope))
+        return select_songs(
+            queryset,
+            genre_id=value,
+            coverage=coverage,
+            subgenres=self.data.get("subgenres"),
+        )
 
     def filter_coverage(self, queryset: QuerySet[Song], name: str, value: str) -> QuerySet[Song]:
         return queryset

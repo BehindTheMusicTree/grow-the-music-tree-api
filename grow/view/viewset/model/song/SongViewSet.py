@@ -6,6 +6,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
+from grow.genre_graph.selection import attributed_songs
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
@@ -69,13 +70,13 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         return response
 
     def list(self, *args, **kwargs):
-        # Genreless songs are stored for later linking but have no place in the tree.
-        queryset = self.get_queryset().filter(genre__isnull=False)
+        # Songs without semantic attributions remain available for later curation.
+        queryset = attributed_songs(self.get_queryset())
         if wants_cursor(self.request):
             params = self.request.query_params
             if "genre" not in params or "ordering" in params or "from" in params:
                 raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
-            # (genre, uuid) matches the track index, so each page is one range scan instead of a sort of the subtree.
+            # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
