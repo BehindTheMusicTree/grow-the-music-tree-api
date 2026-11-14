@@ -17,6 +17,13 @@ if TYPE_CHECKING:
 
 
 class Criteria(AbstractCriteria, TrackMixin):
+    graph_node = models.OneToOneField(
+        "the_music_tree_genre_kit.GenreGraphNode",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="grow_criteria",
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
     )
@@ -43,7 +50,13 @@ class Criteria(AbstractCriteria, TrackMixin):
         constraints = [
             models.CheckConstraint(condition=~models.Q(_name=""), name="%(class)s_non_empty_name"),
             models.UniqueConstraint(
-                Lower(Fields.NAME_INTERNAL), condition=models.Q(user__isnull=True), name="unique_canonical_name"
+                Lower(Fields.NAME_INTERNAL),
+                condition=models.Q(user__isnull=True, graph_node__isnull=True),
+                name="unique_canonical_name",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(graph_node__isnull=True) | models.Q(user__isnull=True, type_id=0),
+                name="graph_criteria_reference_genre",
             ),
             models.UniqueConstraint(
                 Lower(Fields.NAME_INTERNAL),
