@@ -313,3 +313,22 @@ def test_song_list_and_cursor_include_graph_only_assignments(payload):
         seen.extend(row["uuid"] for row in body["results"])
         url = body["next"]
     assert seen == sorted(str(song.pk) for song in songs)
+
+
+def test_graph_import_preserves_existing_pop_child(payload):
+    factory = ModelFixtureFactory(None)
+    parent = factory.create_genre("Reggae")
+    child = factory.create_genre("Dub", parent=parent)
+    child.side = "pop"
+    child.save()
+    song = factory.create_song("Existing song", child)
+    mapping = {node["id"]: None for node in payload["nodes"]}
+    mapping.update({"LOCAL:reggae": str(parent.pk), "LOCAL:dub": str(child.pk)})
+    graph = deepcopy(payload)
+    next(node for node in graph["nodes"] if node["id"] == "LOCAL:dub")["displayParentId"] = "LOCAL:reggae"
+    import_graph(graph, mapping)
+    child.refresh_from_db()
+    assert child.side == "pop"
+    assert child.parent_id == parent.pk
+    assert child.root_id == parent.pk
+    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]

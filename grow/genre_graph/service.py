@@ -117,15 +117,27 @@ def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: U
     for identity, pk in bindings.items():
         data = graph.node(identity)
         genre = genres.get(pk)
+        tree_name = "canonical" if data.get("canonicalState") == "canonical" else "regional"
         if genre is None:
-            genre = Genre(uuid=pk, criteria_ptr_id=pk, graph_node=nodes[identity], user=None, _name=data["name"])
-        genre.graph_node = nodes[identity]
-        genre._name = data["name"]
-        genre.tree_name = "canonical" if data.get("canonicalState") == "canonical" else "regional"
-        genre.is_umbrella = data.get("isUmbrella", False)
-        genre.parent_id = None
-        genre.root = genre
-        genre.save()
+            genre = Genre(
+                uuid=pk,
+                criteria_ptr_id=pk,
+                graph_node=nodes[identity],
+                user=None,
+                _name=data["name"],
+                tree_name=tree_name,
+                is_umbrella=data.get("isUmbrella", False),
+            )
+            genre.root = genre
+            genre.save()
+        else:
+            # The complete semantic graph was validated above; legacy per-node saves
+            # would validate a temporary display projection while bindings are rebuilt.
+            Genre.objects.filter(pk=pk).update(
+                _name=data["name"],
+                tree_name=tree_name,
+                is_umbrella=data.get("isUmbrella", False),
+            )
         genres[pk] = genre
         CriteriaPlaylist.objects.get_or_create(
             criteria=genre, defaults={"user": None, "type_id": int(CriteriaTypePks.GENRE)}
