@@ -4,9 +4,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
-from grow.genre_graph.selection import attributed_songs
+from grow.genre_graph.selection import attributed_songs, require_reference_graph
+from grow.genre_graph.service import DATASET_KEY
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
@@ -70,6 +72,14 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         return response
 
     def list(self, *args, **kwargs):
+        require_reference_graph()
+        with graph_read_transaction(key=DATASET_KEY) as dataset:
+            response = self._list_graph_songs()
+            response["X-Genre-Graph-Revision"] = str(dataset.revision)
+            response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
+            return response
+
+    def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
         queryset = attributed_songs(self.get_queryset())
         if wants_cursor(self.request):

@@ -289,6 +289,9 @@ with both graph and membership revision tokens. Direct attributions are retained
 effective attributions remove redundant broader assignments. Graph-only songs
 are included in song lists. Song cursors now contain a UUID alone; previous
 cursors must be restarted. Graph import is required before listing songs.
+Song-list name and umbrella filters use normalized graph attributions. Each list
+holds a consistent graph through counts, pagination and serialization, returning
+`X-Genre-Graph-Revision` and `X-Genre-Membership-Revision` response headers.
 
 Graph/membership archives and initial legacy-assignment backups are retained.
 Restoration currently supports retained identities only; removal/remapping and

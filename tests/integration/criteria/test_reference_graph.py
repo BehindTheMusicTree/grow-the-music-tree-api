@@ -309,6 +309,8 @@ def test_song_list_and_cursor_include_graph_only_assignments(payload):
     while url:
         response = client.get(url)
         assert response.status_code == 200, response.data
+        assert response["X-Genre-Graph-Revision"] == str(dataset.revision)
+        assert response["X-Genre-Membership-Revision"] == str(dataset.membership_revision)
         body = response.json()
         seen.extend(row["uuid"] for row in body["results"])
         url = body["next"]

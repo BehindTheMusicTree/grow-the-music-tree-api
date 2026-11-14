@@ -7,6 +7,7 @@ from rest_framework import status
 from grow.curation.rows import InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 migration = import_module("grow.migrations.0065_curation_list_renames_and_precedence_qids")
 MB_ID = "11111111-1111-4111-8111-111111111111"
@@ -55,8 +56,14 @@ class TestCase(AppTestCase):
         techno = self._genre("Techno", "Q9", is_umbrella=True)
         detroit = self._genre("Detroit techno", "Q10", parent=techno)
         coarse = self.model_fixture_factory.create_song("Coarse", techno)
-        self.model_fixture_factory.create_song("Fine", detroit)
+        fine = self.model_fixture_factory.create_song("Fine", detroit)
+        install_song_graph(
+            {techno: [coarse], detroit: [fine]},
+            node_overrides={techno: {"kind": "overview"}, detroit: {"canonicalState": "before_entry"}},
+            relations=[(detroit, techno, "regional_membership")],
+        )
 
+        type(coarse).objects.filter(pk=coarse.pk).update(genre=detroit)
         response = self.api_client.get(path=reverse("song-list"), data={"genre_is_umbrella": "true"})
 
         assert [r["uuid"] for r in response.json()["results"]] == [str(coarse.uuid)]
