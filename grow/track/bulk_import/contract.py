@@ -30,6 +30,8 @@ def require_reviewed_contract(metadata: dict) -> None:
             pass
     except GraphRevisionConflict as error:
         raise ReviewedImportConflict from error
+    except GenreGraphDataset.DoesNotExist as error:
+        raise ValidationError("Import the reference graph with an explicit identity mapping first") from error
     except GraphValidationError as error:
         raise ValidationError(str(error)) from error
 

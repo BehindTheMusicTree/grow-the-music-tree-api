@@ -152,3 +152,18 @@ class TestSemanticImportProtocol(AppTestCase):
         response = self.api_client.post(path=commit)
         assert response.status_code == 400
         assert "lost or changed" in str(response.json())
+
+
+class TestSemanticImportWithoutGraph(AppTestCase):
+    def test_reviewed_import_requires_reference_graph(self):
+        response = self.api_client.post(
+            path=RUNS,
+            data={
+                "graph_revision": str(uuid4()),
+                "membership_revision": str(uuid4()),
+                "expected_parts": {"songs": 1, "assignments": 1},
+            },
+        )
+        assert response.status_code == 400
+        assert "Import the reference graph" in str(response.json())
+        assert not BulkImportRun.objects.exists()
