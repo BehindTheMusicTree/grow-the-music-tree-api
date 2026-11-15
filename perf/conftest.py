@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.db.models import Count
 from django.urls import reverse
@@ -156,8 +157,13 @@ def perf_database_template(django_db_setup, django_db_blocker):
     try:
         yield template
     finally:
-        with django_db_blocker.unblock(), connection._nodb_cursor() as cursor:
-            cursor.execute(f"DROP DATABASE {quote(template)}")
+        with django_db_blocker.unblock():
+            connection.close()
+            with connection._nodb_cursor() as cursor:
+                # Preserve the seeded baseline for the next --reuse-db invocation.
+                cursor.execute(f"DROP DATABASE {quote(database)}")
+                cursor.execute(f"CREATE DATABASE {quote(database)} TEMPLATE {quote(template)}")
+                cursor.execute(f"DROP DATABASE {quote(template)}")
 
 
 @pytest.fixture(autouse=True)
@@ -171,6 +177,7 @@ def isolated_perf_database(perf_database_template, _django_db_helper, django_db_
         with connection._nodb_cursor() as cursor:
             cursor.execute(f"DROP DATABASE {quote(database)}")
             cursor.execute(f"CREATE DATABASE {quote(database)} TEMPLATE {quote(perf_database_template)}")
+        ContentType.objects.clear_cache()
 
 
 # Machine-readable results for perf/compare.py: written when PERF_RESULTS names the output file.
