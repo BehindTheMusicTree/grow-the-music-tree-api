@@ -28,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- Genre catalogue counts (`songsCount`, `catalogue`) now read the `grow_genre_catalogue_count` projection in the genre tree and the genre playlist summaries instead of `direct_songs_count` (still maintained, no longer read). A genre without a bucket counts 0 and Genreless reads the NULL bucket. Tested with the legacy counter forced wrong. Run `manage.py verify_genre_catalogue_counts` against prod after migration 0115 and before deploying.
+- Genre catalogue counts (`songsCount`, `catalogue`) now read the `grow_genre_catalogue_count` projection in the genre tree and the genre playlist summaries instead of the removed `direct_songs_count`. A genre without a bucket counts 0 and Genreless reads the NULL bucket. Run `manage.py verify_genre_catalogue_counts` against prod after migration 0115 and before deploying.
 
 ### Added
 

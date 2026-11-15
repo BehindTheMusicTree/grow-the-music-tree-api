@@ -1,50 +1,28 @@
-# Catalogue shadow projection
+# Catalogue projection
 
 The source is the canonical Song/Track join, including unplayable and genreless songs.
 `grow_genre_catalogue_count` stores sparse exact-genre buckets, independently of
 playlist membership. Missing zero buckets are intentional; missing required genre
 playlists and the tree-version singleton are configuration errors.
 
-## Transition boundary
+## Readers and writers
 
-The shadow projection currently has no API readers. Detail summaries and the genre
-playlist tree still consume `CriteriaPlaylist.direct_songs_count`. Application
-hooks and import SQL retain ownership of that legacy field. Shadow triggers never
-write it, so running existing application code against the new schema does not
-double-count managed writes.
+Detail summaries and the genre playlist tree read this projection. Migration
+`0138` removes the obsolete `CriteriaPlaylist.direct_songs_count` column and its
+application maintenance. Deploy the matching application with the migration;
+older application versions require reversing `0138`, which rebuilds their counts.
 
-Direct `save()`, queryset updates, raw SQL and child-only MTI operations maintain
-the shadow projection but can bypass legacy application hooks. A successful shadow
-verification therefore does not establish legacy parity. Reader adoption must
-explicitly resolve this boundary; neither a silent fallback nor a repair before
-each comparison is evidence of compatibility.
-
-## Compatibility boundary
-
-Legacy parity is required for managed writes (manager-mediated create, genre
-change, delete, genre delete/alias) and for full and delta imports only.
-Child-only MTI deletes, canonical/private owner changes and raw SQL are
-characterized as legacy drift by dedicated tests; the shadow projection stays
-exact for them. A grep of this repo, the genre kit and the pipelines repo found
-no production caller of these paths: the pipelines only POST to the import
-endpoints and never write these tables. A new writer of any of these paths must
-either go through the managers or account for the legacy field itself.
-
-## Writer audit
-
-| Mutation | Shadow owner | Legacy owner / limitation |
-| --- | --- | --- |
-| Managed Song create | Song INSERT trigger joins parent | TrackManager create hook |
-| Managed genre reassignment | Track UPDATE trigger joins child | Genre-change hook; manager reloads under source gate |
-| Managed delete | First deleted MTI half removes joined contribution | Parent post-delete signal; manager reloads under source gate |
-| Direct save / queryset update | Track UPDATE trigger | Bypasses genre-change hook |
-| Canonical/private owner change | Track UPDATE trigger | Legacy hooks do not account for owner transitions |
-| Child-only insert/delete/relink | Song transition trigger | No complete legacy child lifecycle accounting |
-| Genre deletion | Source reassignment triggers | Transfer actual canonical Song count under gate; source playlist deleted |
-| Genre alias | Managed song reassignment, then source deletion | Managed genre-change hooks |
-| Full/delta import | Statement transition triggers on SQL merge | Existing set-based import deltas |
-| TRUNCATE | Rebuild after truncation | Legacy application hooks are bypassed |
-| Explicit repair | Independent aggregation under source gate | Same aggregation, independently reverified |
+| Mutation | Projection owner |
+| --- | --- |
+| Song create | Song INSERT trigger joins parent |
+| Genre reassignment, direct save or queryset update | Track UPDATE trigger joins child |
+| Canonical/private owner change | Track UPDATE trigger |
+| Child-only insert/delete/relink | Song transition trigger |
+| Managed delete | First deleted MTI half removes joined contribution |
+| Genre deletion or alias | Source reassignment and deletion triggers |
+| Full/delta import | Statement transition triggers on SQL merge |
+| TRUNCATE | Rebuild after truncation |
+| Explicit repair | Independent aggregation under source gate |
 
 PostgreSQL statement triggers aggregate net changes. Unrelated updates do not
 rewrite catalogue buckets; existing triggers may still invalidate the shared tree
@@ -55,11 +33,10 @@ triggers; it does not establish PostgreSQL concurrency correctness.
 ## Verification and repair
 
 Run `uv run python manage.py verify_genre_catalogue_counts` with the normal app
-configuration. This compares actual canonical Song rows separately with legacy
-and shadow counts. Drift produces a failing exit status without changing data.
+configuration. This compares actual canonical Song rows with catalogue buckets. Drift produces a failing exit status without changing data.
 `--database <alias>` chooses the connection.
 
-`--repair` explicitly rebuilds both projections atomically, removes orphan shadow
+`--repair` explicitly rebuilds the projection atomically, removes orphan catalogue
 buckets, and independently rechecks before committing. Output retains pre-repair
 findings. Invalid playlist configuration is rejected instead of manufactured.
 
@@ -106,6 +83,5 @@ restart or restore), warm the join first, for example by running the `COUNT(*)`
 of the Song/Track join once, so the exclusive window stays near 100 s instead of
 tens of minutes. The deploy runs `migrate`; if a writer holds a source lock the
 NOWAIT acquisition fails and the migration can be retried. Run
-`verify_genre_catalogue_counts` after the deploy and before any shadow reader is
-enabled. Timings come from one VPS and one run each; treat them as an order of
+`verify_genre_catalogue_counts` after the deploy and before serving catalogue readers. Timings come from one VPS and one run each; treat them as an order of
 magnitude, not a guaranteed window.
