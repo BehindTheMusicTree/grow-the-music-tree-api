@@ -23,7 +23,7 @@ def _explain(sql: str, params: tuple) -> str:
         return "\n".join(row[0] for row in cursor.fetchall())
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("country", [None, "FR"])
 def test_region_probe_is_an_anti_join_that_never_scans_grow_song(country):
     playlist = largest_genre_playlist()
@@ -46,7 +46,7 @@ def _plan_nodes(node):
         yield from _plan_nodes(child)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_blocked_count_never_probes_the_track_table_per_member():
     """The `blocked` term of `get_tracks_count` filters the genre on the membership row, not through the song table."""
     playlist = largest_genre_playlist()

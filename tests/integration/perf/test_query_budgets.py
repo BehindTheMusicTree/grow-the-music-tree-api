@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from uuid import uuid4
 
 import pytest
 from django.core.cache import cache
@@ -6,16 +7,20 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.play.Play import Play
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.children.criteria.tag.TagPlaylist import TagPlaylist
 from grow.model.song.Song import Song
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.query_budget import QueryCounts
 
 # Genre playlist summaries read the graph, catalogue and membership buckets in one
 # statement. This is independent of page and song counts;
@@ -42,6 +47,16 @@ BUDGETS = {
 }
 
 factory = ModelFixtureFactory(default_user=None)
+
+
+@pytest.fixture(autouse=True)
+def budget_configuration(db):
+    CriteriaType.objects.get_or_create(pk=0, defaults={"label": "genre"})
+    CriteriaType.objects.get_or_create(pk=1, defaults={"label": "tag"})
+    GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
+    for type_id in (0, 1):
+        if not Playlist.objects.filter(criteria_playlist__criteria=None, criteria_playlist__type_id=type_id).exists():
+            CriteriaPlaylist.objects.create(user=None, criteria=None, type_id=type_id)
 
 
 def _seed_genres(start: int, stop: int) -> None:
@@ -92,6 +107,19 @@ def _root_playlist_path(name: str) -> str:
     return reverse(name, kwargs={"pk": GenrePlaylist.objects.get(criteria__name="Root").uuid})
 
 
+SNAPSHOT_ENDPOINTS = {
+    "genre-playlist-list",
+    "tag-playlist-list",
+    "playlist-list",
+    "genre-list",
+    "genre-playlist-detail",
+    "playlist-detail",
+    "tag-playlist-detail",
+    "genre-playlist-tracks",
+    "playlist-tracks",
+}
+
+
 LIST_PATH = {"page_size": 100}
 SCENARIOS: dict[str, tuple[Callable[[int, int], None], Callable[[], str]]] = {
     "genre-playlist-list": (_seed_genres, lambda: reverse("genre-playlist-list")),
@@ -120,22 +148,24 @@ SCENARIOS: dict[str, tuple[Callable[[int, int], None], Callable[[], str]]] = {
 }
 
 
-def _count_queries(path: str) -> int:
+def _count_queries(path: str) -> QueryCounts:
     client = AppApiClient()
     with CaptureQueriesContext(connection) as queries:
         response = client.get(path, LIST_PATH)
     assert response.status_code == status.HTTP_200_OK
-    return len(queries.captured_queries)
+    return QueryCounts.from_queries(queries.captured_queries)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("endpoint", BUDGETS)
 def test_query_count_is_constant_and_within_budget(endpoint):
     seed, path = SCENARIOS[endpoint]
     seed(0, 2)
-    few_rows = _count_queries(path())
+    few_rows = _count_queries(path()).assert_protocol(snapshot=endpoint in SNAPSHOT_ENDPOINTS, vendor=connection.vendor)
     seed(2, 12)
-    many_rows = _count_queries(path())
+    many_rows = _count_queries(path()).assert_protocol(
+        snapshot=endpoint in SNAPSHOT_ENDPOINTS, vendor=connection.vendor
+    )
 
     assert (few_rows, many_rows) == (many_rows, many_rows), f"{endpoint} issues queries per row"
     assert many_rows == BUDGETS[endpoint], f"{endpoint}: {many_rows} queries, budget {BUDGETS[endpoint]}"
@@ -149,10 +179,10 @@ def _count_tree_queries(**headers) -> int:
     with CaptureQueriesContext(connection) as queries:
         response = client.get(reverse("genre-playlist-tree"), {"tree_name": "canonical"}, **headers)
     assert response.status_code in (status.HTTP_200_OK, status.HTTP_304_NOT_MODIFIED)
-    return len(queries.captured_queries)
+    return QueryCounts.from_queries(queries.captured_queries).assert_protocol(snapshot=True, vendor=connection.vendor)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_genre_tree_query_count_is_constant_and_within_budget():
     cache.clear()
     _seed_genres(0, 2)
@@ -186,7 +216,7 @@ def _count_reparent_queries(track_count: int) -> int:
     return len(queries.captured_queries)
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_reparent_query_count_is_constant_and_within_budget():
     few_rows = _count_reparent_queries(2)
     many_rows = _count_reparent_queries(12)
@@ -196,7 +226,7 @@ def test_reparent_query_count_is_constant_and_within_budget():
 
 
 # Postgres-only (trigram operators); the cache is cleared so the lookup itself is counted.
-SEARCH_BUDGETS = {"genre-search": 5, "artist-search": 5}
+SEARCH_BUDGETS = {"genre-search": 3, "artist-search": 3}
 SEARCH_SEEDS = {"genre-search": _seed_genres, "artist-search": _seed_artists}
 
 
@@ -206,11 +236,13 @@ def _count_search_queries(route: str) -> int:
     with CaptureQueriesContext(connection) as queries:
         response = client.get(reverse(route), {"q": "member" if route == "artist-search" else "genre"})
     assert response.status_code == status.HTTP_200_OK
-    return len(queries.captured_queries)
+    return QueryCounts.from_queries(queries.captured_queries).assert_protocol(
+        snapshot=route == "genre-search", vendor=connection.vendor, transaction=route == "artist-search"
+    )
 
 
 @pytest.mark.postgres
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("route", SEARCH_BUDGETS)
 def test_search_query_count_is_constant_and_within_budget(route):
     SEARCH_SEEDS[route](0, 2)

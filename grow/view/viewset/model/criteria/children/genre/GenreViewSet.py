@@ -22,6 +22,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serial
 from grow.bulk_import.analyze import analyze
 from grow.bulk_import.BulkImportRun import GENRE_TREES_KIND, BulkImportRun
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.genre_tree.bulk_import.merge import (
     CURATION_EXPORTED_ON,
@@ -83,6 +84,14 @@ def _curation_exported_on(request: Request, state: CurationSyncState) -> datetim
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     throttle_scope = "genre-search"
 
+    list = graph_snapshot(CriteriaViewSet.list)
+    retrieve = graph_snapshot(CriteriaViewSet.retrieve)
+    tree = graph_snapshot(CriteriaViewSet.tree)
+    overview = graph_snapshot(CriteriaViewSet.overview)
+
+    def get_queryset(self):
+        return super().get_queryset().exclude(semantic_identity__isnull=False, graph_node__is_active=False)
+
     def __init__(self, **kwargs):
         from grow.filtering.set.criteria.children.genre.GenreFilterSet import GenreFilterSet
 
@@ -103,6 +112,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
     )
+    @graph_snapshot
     def search(self, request: Request) -> Response:
         query = GenreSearchQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)

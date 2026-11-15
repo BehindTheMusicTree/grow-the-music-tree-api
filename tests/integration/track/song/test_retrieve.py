@@ -5,6 +5,7 @@ from rest_framework import status
 
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.essential_songs import add_essential_song
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCase(AppTestCase):
@@ -37,6 +38,7 @@ class TestCase(AppTestCase):
         rock = self.model_fixture_factory.create_genre("Rock")
         song = self.model_fixture_factory.create_song(title="Money", genre=rock, first_release_year=1973)
         add_essential_song(rock, song)
+        install_song_graph({rock: [song]})
 
         detail = self.api_client.get(path=reverse("song-detail", kwargs={"pk": song.uuid})).data
         (item,) = self.api_client.get(path=reverse("song-list")).data["results"]

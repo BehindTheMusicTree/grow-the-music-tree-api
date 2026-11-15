@@ -3,6 +3,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCase(AppTestCase):
@@ -11,6 +12,8 @@ class TestCase(AppTestCase):
     def test_list_returns_created_tracks(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         song = self.model_fixture_factory.create_song(title="Mine", genre=genre, youtube_video_id="abc123defgh")
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -25,6 +28,8 @@ class TestCase(AppTestCase):
             title="Not Mine", genre=other_genre, user=other_user, youtube_video_id="def456ghijk"
         )
 
+        install_song_graph({})
+
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
         assert response.status_code == status.HTTP_200_OK
@@ -32,7 +37,9 @@ class TestCase(AppTestCase):
 
     def test_list_includes_youtube_video_id(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+        song = self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -40,9 +47,11 @@ class TestCase(AppTestCase):
 
     def test_list_includes_musicbrainz_recording_id(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(
+        song = self.model_fixture_factory.create_song(
             title="Track Title", genre=genre, musicbrainz_recording_id="b1a9c0e9-d987-4042-ae91-78d6a3267d69"
         )
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -50,7 +59,9 @@ class TestCase(AppTestCase):
 
     def test_list_includes_null_youtube_unplayable_reason_for_playable_track(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="Track Title", genre=genre)
+        song = self.model_fixture_factory.create_song(title="Track Title", genre=genre)
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -58,7 +69,9 @@ class TestCase(AppTestCase):
 
     def test_list_includes_song_without_video_with_null_youtube_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
+        song = self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -67,7 +80,9 @@ class TestCase(AppTestCase):
 
     def test_list_nests_youtube_video(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+        song = self.model_fixture_factory.create_song(title="Track Title", genre=genre, youtube_video_id="abc123defgh")
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -80,9 +95,11 @@ class TestCase(AppTestCase):
 
     def test_list_exposes_youtube_view_count(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(
+        song = self.model_fixture_factory.create_song(
             title="Track Title", genre=genre, youtube_video_id="abc123defgh", youtube_view_count=1241
         )
+
+        install_song_graph({genre: [song]})
 
         response = self.api_client.get(path=reverse(self.list_endpoint))
 
@@ -96,6 +113,8 @@ class TestCase(AppTestCase):
         child = self.model_fixture_factory.create_song(title="Child", genre=punk)
         self.model_fixture_factory.create_song(title="Sibling", genre=jazz)
 
+        install_song_graph({rock: [own], punk: [child], jazz: []}, classifications=[(punk, rock)])
+
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"genre": str(rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
@@ -104,12 +123,17 @@ class TestCase(AppTestCase):
     def test_list_cursor_walks_subtree_once_across_genres(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         blues_rock = self.model_fixture_factory.create_genre("Blues rock", parent=rock)
+        assignments = {rock: [], blues_rock: []}
         expected = set()
         for genre in (rock, blues_rock):
             for index in range(3):
                 song = self.model_fixture_factory.create_song(title=f"{genre.name}{index}", genre=genre)
                 expected.add(str(song.uuid))
-        self.model_fixture_factory.create_song(title="Other", genre=self.model_fixture_factory.create_genre("Jazz"))
+                assignments[genre].append(song)
+        jazz = self.model_fixture_factory.create_genre("Jazz")
+        other = self.model_fixture_factory.create_song(title="Other", genre=jazz)
+        assignments[jazz] = [other]
+        install_song_graph(assignments, classifications=[(blues_rock, rock)])
         path = reverse(self.list_endpoint)
 
         seen = []
@@ -152,10 +176,13 @@ class TestCase(AppTestCase):
 
     def test_list_without_total_skips_count_and_pages_by_next_link(self):
         genre = self.model_fixture_factory.create_genre("Rock")
+        songs = []
         for index in range(3):
-            self.model_fixture_factory.create_song(
+            song = self.model_fixture_factory.create_song(
                 title=f"T{index}", genre=genre, youtube_video_id=f"abc123def{index}x"
             )
+            songs.append(song)
+        install_song_graph({genre: songs})
         path = reverse(self.list_endpoint)
 
         first = self.api_client.get(path=path, data={"genre": str(genre.uuid), "pageSize": 2, "withTotal": "false"})
