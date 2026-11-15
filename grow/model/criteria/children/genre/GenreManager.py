@@ -1,6 +1,5 @@
 import re
 import unicodedata
-from collections import defaultdict
 from collections.abc import Iterable
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
@@ -28,7 +27,6 @@ from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.search.trigram import fold_query, match_rank
-from grow.track.direct_songs_count import adjust_direct_songs_count
 
 from ...CriteriaManager import CriteriaManager
 
@@ -407,15 +405,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         from grow.model.song.Song import Song
 
         super()._on_tracks_genre_moved(moves, actor=actor)
-        # The deleted genres' playlists go with them while their songs move to the nearest surviving ancestor (or
-        # become genreless). Transferring a possibly drifted legacy bucket propagates its error to the surviving
-        # parent. The source gate keeps this source count stable. One grouped count, not one per genre.
-        songs = Song.objects.filter(user__isnull=True, genre__in=list(moves)).order_by()
-        moved_by_target: dict[Any, int] = defaultdict(int)
-        for genre_pk, count in songs.values_list("genre").annotate(n=Count("pk")):
-            moved_by_target[moves[genre_pk]] += count
-        for target, count in moved_by_target.items():
-            adjust_direct_songs_count(target, count)
         # Songs left genreless change their search rank. They are re-derived once the tracks are updated, in
         # `_on_before_delete_many`, so remember them while they still point at the deleted genres.
         orphaned = [pk for pk, target in moves.items() if target is None]

@@ -89,24 +89,22 @@ class TestCatalogueProjection(AppTestCase):
         Track.objects.filter(pk=pk).delete()
         self.assert_projection()
 
-    def test_child_only_delete_exposes_legacy_drift_without_repair(self):
+    def test_child_only_delete_preserves_catalogue_counts(self):
         genre = self.model_fixture_factory.create_genre("Genre")
         song = self.model_fixture_factory.create_song("Song", genre=genre)
         song.delete(keep_parents=True)
         reports = verify_catalogue_counts()
-        assert reports["shadow"].valid
-        assert reports["legacy"].mismatches[genre.pk] == (0, 1)
+        assert reports["catalogue"].valid
 
-    def test_owner_change_exposes_legacy_drift_without_repair(self):
+    def test_owner_change_preserves_catalogue_counts(self):
         genre = self.model_fixture_factory.create_genre("Genre")
         song = self.model_fixture_factory.create_song("Song", genre=genre)
         owner = User.objects.create(username="private")
         Track.objects.filter(pk=song.pk).update(user=owner)
         reports = verify_catalogue_counts()
-        assert reports["shadow"].valid
-        assert reports["legacy"].mismatches[genre.pk] == (0, 1)
+        assert reports["catalogue"].valid
 
-    def test_raw_genre_change_exposes_legacy_drift_without_repair(self):
+    def test_raw_genre_change_preserves_catalogue_counts(self):
         a, b = [self.model_fixture_factory.create_genre(name) for name in ("A", "B")]
         song = self.model_fixture_factory.create_song("Song", genre=a)
 
@@ -119,9 +117,7 @@ class TestCatalogueProjection(AppTestCase):
                 [encode(b.pk), encode(song.pk)],
             )
         reports = verify_catalogue_counts()
-        assert reports["shadow"].valid
-        assert reports["legacy"].mismatches[a.pk] == (0, 1)
-        assert reports["legacy"].mismatches[b.pk] == (1, 0)
+        assert reports["catalogue"].valid
 
     def test_child_relink_and_deferred_parent_delete_order(self):
         a, b = self.model_fixture_factory.create_genre("A"), self.model_fixture_factory.create_genre("B")
@@ -150,8 +146,7 @@ class TestCatalogueProjection(AppTestCase):
         song.genre = None
         song.save(update_fields=["genre"])
         report = verify_catalogue_counts()
-        assert not report["legacy"].valid
-        assert report["shadow"].valid
+        assert report["catalogue"].valid
         GenreCatalogueCount.objects.filter(genre_id=None).update(tracks_count=99)
         output = StringIO()
         with self.assertRaises(CommandError):
@@ -167,13 +162,13 @@ class TestCatalogueProjection(AppTestCase):
     def test_missing_configuration_and_unexpected_buckets_fail(self):
         unexpected = uuid4()
         GenreCatalogueCount.objects.create(genre_id=unexpected, tracks_count=0)
-        report = verify_catalogue_counts()["shadow"]
+        report = verify_catalogue_counts()["catalogue"]
         assert report.unexpected == {unexpected}
         reports = verify_catalogue_counts(repair=True)
-        assert reports["shadow"].unexpected == {unexpected}
-        assert verify_catalogue_counts()["shadow"].valid
+        assert reports["catalogue"].unexpected == {unexpected}
+        assert verify_catalogue_counts()["catalogue"].valid
         GenrePlaylist.objects.filter(criteria=None).delete()
-        assert verify_catalogue_counts()["shadow"].missing_playlists == {None}
+        assert verify_catalogue_counts()["catalogue"].missing_playlists == {None}
         with self.assertRaises(ValueError):
             verify_catalogue_counts(repair=True)
         GenreTreeVersion.objects.all().delete()
@@ -231,11 +226,9 @@ class TestCatalogueProjection(AppTestCase):
         self.assert_projection()
         assert all(report.valid for report in verify_catalogue_counts().values())
 
-    def test_genre_delete_does_not_transfer_legacy_drift(self):
+    def test_genre_delete_preserves_catalogue_counts(self):
         parent = self.model_fixture_factory.create_genre("Parent")
         child = self.model_fixture_factory.create_genre("Child", parent=parent)
         self.model_fixture_factory.create_song("Song", genre=child)
-        GenrePlaylist.objects.filter(criteria=child).update(direct_songs_count=99)
-        assert not verify_catalogue_counts()["legacy"].valid
         Genre.objects.delete_instance(child)
         assert all(report.valid for report in verify_catalogue_counts().values())

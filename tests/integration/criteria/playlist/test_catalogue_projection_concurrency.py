@@ -175,10 +175,10 @@ def test_verification_waits_for_every_source_write(catalogue, source, repair):
 
     def second():
         reports = verify_catalogue_counts(repair=repair)
-        assert reports["shadow"].valid
+        assert reports["catalogue"].valid
 
     race(first, second)
-    assert verify_catalogue_counts()["shadow"].valid
+    assert verify_catalogue_counts()["catalogue"].valid
 
 
 def test_verification_rejects_repeatable_read(catalogue):
@@ -285,7 +285,7 @@ def test_verification_waits_for_running_import(catalogue, mode, repair):
     }
 
     def second():
-        assert verify_catalogue_counts(repair=repair)["shadow"].valid
+        assert verify_catalogue_counts(repair=repair)["catalogue"].valid
 
     race(lambda: song_merge._merge(run.pk, params, False), second)
     assert all(report.valid for report in verify_catalogue_counts().values())

@@ -11,6 +11,7 @@ from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 
@@ -27,10 +28,11 @@ class TestCase(AppTestCase):
         self.jazz = self.factory.create_genre("Jazz")
 
     def stored(self) -> dict[str, int]:
+        counts = dict(GenreCatalogueCount.objects.values_list("genre_id", "tracks_count"))
         return {
-            name or CriterialessPlaylistNames.GENRE: count
-            for name, count in GenrePlaylist.objects.filter(user__isnull=True).values_list(
-                "criteria___name", "direct_songs_count"
+            name or CriterialessPlaylistNames.GENRE: counts.get(genre, 0)
+            for name, genre in GenrePlaylist.objects.filter(user__isnull=True).values_list(
+                "criteria___name", "criteria_id"
             )
         }
 
@@ -42,10 +44,9 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         return {row["name"]: (row["songsCount"], row["tracksCount"]) for row in response.json()}
 
-    def test_readers_use_the_catalogue_projection_not_the_legacy_counter(self):
+    def test_readers_use_the_catalogue_projection(self):
         self.factory.create_song(title="Punk song", genre=self.punk)
         self.factory.create_song(title="Genreless song", genre=None)
-        GenrePlaylist.objects.filter(user__isnull=True).update(direct_songs_count=99)
 
         counts = self.tree_songs_counts()
 
@@ -171,6 +172,6 @@ class TestCase(AppTestCase):
 
     def test_recount_command_repairs_a_drifted_count(self):
         self.factory.create_song(title="Punk song", genre=self.punk)
-        GenrePlaylist.objects.filter(criteria=self.punk).update(direct_songs_count=0)
-        call_command("recount_direct_songs_count", stdout=StringIO())
+        GenreCatalogueCount.objects.filter(genre_id=self.punk.pk).update(tracks_count=0)
+        call_command("verify_genre_catalogue_counts", repair=True, stdout=StringIO())
         assert self.stored()["Punk"] == 1

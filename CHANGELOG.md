@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- Remove the obsolete direct-song counter and its duplicate maintenance; public catalogue counts use the authoritative projection.
+
 ### Fixed
 
 - Enforce at most one directly assigned genre per song in semantic uploads, publication, curation and restores; retain multiple evidence decisions for that genre and inherited semantic parents.

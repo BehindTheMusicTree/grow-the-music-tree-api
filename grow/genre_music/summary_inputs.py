@@ -44,7 +44,7 @@ def summary_inputs(playlist_ids):
     version = Subquery(GenreTreeVersion.objects.filter(pk=1).values("token"))
     null_uuid = Value(None, output_field=UUIDField())
     graph = GenrePlaylist.objects.filter(user__isnull=True).annotate(
-        input_kind=Value(0), input_version=version, catalogue_count=catalogue_count_annotation()
+        input_kind=Value(0), input_version=version, catalogue_count=Value(0, output_field=IntegerField())
     )
     if cached is not None:
         graph = graph.exclude(input_version=cached[0])
@@ -92,14 +92,29 @@ def summary_inputs(playlist_ids):
             "extra",
         )
     )
-    catalogue, memberships, token = [], [], None
+    catalogue_rows = (
+        GenreCatalogueCount.objects.annotate(
+            input_kind=Value(3),
+            input_version=version,
+            playlist=null_uuid,
+            tree=Value("", output_field=CharField()),
+            parent=null_uuid,
+            extra=null_uuid,
+        )
+        .order_by()
+        .values_list("input_kind", "input_version", "playlist", "genre_id", "tracks_count", "tree", "parent", "extra")
+    )
+    # Read sparse buckets once, instead of a correlated lookup for every graph row.
+    catalogue, memberships, counts, token = [], [], {}, None
     for kind, row_token, playlist, genre, count, tree, parent, extra in graph_rows.union(
-        token_row, membership_rows, all=True
+        token_row, membership_rows, catalogue_rows, all=True
     ):
         if kind == 0:
             catalogue.append((playlist, genre, count, tree, parent, extra))
         elif kind == 1:
             token = row_token
+        elif kind == 3:
+            counts[genre] = count
         else:
             memberships.append((playlist, genre, parent, count))
     if token is None:
@@ -107,6 +122,9 @@ def summary_inputs(playlist_ids):
     if cached is not None and cached[0] == token:
         rows = cached[1]
     else:
-        rows = tuple(catalogue)
+        rows = tuple(
+            (playlist, genre, counts.get(genre, 0), tree, parent, extra)
+            for playlist, genre, _, tree, parent, extra in catalogue
+        )
         _catalogue_rows = token, rows
     return rows, memberships
