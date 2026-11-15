@@ -7,7 +7,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from tests.utils.AppApiClient import AppApiClient
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_canonical_tree_payload_budget():
     # A heavy populated summary must never leak back into the landing-page projection.
     Genre.objects.filter(tree_name="canonical").update(summary="Representative summary. " * 100)

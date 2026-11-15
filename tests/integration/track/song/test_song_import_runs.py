@@ -33,6 +33,7 @@ from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.essential_songs import add_essential_song
+from tests.utils.song_graph import install_song_graph
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
 OTHER_MBID = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
@@ -152,9 +153,11 @@ class TestImportRunProtocol(AppTestCase):
 
     def test_list_includes_tracks_without_video_but_hides_genreless(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
-        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
+        kept = self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
+        no_video = self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
         self.model_fixture_factory.create_song(title="No genre", genre=None, youtube_video_id="xyz789uvwab")
+
+        install_song_graph({genre: [kept, no_video]})
 
         response = self.api_client.get(path=reverse("song-list"))
 

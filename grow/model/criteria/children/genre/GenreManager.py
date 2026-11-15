@@ -687,10 +687,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         """Canonical genres of both trees (or of `tree_name`) whose folded name trigram-matches `query`, best first:
         exact, then prefix, then fuzzy, ties broken by similarity then playlist views. One indexed query, no
         hydration. Genres under an unaccepted root are left out, like they are from the tree page."""
-        with transaction.atomic(), connection.cursor() as cursor:
+        with transaction.atomic(savepoint=False), connection.cursor() as cursor:
             folded_query = fold_query(cursor, query)
-            queryset = self.filter(user__isnull=True, folded_name__trigram_word_similar=folded_query).exclude(
-                root__genre__is_unaccepted_root=True
+            queryset = (
+                self.filter(user__isnull=True, folded_name__trigram_word_similar=folded_query)
+                .exclude(root__genre__is_unaccepted_root=True)
+                .exclude(semantic_identity__isnull=False, graph_node__is_active=False)
             )
             if tree_name is not None:
                 queryset = queryset.filter(tree_name=tree_name)

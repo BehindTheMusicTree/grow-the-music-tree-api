@@ -2,12 +2,14 @@ from django.urls import reverse
 from rest_framework import status
 
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCase(AppTestCase):
     list_endpoint = "song-list"
 
     def test_get_without_api_key_then_200_ok(self):
+        install_song_graph({})
         self.api_client.credentials()
 
         response = self.api_client.get(path=reverse(self.list_endpoint))

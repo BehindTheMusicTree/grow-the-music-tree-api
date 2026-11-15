@@ -3,9 +3,11 @@ import json
 import os
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.db.models import Count
 from django.urls import reverse
@@ -138,6 +140,44 @@ def django_db_setup(django_db_setup, django_db_blocker):
             rows = rebuild_song_search()
             label = f"song search rebuild ({rows} songs)"
             print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
+
+
+@pytest.fixture(scope="session")
+def perf_database_template(django_db_setup, django_db_blocker):
+    # Clone the imported baseline, including planner statistics and kit-owned tables that Django's serializer skips.
+    template = f"test_perf_baseline_{uuid4().hex}"
+    database = connection.settings_dict["NAME"]
+    if connection.vendor != "postgresql" or not database.startswith("test_"):
+        raise RuntimeError("Perf isolation requires a PostgreSQL test database")
+    quote = connection.ops.quote_name
+    with django_db_blocker.unblock():
+        connection.close()
+        with connection._nodb_cursor() as cursor:
+            cursor.execute(f"CREATE DATABASE {quote(template)} TEMPLATE {quote(database)}")
+    try:
+        yield template
+    finally:
+        with django_db_blocker.unblock():
+            connection.close()
+            with connection._nodb_cursor() as cursor:
+                # Preserve the seeded baseline for the next --reuse-db invocation.
+                cursor.execute(f"DROP DATABASE {quote(database)}")
+                cursor.execute(f"CREATE DATABASE {quote(database)} TEMPLATE {quote(template)}")
+                cursor.execute(f"DROP DATABASE {quote(template)}")
+
+
+@pytest.fixture(autouse=True)
+def isolated_perf_database(perf_database_template, _django_db_helper, django_db_blocker):
+    # TransactionTestCase flushes after each test. Restore before the next test without reimporting Gold or
+    # wrapping requests in an atomic block: graph snapshots must own the outermost transaction.
+    database = connection.settings_dict["NAME"]
+    quote = connection.ops.quote_name
+    with django_db_blocker.unblock():
+        connection.close()
+        with connection._nodb_cursor() as cursor:
+            cursor.execute(f"DROP DATABASE {quote(database)}")
+            cursor.execute(f"CREATE DATABASE {quote(database)} TEMPLATE {quote(perf_database_template)}")
+        ContentType.objects.clear_cache()
 
 
 # Machine-readable results for perf/compare.py: written when PERF_RESULTS names the output file.
