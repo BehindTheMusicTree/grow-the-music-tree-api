@@ -65,7 +65,7 @@ class TestImportRunProtocol(AppTestCase):
         for mode in ("full", "delta"):
             response = self.api_client.post(path=RUNS, data={"mode": mode})
             assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "semantic assignment imports are required" in str(response.data)
+            assert "semantic assignment imports are required" in str(response.json())
         assert list(BulkImportRun.objects.values_list("pk", flat=True)) == [run_id]
 
     def test_merge_rechecks_graph_activated_after_upload(self):
@@ -73,6 +73,7 @@ class TestImportRunProtocol(AppTestCase):
         genre = self.model_fixture_factory.create_genre("Rock")
         song = self.model_fixture_factory.create_song(title="Kept", genre=genre)
         dataset = install_song_graph({genre: [song]})
+        dataset.refresh_from_db()
         revision = dataset.membership_revision
 
         with (
