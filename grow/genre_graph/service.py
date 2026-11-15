@@ -2,9 +2,15 @@ import json
 from uuid import UUID, uuid4
 
 from django.db import connection, transaction
+from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
-from the_music_tree_genre_kit.genre_graph.graph import GenreGraph, GraphValidationError
-from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution, GenreGraphDataset, GenreGraphRevision
+from the_music_tree_genre_kit.genre_graph.assignments import register_evidence
+from the_music_tree_genre_kit.genre_graph.models import (
+    GenreGraphDataset,
+    GenreGraphNode,
+    GenreGraphRevision,
+)
+from the_music_tree_genre_kit.genre_graph.publication import publish_staged_attributions
 from the_music_tree_genre_kit.genre_graph.storage import (
     GraphRevisionConflict,
     graph_write_transaction,
@@ -72,8 +78,39 @@ def _bindings(graph: GenreGraph, mapping: dict, existing: dict) -> dict:
     return result
 
 
+def _validate_provenance(provenance) -> None:
+    if (
+        not isinstance(provenance, dict)
+        or set(provenance) != {"decisionId", "source", "rationale"}
+        or any(not isinstance(value, str) or not value.strip() for value in provenance.values())
+    ):
+        raise GraphValidationError("Explicit decisionId, source and rationale provenance is required")
+
+
+def _validate_retirements(decisions, retired: set, retained: set) -> None:
+    if not isinstance(decisions, dict) or set(decisions) != retired:
+        raise GraphValidationError("Retirements must name every removed identity exactly once")
+    for identity, decision in decisions.items():
+        if not isinstance(decision, dict) or set(decision) != {"target", "provenance"}:
+            raise GraphValidationError(
+                f"Retirement requires an explicit target (identity or null) and provenance: {identity}"
+            )
+        if decision["target"] is not None and (
+            not isinstance(decision["target"], str) or decision["target"] not in retained
+        ):
+            raise GraphValidationError(f"Retirement target must be a retained semantic identity: {identity}")
+        _validate_provenance(decision["provenance"])
+
+
 @transaction.atomic
-def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: UUID | None, curation_exported_on):
+def import_reference_graph(
+    *,
+    payload: dict,
+    mapping: dict,
+    expected_revision: UUID | None,
+    curation_exported_on,
+    retirements: dict | None = None,
+):
     """Cut over explicitly; labels never resolve identities and no song is discarded."""
     graph = _normalized_graph(payload)
     lock_catalogue_sources()
@@ -86,34 +123,57 @@ def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: U
     exported_on = parse_curation_exported_on(curation_exported_on, state)
     if parse_curation_exported_on(payload.get("curationExportedOn"), state) != exported_on:
         raise GraphValidationError("Curation provenance must match the graph's curationExportedOn")
-    existing = dict(Genre.objects.filter(graph_node__dataset_id=DATASET_KEY).values_list("graph_node__identity", "pk"))
+    existing = dict(
+        Genre.objects.filter(user__isnull=True, semantic_identity__isnull=False).values_list("semantic_identity", "pk")
+    )
     bindings = _bindings(graph, mapping, existing)
-    if set(existing) - graph.node_ids:
-        raise GraphValidationError("Removing a bound identity requires an explicit migration before replacement")
+    active = dict(
+        Genre.objects.filter(graph_node__dataset_id=DATASET_KEY, graph_node__is_active=True).values_list(
+            "semantic_identity", "pk"
+        )
+    )
+    retired = set(active) - graph.node_ids
+    retirements = {} if retirements is None else retirements
+    _validate_retirements(retirements, retired, graph.node_ids)
     genres = dict(Genre.objects.filter(user__isnull=True).in_bulk())
-    unmapped = set(genres) - set(bindings.values())
+    unmapped = {pk for pk, genre in genres.items() if genre.semantic_identity is None} - set(bindings.values())
     if unmapped:
         raise GraphValidationError(f"Unmapped existing genre UUIDs: {sorted(map(str, unmapped))}")
     for identity, value in mapping.items():
         if value is not None and bindings[identity] not in genres:
             raise GraphValidationError(f"Mapping must reference an existing ownerless genre: {identity}")
+        if bindings[identity] in genres and genres[bindings[identity]].semantic_identity not in (None, identity):
+            raise GraphValidationError(f"Genre UUID already belongs to another semantic identity: {identity}")
     if current is not None and current.payload == graph.to_payload():
-        if bindings != existing:
+        if bindings != active:
             raise GraphValidationError("An unchanged graph cannot change its bindings")
         return current
-    dataset = replace_graph(key=DATASET_KEY, payload=graph.to_payload(), expected_revision=expected_revision)
+    dataset = replace_graph(
+        key=DATASET_KEY, payload=graph.to_payload(), expected_revision=expected_revision, retirements=retirements
+    )
     receipt = GenreGraphImport.objects.create(
         revision=dataset.revision,
         mapping={identity: str(pk) for identity, pk in bindings.items()},
+        retirements=retirements,
         curation_exported_on=exported_on,
     )
     if current is None:
         _backup_assignments(receipt)
     nodes = {node.identity: node for node in dataset.nodes.all()}
     # Bind first so distinct concepts can use the same display label.
+    projection = []
+    bound = []
     for identity, pk in bindings.items():
         if pk in genres:
-            Genre.objects.filter(pk=pk).update(graph_node=nodes[identity])
+            genre = genres[pk]
+            genre.graph_node = nodes[identity]
+            genre.semantic_identity = identity
+            bound.append(genre)
+    Genre.objects.bulk_update(bound, ["graph_node", "semantic_identity"], batch_size=250)
+    metadata = []
+    playlist_criteria = set(
+        CriteriaPlaylist.objects.filter(criteria_id__in=bindings.values()).values_list("criteria_id", flat=True)
+    )
     for identity, pk in bindings.items():
         data = graph.node(identity)
         genre = genres.get(pk)
@@ -123,6 +183,7 @@ def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: U
                 uuid=pk,
                 criteria_ptr_id=pk,
                 graph_node=nodes[identity],
+                semantic_identity=identity,
                 user=None,
                 _name=data["name"],
                 tree_name=tree_name,
@@ -133,15 +194,14 @@ def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: U
         else:
             # The complete semantic graph was validated above; legacy per-node saves
             # would validate a temporary display projection while bindings are rebuilt.
-            Genre.objects.filter(pk=pk).update(
-                _name=data["name"],
-                tree_name=tree_name,
-                is_umbrella=data.get("isUmbrella", False),
-            )
+            genre._name = data["name"]
+            genre.tree_name = tree_name
+            genre.is_umbrella = data.get("isUmbrella", False)
+            metadata.append(genre)
         genres[pk] = genre
-        CriteriaPlaylist.objects.get_or_create(
-            criteria=genre, defaults={"user": None, "type_id": int(CriteriaTypePks.GENRE)}
-        )
+        if pk not in playlist_criteria:
+            CriteriaPlaylist.objects.create(criteria=genre, user=None, type_id=int(CriteriaTypePks.GENRE))
+    Genre.objects.bulk_update(metadata, ["_name", "tree_name", "is_umbrella"], batch_size=250)
     for identity, pk in bindings.items():
         parent = graph.node(identity).get("displayParentId")
         root = parent
@@ -154,20 +214,24 @@ def import_reference_graph(*, payload: dict, mapping: dict, expected_revision: U
             if next_parent is None:
                 break
             root = next_parent
-        Genre.objects.filter(pk=pk).update(
-            parent_id=bindings[parent] if parent else None,
-            root_id=bindings[root] if root else pk,
-        )
+        genre = genres[pk]
+        genre.parent_id = bindings[parent] if parent else None
+        genre.root_id = bindings[root] if root else pk
+        projection.append(genre)
+    Genre.objects.bulk_update(projection, ["parent", "root"], batch_size=250)
     if current is None:
-        _migrate_assignments()
+        _migrate_assignments(dataset)
     state.applied_export_on = exported_on
     state.save(update_fields=["applied_export_on"])
     GenreTreeVersion.objects.filter(pk=1).update(token=uuid4())
+    dataset.refresh_from_db()
     return dataset
 
 
 @transaction.atomic
-def restore_reference_graph(*, revision: UUID, expected_revision: UUID) -> GenreGraphDataset:
+def restore_reference_graph(
+    *, revision: UUID, expected_revision: UUID, retirements: dict | None = None
+) -> GenreGraphDataset:
     """Restore the archived graph and UUID bindings through the same validated write path.
 
     Removing a subsequently bound concept requires an explicit identity migration,
@@ -184,12 +248,18 @@ def restore_reference_graph(*, revision: UUID, expected_revision: UUID) -> Genre
         mapping=receipt.mapping,
         expected_revision=expected_revision,
         curation_exported_on=receipt.curation_exported_on,
+        retirements=retirements,
     )
 
 
 @transaction.atomic
 def write_song_attributions(
-    *, song_id: UUID, attributions: dict, expected_revision: UUID, expected_membership_revision: UUID
+    *,
+    song_id: UUID,
+    attributions: dict,
+    expected_revision: UUID,
+    expected_membership_revision: UUID,
+    expected_assignment_revision: UUID | None,
 ) -> GenreGraphDataset:
     lock_catalogue_sources()
     with graph_write_transaction(key=DATASET_KEY, expected_revision=expected_revision) as dataset:
@@ -197,7 +267,11 @@ def write_song_attributions(
             raise GraphRevisionConflict("Reference memberships changed; reload before assigning songs")
         Song.objects.select_for_update().get(pk=song_id, user__isnull=True)
         replace_track_attributions(
-            key=DATASET_KEY, track_id=song_id, attributions=attributions, expected_revision=expected_revision
+            key=DATASET_KEY,
+            track_id=song_id,
+            attributions=attributions,
+            expected_revision=expected_revision,
+            expected_assignment_revision=expected_assignment_revision,
         )
         dataset.refresh_from_db()
         return dataset
@@ -205,7 +279,12 @@ def write_song_attributions(
 
 @transaction.atomic
 def restore_song_attributions(
-    *, song_id: UUID, revision: UUID, expected_revision: UUID, expected_membership_revision: UUID
+    *,
+    song_id: UUID,
+    revision: UUID,
+    expected_revision: UUID,
+    expected_membership_revision: UUID,
+    expected_assignment_revision: UUID | None,
 ) -> GenreGraphDataset:
     lock_catalogue_sources()
     with graph_write_transaction(key=DATASET_KEY, expected_revision=expected_revision) as dataset:
@@ -213,8 +292,36 @@ def restore_song_attributions(
             raise GraphRevisionConflict("Reference memberships changed; reload before restoring songs")
         Song.objects.select_for_update().get(pk=song_id, user__isnull=True)
         restore_track_attributions(
-            key=DATASET_KEY, track_id=song_id, revision=revision, expected_revision=expected_revision
+            key=DATASET_KEY,
+            track_id=song_id,
+            revision=revision,
+            expected_revision=expected_revision,
+            expected_assignment_revision=expected_assignment_revision,
         )
+        dataset.refresh_from_db()
+        return dataset
+
+
+@transaction.atomic
+def restore_initial_assignments(
+    *, revision: UUID, expected_revision: UUID, expected_membership_revision: UUID, provenance: dict
+) -> GenreGraphDataset:
+    """Restore the initial assignment snapshot through permanent semantic bindings."""
+    _validate_provenance(provenance)
+    lock_catalogue_sources()
+    with graph_write_transaction(key=DATASET_KEY, expected_revision=expected_revision) as dataset:
+        if dataset.membership_revision != expected_membership_revision:
+            raise GraphRevisionConflict("Reference memberships changed; reload before restoring initial assignments")
+        if not GenreGraphAssignmentBackup.objects.filter(imported_id=revision).exists():
+            raise GraphValidationError("No initial assignment backup exists for this revision")
+        imported_id = GenreGraphImport._meta.pk.get_db_prep_value(revision, connection)
+        quote = connection.ops.quote_name
+        backup, song = (quote(model._meta.db_table) for model in (GenreGraphAssignmentBackup, Song))
+        population = (
+            f"SELECT b.song_uuid AS track_id, b.genre_uuid AS genre_id FROM {backup} b "
+            f"JOIN {song} s ON s.track_id = b.song_uuid WHERE b.imported_id = %s"
+        )
+        _publish_legacy_assignments(dataset, population, [imported_id], provenance)
         dataset.refresh_from_db()
         return dataset
 
@@ -235,25 +342,56 @@ def _backup_assignments(receipt: GenreGraphImport) -> None:
         )
 
 
-def _migrate_assignments() -> None:
+def _migrate_assignments(dataset) -> None:
     from the_music_tree_genre_kit.track.Track import Track
 
     quote = connection.ops.quote_name
-    attribution = quote(GenreGraphAttribution._meta.db_table)
-    track, song, criteria = (quote(model._meta.db_table) for model in (Track, Song, Criteria))
-    provenance = GenreGraphAttribution._meta.get_field("provenance").get_db_prep_save(
+    track, song = (quote(model._meta.db_table) for model in (Track, Song))
+    population = (
+        f"SELECT t.uuid AS track_id, t.genre_id FROM {track} t "
+        f"JOIN {song} s ON s.track_id = t.uuid WHERE t.user_id IS NULL"
+    )
+    _publish_legacy_assignments(
+        dataset,
+        population,
+        [],
         {
             "decisionId": "grow-explicit-cutover",
             "source": "existing-genre-uuid",
             "rationale": "Preserve the explicitly mapped existing song assignment",
         },
-        connection,
     )
+
+
+def _publish_legacy_assignments(dataset, population_sql, params, provenance):
+    """Translate the reviewed UUID snapshot into the kit's staged complete sets."""
+    from the_music_tree_genre_kit.track.Track import Track
+
+    quote = connection.ops.quote_name
+    population = f"grow_assignment_population_{uuid4().hex}"
+    desired = f"grow_assignment_desired_{uuid4().hex}"
+    p, d = quote(population), quote(desired)
+    criteria, node, track = (quote(model._meta.db_table) for model in (Criteria, GenreGraphNode, Track))
     with connection.cursor() as cursor:
+        cursor.execute(f"CREATE TEMPORARY TABLE {p} AS {population_sql}", params)
         cursor.execute(
-            f"INSERT INTO {attribution} (track_id, node_id, provenance) "
-            f"SELECT t.uuid, c.graph_node_id, %s FROM {track} t "
-            f"JOIN {song} s ON s.track_id = t.uuid JOIN {criteria} c ON c.uuid = t.genre_id "
-            "WHERE t.user_id IS NULL AND c.graph_node_id IS NOT NULL",
-            [provenance],
+            f"""SELECT EXISTS (SELECT 1 FROM {p} p
+            LEFT JOIN {criteria} c ON c.uuid = p.genre_id LEFT JOIN {node} n ON n.id = c.graph_node_id
+            JOIN {track} t ON t.uuid = p.track_id WHERE t.user_id IS NOT NULL OR
+            (p.genre_id IS NOT NULL AND (n.id IS NULL OR NOT n.is_active OR n.dataset_id <> %s)))""",
+            [dataset.pk],
         )
+        if cursor.fetchone()[0]:
+            raise GraphValidationError("Initial assignment identities must be reactivated before restoring")
+        evidence = register_evidence(dataset, [provenance])[provenance["decisionId"]]
+        cursor.execute(
+            f"""CREATE TEMPORARY TABLE {d} AS
+            SELECT p.track_id, c.graph_node_id AS node_id, %s AS evidence_id FROM {p} p
+            JOIN {criteria} c ON c.uuid = p.genre_id""",
+            [evidence.pk],
+        )
+        cursor.execute(f"ANALYZE {p}")
+        cursor.execute(f"ANALYZE {d}")
+        publish_staged_attributions(dataset=dataset, population=population, assignments=desired)
+        cursor.execute(f"DROP TABLE {d}")
+        cursor.execute(f"DROP TABLE {p}")

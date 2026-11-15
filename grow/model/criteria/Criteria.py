@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 
 class Criteria(AbstractCriteria, TrackMixin):
+    semantic_identity = models.CharField(max_length=255, null=True, blank=True, unique=True)
     graph_node = models.OneToOneField(
         "the_music_tree_genre_kit.GenreGraphNode",
         on_delete=models.PROTECT,
@@ -51,7 +52,7 @@ class Criteria(AbstractCriteria, TrackMixin):
             models.CheckConstraint(condition=~models.Q(_name=""), name="%(class)s_non_empty_name"),
             models.UniqueConstraint(
                 Lower(Fields.NAME_INTERNAL),
-                condition=models.Q(user__isnull=True, graph_node__isnull=True),
+                condition=models.Q(user__isnull=True, graph_node__isnull=True, semantic_identity__isnull=True),
                 name="unique_canonical_name",
             ),
             models.CheckConstraint(

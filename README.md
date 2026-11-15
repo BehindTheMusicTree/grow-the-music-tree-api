@@ -152,7 +152,7 @@ uv run mypy grow
 
 Three gates keep endpoints fast. The query budgets run in `Pytest`, and `Perf` runs the latency SLOs and the A/B gate. Both are required checks on `develop`; on `main`, `Perf` is not required yet. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
 
-- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` entry. A gain lowers the budget in the same PR.
+- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` data-statement entry. Transaction commands have a separate exact protocol: one snapshot boundary, PostgreSQL read-only `REPEATABLE READ` before data reads, and no redundant savepoints. Unrecognized SQL counts as data work; totals include both categories. These checks run outside test-managed transactions. A gain lowers the data budget in the same PR.
 - **Latency SLOs** (`perf/`, CI job `Perf`): median latency per endpoint on Postgres (p95 is printed too), seeded with a pinned snapshot of the prod pipeline's Gold exports (`perf/fixtures/`), imported through the same endpoints and in the same order as the nightly sync.
 - **A/B regression gate** (CI job `Perf` on PRs, `scripts/perf_ab.sh`): the PR's base and head run `perf/` in turn on the same runner (base, head, base, head), each on its own seeded database. Before every measured round, `VACUUM (FREEZE, ANALYZE)` resets visibility and planner statistics: rolled-back reparenting still grows physical tables and can otherwise trigger JIT compilation only in later rounds. `perf/compare.py` pairs round i of base with round i of head (back to back, so runner drift cancels) and fails a scenario whose median head/base ratio exceeds `RATIO` **and** adds more than `FLOOR_MS`, or that runs more queries. A suspected regression gets two more rounds before the verdict. A side whose rounds split into two groups that far apart is `unstable` and fails too: its pooled median would sit between two query plans. With four rounds or more, each group needs at least two rounds, so one odd round is noise, not a split. The runner's drift is estimated per round within the side and removed first, so a slowdown shared by every scenario is not flagged; the summary shows each round's p50 and the drift. This catches what an absolute SLO can't: a 13 ms endpoint going to 130 ms under a 150 ms SLO. The table lands in the job summary. Pushes to `main` and `develop` judge the SLOs only; `workflow_dispatch` compares a ref with itself to measure noise.
 - **Accepting a regression** (a deliberate trade-off, for example a feature that must do more work): add the `perf-regression-accepted` label to the PR, which reruns `Perf` with slowdowns and query increases reported but not failed. SLOs still apply.
@@ -284,17 +284,57 @@ current curation export timestamp. Missing mappings and stale revisions fail;
 labels never resolve identities. Check the route definitions in `grow/urls.py`
 for the graph restore endpoint.
 
-Song attribution endpoints accept explicit semantic identities and provenance,
-with both graph and membership revision tokens. Direct attributions are retained;
+`GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
+`membershipRevision`, `assignmentRevision`, complete direct `attributions`,
+`effectiveAttributions` and `needsRefinement`. Curator/admin `PUT` on the same
+route accepts explicit semantic identities and arrays of independent evidence:
+
+```json
+{
+  "expectedRevision": "<graph revision UUID>",
+  "expectedMembershipRevision": "<membership revision UUID>",
+  "expectedAssignmentRevision": "<assignment revision UUID or null>",
+  "attributions": {
+    "LOCAL:expression": [
+      {"decisionId": "<permanent decision ID>", "source": "<source>", "rationale": "<justification>"}
+    ]
+  }
+}
+```
+
+`expectedAssignmentRevision: null` creates the first assignment set; subsequent
+edits require the token returned by the latest GET, including after clearing the
+set with `attributions: {}`. A stale graph, population or assignment token returns
+409; reload all tokens and assignments before resolving the edit. Evidence order
+does not change the set. Reusing a decision ID with different content fails;
+several independent decisions for the same identity are preserved. A successful
+PUT returns all three current tokens. Direct attributions are retained;
 effective attributions remove redundant broader assignments. Graph-only songs
 are included in song lists. Song cursors now contain a UUID alone; previous
 cursors must be restarted. Graph import is required before listing songs.
 Song-list name and umbrella filters use normalized graph attributions. Each list
 holds a consistent graph through counts, pagination and serialization, returning
 `X-Genre-Graph-Revision` and `X-Genre-Membership-Revision` response headers.
+Genre/playlist list, detail and tree responses also evaluate their data within
+one read-only REPEATABLE READ snapshot after authentication. Readers can overlap
+publication; response bodies and cache validators describe the same committed
+state. Lazy querysets must be evaluated before leaving the snapshot.
 
-Graph/membership archives and initial legacy-assignment backups are retained.
-Restoration currently supports retained identities only; removal/remapping and
-initial-assignment rollback remain unfinished. Catalogue/playlist counts, search,
+Graph/membership archives and initial assignment backups are retained. Imports
+and graph restores require `retirements` for every removed identity, each with
+`{"target": "<retained identity>"}` (or an explicit `null` to unassign) and
+`provenance: {decisionId, source, rationale}`. Complete direct assignments are
+archived before any remap. Retired genre UUIDs and semantic identities remain
+reserved; reintroducing an identity reuses its original UUID, including when
+several concepts share a display label.
+
+Curator/admin `POST /v1/genres/graph/assignments/restore/` accepts the initial
+import `revision`, `expectedRevision`, `expectedMembershipRevision` and explicit
+`provenance`. It restores surviving songs' initial assignments through the
+archived genre UUIDs' semantic bindings; required identities must be active.
+It snapshots current assignments first and preserves songs added after cutover.
+An identical retry with current revision tokens makes no changes.
+
+Catalogue/playlist counts, search,
 legacy writes and bulk imports still require migration to semantic memberships.
 Do not mix the old write APIs with graph attribution writes.

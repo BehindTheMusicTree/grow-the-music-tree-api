@@ -20,6 +20,7 @@ from grow.view.curation import (
 )
 from grow.view.genealogy import GenealogyImportView, GenealogyView
 from grow.view.genre_graph import (
+    InitialAssignmentsRestoreView,
     ReferenceGraphRestoreView,
     ReferenceGraphView,
     SongAttributionsRestoreView,
@@ -76,6 +77,11 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}genres/graph/restore/",
         ReferenceGraphRestoreView.as_view(),
         name="reference-graph-restore",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}genres/graph/assignments/restore/",
+        InitialAssignmentsRestoreView.as_view(),
+        name="reference-graph-assignments-restore",
     ),
     path(
         f"{settings.API_ROOT_BASE}library/songs/<uuid:song_id>/attributions/",

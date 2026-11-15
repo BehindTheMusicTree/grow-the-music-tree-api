@@ -6,8 +6,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from the_music_tree_genre_kit.genre_graph.graph import GraphValidationError
-from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttributionRevision
+from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphAssignmentState, GenreGraphAttributionRevision
 from the_music_tree_genre_kit.genre_graph.storage import (
     GraphRevisionConflict,
     effective_attributions,
@@ -21,6 +22,7 @@ from grow.genre_graph.service import (
     DATASET_KEY,
     import_reference_graph,
     reference_dataset,
+    restore_initial_assignments,
     restore_reference_graph,
     restore_song_attributions,
     write_song_attributions,
@@ -35,6 +37,7 @@ class GraphInput(serializers.Serializer):
         fields = super().get_fields()
         for name, public_name in (
             ("expected_revision", "expectedRevision"),
+            ("expected_assignment_revision", "expectedAssignmentRevision"),
             ("expected_membership_revision", "expectedMembershipRevision"),
         ):
             if name in fields:
@@ -48,21 +51,43 @@ class GraphImportInput(GraphInput):
     graph = serializers.DictField()
     mapping = serializers.DictField(child=serializers.UUIDField(allow_null=True))
     expected_revision = serializers.UUIDField(allow_null=True)
+    retirements = serializers.DictField(child=serializers.DictField(), required=False)
 
 
 class GraphRestoreInput(GraphInput):
     revision = serializers.UUIDField()
     expected_revision = serializers.UUIDField()
+    retirements = serializers.DictField(child=serializers.DictField(), required=False)
 
 
 class AttributionInput(GraphInput):
-    attributions = serializers.DictField(child=serializers.DictField())
+    attributions = serializers.DictField(child=serializers.ListField(child=serializers.DictField(), allow_empty=False))
+    expected_assignment_revision = serializers.UUIDField(allow_null=True)
     expected_revision = serializers.UUIDField()
     expected_membership_revision = serializers.UUIDField()
 
 
-class AttributionRestoreInput(GraphRestoreInput):
+class AttributionRestoreInput(GraphInput):
+    expected_assignment_revision = serializers.UUIDField(allow_null=True)
+    revision = serializers.UUIDField()
+    expected_revision = serializers.UUIDField()
     expected_membership_revision = serializers.UUIDField()
+
+
+class InitialAssignmentsRestoreInput(GraphInput):
+    revision = serializers.UUIDField()
+    expected_revision = serializers.UUIDField()
+    expected_membership_revision = serializers.UUIDField()
+    provenance = serializers.DictField()
+
+
+def _assignment_token(dataset, song_id):
+    revision = (
+        GenreGraphAssignmentState.objects.filter(dataset=dataset, track_id=song_id)
+        .values_list("revision", flat=True)
+        .first()
+    )
+    return {"assignmentRevision": str(revision) if revision is not None else None}
 
 
 def _tokens(dataset):
@@ -90,7 +115,7 @@ class ReferenceGraphView(GraphView):
     def get(self, request):
         reference_dataset()
         with graph_read_transaction(key=DATASET_KEY) as dataset:
-            mapping = dict(dataset.nodes.values_list("identity", "grow_criteria__pk"))
+            mapping = dict(dataset.nodes.filter(is_active=True).values_list("identity", "grow_criteria__pk"))
             if any(pk is None for pk in mapping.values()):
                 raise GraphValidationError("Reference graph contains unbound identities")
             return Response(
@@ -107,6 +132,7 @@ class ReferenceGraphView(GraphView):
             mapping=data["mapping"],
             expected_revision=data["expected_revision"],
             curation_exported_on=data["graph"].get("curationExportedOn"),
+            retirements=data.get("retirements"),
         )
         return Response(_tokens(dataset))
 
@@ -120,6 +146,15 @@ class ReferenceGraphRestoreView(GraphView):
         return Response(_tokens(restore_reference_graph(**serializer.validated_data)))
 
 
+class InitialAssignmentsRestoreView(GraphView):
+    permission_classes = [IsCuratorOrAdmin]
+
+    def post(self, request):
+        serializer = InitialAssignmentsRestoreInput(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(_tokens(restore_initial_assignments(**serializer.validated_data)))
+
+
 class SongAttributionsView(GraphView):
     def get_permissions(self):
         return [AllowAny()] if self.request.method == "GET" else [IsCuratorOrAdmin()]
@@ -128,9 +163,7 @@ class SongAttributionsView(GraphView):
         reference_dataset()
         with graph_read_transaction(key=DATASET_KEY) as dataset:
             song = get_object_or_404(Song, pk=song_id, user__isnull=True)
-            direct = dict(
-                song.graph_attributions.filter(node__dataset=dataset).values_list("node__identity", "provenance")
-            )
+            direct = assignment_snapshot(dataset=dataset, track_id=song.pk)
             effective = list(
                 effective_attributions(key=DATASET_KEY)
                 .filter(track_id=song_id)
@@ -141,6 +174,7 @@ class SongAttributionsView(GraphView):
                 {
                     **_tokens(dataset),
                     "attributions": direct,
+                    **_assignment_token(dataset, song_id),
                     "effectiveAttributions": effective,
                     "needsRefinement": tracks_needing_refinement(
                         Song.objects.filter(pk=song_id), key=DATASET_KEY
@@ -148,18 +182,20 @@ class SongAttributionsView(GraphView):
                 }
             )
 
+    @transaction.atomic
     def put(self, request, song_id):
         get_object_or_404(Song, pk=song_id, user__isnull=True)
         reference_dataset()
         serializer = AttributionInput(data=request.data)
         serializer.is_valid(raise_exception=True)
         dataset = write_song_attributions(song_id=song_id, **serializer.validated_data)
-        return Response(_tokens(dataset))
+        return Response({**_tokens(dataset), **_assignment_token(dataset, song_id)})
 
 
 class SongAttributionsRestoreView(GraphView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @transaction.atomic
     def post(self, request, song_id):
         get_object_or_404(Song, pk=song_id, user__isnull=True)
         reference_dataset()
@@ -169,4 +205,5 @@ class SongAttributionsRestoreView(GraphView):
         get_object_or_404(
             GenreGraphAttributionRevision, dataset_id=DATASET_KEY, track_id=song_id, revision=data["revision"]
         )
-        return Response(_tokens(restore_song_attributions(song_id=song_id, **data)))
+        dataset = restore_song_attributions(song_id=song_id, **data)
+        return Response({**_tokens(dataset), **_assignment_token(dataset, song_id)})

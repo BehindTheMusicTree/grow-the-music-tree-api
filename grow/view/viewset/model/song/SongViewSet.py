@@ -9,6 +9,7 @@ from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
 from grow.genre_graph.selection import attributed_songs, require_reference_graph
 from grow.genre_graph.service import DATASET_KEY
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
@@ -92,6 +93,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
 
+    @graph_snapshot
     def retrieve(self, *args, **kwargs):
         return self._handle_retrieve()
 

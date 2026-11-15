@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphAssignmentState, GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import replace_graph, replace_track_attributions
 
 from grow.genre_graph.service import DATASET_KEY
@@ -71,11 +71,17 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
     songs = defaultdict(dict)
     for genre, attributed in assignments.items():
         node = dataset.nodes.get(identity=identity(genre))
-        Genre.objects.filter(pk=genre.pk).update(graph_node=node)
+        Genre.objects.filter(pk=genre.pk).update(graph_node=node, semantic_identity=node.identity)
         for song in attributed:
-            songs[song.pk][node.identity] = provenance(f"song-{song.pk}-{node.identity}")
+            songs[song.pk][node.identity] = [provenance(f"song-{song.pk}-{node.identity}")]
     for song_id, attributions in songs.items():
         replace_track_attributions(
-            key=DATASET_KEY, track_id=song_id, attributions=attributions, expected_revision=dataset.revision
+            key=DATASET_KEY,
+            track_id=song_id,
+            attributions=attributions,
+            expected_revision=dataset.revision,
+            expected_assignment_revision=GenreGraphAssignmentState.objects.filter(dataset=dataset, track_id=song_id)
+            .values_list("revision", flat=True)
+            .first(),
         )
     return dataset

@@ -4,6 +4,7 @@ from django.db import models
 class GenreGraphImport(models.Model):
     revision = models.UUIDField(primary_key=True)
     mapping = models.JSONField()
+    retirements = models.JSONField(default=dict)
     curation_exported_on = models.DateTimeField()
     created_on = models.DateTimeField(auto_now_add=True)
 

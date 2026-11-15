@@ -29,6 +29,7 @@ from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.track.Track import Track
 from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import FROM_QUERY_PARAM
 
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
 from grow.genre_music.selection import genre_tree_snapshot, parse_subgenres
@@ -259,6 +260,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
         )[0]
 
     @action(detail=False, methods=["get"], url_path="tree")
+    @graph_snapshot
     def tree(self, request: Request) -> HttpResponse:
         """Whole genre tree, unpaginated, cached under the DB-trigger-maintained GenreTreeVersion token."""
         tree_name = request.query_params.get(FilterFields.TREE_NAME)

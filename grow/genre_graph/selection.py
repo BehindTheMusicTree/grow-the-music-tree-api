@@ -1,7 +1,7 @@
 from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
+from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage
-from the_music_tree_genre_kit.genre_graph.graph import GraphValidationError
 from the_music_tree_genre_kit.genre_graph.storage import effective_attributions, select_tracks
 
 from grow.genre_graph.service import DATASET_KEY, reference_dataset

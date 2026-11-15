@@ -1,6 +1,7 @@
 from django.db.models import Exists, OuterRef
 from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
 
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.song.playable import RESTRICTED_POLICY
 from grow.model.song.Song import Song
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
@@ -12,6 +13,8 @@ def blocked_restricted_songs(country):
 
 
 class RegionPlaylistTracksMixin(PlaylistTracksActionMixin):
+    tracks = graph_snapshot(PlaylistTracksActionMixin.tracks)
+
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         if self.action == "tracks":
