@@ -81,7 +81,7 @@ PATHS = {
 }
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("scenario", SLO_MS)
 def test_median_latency_within_slo(scenario, perf_record, settings):
     settings.VIEWER_CONTEXT_TOKEN = VIEWER_TOKEN
@@ -110,7 +110,7 @@ def test_median_latency_within_slo(scenario, perf_record, settings):
 TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("mode", TREE_SLO_MS)
 def test_genre_tree_median_latency_within_slo(mode, perf_record):
     client = AppApiClient()
@@ -137,7 +137,7 @@ def test_genre_tree_median_latency_within_slo(mode, perf_record):
 REPARENT_SLO_MS = 1800
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_genre_reparent_median_latency_within_slo(perf_record):
     client = AppApiClient()
     target = largest_genre_playlist().criteria
@@ -165,7 +165,7 @@ def test_genre_reparent_median_latency_within_slo(perf_record):
 SONG_SEARCH_SLO_MS = {"lo": 30, "love": 30, "the beat": 30, "nirvana smells": 20}
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("query", SONG_SEARCH_SLO_MS)
 def test_song_search_median_latency_within_slo(query, perf_record):
     client = AppApiClient()
@@ -199,7 +199,7 @@ SEARCH_SLO_MS = {
 }
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(("route", "query"), SEARCH_SLO_MS)
 def test_search_median_latency_within_slo(route, query, perf_record):
     client = AppApiClient()
@@ -233,7 +233,7 @@ REGION_SLO_MS = {
 }
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
     ("route", "encoding"),
     [
@@ -281,7 +281,7 @@ def test_region_map_median_latency_within_slo(route, encoding, mode, perf_record
 
 # Detail ceilings require stable CI self-comparisons; these scenarios still
 # participate in the same-runner relative regression gate.
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("name", ["Latin", "World", "Rock", "leaf", "empty", "regional", "tag"])
 @pytest.mark.parametrize("mode", ["repeated", "alternating", "cold", "post-write"])
 def test_criteria_detail_latency(name, mode, perf_record):

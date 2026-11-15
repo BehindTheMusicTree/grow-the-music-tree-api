@@ -1,24 +1,40 @@
+from uuid import uuid4
+
 import pytest
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db import connection, transaction
+from django.test import TransactionTestCase
 from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
+from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.search.trigram import fold_query
-from tests.utils.AppTestCase import AppTestCase
+from tests.utils.AppApiClient import AppApiClient
+from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.restore_kit_seeded_data import restore_kit_seeded_data, snapshot_kit_seeded_data
 
 
 @pytest.mark.postgres
-class TestGenreSearch(AppTestCase):
+class TestGenreSearch(TransactionTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.seed_snapshot = snapshot_kit_seeded_data()
+
     def setUp(self):
         super().setUp()
         cache.clear()
+        restore_kit_seeded_data(self.seed_snapshot)
+        CriteriaType.objects.get_or_create(pk=0, defaults={"label": "genre"})
+        GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
+        self.api_client = AppApiClient()
         self.api_client.credentials()
-        self.factory = self.model_fixture_factory
+        self.factory = ModelFixtureFactory(None)
 
     def genre(self, name: str, **kwargs) -> Genre:
         return self.factory.create_genre(name, user=None, **kwargs)

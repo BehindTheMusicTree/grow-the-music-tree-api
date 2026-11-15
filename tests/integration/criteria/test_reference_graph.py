@@ -677,6 +677,9 @@ def test_retirement_api_hides_archived_genres_and_playlists(payload):
     client = APIClient()
     for basename, pk in (("genre", retired.pk), ("genre-playlist", playlist_id), ("playlist", playlist_id)):
         assert client.get(reverse(f"{basename}-detail", kwargs={"pk": pk})).status_code == 404
+    songs = client.get(reverse("song-list"), {"genre": str(retired.pk)})
+    assert songs.status_code == 200, songs.content
+    assert songs.json()["results"] == []
     loaded = client.get(reverse("reference-graph")).json()
     assert "LOCAL:french-dub" not in loaded["mapping"]
     assert Genre.objects.filter(pk=retired.pk).exists()

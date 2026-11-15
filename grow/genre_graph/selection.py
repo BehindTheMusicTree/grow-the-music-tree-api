@@ -30,6 +30,8 @@ def select_songs(songs: QuerySet, *, genre_id, coverage: CriteriaCoverage, subge
     node = genre.graph_node
     if node is None or node.dataset_id != DATASET_KEY:
         raise ValidationError({"genre": "Genre has no reference graph identity mapping."})
+    if not node.is_active:
+        return songs.none()
     tree = "canonical" if node.canonical_state == "canonical" else "regional"
     scope = parse_subgenres(subgenres, coverage, tree)
     return select_tracks(
