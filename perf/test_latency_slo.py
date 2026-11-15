@@ -17,6 +17,7 @@ from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.song.Song import Song
 from perf.conftest import assert_within_slo, largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
+from tests.utils.query_budget import QueryCounts
 
 WARMUPS = 2
 RUNS = 10
@@ -91,18 +92,22 @@ def test_median_latency_within_slo(scenario, perf_record, settings):
     for _ in range(WARMUPS):
         assert client.get(path, params, **headers).status_code == status.HTTP_200_OK
 
-    timings = []
+    timings, query_counts = [], []
     for _ in range(RUNS):
         start = time.perf_counter()
         with CaptureQueriesContext(connection) as queries:
             response = client.get(path, params, **headers)
         assert response.status_code == status.HTTP_200_OK, response.content[:500]
         timings.append((time.perf_counter() - start) * 1000)
+        counts = QueryCounts.from_queries(queries)
+        query_counts.append(
+            counts.assert_protocol(snapshot=scenario != "artist-genre-counts (Canned Heat)", vendor=connection.vendor)
+        )
 
     p50 = statistics.median(timings)
     p95 = statistics.quantiles(timings, n=20)[-1]
-    print(f"\n{scenario:<38} queries={len(queries.captured_queries):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
-    perf_record(scenario, timings, slo_ms=SLO_MS[scenario], queries=len(queries.captured_queries))
+    print(f"\n{scenario:<38} queries={max(query_counts):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
+    perf_record(scenario, timings, slo_ms=SLO_MS[scenario], queries=max(query_counts))
     assert_within_slo(p50, SLO_MS[scenario])
 
 
@@ -270,7 +275,9 @@ def test_region_map_median_latency_within_slo(route, encoding, mode, perf_record
                 assert response.get("Content-Encoding", "identity") == encoding
             if run >= WARMUPS:
                 timings.append(elapsed)
-                query_counts.append(len(queries))
+                query_counts.append(
+                    QueryCounts.from_queries(queries).assert_protocol(snapshot=False, vendor=connection.vendor)
+                )
     finally:
         cache.clear()
     scenario = f"{route} ({encoding}, {mode})"
@@ -342,7 +349,9 @@ def test_criteria_detail_latency(name, mode, perf_record):
         assert response.status_code == status.HTTP_200_OK, response.content[:500]
         if run >= WARMUPS:
             timings.append(elapsed)
-            queries_per_run.append(len(queries))
+            queries_per_run.append(
+                QueryCounts.from_queries(queries).assert_protocol(snapshot=name != "tag", vendor=connection.vendor)
+            )
     scenario = f"criteria-detail {name} ({mode})"
     print(
         f"\n{scenario}: p50={statistics.median(timings):.1f}ms queries={max(queries_per_run)} bytes={len(response.content)}"
