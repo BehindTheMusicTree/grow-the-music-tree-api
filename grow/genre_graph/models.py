@@ -5,6 +5,7 @@ class GenreGraphImport(models.Model):
     revision = models.UUIDField(primary_key=True)
     mapping = models.JSONField()
     retirements = models.JSONField(default=dict)
+    has_initial_assignment_backup = models.BooleanField(default=False)
     curation_exported_on = models.DateTimeField()
     created_on = models.DateTimeField(auto_now_add=True)
 

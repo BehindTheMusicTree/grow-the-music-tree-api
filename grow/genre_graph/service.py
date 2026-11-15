@@ -156,6 +156,7 @@ def import_reference_graph(
         mapping={identity: str(pk) for identity, pk in bindings.items()},
         retirements=retirements,
         curation_exported_on=exported_on,
+        has_initial_assignment_backup=current is None,
     )
     if current is None:
         _backup_assignments(receipt)
@@ -312,7 +313,7 @@ def restore_initial_assignments(
     with graph_write_transaction(key=DATASET_KEY, expected_revision=expected_revision) as dataset:
         if dataset.membership_revision != expected_membership_revision:
             raise GraphRevisionConflict("Reference memberships changed; reload before restoring initial assignments")
-        if not GenreGraphAssignmentBackup.objects.filter(imported_id=revision).exists():
+        if not GenreGraphImport.objects.filter(pk=revision, has_initial_assignment_backup=True).exists():
             raise GraphValidationError("No initial assignment backup exists for this revision")
         imported_id = GenreGraphImport._meta.pk.get_db_prep_value(revision, connection)
         quote = connection.ops.quote_name

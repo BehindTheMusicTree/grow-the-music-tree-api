@@ -850,3 +850,25 @@ def test_graph_retirement_invalidates_genre_tree_token(payload):
             [retired.pk],
         )
     assert GenreTreeVersion.current_token() != before
+
+
+def test_empty_initial_assignment_archive_is_valid_and_preserves_later_songs(payload):
+    initial = import_graph(payload)
+    assert not GenreGraphAssignmentBackup.objects.filter(imported_id=initial.revision).exists()
+    song = ModelFixtureFactory(None).create_song("Added after empty initial snapshot", None)
+    provenance = _retirement(None)["provenance"]
+    current = write_song_attributions(
+        song_id=song.pk,
+        attributions={"LOCAL:dub": [provenance]},
+        expected_revision=initial.revision,
+        expected_membership_revision=initial.membership_revision,
+        expected_assignment_revision=assignment_revision(song.pk),
+    )
+    restored = restore_initial_assignments(
+        revision=initial.revision,
+        expected_revision=current.revision,
+        expected_membership_revision=current.membership_revision,
+        provenance=provenance,
+    )
+    assert restored.membership_revision == current.membership_revision
+    assert assignment_snapshot(dataset=restored, track_id=song.pk) == {"LOCAL:dub": [provenance]}

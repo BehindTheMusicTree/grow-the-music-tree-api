@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Empty initial assignment snapshots remain restorable without changing songs added later.
 - Retired genres return empty song lists; PostgreSQL search and performance tests preserve outermost snapshot transactions and isolated fixture data.
 - Enforce separate data-query and snapshot transaction budgets without relaxing query limits.
 - Use genre-kit 0.63.1 and API-kit 0.12.3 for shared snapshots, filtered detail lookups and object permissions.
