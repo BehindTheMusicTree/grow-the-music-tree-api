@@ -11,6 +11,7 @@ from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
@@ -30,6 +31,7 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
+from grow.track.bulk_import.merge import _merge
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.essential_songs import add_essential_song
@@ -55,6 +57,36 @@ def _gzip_ndjson(songs: list[dict]) -> bytes:
 
 
 class TestImportRunProtocol(AppTestCase):
+    def test_reference_graph_rejects_legacy_runs_without_abandoning_uploads(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        install_song_graph({genre: []})
+
+        for mode in ("full", "delta"):
+            response = self.api_client.post(path=RUNS, data={"mode": mode})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "semantic assignment imports are required" in str(response.json())
+        assert list(BulkImportRun.objects.values_list("pk", flat=True)) == [run_id]
+
+    def test_merge_rechecks_graph_activated_after_upload(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        song = self.model_fixture_factory.create_song(title="Kept", genre=genre)
+        dataset = install_song_graph({genre: [song]})
+        dataset.refresh_from_db()
+        revision = dataset.membership_revision
+
+        with (
+            patch("grow.track.bulk_import.merge.run_steps") as steps,
+            pytest.raises(ValidationError, match="semantic assignment imports are required"),
+        ):
+            _merge(run_id, {}, False)
+        steps.assert_not_called()
+        song.refresh_from_db()
+        dataset.refresh_from_db()
+        assert song.title == "Kept"
+        assert dataset.membership_revision == revision
+
     def _create_run(self) -> int:
         response = self.api_client.post(path=RUNS)
         assert response.status_code == status.HTTP_201_CREATED
