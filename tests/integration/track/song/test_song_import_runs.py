@@ -194,7 +194,7 @@ class TestImportRunProtocol(AppTestCase):
 
         assert response.data["status"] == "pending"
 
-    def test_list_includes_tracks_without_video_but_hides_genreless(self):
+    def test_list_includes_tracks_without_video_and_unassigned_songs(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         kept = self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
         no_video = self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
@@ -204,7 +204,7 @@ class TestImportRunProtocol(AppTestCase):
 
         response = self.api_client.get(path=reverse("song-list"))
 
-        assert sorted(track["title"] for track in response.json()["results"]) == ["Kept", "No video"]
+        assert sorted(track["title"] for track in response.json()["results"]) == ["Kept", "No genre", "No video"]
 
 
 @pytest.mark.postgres

@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - Make the catalogue restore verifications finish on tables restored without statistics: they count violations instead of probing for a first row, which planned a nested-loop anti join that never completed at catalogue scale. A policy test guards the SQL.
+- Derive direct song catalogue buckets from semantic assignments, including unassigned songs, with transactional projection maintenance and singular database membership enforcement. Revalidate persisted semantic import metadata at worker boundaries.
+- Adopt genre-kit 0.64.0 (includes 0.63.2) to preserve singular assignments and archived evidence during retirement.
 - Enforce at most one directly assigned genre per song in semantic uploads, publication, curation and restores; retain multiple evidence decisions for that genre and inherited semantic parents.
 - Serialize staged uploads with commit and abandonment, and clean every staging stream atomically after success, failure or recovered publication. PostgreSQL thread tests cover uploads racing with commit, replacement and abandonment.
 - Reject legacy song imports when a semantic reference graph is active, checking again under the publication gate so an upload cannot overwrite a graph activated while it was staged.
