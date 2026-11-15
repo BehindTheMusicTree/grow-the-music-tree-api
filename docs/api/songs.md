@@ -78,3 +78,5 @@ fails if any of them is non-zero.
 #### Import
 
 See the songs import runs in the [README](../../README.md#api) and `grow/track/bulk_import/`.
+
+The legacy song import protocol resolves a single genre by name or QID. Creating a run returns 400 once the semantic reference graph exists: semantic assignment imports are required. A worker also checks this condition under the catalogue publication gate before merging a previously staged run. If a graph was activated during the upload, the attempt fails before changing catalogue data. Semantic assignment uploads are not yet supported; graph activation therefore requires pausing legacy song imports until that protocol is available. Rejected run creation preserves existing uploads, including abandoned staging data; to clean up an uncommitted legacy run after activation, commit it and let the rejected worker attempt remove its staging data.

@@ -25,6 +25,7 @@ from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
 from grow.song_search.rebuild import queue_song_search_build
+from grow.track.bulk_import.contract import require_legacy_import_contract
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -489,12 +490,12 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
     changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
+        # Serialize graph activation with publication, including runs uploaded before activation.
+        lock_catalogue_sources()
+        require_legacy_import_contract()
         with report_step("prepare_tables"):
             cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
-        # Match managed writes' gate-before-search lock order and protect the
-        # staging snapshot that drives legacy and membership deltas.
-        lock_catalogue_sources()
         with report_step("lock_search_projection"):
             live = projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", SONG_IMPORT)], params)

@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Reject legacy song imports when a semantic reference graph is active, checking again under the publication gate so an upload cannot overwrite a graph activated while it was staged.
 - Empty initial assignment snapshots remain restorable without changing songs added later.
 - Retired genres return empty song lists; PostgreSQL search and performance tests preserve outermost snapshot transactions and isolated fixture data.
 - Enforce separate data-query and snapshot transaction budgets without relaxing query limits, including latency A/B measurements with strict protocol checks and worst-run data-query counts.

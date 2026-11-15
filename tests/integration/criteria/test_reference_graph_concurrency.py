@@ -3,22 +3,31 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
+from queue import Queue
 from threading import Barrier
+from time import monotonic, sleep
 from uuid import uuid4
 
 import pytest
 from django.core.cache import cache
 from django.db import connections, transaction
 from django.urls import reverse
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
+from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportReceipt
 from grow.genre_graph.models import GenreGraphImport
 from grow.genre_graph.service import import_reference_graph, reference_dataset
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
+from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.song.Song import Song
+from grow.track.bulk_import.merge import _merge
 from tests.integration.criteria.test_reference_graph import _retirement, _without_identity, graph_client, import_graph
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
@@ -67,6 +76,48 @@ def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
     successes = [revision for revision in results if revision is not None]
     assert successes == [reference_dataset().revision]
     assert GenreGraphImport.objects.count() == 2
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db(transaction=True)
+def test_song_import_waits_for_graph_activation_then_rejects_legacy_publication():
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
+    backend = Queue()
+
+    def publish():
+        try:
+            with connections["default"].cursor() as cursor:
+                cursor.execute("SELECT pg_backend_pid()")
+                backend.put(cursor.fetchone()[0])
+            with pytest.raises(ValidationError, match="semantic assignment imports are required"):
+                _merge(run.pk, {}, False)
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic():
+            lock_catalogue_sources()
+            import_graph(payload)
+            songs = list(Song.objects.values_list("pk", flat=True))
+            future = pool.submit(publish)
+            pid = backend.get(timeout=10)
+            deadline = monotonic() + 10
+            with connections["default"].cursor() as cursor:
+                while True:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = %s "
+                        "AND locktype = 'advisory' AND NOT granted)",
+                        [pid],
+                    )
+                    if cursor.fetchone()[0]:
+                        break
+                    if future.done() or monotonic() >= deadline:
+                        pytest.fail("Song publication did not wait for graph activation")
+                    sleep(0.01)
+        future.result(timeout=10)
+    assert list(Song.objects.values_list("pk", flat=True)) == songs
+    assert not ImportReceipt.objects.filter(pk=run.pk).exists()
 
 
 @pytest.mark.postgres
