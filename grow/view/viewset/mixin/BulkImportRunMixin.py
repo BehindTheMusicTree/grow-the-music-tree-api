@@ -26,7 +26,9 @@ from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.bulk_import.lifecycle import queue_attempt
 from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.track.bulk_import.contract import require_legacy_import_contract
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 GROUP_PREFIX = "import-run-"
@@ -151,6 +153,9 @@ def bulk_import_run_actions(
         if mode not in modes:
             raise ValidationError(f"mode must be one of {', '.join(modes)}")
         with transaction.atomic():
+            if kind == ImportRun.Kind.SONGS:
+                lock_catalogue_sources()
+                require_legacy_import_contract()
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
             # because committed_on is the enqueue time and a run can wait one full merge in the single-worker queue
