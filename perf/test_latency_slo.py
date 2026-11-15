@@ -14,6 +14,7 @@ from grow.genre_music.summary_inputs import clear_summary_inputs_cache
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.tag.Tag import Tag
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
 from perf.conftest import assert_within_slo, largest_genre_playlist, mid_size_genre
 from tests.utils.AppApiClient import AppApiClient
@@ -300,11 +301,13 @@ def test_criteria_detail_latency(name, mode, perf_record):
     else:
         genres = Genre.objects.filter(user__isnull=True)
         if name == "leaf":
-            criteria = genres.filter(children__isnull=True, criteria_playlist__direct_songs_count__gt=0).order_by(
-                "_name", "tree_name"
-            )[0]
+            criteria = genres.filter(
+                children__isnull=True, pk__in=GenreCatalogueCount.objects.filter(tracks_count__gt=0).values("genre_id")
+            ).order_by("_name", "tree_name")[0]
         elif name == "empty":
-            criteria = genres.filter(criteria_playlist__direct_songs_count=0).order_by("_name", "tree_name")[0]
+            criteria = genres.exclude(
+                pk__in=GenreCatalogueCount.objects.filter(tracks_count__gt=0, genre_id__isnull=False).values("genre_id")
+            ).order_by("_name", "tree_name")[0]
         elif name == "regional":
             criteria = genres.filter(tree_name="regional").order_by("_name")[0]
         else:

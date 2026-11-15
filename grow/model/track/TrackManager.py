@@ -6,7 +6,6 @@ from the_music_tree_genre_kit.track.AbstractTrackManager import AbstractTrackMan
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
-from grow.track.direct_songs_count import adjust_direct_songs_count
 
 if TYPE_CHECKING:
     from the_music_tree_genre_kit.track.Track import Track
@@ -23,15 +22,13 @@ class TrackManager(AbstractTrackManager[T]):
     def create(self, actor: Any = None, **kwargs) -> T:
         with transaction.atomic():
             instance = super().create(actor=actor, **kwargs)
-            if instance.user_id is None:
-                adjust_direct_songs_count(instance.genre_id, 1)
             self._refresh_search(instance)
         return instance
 
     @transaction.atomic
     def update_instance(self, old_instance: T, actor: Any = None, **kwargs) -> T:
         # A trigger cannot refresh the application's already-loaded old genre.
-        # Serialize before reloading, so membership and legacy deltas use committed state.
+        # Serialize before reloading, so membership updates use committed state.
         lock_catalogue_sources(using=self.db)
         old_instance.refresh_from_db(using=self.db)
         return super().update_instance(old_instance, actor=actor, **kwargs)
@@ -52,9 +49,6 @@ class TrackManager(AbstractTrackManager[T]):
         SongSearch.objects.refresh([instance.pk])
 
     def _on_track_genre_changed(self, instance: T, *, old_genre, actor: Any = None) -> None:
-        if instance.user_id is None:
-            adjust_direct_songs_count(old_genre.pk if old_genre else None, -1)
-            adjust_direct_songs_count(instance.genre_id, 1)
         if actor is not None and self._model_has_manual_edit_field():
             instance.is_manually_edited = True
             instance.save(update_fields=["is_manually_edited"])

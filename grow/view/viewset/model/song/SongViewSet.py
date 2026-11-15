@@ -21,6 +21,7 @@ from grow.serializer.model.song.output.full import SongFullSerializer
 from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_ORDERING,
@@ -30,7 +31,7 @@ from grow.view.pagination.OptionalTotalPagination import (
 )
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
-from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
+from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
@@ -38,6 +39,7 @@ from grow.youtube_regions import viewer_country
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
     throttle_scope = "song-search"
+    upload_assignment_part = assignment_part_upload_action("songs/")
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -153,5 +155,11 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         commit_import_run,
         import_run_status,
     ) = bulk_import_run_actions(
-        "songs/", ImportRun.Kind.SONGS, SongImportStaging, load_part, merge_song_import_run, "musicbrainz_recording_id"
+        "songs/",
+        ImportRun.Kind.SONGS,
+        SongImportStaging,
+        load_part,
+        merge_song_import_run,
+        "musicbrainz_recording_id",
+        extra_staging_models=(SongAssignmentStaging,),
     )

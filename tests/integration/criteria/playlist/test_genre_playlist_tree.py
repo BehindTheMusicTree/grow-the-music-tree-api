@@ -20,6 +20,7 @@ TREE_PATH = reverse("genre-playlist-list") + "tree/"
 # Read by the tree but deliberately untriggered, with the reason.
 UNTRACKED_READS = {
     "grow_genre_membership_count": "derived from tracked membership sources in migration 0108",
+    "grow_genre_catalogue_count": "derived from the song/track sources whose triggers bump the token (migration 0115)",
     "grow_genre_tree_version": "holds the token the triggers bump",
     "grow_criteria_lineage_rel": "derived from the parent links of grow_criteria, which is tracked",
 }

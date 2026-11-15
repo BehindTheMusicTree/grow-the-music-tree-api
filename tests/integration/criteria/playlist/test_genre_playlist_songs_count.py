@@ -11,6 +11,7 @@ from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 
@@ -27,10 +28,11 @@ class TestCase(AppTestCase):
         self.jazz = self.factory.create_genre("Jazz")
 
     def stored(self) -> dict[str, int]:
+        counts = dict(GenreCatalogueCount.objects.values_list("genre_id", "tracks_count"))
         return {
-            name or CriterialessPlaylistNames.GENRE: count
-            for name, count in GenrePlaylist.objects.filter(user__isnull=True).values_list(
-                "criteria___name", "direct_songs_count"
+            name or CriterialessPlaylistNames.GENRE: counts.get(genre, 0)
+            for name, genre in GenrePlaylist.objects.filter(user__isnull=True).values_list(
+                "criteria___name", "criteria_id"
             )
         }
 
@@ -41,6 +43,17 @@ class TestCase(AppTestCase):
         response = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
         assert response.status_code == status.HTTP_200_OK
         return {row["name"]: (row["songsCount"], row["tracksCount"]) for row in response.json()}
+
+    def test_readers_use_the_catalogue_projection(self):
+        self.factory.create_song(title="Punk song", genre=self.punk)
+        self.factory.create_song(title="Genreless song", genre=None)
+
+        counts = self.tree_songs_counts()
+
+        assert counts["Punk"] == (1, 1)
+        assert counts["Rock"] == (1, 1)
+        assert counts["Jazz"] == (0, 0)
+        assert counts[CriterialessPlaylistNames.GENRE][0] == 1
 
     def test_tree_folds_playable_and_unplayable_songs_into_ascendants(self):
         self.factory.create_song(title="Playable", genre=self.punk)
@@ -159,6 +172,6 @@ class TestCase(AppTestCase):
 
     def test_recount_command_repairs_a_drifted_count(self):
         self.factory.create_song(title="Punk song", genre=self.punk)
-        GenrePlaylist.objects.filter(criteria=self.punk).update(direct_songs_count=0)
-        call_command("recount_direct_songs_count", stdout=StringIO())
+        GenreCatalogueCount.objects.filter(genre_id=self.punk.pk).update(tracks_count=0)
+        call_command("verify_genre_catalogue_counts", repair=True, stdout=StringIO())
         assert self.stored()["Punk"] == 1

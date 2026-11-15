@@ -25,7 +25,8 @@ from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import invalidate_search_cache
 from grow.song_search import projection
 from grow.song_search.rebuild import queue_song_search_build
-from grow.track.bulk_import.contract import require_legacy_import_contract
+from grow.track.bulk_import.contract import require_complete_run, require_legacy_import_contract
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 SKIP_VIEWS_COUNT_SONG_UPDATE = "grow.skip_views_count_song_update"
@@ -287,22 +288,6 @@ STEPS = [
 ]
 
 AFTER_STALE_STEPS = [
-    # Net per-genre change of the canonical direct songs count, taken while the stale songs still carry their genre.
-    # Playability-only changes leave it alone: the count covers unplayable songs too.
-    (
-        "update_direct_songs_count",
-        """UPDATE grow_criteria_playlist cp SET direct_songs_count = cp.direct_songs_count + d.delta
-    FROM (
-        SELECT genre_id, sum(delta) AS delta FROM (
-            SELECT genre_id, 1 AS delta FROM song_import WHERE is_new
-            UNION ALL SELECT old_genre_id, -1 FROM track_change WHERE old_genre_id IS DISTINCT FROM new_genre_id
-            UNION ALL SELECT new_genre_id, 1 FROM track_change WHERE old_genre_id IS DISTINCT FROM new_genre_id
-            UNION ALL SELECT t.genre_id, -1 FROM stale s JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
-        ) changes GROUP BY genre_id
-    ) d, the_music_tree_genre_kit_playlist p
-    WHERE p.uuid = cp.playlist_id AND p.user_id IS NULL AND p.user_id IS NOT DISTINCT FROM %(user)s
-        AND cp.type_id = %(genre_type)s AND cp.criteria_id IS NOT DISTINCT FROM d.genre_id AND d.delta <> 0""",
-    ),
     # Taken before the stale tracks' artist links are deleted: those artists lose a song too.
     (
         "count_artist",
@@ -437,10 +422,10 @@ AFTER_STALE_STEPS = [
 # Every table the steps write, directly or through triggers (membership counts), in the order they are analyzed.
 WRITTEN_MODELS = (
     Track,
+    CriteriaPlaylist,
     Song,
     Track.artists.through,
     TrackPlaylistRel,
-    CriteriaPlaylist,
     GenreMembershipCount,
     GenreCatalogueCount,
     Artist,
@@ -482,16 +467,25 @@ def merge_song_import_run(
         if not live:
             queue_song_search_build()
 
-    return execute_merge(run_id, attempt_id, SongImportStaging, merge, after_commit)
+    return execute_merge(
+        run_id,
+        attempt_id,
+        SongImportStaging,
+        merge,
+        after_commit,
+        extra_staging_models=(SongAssignmentStaging,),
+    )
 
 
 def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], bool]:
-    delta = BulkImportRun.objects.get(pk=run_id).mode == BulkImportRun.Mode.DELTA
+    run = BulkImportRun.objects.get(pk=run_id)
+    delta = run.mode == BulkImportRun.Mode.DELTA
     changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
     stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
     with transaction.atomic(), connection.cursor() as cursor:
         # Serialize graph activation with publication, including runs uploaded before activation.
         lock_catalogue_sources()
+        require_complete_run(run)
         require_legacy_import_contract()
         with report_step("prepare_tables"):
             cursor.execute(f"DROP TABLE IF EXISTS {TEMP_TABLES}")

@@ -24,6 +24,25 @@ class BulkImportRun(models.Model):
     started_on = models.DateTimeField(null=True)
     user_id = models.IntegerField(null=True)
     record = models.BooleanField(default=False)
+    # Null tokens identify the legacy transport. Semantic runs require both reviewed tokens
+    # and an explicit number of parts per stream, including an empty delta's zero parts.
+    graph_revision = models.UUIDField(null=True)
+    membership_revision = models.UUIDField(null=True)
+    expected_parts = models.JSONField(null=True)
 
     class Meta:
         db_table = "grow_bulk_import_run"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(graph_revision__isnull=True, membership_revision__isnull=True, expected_parts__isnull=True)
+                    | models.Q(
+                        kind=ImportRun.Kind.SONGS,
+                        graph_revision__isnull=False,
+                        membership_revision__isnull=False,
+                        expected_parts__isnull=False,
+                    )
+                ),
+                name="grow_import_review_metadata_complete",
+            )
+        ]

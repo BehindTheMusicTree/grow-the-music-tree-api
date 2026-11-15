@@ -4,7 +4,7 @@ from grow.genre_music.catalogue_verification import verify_catalogue_counts
 
 
 class Command(BaseCommand):
-    help = "Verify canonical Song catalogue counts against both projections; optionally repair them atomically."
+    help = "Verify canonical Song catalogue counts against its projection; optionally repair them atomically."
 
     def add_arguments(self, parser):
         parser.add_argument("--repair", action="store_true")

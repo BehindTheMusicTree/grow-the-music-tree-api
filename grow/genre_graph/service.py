@@ -6,6 +6,7 @@ from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 from the_music_tree_genre_kit.genre_graph.assignments import register_evidence
 from the_music_tree_genre_kit.genre_graph.models import (
+    GenreGraphAttributionRevision,
     GenreGraphDataset,
     GenreGraphNode,
     GenreGraphRevision,
@@ -16,7 +17,6 @@ from the_music_tree_genre_kit.genre_graph.storage import (
     graph_write_transaction,
     replace_graph,
     replace_track_attributions,
-    restore_track_attributions,
 )
 
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
@@ -30,6 +30,13 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.song.Song import Song
 
 DATASET_KEY = "grow"
+
+
+def validate_song_attributions(attributions: object) -> None:
+    if not isinstance(attributions, dict):
+        raise GraphValidationError("Song attributions must be an object")
+    if len(attributions) > 1:
+        raise GraphValidationError("A song can have at most one directly assigned genre")
 
 
 def _normalized_graph(payload: dict) -> GenreGraph:
@@ -262,6 +269,7 @@ def write_song_attributions(
     expected_membership_revision: UUID,
     expected_assignment_revision: UUID | None,
 ) -> GenreGraphDataset:
+    validate_song_attributions(attributions)
     lock_catalogue_sources()
     with graph_write_transaction(key=DATASET_KEY, expected_revision=expected_revision) as dataset:
         if dataset.membership_revision != expected_membership_revision:
@@ -292,10 +300,12 @@ def restore_song_attributions(
         if dataset.membership_revision != expected_membership_revision:
             raise GraphRevisionConflict("Reference memberships changed; reload before restoring songs")
         Song.objects.select_for_update().get(pk=song_id, user__isnull=True)
-        restore_track_attributions(
+        archived = GenreGraphAttributionRevision.objects.get(dataset=dataset, track_id=song_id, revision=revision)
+        validate_song_attributions(archived.attributions)
+        replace_track_attributions(
             key=DATASET_KEY,
             track_id=song_id,
-            revision=revision,
+            attributions=archived.attributions,
             expected_revision=expected_revision,
             expected_assignment_revision=expected_assignment_revision,
         )

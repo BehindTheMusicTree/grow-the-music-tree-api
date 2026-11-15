@@ -24,15 +24,51 @@ from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.copy_part import copy_part
 from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.bulk_import.manifests import record_part
 from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
-from grow.track.bulk_import.contract import require_legacy_import_contract
+from grow.track.bulk_import.assignment_part_loader import load_part as load_assignment_part
+from grow.track.bulk_import.contract import (
+    require_complete_run,
+    require_declared_part,
+    require_legacy_import_contract,
+    require_reviewed_contract,
+    run_metadata,
+)
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 GROUP_PREFIX = "import-run-"
 SPOOL_MEMORY_BYTES = 8 * 1024 * 1024
+
+
+def assignment_part_upload_action(url_prefix: str) -> Callable:
+    @action(
+        detail=False,
+        methods=["put"],
+        url_path=url_prefix + r"import-runs/(?P<run_id>\d+)/assignments/parts/(?P<part>\d+)",
+        permission_classes=[IsPipelineOrAdmin],
+    )
+    def upload_assignment_part(self, request, run_id: str, part: str):
+        def get_run(*, lock=False):
+            runs = BulkImportRun.objects.select_for_update() if lock else BulkImportRun.objects.all()
+            run = get_object_or_404(runs, pk=run_id, kind=ImportRun.Kind.SONGS)
+            if run.committed_on is not None:
+                raise ValidationError("import run is already committed")
+            if run.expected_parts is None:
+                raise ValidationError("Assignments require a semantic import run with reviewed revisions")
+            require_declared_part(run, "assignments", int(part))
+            return run
+
+        get_run()
+        with spooled_body(request) as body, transaction.atomic():
+            run = get_run(lock=True)
+            count = load_assignment_part(run.pk, int(part), body)
+            record_part(run=run, stream="assignments", part=int(part), count=count, body=body)
+        return Response({"count": count})
+
+    return upload_assignment_part
 
 
 def spooled_body(request) -> IO[bytes]:
@@ -126,6 +162,8 @@ def bulk_import_run_actions(
     merge: Callable[[int, int | None, bool], dict[str, int]],
     deletion_key: str,
     modes: tuple[str, ...] = tuple(BulkImportRun.Mode.values),
+    *,
+    extra_staging_models: tuple[type[models.Model], ...] = (),
 ) -> tuple[Callable, ...]:
     """
     The bulk import-run protocol actions for one `kind`, to unpack into a viewset body: create a run, upload its
@@ -141,8 +179,9 @@ def bulk_import_run_actions(
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ValidationError(f"line {line_number}: {deletion_key} must be a UUID ({e})") from e
 
-    def uncommitted_run(run_id: str) -> BulkImportRun:
-        run = get_object_or_404(BulkImportRun, pk=run_id, kind=kind)
+    def uncommitted_run(run_id: str, *, lock: bool = False) -> BulkImportRun:
+        runs = BulkImportRun.objects.select_for_update() if lock else BulkImportRun.objects.all()
+        run = get_object_or_404(runs, pk=run_id, kind=kind)
         if run.committed_on is not None:
             raise ValidationError("import run is already committed")
         return run
@@ -152,10 +191,11 @@ def bulk_import_run_actions(
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
         if mode not in modes:
             raise ValidationError(f"mode must be one of {', '.join(modes)}")
+        metadata = run_metadata(request.data, mode) if kind == ImportRun.Kind.SONGS else {}
         with transaction.atomic():
             if kind == ImportRun.Kind.SONGS:
                 lock_catalogue_sources()
-                require_legacy_import_contract()
+                require_reviewed_contract(metadata)
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
             # because committed_on is the enqueue time and a run can wait one full merge in the single-worker queue
@@ -164,10 +204,14 @@ def bulk_import_run_actions(
             abandoned = BulkImportRun.objects.filter(kind=kind).filter(
                 models.Q(committed_on__isnull=True) | models.Q(committed_on__lt=merge_deadline)
             )
-            staging_model._default_manager.filter(run_id__in=abandoned.values("pk")).delete()
-            BulkImportDeletion.objects.filter(run_id__in=abandoned.values("pk")).delete()
-            abandoned.delete()
-            run = BulkImportRun.objects.create(kind=kind, mode=mode)
+            # Uploads and commit hold the same row lock. Evaluate the population once after waiting,
+            # so cleanup cannot miss an upload committed while this request was waiting.
+            abandoned_ids = list(abandoned.select_for_update().order_by("pk").values_list("pk", flat=True))
+            for model in (staging_model, *extra_staging_models):
+                model._default_manager.filter(run_id__in=abandoned_ids).delete()
+            BulkImportDeletion.objects.filter(run_id__in=abandoned_ids).delete()
+            BulkImportRun.objects.filter(pk__in=abandoned_ids).delete()
+            run = BulkImportRun.objects.create(kind=kind, mode=mode, **metadata)
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 
     @action(
@@ -177,9 +221,13 @@ def bulk_import_run_actions(
         permission_classes=[IsPipelineOrAdmin],
     )
     def upload_import_run_part(self, request, run_id: str, part: str):
-        run = uncommitted_run(run_id)
-        with spooled_body(request) as body:
+        uncommitted_run(run_id)
+        with spooled_body(request) as body, transaction.atomic():
+            run = uncommitted_run(run_id, lock=True)
+            require_declared_part(run, "songs", int(part))
             count = load_part(run.pk, int(part), body)
+            if run.expected_parts is not None:
+                record_part(run=run, stream="songs", part=int(part), count=count, body=body)
         return Response({"count": count})
 
     @action(
@@ -192,8 +240,12 @@ def bulk_import_run_actions(
         run = uncommitted_run(run_id)
         if run.mode != BulkImportRun.Mode.DELTA:
             raise ValidationError("deletions are only accepted by a delta import run")
-        with spooled_body(request) as body:
+        with spooled_body(request) as body, transaction.atomic():
+            run = uncommitted_run(run_id, lock=True)
+            require_declared_part(run, "deletions", 0)
             count = copy_part(BulkImportDeletion, ("musicbrainz_id",), deletion_row, run.pk, 0, body)
+            if run.expected_parts is not None:
+                record_part(run=run, stream="deletions", part=0, count=count, body=body)
         return Response({"count": count})
 
     @action(
@@ -203,10 +255,20 @@ def bulk_import_run_actions(
         permission_classes=[IsPipelineOrAdmin],
     )
     def commit_import_run(self, request, run_id: str):
-        run = uncommitted_run(run_id)
         owner = get_request_owner(request)
         user_id, record = owner and owner.pk, request.auth.role == "pipeline"
         with transaction.atomic():
+            if kind == ImportRun.Kind.SONGS:
+                lock_catalogue_sources()
+            run = uncommitted_run(run_id, lock=True)
+            require_complete_run(run)
+            if kind == ImportRun.Kind.SONGS:
+                if run.expected_parts is not None:
+                    require_reviewed_contract(
+                        {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
+                    )
+                # Keep activation closed until all catalogue consumers share the assignment authority.
+                require_legacy_import_contract()
             if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
                 committed_on=timezone.now(), user_id=user_id, record=record
             ):

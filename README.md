@@ -255,25 +255,27 @@ one membership scan per genre or folding child playlists whose actual members ma
 graph and catalogue inputs are reused within a worker when the statement observes the same tree version;
 actual playlist membership is always read again. Rolled-back writes cannot leave stale summary values.
 
-`uv run python manage.py verify_genre_catalogue_counts` compares canonical Song/Track joins with both the
-legacy `direct_songs_count` fields and the sparse shadow catalogue buckets. It includes unplayable and
+`uv run python manage.py verify_genre_catalogue_counts` compares canonical Song/Track joins with the
+sparse catalogue buckets. It includes unplayable and
 genreless songs, reports drift without changing data, and exits unsuccessfully on a mismatch. An absent
-shadow bucket means zero. Missing required genre playlists or the tree-version singleton are configuration
+catalogue bucket means zero. Missing required genre playlists or the tree-version singleton are configuration
 errors rather than zero counts.
 
-Use `--repair` explicitly to rebuild both projections in one transaction, retaining the original mismatch
-report and independently checking the result before commit. Repair removes orphan shadow buckets but
+Use `--repair` explicitly to rebuild the projection in one transaction, retaining the original mismatch
+report and independently checking the result before commit. Repair removes orphan catalogue buckets but
 does not create or remove playlists. `--database <alias>` selects the database. On PostgreSQL, verification
 and repair require READ COMMITTED isolation and acquire the same source-write gate as membership repair;
 ordinary detail requests do not acquire that gate.
 
-Migration `0115` installs shadow maintenance on both halves of the Song/Track join and backfills while
+Migration `0115` installs catalogue maintenance on both halves of the Song/Track join and backfills while
 source writers are excluded. Relation locks precede the advisory gate. A busy source relation or gate makes
 the migration fail immediately and roll back; retry after the writer completes. This migration temporarily
 takes exclusive source-table locks; its operational window must be measured on representative data.
 
 
 ### Semantic reference graph (draft)
+
+Semantic song-assignment staging is available as a preview with reviewed revisions and durable part receipts; commit remains disabled pending the catalogue, playlist and search cutover. See the [song import contract](docs/api/songs.md#import). Legacy imports remain blocked once a reference graph is active.
 
 This branch starts the reference graph v2 cutover and is not ready for deployment.
 `GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
@@ -287,7 +289,7 @@ for the graph restore endpoint.
 `GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
 `membershipRevision`, `assignmentRevision`, complete direct `attributions`,
 `effectiveAttributions` and `needsRefinement`. Curator/admin `PUT` on the same
-route accepts explicit semantic identities and arrays of independent evidence:
+route accepts zero or one semantic identity, with an array of independent evidence decisions for that genre:
 
 ```json
 {
@@ -308,8 +310,9 @@ set with `attributions: {}`. A stale graph, population or assignment token retur
 409; reload all tokens and assignments before resolving the edit. Evidence order
 does not change the set. Reusing a decision ID with different content fails;
 several independent decisions for the same identity are preserved. A successful
-PUT returns all three current tokens. Direct attributions are retained;
-effective attributions remove redundant broader assignments. Graph-only songs
+PUT returns all three current tokens. A song has at most one directly assigned
+genre; it inherits all semantic parents through deduplicated graph paths. Writes
+and restores containing several direct genres are rejected. Graph-only songs
 are included in song lists. Song cursors now contain a UUID alone; previous
 cursors must be restarted. Graph import is required before listing songs.
 Song-list name and umbrella filters use normalized graph attributions. Each list
