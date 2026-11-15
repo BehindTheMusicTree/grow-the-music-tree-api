@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Documentation
+
+- Agent guidance now allows enabling auto-merge while required CI checks are pending or failing, while preserving performance regression safeguards and blocking merges over failing optional checks.
+
 ## [17.0.0] - 2026-11-13
 
 ### Added
