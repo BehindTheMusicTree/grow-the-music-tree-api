@@ -261,7 +261,7 @@ def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(
     body = {
         "expectedRevision": str(dataset.revision),
         "expectedMembershipRevision": str(dataset.membership_revision),
-        "attributions": {"LOCAL:france": [provenance], "LOCAL:french-dub": [provenance]},
+        "attributions": {"LOCAL:french-dub": [provenance]},
         "expectedAssignmentRevision": original.json()["assignmentRevision"],
     }
     assert graph_client("pipeline").put(url, body, format="json").status_code == 403
@@ -345,6 +345,40 @@ def test_assignment_api_preserves_evidence_and_checks_each_reviewed_token(payloa
     assert reader.get(url).json()["attributions"] == written["attributions"]
 
 
+@pytest.mark.parametrize("operation", ["write", "restore"])
+def test_song_assignment_rejects_multiple_direct_genres_without_mutation(payload, operation):
+    song = ModelFixtureFactory(None).create_song("Single genre", None)
+    dataset = import_graph(payload)
+    url = reverse("song-attributions", kwargs={"song_id": song.pk})
+    original = APIClient().get(url).json()
+    evidence = {"decisionId": "invalid-multiple", "source": "fixture", "rationale": "Two direct genres"}
+    attributions = {"LOCAL:dub": [evidence], "LOCAL:french-dub": [evidence]}
+    body = {
+        "expectedRevision": original["revision"],
+        "expectedMembershipRevision": original["membershipRevision"],
+        "expectedAssignmentRevision": original["assignmentRevision"],
+    }
+    if operation == "restore":
+        archived = GenreGraphAttributionRevision.objects.create(
+            dataset=dataset,
+            track_id=song.pk,
+            revision=uuid4(),
+            graph_revision=dataset.revision,
+            attributions=attributions,
+        )
+        body["revision"] = str(archived.revision)
+        url = reverse("song-attributions-restore", kwargs={"song_id": song.pk})
+    else:
+        body["attributions"] = attributions
+    history_count = GenreGraphAttributionRevision.objects.count()
+    response = getattr(graph_client("curator"), "post" if operation == "restore" else "put")(url, body, format="json")
+    assert response.status_code == 400, response.data
+    assert "at most one" in str(response.data)
+    assert APIClient().get(reverse("song-attributions", kwargs={"song_id": song.pk})).json() == original
+    assert GenreGraphAttributionRevision.objects.count() == history_count
+    assert not GenreGraphAttribution.objects.filter(track=song).exists()
+
+
 @pytest.mark.parametrize(
     "scope,expected",
     [
@@ -363,7 +397,7 @@ def test_song_filter_uses_semantic_memberships_without_display_edges(payload, sc
         "style": ["LOCAL:dub"],
         "exited": ["LOCAL:french-reggae"],
         "scoped": ["LOCAL:french-dub"],
-        "overlap": ["LOCAL:dub", "LOCAL:french-dub", "LOCAL:british-dub"],
+        "overlap": ["LOCAL:french-dub"],
     }.items():
         dataset = write_song_attributions(
             song_id=songs[name].pk,
@@ -463,10 +497,10 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
     retired = Genre.objects.get(semantic_identity="LOCAL:french-dub")
     retained = Genre.objects.get(semantic_identity="LOCAL:dub")
     song = ModelFixtureFactory(None).create_song("Retired expression", None)
-    provenance = {"decisionId": "assign", "source": "fixture", "rationale": "Direct expression and style"}
+    provenance = {"decisionId": "assign", "source": "fixture", "rationale": "Direct regional expression"}
     assigned = write_song_attributions(
         song_id=song.pk,
-        attributions={"LOCAL:french-dub": [provenance], "LOCAL:dub": [provenance]},
+        attributions={"LOCAL:french-dub": [provenance]},
         expected_revision=original.revision,
         expected_membership_revision=original.membership_revision,
         expected_assignment_revision=assignment_revision(song.pk),
@@ -486,12 +520,12 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
     assert not retired.graph_node.is_active
     assert retired.semantic_identity == "LOCAL:french-dub"
     assert Genre.objects.get(pk=retained.pk).name == retired.name == "Dub"
-    expected = {"LOCAL:dub"} | ({target} if target else set())
+    expected = {target} if target else set()
     assert set(song.graph_attributions.values_list("node__identity", flat=True)) == expected
     snapshot = GenreGraphAttributionRevision.objects.filter(
         track_id=song.pk, attributions__has_key="LOCAL:french-dub"
     ).latest("created_at")
-    assert snapshot.attributions == {"LOCAL:french-dub": [provenance], "LOCAL:dub": [provenance]}
+    assert snapshot.attributions == {"LOCAL:french-dub": [provenance]}
     restored = restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
     retired.refresh_from_db()
     assert retired.graph_node.identity == "LOCAL:french-dub"

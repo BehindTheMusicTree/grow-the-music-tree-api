@@ -41,7 +41,7 @@ Keep one `GenreGraphNode` per `(dataset, identity)` for its full lifetime. Add e
 
 Keep Grow's permanent semantic-identity-to-Genre-UUID binding. A retired Genre remains bound to its identity, with visibility determined by active state. Do not infer activity from a nullable relation once retired nodes are retained. Enforce immutable bindings and prohibit identity theft in the shared service and database constraints where expressible.
 
-Every retirement requires a target identity or explicit null, plus decision ID, source and rationale. Archive affected assignments before remapping/clearing them. Preserve both the original provenance and the retirement decision. If several assignments merge onto one target, retain all contributing evidence rather than allowing insert order to choose provenance. Reject incompatible evidence structures before mutation.
+Every retirement requires a target identity or explicit null, plus decision ID, source and rationale. Archive affected assignments before remapping/clearing them. Preserve both the original provenance and the retirement decision. Each song has at most one directly assigned genre. Remapping that genre retains its evidence and the retirement decision. Reject incompatible evidence structures before mutation.
 
 ### Dataset-owned closures and set-based replacement
 
@@ -78,13 +78,13 @@ Cache keys include the graph revision, membership revision and applicable song/p
 | pipelines | Define and emit semantic identity assignments plus explicit provenance, graph contract/revision and attribution deletion semantics; validate at export. Contract work is required, but this proposal does not authorize changes to pipelines PR #423. |
 | Hear | Exercise shared-kit migrations and api-kit detail lookup behavior. Retain its personal-tree contract unless a demonstrated requirement needs a change; adopting semantic reference storage does not require converting its personal tracks. |
 
-Grow song-import staging needs assignment rows separate from song rows to support multiple identities, explicit empty assignments and provenance without comma-separated fields. Validate all semantic references against the reviewed graph before publication. Full imports replace the declared assignment population; deltas modify only declared songs and explicit deletions. Preserve locked assignments, song UUIDs and unaffected rows. History and projection changes occur in the same transaction as the set-based merge.
+Grow song-import staging needs assignment rows separate from song rows to carry zero or one direct genre, explicit empty assignments and several provenance decisions for that genre. Validate all semantic references against the reviewed graph before publication. Full imports replace the declared assignment population; deltas modify only declared songs and explicit deletions. Preserve locked assignments, song UUIDs and unaffected rows. History and projection changes occur in the same transaction as the set-based merge.
 
 Use `effective_attributions`/semantic access for catalogues, genre detail lists, playable playlists, distinct counts, search genre presence, refinement, artist summaries and link suggestions. A song with no assignments remains in the library. A song with multiple paths counts once; a regional expression cannot expose another region's population. Hand-authored playlist membership remains separate, but its genre-scoped views join the same authority.
 
-Document the multi-attribution response and mutation contract explicitly in serializers and downstream clients. Never select a lossy representative assignment just to continue returning the old singular genre field. Identify affected app-kit/frontend consumers before implementing that contract change; their impact has not been exhaustively audited in this investigation.
+Document the single direct genre response and mutation contract explicitly in serializers and downstream clients. Semantic parents may be multiple; inherited membership follows deduplicated graph closures. Identify affected app-kit/frontend consumers before implementing that contract change; their impact has not been exhaustively audited in this investigation.
 
-Treat display parents as presentation. Do not keep a second genre authority by synchronizing `Track.genre_id`, exact genre buckets or display-tree traversal with the graph. Remove those dependencies from Grow's semantic path; shared personal-tree fields may remain for Hear's independently owned behavior.
+Treat display parents as presentation. Do not keep a second genre authority by synchronizing `Track.genre_id`, display-tree traversal with the graph. Exact genre buckets remain additive over deduplicated descendant sets when they derive from the unique semantic assignment. Remove legacy authority dependencies from Grow's semantic path; shared personal-tree fields may remain for Hear's independently owned behavior.
 
 ## Alternatives and migration cost
 

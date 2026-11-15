@@ -68,6 +68,17 @@ class TestImportRunProtocol(AppTestCase):
             assert "semantic assignment imports are required" in str(response.json())
         assert list(BulkImportRun.objects.values_list("pk", flat=True)) == [run_id]
 
+    def test_commit_rejects_legacy_run_when_graph_activated_after_upload(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        install_song_graph({genre: []})
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.enqueue_merge") as enqueue:
+            response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "semantic assignment imports are required" in str(response.json())
+        enqueue.assert_not_called()
+        assert BulkImportRun.objects.get(pk=run_id).committed_on is None
+
     def test_merge_rechecks_graph_activated_after_upload(self):
         run_id = self._create_run()
         genre = self.model_fixture_factory.create_genre("Rock")

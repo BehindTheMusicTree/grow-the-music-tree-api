@@ -27,7 +27,7 @@ def queue_attempt(run: BulkImportRun) -> ImportAttempt:
 
 def _finalize(
     run_id: int,
-    staging_model: type[models.Model],
+    staging_models: tuple[type[models.Model], ...],
     invalidate: Callable[[], Any] | None,
     reporter: ProgressReporter,
 ) -> None:
@@ -38,8 +38,9 @@ def _finalize(
                 invalidate()
     finally:
         reporter.publish(state=ImportAttempt.State.CLEANING_UP)
-        with report_step("cleanup"):
-            staging_model._default_manager.filter(run_id=run_id).delete()
+        with report_step("cleanup"), transaction.atomic():
+            for staging_model in staging_models:
+                staging_model._default_manager.filter(run_id=run_id).delete()
             BulkImportDeletion.objects.filter(run_id=run_id).delete()
             BulkImportRun.objects.filter(pk=run_id).delete()
 
@@ -50,7 +51,10 @@ def execute_merge(
     staging_model: type[models.Model],
     merge: Callable[[], dict[str, Any]],
     invalidate: Callable[[], Any] | None = None,
+    *,
+    extra_staging_models: tuple[type[models.Model], ...] = (),
 ) -> dict[str, Any]:
+    staging_models = (staging_model, *extra_staging_models)
     with hold_merge_lock(run_id):
         # The receipt and the data commit together, even if the worker dies before publishing its result.
         receipt = ImportReceipt.objects.filter(pk=run_id).first()
@@ -94,12 +98,12 @@ def execute_merge(
                         ImportReceipt.objects.create(run_id=run_id, result=result)
                         committing()
                 except BaseException:
-                    _finalize(run_id, staging_model, None, reporter)
+                    _finalize(run_id, staging_models, None, reporter)
                     raise
                 applied = True
                 committed()
                 reporter.publish(data_applied=True, result=result)
-            _finalize(run_id, staging_model, invalidate, reporter)
+            _finalize(run_id, staging_models, invalidate, reporter)
             reporter.publish(
                 state=ImportAttempt.State.SUCCEEDED, result=result, data_applied=True, finished_at=timezone.now()
             )

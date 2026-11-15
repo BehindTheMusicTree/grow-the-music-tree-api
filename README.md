@@ -275,6 +275,8 @@ takes exclusive source-table locks; its operational window must be measured on r
 
 ### Semantic reference graph (draft)
 
+Semantic song-assignment staging is available as a preview with reviewed revisions and durable part receipts; commit remains disabled pending the catalogue, playlist and search cutover. See the [song import contract](docs/api/songs.md#import). Legacy imports remain blocked once a reference graph is active.
+
 This branch starts the reference graph v2 cutover and is not ready for deployment.
 `GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
 mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
@@ -287,7 +289,7 @@ for the graph restore endpoint.
 `GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
 `membershipRevision`, `assignmentRevision`, complete direct `attributions`,
 `effectiveAttributions` and `needsRefinement`. Curator/admin `PUT` on the same
-route accepts explicit semantic identities and arrays of independent evidence:
+route accepts zero or one semantic identity, with an array of independent evidence decisions for that genre:
 
 ```json
 {
@@ -308,8 +310,9 @@ set with `attributions: {}`. A stale graph, population or assignment token retur
 409; reload all tokens and assignments before resolving the edit. Evidence order
 does not change the set. Reusing a decision ID with different content fails;
 several independent decisions for the same identity are preserved. A successful
-PUT returns all three current tokens. Direct attributions are retained;
-effective attributions remove redundant broader assignments. Graph-only songs
+PUT returns all three current tokens. A song has at most one directly assigned
+genre; it inherits all semantic parents through deduplicated graph paths. Writes
+and restores containing several direct genres are rejected. Graph-only songs
 are included in song lists. Song cursors now contain a UUID alone; previous
 cursors must be restarted. Graph import is required before listing songs.
 Song-list name and umbrella filters use normalized graph attributions. Each list
