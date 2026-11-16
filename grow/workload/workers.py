@@ -4,6 +4,7 @@ import pydoc
 from collections.abc import Callable
 from typing import Any
 
+from django.conf import settings
 from django_q.signals import post_execute_in_worker, pre_enqueue
 
 from grow.workload.admission import production_activity
@@ -20,7 +21,7 @@ def execute(function: str | Callable[..., Any], args: tuple[Any, ...], /, **kwar
 
 
 def prepare_task(sender: Any, task: dict[str, Any], **kwargs: Any) -> None:
-    if task["func"] == _EXECUTOR:
+    if not settings.WORKLOAD_COORDINATOR_SOCKET or task["func"] == _EXECUTOR:
         return
     task["args"] = (task["func"], task["args"])
     task["func"] = _EXECUTOR

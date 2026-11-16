@@ -15,7 +15,6 @@ class GrowConfig(AppConfig):
 
         register()
 
-
         # Songs also disappear through album and artist cascades, which no manager hook sees.
         post_delete.connect(on_track_deleted, sender=Track, dispatch_uid="grow_direct_songs_count_track_deleted")
         post_delete.connect(
