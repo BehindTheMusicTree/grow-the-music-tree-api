@@ -7,6 +7,7 @@ from django_q.tasks import async_task
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.search.cache import SearchCache, invalidate_search_cache
 from grow.song_search.projection import COLUMNS, PROJECTION, TABLE
+from grow.workload.admission import admitted
 
 NEW_TABLE = f"{TABLE}_new"
 NEW_SUFFIX = "_new"
@@ -15,6 +16,7 @@ BUILD_GROUP = "song-search-build"
 logger = logging.getLogger("grow.bulk_import")
 
 
+@admitted
 def rebuild_song_search(*, only_if_not_ready: bool = False) -> int | None:
     """
     Fills a fresh copy of the projection from the source tables and swaps it in, then marks search ready. Returns the
