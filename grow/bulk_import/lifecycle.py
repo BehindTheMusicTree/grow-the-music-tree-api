@@ -11,6 +11,7 @@ from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.merge_lock import hold_merge_lock
 from grow.bulk_import.progress import ProgressReporter, activate, committed, committing, deactivate, report_step
+from grow.workload.admission import admitted
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ def _finalize(
             BulkImportRun.objects.filter(pk=run_id).delete()
 
 
+@admitted
 def execute_merge(
     run_id: int,
     attempt_id: int | None,

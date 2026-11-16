@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Optional host workload admission for HTTP mutations, queued tasks, direct bulk merges and search rebuilds. Background work acquires its own lease; failed or interrupted work retains a receipt that blocks benchmarks until reconciled. Tests cover admission failure, worker signals and incomplete responses.
+
 - Preview semantic song-assignment staging with reviewed graph/membership revisions, separate gzip NDJSON assignment parts and durable upload receipts. Commit rejects incomplete or lost staging data; assignment publication preserves locked sets, immutable evidence and history atomically. Semantic publication remains disabled pending the catalogue, playlist and search cutover.
 - Draft semantic reference graph API with explicit genre UUID mappings, revision-checked song attributions and archived graph restoration; song lists use normalized graph membership, name/refinement filters, UUID cursors and consistent revision headers. Explicit retirement decisions remap or unassign removed concepts after archiving direct assignments; permanent semantic bindings preserve genre UUIDs through retirement and reactivation. Initial assignments can be restored from their archive with revision checks. Tests cover conflicting legacy assignments, duplicate labels, atomic rollback and 1,710-node imports. The catalogue, playlist, search and bulk-import cutover remains incomplete.
 
