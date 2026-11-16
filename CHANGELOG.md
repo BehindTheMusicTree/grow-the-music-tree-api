@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Keep local agent plans and temporary files out of Git.
+
 ### Removed
 
 - Remove the obsolete direct-song counter and its duplicate maintenance; public catalogue counts use the authoritative projection.
