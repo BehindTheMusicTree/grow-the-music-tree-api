@@ -149,7 +149,7 @@ def test_worker_failed_payload_keeps_uncertain_receipt(coordinator):
     coordinator.return_value.request.assert_not_called()
 
 
-def test_signal_registration_is_idempotent():
+def test_signal_registration_is_idempotent(coordinator):
     register()
     register()
     task = {"func": "builtins.sum", "args": ([1, 2],), "kwargs": {}}
@@ -197,3 +197,10 @@ def test_task_keyword_names_do_not_collide_with_wrapper(coordinator):
     result = run_worker({"func": payload, "args": (), "kwargs": {"function": "value", "args": 7}})
     assert result["success"] is True
     payload.assert_called_once_with(function="value", args=7)
+
+
+def test_disabled_admission_preserves_serialized_task_contract():
+    task = {"func": "builtins.sum", "args": ([1, 2],), "kwargs": {}}
+    with override_settings(WORKLOAD_COORDINATOR_SOCKET=""):
+        prepare_task("django_q", task)
+    assert task == {"func": "builtins.sum", "args": ([1, 2],), "kwargs": {}}
