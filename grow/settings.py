@@ -141,3 +141,6 @@ SONG_YOUTUBE_VIDEO_ID_LEN_MAX = 11
 VIEWER_CONTEXT_TOKEN = os.environ.get("VIEWER_CONTEXT_TOKEN", "")
 # Tests with outer transactions use synchronous telemetry; concurrency tests enable the reporter thread.
 IMPORT_PROGRESS_THREADED = True
+
+# Empty keeps admission inactive until host coordination is provisioned.
+WORKLOAD_COORDINATOR_SOCKET = os.environ.get("WORKLOAD_COORDINATOR_SOCKET", "")
