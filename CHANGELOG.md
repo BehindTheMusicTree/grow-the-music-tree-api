@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Optional host workload admission for HTTP mutations, queued tasks, direct bulk merges and search rebuilds. Background work acquires its own lease; failed or interrupted work retains a receipt that blocks benchmarks until reconciled. Tests cover coordinator failures, task results and incomplete responses.
+
 ## [17.0.0] - 2026-11-13
 
 ### Added
