@@ -20,9 +20,9 @@ _active: ContextVar[Activity | None] = ContextVar("grow_workload_active", defaul
 
 
 class Lease:
-    def __init__(self, endpoint: str):
+    def __init__(self, endpoint: str, *, timeout: int = 35):
         self.connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.connection.settimeout(35)
+        self.connection.settimeout(timeout)
         self.buffer = b""
         try:
             self.connection.connect(endpoint)
@@ -47,7 +47,7 @@ class Lease:
 
 
 @contextmanager
-def production_activity() -> Iterator[Activity]:
+def production_activity(*, timeout: int = 35) -> Iterator[Activity]:
     endpoint = settings.WORKLOAD_COORDINATOR_SOCKET
     active = _active.get()
     if active is not None:
@@ -61,7 +61,7 @@ def production_activity() -> Iterator[Activity]:
     if not endpoint:
         yield activity
         return
-    lease = Lease(endpoint)
+    lease = Lease(endpoint, timeout=timeout)
     token = _active.set(activity)
     try:
         yield activity

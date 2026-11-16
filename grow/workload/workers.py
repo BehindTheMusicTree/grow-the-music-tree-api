@@ -13,7 +13,7 @@ _EXECUTOR = "grow.workload.workers.execute"
 
 
 def execute(function: str | Callable[..., Any], args: tuple[Any, ...], /, **kwargs: Any) -> Any:
-    with production_activity():
+    with production_activity(timeout=210):
         target = pydoc.locate(function) if isinstance(function, str) else function
         if not callable(target):
             raise ValueError(f"Function {function!r} is not defined")

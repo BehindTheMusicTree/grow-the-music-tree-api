@@ -27,7 +27,7 @@ def coordinator():
 def test_activity_is_owned_until_successful_work_finishes(coordinator):
     lease = coordinator.return_value
     with production_activity():
-        coordinator.assert_called_once_with("/run/workload.sock")
+        coordinator.assert_called_once_with("/run/workload.sock", timeout=35)
         lease.request.assert_not_called()
         with production_activity():
             assert coordinator.call_count == 1
@@ -114,6 +114,7 @@ def run_worker(task):
 def test_worker_admits_payload_and_publishes_result(coordinator):
     payload = MagicMock(return_value="done")
     result = run_worker({"func": payload, "args": (), "kwargs": {}})
+    coordinator.assert_called_once_with("/run/workload.sock", timeout=210)
     assert result["success"] is True
     assert result["result"] == "done"
     payload.assert_called_once_with()
@@ -166,6 +167,7 @@ def test_wire_protocol_and_fragmented_responses():
         connection = factory.return_value
         connection.recv.side_effect = [b"o", b"k\n", b"ok\n"]
         lease = Lease("/run/workload.sock")
+        connection.settimeout.assert_called_once_with(35)
         connection.connect.assert_called_once_with("/run/workload.sock")
         lease.request("complete")
         assert [args.args[0] for args in connection.sendall.call_args_list] == [b"production\n", b"complete\n"]
