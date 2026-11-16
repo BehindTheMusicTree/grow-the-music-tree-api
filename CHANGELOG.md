@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Return a retryable 503 before HTTP mutation handlers run when benchmark cleanup prevents admission, using the coordinator prompt-admission protocol.
+
 - Allow queued workload admission to wait for the coordinator's bounded recovery before timing out; worker tests cover the timeout.
 - Enforce at most one directly assigned genre per song in semantic uploads, publication, curation and restores; retain multiple evidence decisions for that genre and inherited semantic parents.
 - Serialize staged uploads with commit and abandonment, and clean every staging stream atomically after success, failure or recovered publication. PostgreSQL thread tests cover uploads racing with commit, replacement and abandonment.

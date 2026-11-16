@@ -2,9 +2,9 @@
 
 from collections.abc import Callable
 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 
-from grow.workload.admission import production_activity
+from grow.workload.admission import AdmissionUnavailable, production_activity
 
 
 class ProductionAdmissionMiddleware:
@@ -14,9 +14,14 @@ class ProductionAdmissionMiddleware:
     def __call__(self, request: HttpRequest) -> HttpResponse:
         if request.method in {"GET", "HEAD", "OPTIONS"}:
             return self.get_response(request)
-        with production_activity() as activity:
-            response = self.get_response(request)
-            if response.status_code >= 500 or response.streaming:
-                # An error or deferred response cannot prove the work completed.
-                activity.complete = False
+        try:
+            with production_activity(wait=False) as activity:
+                response = self.get_response(request)
+                if response.status_code >= 500 or response.streaming:
+                    # An error or deferred response cannot prove the work completed.
+                    activity.complete = False
+                return response
+        except AdmissionUnavailable:
+            response = JsonResponse({"message": "Production workload admission unavailable"}, status=503)
+            response["Retry-After"] = "5"
             return response

@@ -19,14 +19,21 @@ class Activity:
 _active: ContextVar[Activity | None] = ContextVar("grow_workload_active", default=None)
 
 
+class AdmissionUnavailable(RuntimeError):
+    pass
+
+
 class Lease:
-    def __init__(self, endpoint: str, *, timeout: int = 35):
+    def __init__(self, endpoint: str, *, timeout: int = 35, wait: bool = True):
         self.connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.connection.settimeout(timeout)
         self.buffer = b""
         try:
             self.connection.connect(endpoint)
-            self.request("production")
+            self.request("production" if wait else "production-nowait")
+        except (OSError, RuntimeError) as error:
+            self.close()
+            raise AdmissionUnavailable("Production workload admission unavailable") from error
         except BaseException:
             self.close()
             raise
@@ -47,7 +54,7 @@ class Lease:
 
 
 @contextmanager
-def production_activity(*, timeout: int = 35) -> Iterator[Activity]:
+def production_activity(*, timeout: int = 35, wait: bool = True) -> Iterator[Activity]:
     endpoint = settings.WORKLOAD_COORDINATOR_SOCKET
     active = _active.get()
     if active is not None:
@@ -61,7 +68,7 @@ def production_activity(*, timeout: int = 35) -> Iterator[Activity]:
     if not endpoint:
         yield activity
         return
-    lease = Lease(endpoint, timeout=timeout)
+    lease = Lease(endpoint, timeout=timeout, wait=wait)
     token = _active.set(activity)
     try:
         yield activity

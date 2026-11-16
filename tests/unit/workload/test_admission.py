@@ -10,7 +10,7 @@ from django.utils import timezone
 from django_q.signals import pre_enqueue
 from django_q.worker import worker
 
-from grow.workload.admission import Lease, admitted, production_activity
+from grow.workload.admission import AdmissionUnavailable, Lease, admitted, production_activity
 from grow.workload.middleware import ProductionAdmissionMiddleware
 from grow.workload.workers import prepare_task, register
 
@@ -27,7 +27,7 @@ def coordinator():
 def test_activity_is_owned_until_successful_work_finishes(coordinator):
     lease = coordinator.return_value
     with production_activity():
-        coordinator.assert_called_once_with("/run/workload.sock", timeout=35)
+        coordinator.assert_called_once_with("/run/workload.sock", timeout=35, wait=True)
         lease.request.assert_not_called()
         with production_activity():
             assert coordinator.call_count == 1
@@ -88,14 +88,16 @@ def test_mutations_are_admitted_before_the_handler(coordinator):
         return HttpResponse(status=202)
 
     assert ProductionAdmissionMiddleware(handler)(RequestFactory().post("/import/")).status_code == 202
+    coordinator.assert_called_once_with("/run/workload.sock", timeout=35, wait=False)
     coordinator.return_value.request.assert_called_once_with("complete")
 
 
 def test_coordinator_failure_prevents_mutation(coordinator):
-    coordinator.side_effect = OSError("coordinator unavailable")
+    coordinator.side_effect = AdmissionUnavailable("coordinator unavailable")
     handler = MagicMock()
-    with pytest.raises(OSError, match="coordinator unavailable"):
-        ProductionAdmissionMiddleware(handler)(RequestFactory().post("/import/"))
+    response = ProductionAdmissionMiddleware(handler)(RequestFactory().post("/import/"))
+    assert response.status_code == 503
+    assert response["Retry-After"] == "5"
     handler.assert_not_called()
 
 
@@ -114,7 +116,7 @@ def run_worker(task):
 def test_worker_admits_payload_and_publishes_result(coordinator):
     payload = MagicMock(return_value="done")
     result = run_worker({"func": payload, "args": (), "kwargs": {}})
-    coordinator.assert_called_once_with("/run/workload.sock", timeout=210)
+    coordinator.assert_called_once_with("/run/workload.sock", timeout=210, wait=True)
     assert result["success"] is True
     assert result["result"] == "done"
     payload.assert_called_once_with()
@@ -172,6 +174,16 @@ def test_wire_protocol_and_fragmented_responses():
         lease.request("complete")
         assert [args.args[0] for args in connection.sendall.call_args_list] == [b"production\n", b"complete\n"]
         lease.close()
+        connection.close.assert_called_once()
+
+
+def test_nowait_wire_request_and_refusal_close_without_completion():
+    with patch("grow.workload.admission.socket.socket") as factory:
+        connection = factory.return_value
+        connection.recv.return_value = b"refused\n"
+        with pytest.raises(AdmissionUnavailable):
+            Lease("/run/workload.sock", wait=False)
+        connection.sendall.assert_called_once_with(b"production-nowait\n")
         connection.close.assert_called_once()
 
 
