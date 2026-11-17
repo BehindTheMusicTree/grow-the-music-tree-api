@@ -1,0 +1,55 @@
+name: Catalogue benchmark
+
+# Tests the inactive catalogue benchmark harness. Not a required check, so the paths filter is safe. The harness is
+# stdlib-only, so it runs with a bare interpreter instead of the project environment.
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "benchmarks/**"
+      - ".github/workflows/catalogue-benchmark.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "benchmarks/**"
+      - ".github/workflows/catalogue-benchmark.yml"
+
+concurrency:
+  group: catalogue-benchmark-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: Catalogue benchmark harness
+    # PostgreSQL 16 comes from Ubuntu 24.04's package repositories and the isolation qualification needs a disposable
+    # host, so the runner image is pinned instead of using ubuntu-latest.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GROW_PERF_PG_BINDIR: /usr/lib/postgresql/16/bin
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # The runner image does not ship Python 3.14 and `uv python find` never downloads one.
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Resolve interpreter
+        run: echo "PYTHON=$(uv python find 3.14)" >> "$GITHUB_ENV"
+
+      - name: Install PostgreSQL 16
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-16
+
+      - name: Test harness and qualify catalogue projection against PostgreSQL 16
+        run: '"$PYTHON" -m unittest discover -s benchmarks/catalogue/tests -t . -v'
+
+      - name: Qualify hosted container isolation on the disposable host
+        run: |
+          sudo env GITHUB_ACTIONS="$GITHUB_ACTIONS" RUNNER_ENVIRONMENT="$RUNNER_ENVIRONMENT" \
+            "$PYTHON" benchmarks/catalogue/qualification.py
