@@ -15,7 +15,7 @@ to run on the application VPS. Contract names (`btmt_grow_perf`, the
 
 | Repository | Owns |
 | --- | --- |
-| Grow (this directory) | harness, scenarios, workflow, verdict and the `export_perf_catalogue` command |
+| Grow (this directory) | harness, scenarios, workflow and verdict; will own the `export_perf_catalogue` command (not created yet) |
 | infrastructure | production export, sanitization and approval, and private delivery of the bundle |
 | github-config | the required check, once the benchmark gates merges |
 
