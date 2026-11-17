@@ -198,8 +198,11 @@ def data_policy(tsv: str, schema_sql: bytes) -> Policy:
 
 
 def _require_empty(table: str, predicate: str = "TRUE") -> str:
+    # count(*) rather than EXISTS: EXISTS plans for the first row, and on tables
+    # restored without statistics that picks a nested-loop anti join that never
+    # finishes at catalogue scale. An aggregate needs every row, so it hashes.
     return (
-        f'IF EXISTS (SELECT 1 FROM "public"."{table}" AS candidate WHERE {predicate}) THEN '
+        f'IF (SELECT count(*) FROM "public"."{table}" AS candidate WHERE {predicate}) > 0 THEN '
         f"RAISE EXCEPTION 'catalogue verification failed: {table}'; END IF;"
     )
 
@@ -269,9 +272,9 @@ def projection_sql(tsv: str) -> str:
         for table, column, target, key in REFERENCES
     ]
     checks.append(
-        f'IF EXISTS (SELECT 1 FROM "public"."{rel}" AS candidate '
+        f'IF (SELECT count(*) FROM "public"."{rel}" AS candidate '
         f'JOIN "public"."{TRACK}" AS retained ON retained."uuid"=candidate."track_id" '
-        'WHERE candidate."genre_id" IS DISTINCT FROM retained."genre_id") THEN '
+        'WHERE candidate."genre_id" IS DISTINCT FROM retained."genre_id") > 0 THEN '
         f"RAISE EXCEPTION 'catalogue verification failed: {rel}'; END IF;"
     )
     statements.append("DO $$ BEGIN " + " ".join(checks) + " END $$;")
