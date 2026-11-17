@@ -83,14 +83,27 @@ class Sampler(threading.Thread):
 
     def summary(self):
         peak = lambda key: max((r[key] for r in self.rows), default=0)  # noqa: E731
-        total = shutil.disk_usage("/").total
+        root_total, work_total = shutil.disk_usage("/").total, shutil.disk_usage(self.work).total
         return {
             "peak_mem_used_gib": round(peak("mem_used") / 2**30, 2),
             "peak_swap_used_gib": round(peak("swap_used") / 2**30, 2),
             "peak_container_memory_gib": round(peak("container_rss") / 2**30, 2),
-            "peak_root_used_pct": round(100 * peak("root_used") / total, 1),
+            "peak_root_used_pct": round(100 * peak("root_used") / root_total, 1),
             "peak_work_used_gib": round(peak("work_used") / 2**30, 2),
+            "peak_work_used_pct": round(100 * peak("work_used") / work_total, 1),
         }
+
+
+def disk_report(*paths):
+    report = {}
+    for path in paths:
+        usage = shutil.disk_usage(path)
+        report[str(path)] = {
+            "total_gib": round(usage.total / 2**30, 1),
+            "used_gib": round(usage.used / 2**30, 1),
+            "free_gib": round(usage.free / 2**30, 1),
+        }
+    return report
 
 
 class Timer(dict):
@@ -175,6 +188,7 @@ def main():
     for path in (bundle, gen_data, restore_data):
         path.mkdir(parents=True, mode=0o700, exist_ok=True)
     Path(work).chmod(0o755)
+    report["runner_df"] = {"start": disk_report("/", work)}
     synthetic_bundle_dir = work / "sql"
     sampler = Sampler(["gen", "restore"], str(work))
     sampler.start()
@@ -344,6 +358,7 @@ def main():
         sampler.join()
         report["timings_s"] = dict(timer)
         report["resources"] = sampler.summary()
+        report["runner_df"]["end"] = disk_report("/", work)
         report["oom_dmesg"] = subprocess.run(
             "dmesg | grep -ci 'out of memory'", shell=True, text=True, capture_output=True, check=False
         ).stdout.strip()
