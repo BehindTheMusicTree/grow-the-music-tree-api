@@ -59,6 +59,18 @@ class CataloguePolicyTest(unittest.TestCase):
         self.assertEqual(sum(map(len, TABLES.values())), 385)
         self.assertEqual(TABLES.keys(), catalogue.RETAIN | catalogue.EMPTY | catalogue.REBUILD)
 
+    def test_verifications_aggregate_instead_of_probing_for_a_first_row(self):
+        # EXISTS plans for the first row; on tables restored without statistics that picks a
+        # nested-loop anti join that never finishes at catalogue scale. count(*) hashes instead.
+        checks = [
+            line for line in SQL.splitlines() if line.startswith("DO $$ BEGIN") and "catalogue verification" in line
+        ]
+        self.assertTrue(checks)
+        for check in checks:
+            with self.subTest(check=check[:80]):
+                self.assertNotIn('IF EXISTS (SELECT 1 FROM "public"', check)
+                self.assertIn("IF (SELECT count(*) FROM", check)
+
     def test_inventory_drift_refused(self):
         for changed in (
             TSV + "new_table|id|bigint|NO\n",
