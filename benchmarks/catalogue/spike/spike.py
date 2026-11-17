@@ -21,6 +21,12 @@ from ..restore_bundle import restore_approved
 
 IMAGE = os.environ.get("POSTGRES_IMAGE", "postgres:16")
 UID = 999
+# A hung call must fail the spike with a diagnosis instead of burning the whole job timeout.
+CALL_TIMEOUT_S = 25 * 60
+
+
+def log(message):
+    print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
 def sh(*argv, **kw):
@@ -63,6 +69,12 @@ class Sampler(threading.Thread):
                 except Exception:
                     pass
             self.rows.append(row)
+            if len(self.rows) % 12 == 0:
+                log(
+                    f"sample mem={row['mem_used'] >> 20}MiB swap={row['swap_used'] >> 20}MiB "
+                    f"root={row['root_used'] >> 30}GiB container={row['container_rss'] >> 20}MiB"
+                )
+                (Path(self.work) / "samples.json").write_text(json.dumps(self.rows))
             self.stop.wait(5)
 
     def summary(self):
@@ -84,9 +96,11 @@ class Timer(dict):
         class Scope:
             def __enter__(self):
                 self.start = time.time()
+                log(f"phase {name}: start")
 
             def __exit__(self, *exc):
                 timings[name] = round(time.time() - self.start, 1)
+                log(f"phase {name}: {timings[name]}s")
 
         return Scope()
 
@@ -97,15 +111,21 @@ class Transport:
     def __init__(self, name, calls):
         self.name, self.calls = name, calls
 
-    def run(self, program, arguments, stdin=None):
+    def run(self, program, arguments, stdin=None, timeout=CALL_TIMEOUT_S):
         start = time.time()
-        result = subprocess.run(
-            ["docker", "exec", "-i", "-u", "postgres", self.name, program, *arguments],
-            input=stdin,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
+        log(f"{self.name} exec {program} {' '.join(arguments)[:120]}")
+        try:
+            result = subprocess.run(
+                ["docker", "exec", "-i", "-u", "postgres", self.name, program, *arguments],
+                input=stdin,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"{program} exceeded {timeout}s") from None
+        log(f"{self.name} exec {program}: rc={result.returncode} {time.time() - start:.1f}s")
         label = program if stdin is None else f"{program}:{stdin[:24]!r}"
         self.calls.append([label, round(time.time() - start, 1)])
         if result.returncode:

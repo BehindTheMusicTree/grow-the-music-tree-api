@@ -67,11 +67,21 @@ jobs:
           SONGS="${INPUT_SONGS:-$SONGS_DEFAULT}"
           export REBUILD_SEARCH="${INPUT_REBUILD_SEARCH:-$REBUILD_SEARCH_DEFAULT}"
           sudo mkdir -p /mnt/spike
+          # Heartbeat so a stuck phase is visible in the live log: containers, load and Postgres activity.
+          (while sleep 60; do
+            echo "--- heartbeat $(date -u +%T)"; docker ps --format '{{.Names}} {{.Status}}'; uptime
+            for c in gen restore; do
+              docker exec -u postgres "$c" psql -X -Atq -d postgres -c \
+                "SELECT datname, state, wait_event, left(query, 80) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()" 2>/dev/null || true
+            done
+          done) &
           sudo --preserve-env=REBUILD_SEARCH,REPORT "$PYTHON" -m benchmarks.catalogue.spike.spike "$SONGS" /mnt/spike
 
       - name: Report
         if: always()
         run: |
+          docker ps -a --format '{{.Names}} {{.Status}}' || true
+          for c in gen restore; do echo "--- docker logs $c"; docker logs --tail 40 "$c" 2>&1 || true; done
           {
             echo '### Report'; echo '```json'; cat "$RUNNER_TEMP/report.json" || true; echo '```'
             echo '### Final'; echo '```'; df -h / /mnt; free -m; echo '```'
