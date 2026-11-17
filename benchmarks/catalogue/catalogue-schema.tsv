@@ -1,0 +1,385 @@
+auth_group|id|integer|NO
+auth_group|name|character varying|NO
+auth_group_permissions|id|bigint|NO
+auth_group_permissions|group_id|integer|NO
+auth_group_permissions|permission_id|integer|NO
+auth_permission|id|integer|NO
+auth_permission|name|character varying|NO
+auth_permission|content_type_id|integer|NO
+auth_permission|codename|character varying|NO
+auth_user|id|integer|NO
+auth_user|password|character varying|NO
+auth_user|last_login|timestamp with time zone|YES
+auth_user|is_superuser|boolean|NO
+auth_user|username|character varying|NO
+auth_user|first_name|character varying|NO
+auth_user|last_name|character varying|NO
+auth_user|email|character varying|NO
+auth_user|is_staff|boolean|NO
+auth_user|is_active|boolean|NO
+auth_user|date_joined|timestamp with time zone|NO
+auth_user_groups|id|bigint|NO
+auth_user_groups|user_id|integer|NO
+auth_user_groups|group_id|integer|NO
+auth_user_user_permissions|id|bigint|NO
+auth_user_user_permissions|user_id|integer|NO
+auth_user_user_permissions|permission_id|integer|NO
+django_content_type|id|integer|NO
+django_content_type|app_label|character varying|NO
+django_content_type|model|character varying|NO
+django_migrations|id|bigint|NO
+django_migrations|app|character varying|NO
+django_migrations|name|character varying|NO
+django_migrations|applied|timestamp with time zone|NO
+django_q_ormq|id|integer|NO
+django_q_ormq|key|character varying|NO
+django_q_ormq|payload|text|NO
+django_q_ormq|lock|timestamp with time zone|YES
+django_q_schedule|id|integer|NO
+django_q_schedule|func|character varying|NO
+django_q_schedule|hook|character varying|YES
+django_q_schedule|args|text|YES
+django_q_schedule|kwargs|text|YES
+django_q_schedule|schedule_type|character varying|NO
+django_q_schedule|repeats|integer|NO
+django_q_schedule|next_run|timestamp with time zone|YES
+django_q_schedule|task|character varying|YES
+django_q_schedule|name|character varying|YES
+django_q_schedule|minutes|smallint|YES
+django_q_schedule|cron|character varying|YES
+django_q_schedule|cluster|character varying|YES
+django_q_schedule|intended_date_kwarg|character varying|YES
+django_q_task|name|character varying|NO
+django_q_task|func|character varying|NO
+django_q_task|hook|character varying|YES
+django_q_task|args|text|YES
+django_q_task|kwargs|text|YES
+django_q_task|result|text|YES
+django_q_task|started|timestamp with time zone|NO
+django_q_task|stopped|timestamp with time zone|NO
+django_q_task|success|boolean|NO
+django_q_task|id|character varying|NO
+django_q_task|group|character varying|YES
+django_q_task|attempt_count|integer|NO
+django_q_task|cluster|character varying|YES
+grow_album|uuid|uuid|NO
+grow_album|created_on|timestamp with time zone|NO
+grow_album|updated_on|timestamp with time zone|YES
+grow_album|name|character varying|NO
+grow_album|year|character varying|YES
+grow_album|user_id|integer|YES
+grow_album|musicbrainz_release_group_id|uuid|YES
+grow_album|primary_type|text|YES
+grow_album|secondary_types|jsonb|NO
+grow_album_album_artists|id|bigint|NO
+grow_album_album_artists|album_id|uuid|NO
+grow_album_album_artists|artist_id|uuid|NO
+grow_artist|uuid|uuid|NO
+grow_artist|created_on|timestamp with time zone|NO
+grow_artist|updated_on|timestamp with time zone|YES
+grow_artist|name|character varying|NO
+grow_artist|user_id|integer|YES
+grow_artist|begin_year|smallint|YES
+grow_artist|country|character varying|YES
+grow_artist|end_year|smallint|YES
+grow_artist|ended|boolean|NO
+grow_artist|musicbrainz_artist_id|uuid|YES
+grow_artist|type|text|YES
+grow_artist|disambiguation|text|YES
+grow_artist|recording_count|integer|NO
+grow_artist|folded_name|text|YES
+grow_artist|image_author|text|YES
+grow_artist|image_license|text|YES
+grow_artist|image_license_url|character varying|YES
+grow_artist|image_page_url|character varying|YES
+grow_artist|image_url|character varying|YES
+grow_artist|origin_kind|text|YES
+grow_artist|origin_latitude|double precision|YES
+grow_artist|origin_longitude|double precision|YES
+grow_artist|origin_name|text|YES
+grow_artist|origin_region_id|character varying|YES
+grow_artist|origin_source|text|YES
+grow_artist|origin_wikidata_id|character varying|YES
+grow_artist_alias|id|bigint|NO
+grow_artist_alias|name|text|NO
+grow_artist_alias|artist_id|uuid|NO
+grow_artist_alias|folded_name|text|YES
+grow_artist_import_staging|id|bigint|NO
+grow_artist_import_staging|run_id|bigint|NO
+grow_artist_import_staging|part|integer|NO
+grow_artist_import_staging|musicbrainz_artist_id|uuid|NO
+grow_artist_import_staging|data|jsonb|NO
+grow_artist_link|id|bigint|NO
+grow_artist_link|kind|text|NO
+grow_artist_link|url|text|NO
+grow_artist_link|artist_id|uuid|NO
+grow_artist_membership|id|bigint|NO
+grow_artist_membership|begin_year|smallint|YES
+grow_artist_membership|end_year|smallint|YES
+grow_artist_membership|ended|boolean|NO
+grow_artist_membership|roles|jsonb|NO
+grow_artist_membership|group_id|uuid|NO
+grow_artist_membership|member_id|uuid|NO
+grow_bulk_import_deletion|id|bigint|NO
+grow_bulk_import_deletion|run_id|bigint|NO
+grow_bulk_import_deletion|part|integer|NO
+grow_bulk_import_deletion|musicbrainz_id|uuid|NO
+grow_bulk_import_run|id|bigint|NO
+grow_bulk_import_run|created_on|timestamp with time zone|NO
+grow_bulk_import_run|committed_on|timestamp with time zone|YES
+grow_bulk_import_run|kind|text|NO
+grow_bulk_import_run|mode|text|NO
+grow_bulk_import_run|record|boolean|NO
+grow_bulk_import_run|started_on|timestamp with time zone|YES
+grow_bulk_import_run|user_id|integer|YES
+grow_criteria|uuid|uuid|NO
+grow_criteria|created_on|timestamp with time zone|NO
+grow_criteria|updated_on|timestamp with time zone|YES
+grow_criteria|name|character varying|NO
+grow_criteria|parent_id|uuid|YES
+grow_criteria|root_id|uuid|NO
+grow_criteria|type_id|bigint|NO
+grow_criteria|user_id|integer|YES
+grow_criteria|summary|text|YES
+grow_criteria|tree_name|character varying|NO
+grow_criteria|folded_name|text|YES
+grow_criteria_additional_primary_parents|id|bigint|NO
+grow_criteria_additional_primary_parents|from_criteria_id|uuid|NO
+grow_criteria_additional_primary_parents|to_criteria_id|uuid|NO
+grow_criteria_lineage_rel|id|bigint|NO
+grow_criteria_lineage_rel|created_on|timestamp with time zone|NO
+grow_criteria_lineage_rel|updated_on|timestamp with time zone|YES
+grow_criteria_lineage_rel|degree|integer|NO
+grow_criteria_lineage_rel|ascendant_id|uuid|NO
+grow_criteria_lineage_rel|descendant_id|uuid|NO
+grow_criteria_lineage_rel|user_id|integer|YES
+grow_criteria_playlist|playlist_id|uuid|NO
+grow_criteria_playlist|criteria_id|uuid|YES
+grow_criteria_playlist|type_id|bigint|NO
+grow_criteria_playlist|views_count|bigint|NO
+grow_criteria_playlist|direct_songs_count|integer|NO
+grow_criteria_secondary_parents|id|bigint|NO
+grow_criteria_secondary_parents|from_criteria_id|uuid|NO
+grow_criteria_secondary_parents|to_criteria_id|uuid|NO
+grow_curation_entry|uuid|uuid|NO
+grow_curation_entry|created_on|timestamp with time zone|NO
+grow_curation_entry|updated_on|timestamp with time zone|YES
+grow_curation_entry|list_name|character varying|NO
+grow_curation_entry|key|character varying|NO
+grow_curation_entry|values|jsonb|NO
+grow_curation_entry|reason|text|NO
+grow_curation_entry|user_id|integer|YES
+grow_curation_review_item|id|bigint|NO
+grow_curation_review_item|list_name|character varying|YES
+grow_curation_review_item|key|character varying|YES
+grow_curation_review_item|column|character varying|NO
+grow_curation_review_item|item_id|text|NO
+grow_curation_review_item|reason|text|NO
+grow_curation_review_item|target_item_id|text|YES
+grow_curation_review_item|reported_on|timestamp with time zone|NO
+grow_curation_review_item|evidence|jsonb|YES
+grow_curation_review_item|rule_id|uuid|YES
+grow_curation_sync_state|id|bigint|NO
+grow_curation_sync_state|exported_on|timestamp with time zone|YES
+grow_curation_sync_state|applied_export_on|timestamp with time zone|YES
+grow_genealogy_snapshot|id|bigint|NO
+grow_genealogy_snapshot|created_at|timestamp with time zone|NO
+grow_genealogy_snapshot|document|jsonb|NO
+grow_genealogy_snapshot|checksum|character varying|NO
+grow_genealogy_snapshot|import_run_id|bigint|YES
+grow_genre|criteria_ptr_id|uuid|NO
+grow_genre|side|character varying|YES
+grow_genre|wikidata_id|character varying|YES
+grow_genre|is_excluded|boolean|NO
+grow_genre|is_manually_edited|boolean|NO
+grow_genre|last_seen_run_id|bigint|YES
+grow_genre|source|character varying|NO
+grow_genre|has_name_conflict|boolean|NO
+grow_genre|is_unaccepted_root|boolean|NO
+grow_genre|description|text|YES
+grow_genre|summary_source_url|character varying|YES
+grow_genre|is_umbrella|boolean|NO
+grow_genre|scene|character varying|YES
+grow_genre|image_author|text|YES
+grow_genre|image_license|text|YES
+grow_genre|image_license_url|character varying|YES
+grow_genre|image_page_url|character varying|YES
+grow_genre|image_url|character varying|YES
+grow_genre_catalogue_count|id|bigint|NO
+grow_genre_catalogue_count|genre_id|uuid|YES
+grow_genre_catalogue_count|tracks_count|bigint|NO
+grow_genre_edge_rule|uuid|uuid|NO
+grow_genre_edge_rule|created_on|timestamp with time zone|NO
+grow_genre_edge_rule|updated_on|timestamp with time zone|YES
+grow_genre_edge_rule|relation|character varying|NO
+grow_genre_edge_rule|item_id|character varying|NO
+grow_genre_edge_rule|parent_item_id|character varying|YES
+grow_genre_edge_rule|action|character varying|YES
+grow_genre_edge_rule|exclude_other_parents|boolean|YES
+grow_genre_edge_rule|reason|text|NO
+grow_genre_edge_rule|user_id|integer|YES
+grow_genre_essential_songs|id|bigint|NO
+grow_genre_essential_songs|genre_id|uuid|NO
+grow_genre_essential_songs|song_id|uuid|NO
+grow_genre_essential_songs|position|integer|NO
+grow_genre_membership_count|id|bigint|NO
+grow_genre_membership_count|genre_id|uuid|YES
+grow_genre_membership_count|tracks_count|bigint|NO
+grow_genre_membership_count|playlist_id|uuid|NO
+grow_genre_tree_import_payload|id|bigint|NO
+grow_genre_tree_import_payload|run_id|bigint|NO
+grow_genre_tree_import_payload|payload|jsonb|NO
+grow_genre_tree_version|id|bigint|NO
+grow_genre_tree_version|token|uuid|NO
+grow_history_entry|uuid|uuid|NO
+grow_history_entry|created_on|timestamp with time zone|NO
+grow_history_entry|updated_on|timestamp with time zone|YES
+grow_history_entry|object_pk|uuid|NO
+grow_history_entry|action|character varying|NO
+grow_history_entry|old_value|text|YES
+grow_history_entry|new_value|text|YES
+grow_history_entry|content_type_id|integer|NO
+grow_history_entry|user_id|integer|YES
+grow_history_entry|actor_id|integer|YES
+grow_import_attempt|id|bigint|NO
+grow_import_attempt|run_id|bigint|NO
+grow_import_attempt|task_id|text|NO
+grow_import_attempt|kind|text|NO
+grow_import_attempt|mode|text|NO
+grow_import_attempt|user_id|integer|YES
+grow_import_attempt|attempt|integer|NO
+grow_import_attempt|state|text|NO
+grow_import_attempt|queued_at|timestamp with time zone|NO
+grow_import_attempt|started_at|timestamp with time zone|YES
+grow_import_attempt|finished_at|timestamp with time zone|YES
+grow_import_attempt|step|text|YES
+grow_import_attempt|step_started_at|timestamp with time zone|YES
+grow_import_attempt|last_progress_at|timestamp with time zone|YES
+grow_import_attempt|heartbeat_at|timestamp with time zone|YES
+grow_import_attempt|completed_steps|jsonb|NO
+grow_import_attempt|backend_pid|integer|YES
+grow_import_attempt|backend_start|timestamp with time zone|YES
+grow_import_attempt|error|text|YES
+grow_import_attempt|result|jsonb|YES
+grow_import_attempt|data_applied|boolean|NO
+grow_import_receipt|run_id|bigint|NO
+grow_import_receipt|applied_at|timestamp with time zone|NO
+grow_import_receipt|result|jsonb|NO
+grow_import_run|id|bigint|NO
+grow_import_run|kind|text|NO
+grow_import_run|imported_on|timestamp with time zone|NO
+grow_import_run|count|integer|NO
+grow_import_run|skipped_count|integer|YES
+grow_import_run|step_timings|jsonb|YES
+grow_manual_playlist|playlist_id|uuid|NO
+grow_manual_playlist|name|character varying|NO
+grow_pipeline_run_request|id|bigint|NO
+grow_pipeline_run_request|uuid|uuid|NO
+grow_pipeline_run_request|status|text|NO
+grow_pipeline_run_request|stage|text|YES
+grow_pipeline_run_request|stage_current|integer|YES
+grow_pipeline_run_request|stage_total|integer|YES
+grow_pipeline_run_request|error|text|YES
+grow_pipeline_run_request|requested_on|timestamp with time zone|NO
+grow_pipeline_run_request|started_on|timestamp with time zone|YES
+grow_pipeline_run_request|finished_on|timestamp with time zone|YES
+grow_pipeline_run_request|kind|text|NO
+grow_pipeline_run_request|heartbeat_on|timestamp with time zone|YES
+grow_pipeline_run_request|cancel_requested_on|timestamp with time zone|YES
+grow_pipeline_run_request|trigger|text|NO
+grow_pipeline_run_request|requested_by_id|integer|YES
+grow_play|uuid|uuid|NO
+grow_play|created_on|timestamp with time zone|NO
+grow_play|updated_on|timestamp with time zone|YES
+grow_play|object_pk|uuid|NO
+grow_play|content_type_id|integer|NO
+grow_play|user_id|integer|YES
+grow_region_map_file|sha256|character varying|NO
+grow_region_map_file|body|bytea|NO
+grow_region_map_file|size|integer|NO
+grow_region_map_file_staging|id|bigint|NO
+grow_region_map_file_staging|run_id|bigint|NO
+grow_region_map_file_staging|part|integer|NO
+grow_region_map_file_staging|path|text|NO
+grow_region_map_file_staging|sha256|character varying|NO
+grow_region_map_file_staging|body|bytea|NO
+grow_region_map_snapshot|id|bigint|NO
+grow_region_map_snapshot|created_on|timestamp with time zone|NO
+grow_region_map_snapshot|checksum|character varying|NO
+grow_region_map_snapshot|import_run_id|bigint|YES
+grow_region_map_snapshot|hidden_regions_checksum|character varying|YES
+grow_song|track_id|uuid|NO
+grow_song|youtube_video_id|character varying|YES
+grow_song|is_manually_edited|boolean|NO
+grow_song|youtube_unplayable_reason|character varying|YES
+grow_song|musicbrainz_recording_id|uuid|YES
+grow_song|first_release_year|smallint|YES
+grow_song|youtube_view_count|bigint|YES
+grow_song|recording_count|integer|YES
+grow_song|youtube_region_restriction|jsonb|YES
+grow_song_import_staging|id|bigint|NO
+grow_song_import_staging|run_id|bigint|NO
+grow_song_import_staging|part|integer|NO
+grow_song_import_staging|musicbrainz_recording_id|uuid|NO
+grow_song_import_staging|title|text|NO
+grow_song_import_staging|artist|text|NO
+grow_song_import_staging|youtube_video_id|text|YES
+grow_song_import_staging|youtube_unplayable_reason|text|YES
+grow_song_import_staging|genre_name|text|YES
+grow_song_import_staging|artist_musicbrainz_id|uuid|YES
+grow_song_import_staging|first_release_year|smallint|YES
+grow_song_import_staging|youtube_view_count|bigint|YES
+grow_song_import_staging|genre_wikidata_id|text|YES
+grow_song_import_staging|recording_count|integer|YES
+grow_song_import_staging|youtube_region_restriction|jsonb|YES
+grow_song_search|track_id|uuid|NO
+grow_song_search|document|tsvector|NO
+grow_song_search|title_key|text|NO
+grow_song_search|has_genre|boolean|NO
+grow_song_search|playable|boolean|NO
+grow_song_search|rank_score|integer|NO
+grow_song_search_state|id|bigint|NO
+grow_song_search_state|ready|boolean|NO
+grow_song_search_state|rebuilt_on|timestamp with time zone|YES
+grow_user_profile|id|bigint|NO
+grow_user_profile|pseudo|character varying|NO
+grow_user_profile|user_id|integer|NO
+grow_wikidata_item|item_id|character varying|NO
+grow_wikidata_item|label|text|NO
+the_music_tree_genre_kit_criteriatype|id|bigint|NO
+the_music_tree_genre_kit_criteriatype|label|character varying|NO
+the_music_tree_genre_kit_importrun|id|bigint|NO
+the_music_tree_genre_kit_importrun|started_at|timestamp with time zone|NO
+the_music_tree_genre_kit_importrun|finished_at|timestamp with time zone|YES
+the_music_tree_genre_kit_importrun|status|character varying|NO
+the_music_tree_genre_kit_importrun|created_count|integer|NO
+the_music_tree_genre_kit_importrun|updated_count|integer|NO
+the_music_tree_genre_kit_importrun|deleted_count|integer|NO
+the_music_tree_genre_kit_importrun|user_id|integer|YES
+the_music_tree_genre_kit_playlist|uuid|uuid|NO
+the_music_tree_genre_kit_playlist|created_on|timestamp with time zone|NO
+the_music_tree_genre_kit_playlist|updated_on|timestamp with time zone|YES
+the_music_tree_genre_kit_playlist|play_count|integer|NO
+the_music_tree_genre_kit_playlist|user_id|integer|YES
+the_music_tree_genre_kit_track|uuid|uuid|NO
+the_music_tree_genre_kit_track|created_on|timestamp with time zone|NO
+the_music_tree_genre_kit_track|updated_on|timestamp with time zone|YES
+the_music_tree_genre_kit_track|play_count|integer|NO
+the_music_tree_genre_kit_track|title|character varying|NO
+the_music_tree_genre_kit_track|track_number|integer|YES
+the_music_tree_genre_kit_track|rating|integer|YES
+the_music_tree_genre_kit_track|language|character varying|YES
+the_music_tree_genre_kit_track|album_id|uuid|YES
+the_music_tree_genre_kit_track|genre_id|uuid|YES
+the_music_tree_genre_kit_track|user_id|integer|YES
+the_music_tree_genre_kit_track_artists|id|bigint|NO
+the_music_tree_genre_kit_track_artists|track_id|uuid|NO
+the_music_tree_genre_kit_track_artists|artist_id|uuid|NO
+the_music_tree_genre_kit_track_playlist_rel|id|bigint|NO
+the_music_tree_genre_kit_track_playlist_rel|created_on|timestamp with time zone|NO
+the_music_tree_genre_kit_track_playlist_rel|updated_on|timestamp with time zone|YES
+the_music_tree_genre_kit_track_playlist_rel|position|integer|YES
+the_music_tree_genre_kit_track_playlist_rel|playlist_id|uuid|NO
+the_music_tree_genre_kit_track_playlist_rel|track_id|uuid|NO
+the_music_tree_genre_kit_track_playlist_rel|user_id|integer|YES
+the_music_tree_genre_kit_track_playlist_rel|genre_id|uuid|YES

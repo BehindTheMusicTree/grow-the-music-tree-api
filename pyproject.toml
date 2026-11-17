@@ -49,6 +49,9 @@ extend-exclude = ["**/migrations"]
 "grow/**" = ["PLC0415"]
 "manage.py" = ["PLC0415"]
 "scripts/*.py" = ["INP001"]
+# The benchmark harness suite runs with unittest (CI discovers it outside pytest), so unittest-style assertions are intended.
+"benchmarks/catalogue/qualification.py" = ["PT009"]
+"benchmarks/catalogue/tests/*.py" = ["PT009"]
 
 [tool.mypy]
 python_version = "3.14"

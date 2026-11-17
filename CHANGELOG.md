@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Import the inactive catalogue benchmark harness from `infrastructure` into `benchmarks/catalogue/` with its tests and a non-required `Catalogue benchmark harness` CI job; nothing runs a benchmark yet.
+
 ### Changed
 
 - Keep local agent plans and temporary files out of Git.
