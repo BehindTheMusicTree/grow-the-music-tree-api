@@ -68,8 +68,8 @@ class CataloguePolicyTest(unittest.TestCase):
         self.assertTrue(checks)
         for check in checks:
             with self.subTest(check=check[:80]):
-                self.assertNotIn('IF EXISTS (SELECT 1 FROM "public"', check)
-                self.assertIn("IF (SELECT count(*) FROM", check)
+                self.assertNotIn("IF EXISTS", check)
+                self.assertEqual(check.count("IF (SELECT count(*) FROM"), check.count("THEN RAISE EXCEPTION"))
 
     def test_inventory_drift_refused(self):
         for changed in (
