@@ -14,9 +14,13 @@ import subprocess
 import sys
 import threading
 import time
+from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
+from .. import restore_execution
 from ..restore_bundle import restore_approved
 
 IMAGE = os.environ.get("POSTGRES_IMAGE", "postgres:16")
@@ -143,6 +147,22 @@ def start(name, data, extra, command):
             return
         time.sleep(2)
     raise RuntimeError(f"{name} did not become ready")
+
+
+def smoke_minimums(songs):
+    """Scale the 30M-song completeness minimum down for sub-production smoke runs only."""
+    if songs >= 30_000_000:
+        return nullcontext()
+    original = restore_execution.data_policy
+
+    def scaled(tsv, schema_sql):
+        policy = original(tsv, schema_sql)
+        tables = {
+            name: replace(table, minimum_rows=min(table.minimum_rows, songs)) for name, table in policy.tables.items()
+        }
+        return replace(policy, tables=tables)
+
+    return patch.object(restore_execution, "data_policy", scaled)
 
 
 def main():
@@ -274,7 +294,7 @@ def main():
                 time.sleep(2)
         transport = Transport("restore", calls)
         transport.run("psql", ["-X", "-q", "-d", "postgres", "-c", "CREATE DATABASE btmt_grow_perf TEMPLATE template0"])
-        with timer("restore_total"):
+        with timer("restore_total"), smoke_minimums(songs):
             evidence = restore_approved(transport, SimpleNamespace(backup_sha256=approval["backup_sha256"]), bundle)
         report["row_counts"] = {k: v for k, v in evidence["row_counts"].items() if v}
         report["restored_db_gib"] = round(
