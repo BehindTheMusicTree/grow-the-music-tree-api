@@ -15,7 +15,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Import the inactive catalogue benchmark harness from `infrastructure` into `benchmarks/catalogue/` with its tests and a non-required `Catalogue benchmark harness` CI job; nothing runs a benchmark yet.
-- Add a go/no-go feasibility spike for the catalogue benchmark (`benchmarks/catalogue/spike/`, workflow `Catalogue benchmark spike`) that restores a synthetic production-shaped catalogue on the free 4 CPU / 16 GB runner; it only runs from the spike branch.
 
 ### Changed
 
