@@ -12,13 +12,13 @@ from .Fields import Fields
 def tracks_count(prefix: str = "") -> Count:
     # Genreless songs are hidden from the library, so they are not counted either.
     tracks = f"{prefix}{Fields.TRACKS_RELATED_NAME}"
-    return Count(tracks, filter=Q(**{f"{tracks}__genre__isnull": False}), distinct=True)
+    return Count(tracks, filter=Q(**{f"{tracks}__song_membership__genre__isnull": False}), distinct=True)
 
 
 def playable_tracks_count(prefix: str = "") -> Count:
     tracks = f"{prefix}{Fields.TRACKS_RELATED_NAME}"
     # Youtube fields live on Song, the child of the artist's Track relation.
-    prefixed = Q(**{f"{tracks}__genre__isnull": False})
+    prefixed = Q(**{f"{tracks}__song_membership__genre__isnull": False})
     for lookup, value in PLAYABLE.children:
         prefixed &= Q(**{f"{tracks}__{Fields.SONG_RELATED_NAME}__{lookup}": value})
     return Count(tracks, filter=prefixed, distinct=True)
