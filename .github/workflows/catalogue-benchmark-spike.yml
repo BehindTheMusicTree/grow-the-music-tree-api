@@ -1,0 +1,86 @@
+name: Catalogue benchmark spike
+
+# Go/no-go spike (draft PR only): can the free 4 CPU / 16 GB standard runner restore a production-shaped synthetic
+# catalogue within the benchmark budget? Triggered by a push that edits benchmarks/catalogue/spike/parameters.env on
+# the spike branch, because workflow_dispatch needs the file on the default branch.
+on:
+  push:
+    branches: [feature/catalogue-benchmark-spike]
+    paths: [benchmarks/catalogue/spike/parameters.env]
+  workflow_dispatch:
+    inputs:
+      songs:
+        description: Synthetic song count (production gate is 30000000)
+        default: "32000000"
+      rebuild_search:
+        description: Also build the song search tsvector and GIN index (worst-case derived data)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  spike:
+    # Literal free standard runner; never a larger-runner label.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install Python 3.14
+        run: |
+          uv python install 3.14
+          echo "PYTHON=$(uv python find 3.14)" >> "$GITHUB_ENV"
+
+      - name: Baseline resources
+        run: |
+          {
+            echo '### Baseline'; echo '```'
+            nproc; free -m; swapon --show; df -h / /mnt
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Reclaim preinstalled toolchains
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/julia* /usr/share/swift /opt/az /usr/local/.ghcup
+          sudo apt-get clean
+          {
+            echo '### After reclaim'; echo '```'; df -h / /mnt; echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Pull PostgreSQL 16
+        run: docker pull postgres:16
+
+      - name: Generate, dump and restore the synthetic catalogue
+        env:
+          REPORT: ${{ runner.temp }}/report.json
+          INPUT_SONGS: ${{ inputs.songs }}
+          INPUT_REBUILD_SEARCH: ${{ inputs.rebuild_search }}
+        run: |
+          set -a; . benchmarks/catalogue/spike/parameters.env; set +a
+          SONGS="${INPUT_SONGS:-$SONGS_DEFAULT}"
+          export REBUILD_SEARCH="${INPUT_REBUILD_SEARCH:-$REBUILD_SEARCH_DEFAULT}"
+          sudo mkdir -p /mnt/spike
+          sudo --preserve-env=REBUILD_SEARCH,REPORT "$PYTHON" -m benchmarks.catalogue.spike.spike "$SONGS" /mnt/spike
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo '### Report'; echo '```json'; cat "$RUNNER_TEMP/report.json" || true; echo '```'
+            echo '### Final'; echo '```'; df -h / /mnt; free -m; echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spike-report
+          path: |
+            ${{ runner.temp }}/report.json
+            /mnt/spike/samples.json
