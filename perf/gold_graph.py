@@ -59,9 +59,15 @@ def build_graph(trees: list[dict]) -> dict:
         raise ValueError("Gold trees share a node id")
     parents: dict[str, list[str]] = {}
     display: dict[str, str] = {}
-    for _, node, nesting in flat:
+    tree_of = {node["id"]: tree for tree, node, _ in flat}
+    for tree, node, nesting in flat:
         accepted = [nesting] if nesting else []
-        accepted += [p for p in node.get("primaryParents", []) if p in ids and p not in accepted and p != node["id"]]
+        # A regional node reachable from a canonical one would become canonical: keep its regional parents only.
+        accepted += [
+            p
+            for p in node.get("primaryParents", [])
+            if p in ids and p not in accepted and p != node["id"] and (tree == "canonical" or tree_of[p] == tree)
+        ]
         parents[node["id"]] = accepted
         if accepted:
             display[node["id"]] = accepted[0]
@@ -75,7 +81,7 @@ def build_graph(trees: list[dict]) -> dict:
         for child, accepted in parents.items()
         for parent in accepted
     ]
-    roots = [child for child, accepted in parents.items() if not accepted]
+    roots = [child for child, accepted in parents.items() if not accepted and tree_of[child] == "canonical"]
     return {
         "contractVersion": 2,
         "curationExportedOn": trees[0]["curationExportedOn"],
@@ -84,10 +90,11 @@ def build_graph(trees: list[dict]) -> dict:
                 "id": node["id"],
                 "name": node["name"],
                 "kind": "genre",
-                "canonicalState": "canonical",
+                # The importer derives Genre.tree_name from this state: regional nodes must not be canonical.
+                "canonicalState": "canonical" if tree == "canonical" else "before_entry",
                 **({"displayParentId": display[node["id"]]} if node["id"] in display else {}),
             }
-            for _, node, _ in flat
+            for tree, node, _ in flat
         ],
         "relations": relations,
         "boundaries": [
