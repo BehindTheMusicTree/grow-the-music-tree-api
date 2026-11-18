@@ -37,6 +37,12 @@ from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
 
 MIGRATION_0115 = "grow.migrations.0115_maintain_genre_catalogue_counts"
+# Later migrations attach their own triggers to 0115's functions; they are reversed (newest first) so the 0115 tests
+# run against the schema 0115 installed into.
+LATER_PROJECTION_MIGRATIONS = (
+    "grow.migrations.0142_semantic_playlist_projection",
+    "grow.migrations.0141_semantic_catalogue_projection",
+)
 # Relations an old source writer can hold. A NOWAIT failure on any other locked table
 # (e.g. grow_criteria) comes from a lock holder that is not the writer under test.
 WRITER_RELATION_LOCK_ERROR = (
@@ -398,6 +404,10 @@ def test_summary_inputs_use_one_query(catalogue, warm, django_assert_num_queries
 
 @pytest.fixture
 def uninstalled_catalogue_projection(catalogue):
+    later = [import_module(name) for name in LATER_PROJECTION_MIGRATIONS]
+    with transaction.atomic():
+        for step in later:
+            step.backwards(apps, connection.schema_editor())
     migration = import_module(MIGRATION_0115)
     migration.drop(apps, connection.schema_editor())
     GenreCatalogueCount.objects.all().delete()
@@ -410,6 +420,8 @@ def uninstalled_catalogue_projection(catalogue):
         GenreCatalogueCount.objects.all().delete()
         with transaction.atomic():
             migration.create(apps, connection.schema_editor())
+            for step in reversed(later):
+                step.forwards(apps, connection.schema_editor())
 
 
 def test_migration_busy_old_writer_fails_cleanly(catalogue, uninstalled_catalogue_projection):

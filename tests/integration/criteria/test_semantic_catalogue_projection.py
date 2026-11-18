@@ -123,6 +123,8 @@ def test_semantic_source_truncate_and_rollback(table):
     install_song_graph({legacy: [], semantic: [song]})
     with transaction.atomic():
         with connection.cursor() as cursor:
+            # Fire the deferred FK checks queued by the fixtures; TRUNCATE refuses a table with pending trigger events.
+            cursor.execute("SET CONSTRAINTS ALL IMMEDIATE")
             cursor.execute(f"TRUNCATE {connection.ops.quote_name(table)} CASCADE")
         assert catalogue_bucket_counts() == stored_catalogue_bucket_counts()
         transaction.set_rollback(True)
