@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Migration `0140` reverse now drops its triggers and functions with `IF EXISTS`, so a partial reverse can be re-run; the concurrent raw assignment test is renamed to say what it asserts (follow-ups of #507).
 - The song genre fill and guard triggers skipped silently on a connection that never set `grow.membership_maintenance` (the setting is NULL, so `NOT (flag = 'on')` was NULL): migration `0143` redefines both functions with `COALESCE`.
 
 ### Removed
