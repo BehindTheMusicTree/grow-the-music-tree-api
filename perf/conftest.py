@@ -1,4 +1,3 @@
-import gzip
 import json
 import os
 import time
@@ -24,14 +23,23 @@ from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
 from grow.track.bulk_import.merge import WRITTEN_MODELS as SONG_MERGE_MODELS
 from grow.view.viewset.model.criteria.children.genre.GenreViewSet import TREE_IMPORT_MODELS
+from perf.gold_graph import (
+    SONGS,
+    assignments_part,
+    build_graph,
+    identity_mapping,
+    load_songs,
+    load_trees,
+    read_genres,
+    resolve_songs,
+    run_body,
+    songs_part,
+)
 from perf.region_fixture import seed_region_snapshot
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.curation_export import export_curation
 
 # Prod Gold exports from the-music-tree-pipelines, pinned so SLOs are measured against fixed data. Refresh: README.
-FIXTURES = Path(__file__).parent / "fixtures"
-TREES = ["1_canonical_genre_tree.json.gz", "1_regional_genre_tree.json.gz"]
-SONGS = "2_songs.json.gz"
 
 
 def _timed(label: str, request):
@@ -49,10 +57,7 @@ def _seed() -> None:
     client = AppApiClient()
     client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
     exported_on = export_curation(client)
-    trees = []
-    for fixture in TREES:
-        with gzip.open(FIXTURES / fixture) as file:
-            trees.append({**json.load(file), "curationExportedOn": exported_on})
+    trees = load_trees(exported_on)
     body = {"trees": trees}
     started = _timed(
         "genre trees (queue+merge)", lambda: client.post(reverse("genre-list") + "trees/import-runs/", body)
@@ -65,22 +70,33 @@ def _seed() -> None:
         time.sleep(1)
     assert polled["status"] == "success", polled
     print(f"\nimport {'genre trees (merge)':<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
-    with gzip.open(FIXTURES / SONGS) as file:
-        part = gzip.compress(
-            "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
-        )
-    runs = reverse("song-list") + "songs/import-runs/"
-    run_id = client.post(runs).data["run_id"]
+    genres = read_genres(lambda page: client.get(reverse("genre-list"), {"page": page, "page_size": 100}).json())
+    graph = build_graph(trees)
+    graph_url = reverse("genre-list") + "graph/"
     _timed(
-        f"{SONGS} (part)",
+        "reference graph (PUT)",
         lambda: client.put(
-            f"{runs}{run_id}/parts/0/",
-            part,
-            format=None,
-            content_type="application/x-ndjson",
-            HTTP_CONTENT_ENCODING="gzip",
+            graph_url,
+            {"graph": graph, "mapping": identity_mapping(graph, genres), "expectedRevision": None},
+            format="json",
         ),
     )
+    revisions = client.get(graph_url).json()
+    songs = load_songs()
+    resolved = resolve_songs(trees, songs)
+    runs = reverse("song-list") + "songs/import-runs/"
+    run_id = client.post(runs, run_body(revisions), format="json").data["run_id"]
+    for stream, part in (("songs", songs_part(songs)), ("assignments", assignments_part(resolved))):
+        _timed(
+            f"{stream} (part)",
+            lambda stream=stream, part=part: client.put(
+                f"{runs}{run_id}/parts/0/" if stream == "songs" else f"{runs}{run_id}/assignments/parts/0/",
+                part,
+                format=None,
+                content_type="application/x-ndjson",
+                HTTP_CONTENT_ENCODING="gzip",
+            ),
+        )
     _timed(f"{SONGS} (commit)", lambda: client.post(f"{runs}{run_id}/commit/"))
 
 
