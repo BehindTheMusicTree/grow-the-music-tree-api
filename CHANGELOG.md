@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Adopt the-music-tree-genre-kit v0.65.0, which enforces one graph node per track and dataset (`UNIQUE(dataset_id, track_id)`): migration `0144` drops grow's own `grow_single_assignment_guard`, and the songs merge joins attributions on `dataset_id`. Migration 0022 of the kit fails, naming dataset and track, if a track holds several nodes in one dataset.
 - **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.
 - Song genre membership comes from the `grow` dataset: the effective genre is materialized in `grow_song.genre_id` (`Song.membership_genre`), maintained by database triggers from dataset assignments, node state and criteria bindings; counts and buckets read it directly. Imports and writers no longer write the kit's `Track.genre`.
 - Added `song_membership_drift()` to the catalogue verification, which compares the stored song genre with its Python-derived value, and tests for the node retirement, rebind, dataset, direct-write and concurrency paths of the song genre triggers.

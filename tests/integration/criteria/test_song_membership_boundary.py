@@ -102,7 +102,7 @@ def test_membership_verification_uses_semantic_genre_for_existing_playlist_relat
     assert exact[semantic_playlist.pk] == 1
 
 
-def test_raw_assignment_insert_and_update_cannot_create_two_direct_genres():
+def test_kit_unique_constraint_rejects_a_second_node_for_a_track_in_the_dataset():
     factory = ModelFixtureFactory(None)
     first = factory.create_genre("First")
     second = factory.create_genre("Second")
@@ -112,20 +112,20 @@ def test_raw_assignment_insert_and_update_cannot_create_two_direct_genres():
     nodes = list(dataset.nodes.order_by("identity"))
     first_node = dataset.nodes.get(identity=f"LOCAL:{first.pk}")
     second_node = next(node for node in nodes if node.pk != first_node.pk)
-    with pytest.raises(IntegrityError, match="at most one"), transaction.atomic():
-        GenreGraphAttribution.objects.create(track_id=song.pk, node=second_node)
-    with pytest.raises(IntegrityError, match="at most one"), transaction.atomic():
+    with pytest.raises(IntegrityError), transaction.atomic():
+        GenreGraphAttribution.objects.create(track_id=song.pk, node=second_node, dataset_id="grow")
+    with pytest.raises(IntegrityError), transaction.atomic():
         GenreGraphAttribution.objects.filter(track_id=other.pk).update(track_id=song.pk)
     assert GenreGraphAttribution.objects.filter(track_id=song.pk).count() == 1
 
 
-def test_other_datasets_keep_generic_multiple_attributions():
+def test_other_datasets_keep_their_own_attribution_for_a_track():
     factory = ModelFixtureFactory(None)
     song = factory.create_song("Song", None)
-    dataset = GenreGraphDataset.objects.create(key="personal", payload={})
-    for identity in ("one", "two"):
-        node = dataset.nodes.create(identity=identity, is_umbrella=False)
-        GenreGraphAttribution.objects.create(track_id=song.pk, node=node)
+    for key in ("personal-one", "personal-two"):
+        dataset = GenreGraphDataset.objects.create(key=key, payload={})
+        node = dataset.nodes.create(identity="one", is_umbrella=False)
+        GenreGraphAttribution.objects.create(track_id=song.pk, node=node, dataset=dataset)
     assert GenreGraphAttribution.objects.filter(track_id=song.pk).count() == 2
     assert Song.objects.get(pk=song.pk).membership_genre_id is None
 
@@ -194,31 +194,6 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     assert Song.objects.get(pk=song.pk).membership_genre_id == semantic.pk
 
 
-def test_boundary_installation_rejects_existing_multiple_direct_genres():
-    factory = ModelFixtureFactory(None)
-    first = factory.create_genre("First")
-    second = factory.create_genre("Second")
-    song = factory.create_song("Song", None)
-    dataset = install_song_graph({first: [song], second: []})
-    migration = import_module("grow.migrations.0140_song_membership_boundary")
-    editor = connection.schema_editor()
-    catalogue = import_module("grow.migrations.0141_semantic_catalogue_projection")
-    playlists = import_module("grow.migrations.0142_semantic_playlist_projection")
-    playlists.backwards(apps, editor)
-    catalogue.backwards(apps, editor)
-    migration.drop_boundary(apps, editor)
-    extra = GenreGraphAttribution.objects.create(
-        track_id=song.pk, node=dataset.nodes.get(identity=f"LOCAL:{second.pk}")
-    )
-    with pytest.raises(RuntimeError, match="at most one"), transaction.atomic():
-        migration.create_boundary(apps, editor)
-    extra.delete()
-    migration.create_boundary(apps, editor)
-    catalogue.forwards(apps, editor)
-    playlists.forwards(apps, editor)
-    assert Song.objects.get(pk=song.pk).membership_genre_id == first.pk
-
-
 def test_boundary_ddl_and_assignments_roll_back_together():
     factory = ModelFixtureFactory(None)
     genre = factory.create_genre("Direct")
@@ -261,7 +236,7 @@ def test_concurrent_raw_assignments_serialize_before_single_genre_check():
             with transaction.atomic():
                 with connections["default"].cursor() as cursor:
                     cursor.execute("SET LOCAL lock_timeout = '10s'")
-                GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node_id)
+                GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node_id, dataset_id="grow")
             return True
         except IntegrityError:
             return False

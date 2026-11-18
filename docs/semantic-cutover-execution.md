@@ -120,9 +120,10 @@ backfill; `0141`/`0142` derive the catalogue counts and buckets from the column.
   dataset guards, drift, direct-write rejection, attribution-versus-retirement
   concurrency on PostgreSQL).
 
-Follow-ups: genre-kit `dataset_id` with `UNIQUE(dataset_id, track_id)` to replace
-`grow_single_assignment_guard`; the pipelines producer for the Gold graph and
-assignments.
+The genre kit (v0.65.0) enforces one node per track and dataset with
+`UNIQUE(dataset_id, track_id)`; migration `0144` drops grow's
+`grow_single_assignment_guard`. Follow-up: the pipelines producer for the Gold
+graph and assignments.
 
 ## Reviewed song runs and Perf seed
 

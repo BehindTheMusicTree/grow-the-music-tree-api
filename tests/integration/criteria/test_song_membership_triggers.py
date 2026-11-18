@@ -36,7 +36,7 @@ def test_node_deactivation_is_rejected_while_attributed_and_attribution_insert_r
     assert stored(song) is None
     dataset.nodes.filter(pk=node.pk).update(is_active=False)
     dataset.nodes.filter(pk=node.pk).update(is_active=True)
-    GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node.pk)
+    GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node.pk, dataset_id="grow")
     assert stored(song) == genre.pk
     assert song_membership_drift() == {}
 
@@ -122,7 +122,7 @@ def test_attribution_insert_and_node_deactivation_leave_no_stale_membership():
     def attribute():
         try:
             barrier.wait(timeout=10)
-            GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node.pk)
+            GenreGraphAttribution.objects.create(track_id=song.pk, node_id=node.pk, dataset_id="grow")
         except IntegrityError:
             pass  # the node was retired first
         finally:
