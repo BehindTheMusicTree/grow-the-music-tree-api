@@ -158,14 +158,8 @@ CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
 # A delta run groups only its own tracks' artists (minutes saved on every daily run). A full run holds every track, and
 # the same filter there turns the sorted aggregate into a hash aggregate that spills to disk: 580 s became 720 s on 32M.
 DELTA_RUN_TRACKS = "WHERE ta.track_id IN (SELECT track_id FROM song_import)"
-# The reference dataset's current genre, as grow_song_membership derives it.
-SEMANTIC_STORED_GENRE = {
-    "stored_genre": "sg.uuid",
-    "stored_genre_join": f"""LEFT JOIN (the_music_tree_genre_kit_genregraphattribution ga
-        JOIN the_music_tree_genre_kit_genregraphnode gn
-            ON gn.id = ga.node_id AND gn.dataset_id = '{DATASET_KEY}' AND gn.is_active
-        JOIN grow_criteria sg ON sg.graph_node_id = gn.id) ON ga.track_id = s.track_id""",
-}
+# The song's stored effective genre is the materialised column.
+SEMANTIC_STORED_GENRE = {"stored_genre": "y.genre_id", "stored_genre_join": ""}
 
 STEPS = [
     ("analyze_changed_song", "ANALYZE changed_song"),
@@ -237,9 +231,9 @@ STEPS = [
         "insert_songs",
         """INSERT INTO grow_song
         (track_id, youtube_video_id, is_manually_edited, youtube_unplayable_reason, youtube_view_count,
-            musicbrainz_recording_id, first_release_year, recording_count, youtube_region_restriction)
+            musicbrainz_recording_id, first_release_year, recording_count, youtube_region_restriction, genre_id)
     SELECT track_id, youtube_video_id, false, youtube_unplayable_reason, youtube_view_count, mbid, first_release_year,
-        recording_count, youtube_region_restriction
+        recording_count, youtube_region_restriction, genre_id
     FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
@@ -329,6 +323,13 @@ SEMANTIC_STEPS = {
     SELECT track_id, now(), 0, title, NULL, %(user)s FROM changed_song WHERE is_new
     ORDER BY track_id""",
 }
+MATERIALIZE_SONG_GENRES = f"""UPDATE grow_song y SET genre_id = sg.uuid
+    FROM changed_song s
+    LEFT JOIN (the_music_tree_genre_kit_genregraphattribution ga
+        JOIN the_music_tree_genre_kit_genregraphnode gn
+            ON gn.id = ga.node_id AND gn.dataset_id = '{DATASET_KEY}' AND gn.is_active
+        JOIN grow_criteria sg ON sg.graph_node_id = gn.id) ON ga.track_id = s.track_id
+    WHERE y.track_id = s.track_id AND y.genre_id IS DISTINCT FROM sg.uuid"""
 # Every track exists from here, and the playlist steps after it read the published genres.
 PUBLISH_AFTER = "insert_songs"
 
@@ -576,8 +577,14 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         cut = [label for label, _ in steps].index(PUBLISH_AFTER) + 1
         timings += run_steps(cursor, steps[:cut], params)
         started = perf_counter()
+        # The publication rewrites attributions in bulk: the song triggers stand down and one set-based step
+        # materialises the new genres for the songs this run touched.
+        cursor.execute("SELECT set_config('grow.membership_maintenance', 'on', true)")
         with report_step("publish_assignments"):
             publish_assignments(run_id=run_id, dataset=dataset)
+        with report_step("materialize_song_genres"):
+            cursor.execute(MATERIALIZE_SONG_GENRES)
+        cursor.execute("SELECT set_config('grow.membership_maintenance', 'off', true)")
         timings.append({"label": "publish_assignments", "rowcount": -1, "ms": int((perf_counter() - started) * 1000)})
         timings += run_steps(cursor, steps[cut:], params)
         with report_step("final_count_and_tables"):

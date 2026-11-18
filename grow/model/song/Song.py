@@ -28,6 +28,11 @@ class Song(KitTrack):
     first_release_year = models.PositiveSmallIntegerField(null=True, blank=True)
     # MusicBrainz recordings grouped into this song (live versions, remasters, compilations): a popularity signal.
     recording_count = models.PositiveIntegerField(null=True, blank=True)
+    # The song's effective genre, derived and maintained by database triggers (migration 0140): the `grow` dataset's
+    # assignment once it exists, `Track.genre` before. Never written directly. Named apart from the inherited `genre`.
+    membership_genre = models.ForeignKey(
+        "grow.Genre", db_column="genre_id", null=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     objects: TrackManager[Song] = TrackManager()
 

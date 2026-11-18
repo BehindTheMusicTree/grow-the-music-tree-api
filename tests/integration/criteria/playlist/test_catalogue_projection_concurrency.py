@@ -365,6 +365,7 @@ def test_unrelated_updates_do_not_rewrite_catalogue(catalogue):
 @pytest.mark.parametrize("warm", [False, True])
 def test_summary_is_coherent_when_writer_commits_before_materialization(catalogue, warm):
     _, a, b, _, song = catalogue
+    install_song_graph({a: [song], b: []})
     playlist = GenrePlaylist.objects.get(criteria=a)
     clear_summary_inputs_cache()
     if warm:
@@ -375,7 +376,7 @@ def test_summary_is_coherent_when_writer_commits_before_materialization(catalogu
         result = execute(sql, params, many, context)
         if "UNION ALL" in sql and not committed:
             with ThreadPoolExecutor(max_workers=1) as pool:
-                pool.submit(in_connection, lambda: Song.objects.update_instance(song, genre=b)).result(timeout=10)
+                pool.submit(in_connection, lambda: install_song_graph({a: [], b: [song]})).result(timeout=10)
             committed.append(True)
         return result
 
@@ -392,12 +393,13 @@ def test_summary_is_coherent_when_writer_commits_before_materialization(catalogu
 @pytest.mark.parametrize("warm", [False, True])
 def test_summary_cache_discards_rolled_back_inputs(catalogue, warm):
     _, a, b, _, song = catalogue
+    install_song_graph({a: [song], b: []})
     playlist = GenrePlaylist.objects.get(criteria=a)
     clear_summary_inputs_cache()
     if warm:
         genre_playlist_summaries([playlist.pk])
     with transaction.atomic():
-        Song.objects.update_instance(song, genre=b)
+        install_song_graph({a: [], b: [song]})
         changed = genre_playlist_summaries([playlist.pk])[playlist.pk]
         assert changed["catalogue"]["genre_only_tracks_count"] == 0
         assert changed["tracks_count"] == 0

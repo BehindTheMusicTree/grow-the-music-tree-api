@@ -11,8 +11,8 @@ def exact_membership_counts() -> dict[int, int]:
     Missing playlist IDs have zero members. This deliberately queries membership rather than
     assuming that a song's eligibility or its position implies membership.
     """
-    same_genre = Q(track__song_membership__genre_id=F("playlist__criteria_playlist__criteria_id")) | Q(
-        track__song_membership__genre_id__isnull=True, playlist__criteria_playlist__criteria_id__isnull=True
+    same_genre = Q(track__song__membership_genre_id=F("playlist__criteria_playlist__criteria_id")) | Q(
+        track__song__membership_genre_id__isnull=True, playlist__criteria_playlist__criteria_id__isnull=True
     )
     rows = (
         TrackPlaylistRel.objects.filter(
@@ -36,11 +36,12 @@ def membership_bucket_counts(*, using: str = "default") -> dict:
         .filter(
             user__isnull=True,
             track__user__isnull=True,
+            track__song__isnull=False,
             playlist__user__isnull=True,
             playlist__criteria_playlist__type_id=int(CriteriaTypePks.GENRE),
         )
         .order_by()
-        .values_list("playlist_id", "track__song_membership__genre_id")
+        .values_list("playlist_id", "track__song__membership_genre_id")
         .annotate(count=Count("pk"))
     )
     return {(playlist, genre): count for playlist, genre, count in rows}

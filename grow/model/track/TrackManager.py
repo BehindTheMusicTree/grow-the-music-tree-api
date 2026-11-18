@@ -63,30 +63,6 @@ class TrackManager(AbstractTrackManager[T]):
             )
         self._refresh_search(instance)
 
-    def _update_genre_playlists(self, instance: T, old_genre) -> None:
-        # Memberships come from the semantic assignments, so the playlists of the new genre may already hold the song.
-        old_playlists = self._genre_playlists(instance, old_genre)
-        new_playlists = self._genre_playlists(instance, instance.genre)
-        present = set(
-            TrackPlaylistRel.objects.filter(user=instance.user, track=instance).values_list("playlist_id", flat=True)
-        )
-        for playlist_pk in new_playlists.keys() - old_playlists.keys() - present:
-            TrackPlaylistRel.objects.create(user=instance.user, playlist=new_playlists[playlist_pk], track=instance)
-        self._remove_from_playlists(
-            instance,
-            {pk: old_playlists[pk] for pk in (old_playlists.keys() - new_playlists.keys()) & present},
-            old_genre,
-        )
-
-    def _genre_playlists(self, instance: T, genre) -> dict[Any, Any]:
-        # The column no longer decides the genre once a dataset assigns it: a request for the column's genre
-        # means the song's current one.
-        if genre is not None and genre.pk == instance.genre_id:
-            from grow.genre_graph.service import song_genre
-
-            genre = song_genre(instance)
-        return super()._genre_playlists(instance, genre)
-
     def _on_updated(self, old_instance: T, updated_instance: T) -> None:
         self._refresh_search(updated_instance)
 

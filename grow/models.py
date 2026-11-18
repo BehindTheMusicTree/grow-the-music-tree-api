@@ -7,7 +7,6 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.ImportPart import ImportPart
-from grow.genre_graph.membership import SongMembership
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.album.Album import Album
@@ -88,7 +87,6 @@ __all__ = [
     "Song",
     "SongAssignmentStaging",
     "SongImportStaging",
-    "SongMembership",
     "SongSearch",
     "SongSearchState",
     "Tag",

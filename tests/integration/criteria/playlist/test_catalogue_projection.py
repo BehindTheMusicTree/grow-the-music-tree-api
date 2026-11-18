@@ -132,7 +132,8 @@ class TestCatalogueProjection(AppTestCase):
         with connection.cursor() as cursor:
             cursor.execute("UPDATE grow_song SET track_id = %s WHERE track_id = %s", [encode(two_pk), encode(one.pk)])
         self.assert_projection()
-        assert catalogue_bucket_counts() == {b.pk: 1}
+        # The genre now lives on the grow_song row, so relinking its track keeps it.
+        assert catalogue_bucket_counts() == {a.pk: 1}
         # The first deleted half removes the join; the second must not decrement twice.
         TrackPlaylistRel.objects.filter(track_id=two_pk).delete()
         with connection.cursor() as cursor:

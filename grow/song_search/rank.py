@@ -14,8 +14,8 @@ VIEW_COUNT_CAP = 499
 
 # Same predicate as TrackManager._is_playable and PLAYABLE in grow/model/song/playable.py.
 PLAYABLE_SQL = "(s.youtube_video_id IS NOT NULL AND s.youtube_unplayable_reason IS NULL)"
-# `m` is the song's row in grow_song_membership: the dataset assignment once one exists, the legacy column before.
-HAS_GENRE_SQL = "(m.genre_id IS NOT NULL)"
+# `grow_song.genre_id` is the effective genre: the dataset assignment once one exists, the legacy column before.
+HAS_GENRE_SQL = "(s.genre_id IS NOT NULL)"
 
 RANK_SCORE_SQL = f"""(
     CASE WHEN {HAS_GENRE_SQL} THEN {GENRE_WEIGHT} ELSE 0 END

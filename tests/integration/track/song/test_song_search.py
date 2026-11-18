@@ -57,12 +57,19 @@ class TestSongSearch(AppTestCase):
         self.api_client.credentials()
         self.factory = self.model_fixture_factory
         self.rock = self.factory.create_genre("Rock")
+        self.assigned: dict = {self.rock: []}
 
     def song(self, title: str, *artists: str, genre=..., **kwargs) -> Song:
-        song = self.factory.create_song(title, self.rock if genre is ... else genre, **kwargs)
+        genre = self.rock if genre is ... else genre
+        song = self.factory.create_song(title, genre, **kwargs)
+        if genre is not None:
+            self.assigned.setdefault(genre, []).append(song)
         for name in artists:
             song.artists.add(self.factory.create_artist(name))
         return song
+
+    def assign_genres(self) -> None:
+        install_song_graph(self.assigned)
 
     def search(self, q: str, **params):
         return self.api_client.get(path=reverse("song-search"), data={"q": q, **params})
@@ -89,6 +96,7 @@ class TestSongSearch(AppTestCase):
 
     def test_anonymous_search_then_result_shape(self):
         song = self.song("Comfortably Numb", "Pink Floyd", first_release_year=1979)
+        self.assign_genres()
         rebuild_song_search()
 
         (item,) = self.search("numb").json()
@@ -172,6 +180,7 @@ class TestSongSearch(AppTestCase):
         self.song("Lithium Unplayable", youtube_video_id=None)
         self.song("Lithium Both")
         self.song("Lithium Neither", genre=None, youtube_video_id=None)
+        self.assign_genres()
         rebuild_song_search()
 
         assert self.titles("lithium") == [
@@ -192,6 +201,7 @@ class TestSongSearch(AppTestCase):
         self.song("Heart Genre")
         self.song("Heart Genreless", genre=None)
         self.song("Heart Unplayable", youtube_video_id=None)
+        self.assign_genres()
         rebuild_song_search()
 
         assert self.titles("heart", genre="without") == ["Heart Genreless"]

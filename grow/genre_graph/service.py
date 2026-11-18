@@ -314,11 +314,8 @@ def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> bool
 
 
 def song_genre(song: Song) -> Genre | None:
-    """The song's effective genre through the membership view (legacy column without a dataset)."""
-    from grow.genre_graph.membership import SongMembership
-
-    row = SongMembership.objects.filter(track_id=song.pk).select_related("genre").first()
-    return row.genre if row else None
+    """The song's effective genre, materialised on `grow_song.genre_id` (legacy column before the dataset)."""
+    return Song.objects.select_related("membership_genre").get(pk=song.pk).membership_genre
 
 
 @transaction.atomic

@@ -132,11 +132,9 @@ class SongCurationManager:
     @staticmethod
     def link_suggestions(genre: Genre) -> QuerySet[Song]:
         """Genreless songs by artists who already have songs in the genre's subtree, most shared first."""
-        from grow.genre_graph.membership import SongMembership
-
         descendants = CriteriaLineageRel.objects.filter(ascendant=genre).values_list("descendant", flat=True)
-        in_subtree = SongMembership.objects.filter(genre__in=[genre, *descendants]).values("track_id")
-        assigned = SongMembership.objects.filter(genre__isnull=False).values("track_id")
+        in_subtree = Song.objects.filter(membership_genre__in=[genre, *descendants]).values("pk")
+        assigned = Song.objects.filter(membership_genre__isnull=False).values("pk")
         artist_ids = list(
             Song.objects.filter(pk__in=in_subtree, artists__isnull=False).values_list("artists", flat=True).distinct()
         )

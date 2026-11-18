@@ -21,7 +21,7 @@ def artist_exact_counts(artist_id: UUID) -> dict:
     return dict(
         Song.objects.filter(user__isnull=True, artists=artist_id)
         .order_by()
-        .values_list("song_membership__genre_id")
+        .values_list("membership_genre_id")
         .annotate(count=Count("pk", distinct=True))
     )
 
@@ -72,7 +72,7 @@ def playlist_counts(
         rows = (
             queryset.order_by()
             .values_list(
-                "playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__song_membership__genre_id"
+                "playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__song__membership_genre_id"
             )
             .annotate(count=Count("pk", distinct=True))
         )

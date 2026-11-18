@@ -20,10 +20,10 @@ def test_song_serialization_uses_effective_nullable_genre(serializer_class):
     assigned = factory.create_genre("Assigned")
     song = factory.create_song("Song", legacy)
     install_song_graph({legacy: [], assigned: [song]})
-    song = Song.objects.select_related("song_membership__genre").get(pk=song.pk)
+    song = Song.objects.select_related("membership_genre").get(pk=song.pk)
     assert str(serializer_class(song).data["genre"]["uuid"]) == str(assigned.pk)
     GenreGraphAttribution.objects.filter(track_id=song.pk).delete()
-    song = Song.objects.select_related("song_membership__genre").get(pk=song.pk)
+    song = Song.objects.select_related("membership_genre").get(pk=song.pk)
     assert serializer_class(song).data["genre"] is None
 
 

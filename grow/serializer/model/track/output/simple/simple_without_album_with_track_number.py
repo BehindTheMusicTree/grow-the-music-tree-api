@@ -8,7 +8,7 @@ from ..TrackOutputFieldKey import TrackOutputFieldKey
 
 
 class TrackSimpleWithoutAlbumWithPositionInAlbumSerializer(serializers.ModelSerializer):
-    genre = CriteriaMinimumSerializer(source="song_membership.genre", allow_null=True)
+    genre = CriteriaMinimumSerializer(source="song.membership_genre", allow_null=True)
     artists = ArtistMinimumSerializer(many=True)
 
     class Meta:

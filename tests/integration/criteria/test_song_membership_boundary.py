@@ -15,7 +15,6 @@ from the_music_tree_genre_kit.genre_graph.models import (
 )
 from the_music_tree_genre_kit.genre_graph.storage import graph_read_snapshot
 
-from grow.genre_graph.membership import SongMembership
 from grow.genre_graph.service import write_song_attributions
 from grow.genre_music.catalogue_verification import catalogue_bucket_counts
 from grow.genre_music.membership import exact_membership_counts, membership_bucket_counts
@@ -34,7 +33,7 @@ def test_legacy_membership_includes_unassigned_and_unplayable_songs():
     genre = factory.create_genre("Direct")
     song = factory.create_song("Assigned", genre, youtube_video_id=None)
     empty = factory.create_song("Empty", None)
-    assert dict(SongMembership.objects.values_list("track_id", "genre_id")) == {
+    assert dict(Song.objects.values_list("track_id", "membership_genre_id")) == {
         song.pk: genre.pk,
         empty.pk: None,
     }
@@ -47,12 +46,12 @@ def test_semantic_membership_ignores_legacy_genre_and_display_parent():
     song = factory.create_song("Song", display)
     empty = factory.create_song("Unassigned", display)
     install_song_graph({display: [], semantic: [song]})
-    assert dict(SongMembership.objects.values_list("track_id", "genre_id")) == {
+    assert dict(Song.objects.values_list("track_id", "membership_genre_id")) == {
         song.pk: semantic.pk,
         empty.pk: None,
     }
-    selected = Song.objects.filter(song_membership__genre=semantic).select_related("song_membership__genre")
-    assert selected.get().song_membership.genre == semantic
+    selected = Song.objects.filter(membership_genre=semantic).select_related("membership_genre")
+    assert selected.get().membership_genre == semantic
     assert catalogue_bucket_counts() == {semantic.pk: 1, None: 1}
     song.refresh_from_db()
     assert song.genre_id == display.pk
@@ -74,7 +73,7 @@ def test_assignment_evidence_does_not_duplicate_membership_and_clear_never_falls
         expected_membership_revision=dataset.membership_revision,
         expected_assignment_revision=None,
     )
-    assert list(SongMembership.objects.values_list("track_id", "genre_id")) == [(song.pk, genre.pk)]
+    assert list(Song.objects.values_list("track_id", "membership_genre_id")) == [(song.pk, genre.pk)]
     write_song_attributions(
         song_id=song.pk,
         attributions={},
@@ -82,7 +81,7 @@ def test_assignment_evidence_does_not_duplicate_membership_and_clear_never_falls
         expected_membership_revision=dataset.membership_revision,
         expected_assignment_revision=GenreGraphAssignmentState.objects.get(dataset=dataset, track_id=song.pk).revision,
     )
-    assert SongMembership.objects.get(pk=song.pk).genre_id is None
+    assert Song.objects.get(pk=song.pk).membership_genre_id is None
 
 
 def test_membership_verification_uses_semantic_genre_for_existing_playlist_relations():
@@ -128,7 +127,7 @@ def test_other_datasets_keep_generic_multiple_attributions():
         node = dataset.nodes.create(identity=identity, is_umbrella=False)
         GenreGraphAttribution.objects.create(track_id=song.pk, node=node)
     assert GenreGraphAttribution.objects.filter(track_id=song.pk).count() == 2
-    assert SongMembership.objects.get(pk=song.pk).genre_id is None
+    assert Song.objects.get(pk=song.pk).membership_genre_id is None
 
 
 @pytest.mark.parametrize("field", ["dataset_id", "identity"])
@@ -142,7 +141,7 @@ def test_assigned_node_identity_cannot_change_across_membership_boundary(field):
     value = other.pk if field == "dataset_id" else "LOCAL:changed"
     with pytest.raises(IntegrityError), transaction.atomic():
         dataset.nodes.filter(pk=node.pk).update(**{field: value})
-    assert SongMembership.objects.get(pk=song.pk).genre_id == genre.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
 
 
 def test_membership_observes_activation_rollback_without_process_state():
@@ -153,12 +152,12 @@ def test_membership_observes_activation_rollback_without_process_state():
     def activate_and_abort():
         with transaction.atomic():
             install_song_graph({genre: []})
-            assert SongMembership.objects.get(pk=song.pk).genre_id is None
+            assert Song.objects.get(pk=song.pk).membership_genre_id is None
             raise RuntimeError("rollback")
 
     with pytest.raises(RuntimeError, match="rollback"):
         activate_and_abort()
-    assert SongMembership.objects.get(pk=song.pk).genre_id == genre.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
 
 
 def test_retired_assignment_never_reuses_legacy_genre():
@@ -169,7 +168,7 @@ def test_retired_assignment_never_reuses_legacy_genre():
     dataset = install_song_graph({legacy: [], semantic: [song]})
     GenreGraphAttribution.objects.filter(track_id=song.pk).delete()
     dataset.nodes.filter(identity=f"LOCAL:{semantic.pk}").update(is_active=False)
-    assert SongMembership.objects.get(pk=song.pk).genre_id is None
+    assert Song.objects.get(pk=song.pk).membership_genre_id is None
     assert Song.objects.get(pk=song.pk).genre_id == legacy.pk
 
 
@@ -187,14 +186,12 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     playlists.backwards(apps, editor)
     catalogue.backwards(apps, editor)
     migration.drop_boundary(apps, editor)
-    with connection.cursor() as cursor:
-        assert migration.VIEW not in connection.introspection.table_names(cursor, include_views=True)
     assert list(GenreGraphAttribution.objects.values_list("pk", "track_id", "node_id")) == before
     assert Song.objects.get(pk=song.pk).genre_id == legacy.pk
     migration.create_boundary(apps, editor)
     catalogue.forwards(apps, editor)
     playlists.forwards(apps, editor)
-    assert SongMembership.objects.get(pk=song.pk).genre_id == semantic.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == semantic.pk
 
 
 def test_boundary_installation_rejects_existing_multiple_direct_genres():
@@ -215,13 +212,11 @@ def test_boundary_installation_rejects_existing_multiple_direct_genres():
     )
     with pytest.raises(RuntimeError, match="at most one"), transaction.atomic():
         migration.create_boundary(apps, editor)
-    with connection.cursor() as cursor:
-        assert migration.VIEW not in connection.introspection.table_names(cursor, include_views=True)
     extra.delete()
     migration.create_boundary(apps, editor)
     catalogue.forwards(apps, editor)
     playlists.forwards(apps, editor)
-    assert SongMembership.objects.get(pk=song.pk).genre_id == first.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == first.pk
 
 
 def test_boundary_ddl_and_assignments_roll_back_together():
@@ -245,7 +240,7 @@ def test_boundary_ddl_and_assignments_roll_back_together():
 
     with pytest.raises(RuntimeError, match="abort migration"):
         reverse_and_abort()
-    assert SongMembership.objects.get(pk=song.pk).genre_id == genre.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
 
 
 @pytest.mark.postgres
@@ -314,13 +309,13 @@ def test_membership_and_graph_revision_share_read_snapshot():
     with ThreadPoolExecutor(max_workers=1) as pool:
         writer = pool.submit(reassign)
         with graph_read_snapshot():
-            assert SongMembership.objects.get(pk=song.pk).genre_id == first.pk
+            assert Song.objects.get(pk=song.pk).membership_genre_id == first.pk
             ready.set()
             if not committed.wait(timeout=10):
                 writer.result(timeout=1)
                 pytest.fail("Writer did not commit while reader held a snapshot")
             assert GenreGraphDataset.objects.get(pk=dataset.pk).membership_revision == initial_revision
-            assert SongMembership.objects.get(pk=song.pk).genre_id == first.pk
+            assert Song.objects.get(pk=song.pk).membership_genre_id == first.pk
         writer.result(timeout=10)
-    assert SongMembership.objects.get(pk=song.pk).genre_id == second.pk
+    assert Song.objects.get(pk=song.pk).membership_genre_id == second.pk
     assert GenreGraphDataset.objects.get(pk=dataset.pk).membership_revision != initial_revision

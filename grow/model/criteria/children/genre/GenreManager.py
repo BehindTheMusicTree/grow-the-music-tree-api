@@ -615,17 +615,15 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @staticmethod
     def _songs_of_genres(genre_pks):
-        from grow.genre_graph.membership import SongMembership
         from grow.model.song.Song import Song
 
-        return Song.objects.filter(pk__in=SongMembership.objects.filter(genre__in=genre_pks).values("track_id"))
+        return Song.objects.filter(membership_genre__in=genre_pks)
 
     @staticmethod
     def _songs_of(genre: Genre):
-        from grow.genre_graph.membership import SongMembership
         from grow.model.song.Song import Song
 
-        return Song.objects.filter(pk__in=SongMembership.objects.filter(genre=genre).values("track_id"))
+        return Song.objects.filter(membership_genre=genre)
 
     def alias_counts(self, source: Genre, target: Genre) -> dict[str, int]:
         """What aliasing `source` onto `target` moves; a 400 when the pair isn't an allowed alias."""
