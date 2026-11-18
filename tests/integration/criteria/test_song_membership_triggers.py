@@ -23,7 +23,7 @@ def stored(song):
     return Song.objects.get(pk=song.pk).membership_genre_id
 
 
-def test_node_deactivation_is_rejected_while_attributed_and_reactivation_restores_membership():
+def test_node_deactivation_is_rejected_while_attributed_and_attribution_insert_restores_membership():
     factory = ModelFixtureFactory(None)
     genre = factory.create_genre("Semantic")
     song = factory.create_song("Song", None)
@@ -66,6 +66,18 @@ def test_dataset_creation_switches_to_semantic_genre_and_deletion_is_protected()
     assert song_membership_drift() == {}
 
 
+def test_drift_check_ignores_genres_outside_the_graph_for_unattributed_songs():
+    factory = ModelFixtureFactory(None)
+    genre = factory.create_genre("Semantic")
+    factory.create_genre("Outside the graph")
+    song = factory.create_song("Song", None)
+    unattributed = factory.create_song("Unattributed", None)
+    install_song_graph({genre: [song]})
+    assert stored(unattributed) is None
+    assert song_membership_drift() == {}
+
+
+@pytest.mark.postgres
 def test_drift_check_reports_a_stale_stored_genre():
     factory = ModelFixtureFactory(None)
     genre = factory.create_genre("Semantic")
@@ -87,9 +99,6 @@ def test_direct_write_of_a_derived_genre_is_rejected_once_a_dataset_exists():
     other = factory.create_genre("Other")
     song = factory.create_song("Song", None)
     install_song_graph({genre: [song], other: []})
-    with connection.cursor() as cursor:
-        # Pin the flag off: after the bulk-import merge tests ran in the same session, the guard did not fire without it.
-        cursor.execute("SELECT set_config('grow.membership_maintenance', 'off', true)")
     with pytest.raises(DatabaseError, match="cannot be written directly"), transaction.atomic():
         Song.objects.filter(pk=song.pk).update(membership_genre=other)
     assert stored(song) == genre.pk

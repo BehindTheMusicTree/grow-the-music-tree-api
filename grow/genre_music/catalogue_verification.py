@@ -36,7 +36,7 @@ def derived_song_genres(*, using: str = "default") -> dict[UUID, UUID | None]:
         .filter(node__dataset_id="grow", node__is_active=True)
         .values_list("track_id", "node__id")
     )
-    genre_by_node = dict(Genre.objects.using(using).values_list("graph_node_id", "pk"))
+    genre_by_node = dict(Genre.objects.using(using).filter(graph_node__isnull=False).values_list("graph_node_id", "pk"))
     return {track: genre_by_node.get(attributed.get(track)) for track, _ in songs}
 
 

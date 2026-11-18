@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Added `song_membership_drift()` to the catalogue verification, which compares the stored song genre with its Python-derived value, and tests for the node retirement, rebind, dataset, direct-write and concurrency paths of the song genre triggers.
 - The Perf and dev seeds convert the pinned Gold trees into a reference graph and assignments (approximate, no polygenre, pinned `deathcore` exception).
 
+### Fixed
+
+- The song genre fill and guard triggers skipped silently on a connection that never set `grow.membership_maintenance` (the setting is NULL, so `NOT (flag = 'on')` was NULL): migration `0143` redefines both functions with `COALESCE`.
+
 ### Removed
 
 - Legacy (non reviewed) songs import runs.
