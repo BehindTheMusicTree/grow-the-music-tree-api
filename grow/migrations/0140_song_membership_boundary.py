@@ -230,11 +230,15 @@ def add_column(apps, schema_editor):
         schema_editor.execute(f"ALTER TABLE {SONG} ADD COLUMN genre_id char(32) NULL")
         schema_editor.execute(f"CREATE INDEX {SONG}_genre_id_idx ON {SONG} (genre_id)")
         return
+    # Table-level locks stay short on the ~31 M-row table: the FK is validated afterwards (SHARE UPDATE EXCLUSIVE)
+    # and the index is built without blocking writes. This migration is non-atomic, so CONCURRENTLY is allowed.
+    schema_editor.execute(f"ALTER TABLE {SONG} ADD COLUMN genre_id uuid NULL")
     schema_editor.execute(
-        f"ALTER TABLE {SONG} ADD COLUMN genre_id uuid NULL REFERENCES grow_genre (criteria_ptr_id) "
-        "ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED"
+        f"ALTER TABLE {SONG} ADD CONSTRAINT {SONG}_genre_id_fk FOREIGN KEY (genre_id) "
+        "REFERENCES grow_genre (criteria_ptr_id) ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED NOT VALID"
     )
-    schema_editor.execute(f"CREATE INDEX {SONG}_genre_id_idx ON {SONG} (genre_id)")
+    schema_editor.execute(f"ALTER TABLE {SONG} VALIDATE CONSTRAINT {SONG}_genre_id_fk")
+    schema_editor.execute(f"CREATE INDEX CONCURRENTLY {SONG}_genre_id_idx ON {SONG} (genre_id)")
 
 
 def drop_column(apps, schema_editor):
