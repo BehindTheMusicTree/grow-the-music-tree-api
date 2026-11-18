@@ -71,7 +71,9 @@ def playlist_counts(
     else:
         rows = (
             queryset.order_by()
-            .values_list("playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__song_membership__genre_id")
+            .values_list(
+                "playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__song_membership__genre_id"
+            )
             .annotate(count=Count("pk", distinct=True))
         )
     trees, edges = graph if graph is not None else genre_graph()

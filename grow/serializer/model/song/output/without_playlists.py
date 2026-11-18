@@ -19,7 +19,9 @@ class SongWithoutPlaylistsSerializer(EagerLoadingMixin, AppInputSerializer, seri
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
-        return queryset.select_related(f"{prefix}album", f"{prefix}song_membership__genre").prefetch_related(f"{prefix}artists")
+        return queryset.select_related(f"{prefix}album", f"{prefix}song_membership__genre").prefetch_related(
+            f"{prefix}artists"
+        )
 
     class Meta:
         model = Song
