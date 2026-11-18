@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [18.0.0] - 2026-11-18
+
 ### Added
 
 - New `overview_status_overrides` curation list (`item_id`, `status` = `current` | `historical`, `reason`, exported to the pipelines): marks a regional overview, Wikidata or generated `LOCAL:`, as current or historical when Gold cannot derive it. Deploy before the pipelines change that reads it. Tests in `test_curation_api.py`.
@@ -34,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Empty initial assignment snapshots remain restorable without changing songs added later.
 - Retired genres return empty song lists; PostgreSQL search and performance tests preserve outermost snapshot transactions and isolated fixture data.
 - Enforce separate data-query and snapshot transaction budgets without relaxing query limits, including latency A/B measurements with strict protocol checks and worst-run data-query counts.
-- Use genre-kit 0.63.1 and API-kit 0.12.3 for shared snapshots, filtered detail lookups and object permissions.
+- Use genre-kit 0.64.0 and API-kit 0.12.3 for shared snapshots, filtered detail lookups and object permissions.
 
 ### Changed
 
