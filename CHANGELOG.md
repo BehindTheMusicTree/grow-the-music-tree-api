@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [18.0.0] - 2026-11-18
+
 ### Added
 
 - New `overview_status_overrides` curation list (`item_id`, `status` = `current` | `historical`, `reason`, exported to the pipelines): marks a regional overview, Wikidata or generated `LOCAL:`, as current or historical when Gold cannot derive it. Deploy before the pipelines change that reads it. Tests in `test_curation_api.py`.
