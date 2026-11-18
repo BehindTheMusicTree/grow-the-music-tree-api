@@ -409,7 +409,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         # `_on_before_delete_many`, so remember them while they still point at the deleted genres.
         orphaned = [pk for pk, target in moves.items() if target is None]
         _genreless_song_pks.set(
-            list(Song.objects.filter(genre__in=orphaned).order_by().values_list("pk", flat=True)) if orphaned else []
+            list(self._songs_of_genres(orphaned).order_by().values_list("pk", flat=True)) if orphaned else []
         )
 
     def _on_before_delete_many(self, instances: list[Genre], *, actor: Any = None) -> None:
@@ -614,10 +614,18 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         return updated
 
     @staticmethod
-    def _songs_of(genre: Genre):
+    def _songs_of_genres(genre_pks):
+        from grow.genre_graph.membership import SongMembership
         from grow.model.song.Song import Song
 
-        return Song.objects.filter(genre=genre)
+        return Song.objects.filter(pk__in=SongMembership.objects.filter(genre__in=genre_pks).values("track_id"))
+
+    @staticmethod
+    def _songs_of(genre: Genre):
+        from grow.genre_graph.membership import SongMembership
+        from grow.model.song.Song import Song
+
+        return Song.objects.filter(pk__in=SongMembership.objects.filter(genre=genre).values("track_id"))
 
     def alias_counts(self, source: Genre, target: Genre) -> dict[str, int]:
         """What aliasing `source` onto `target` moves; a 400 when the pair isn't an allowed alias."""
@@ -645,8 +653,16 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             {"musicbrainz_genre_name": source.name.lower(), "wikidata_genre_name": target.name},
             actor,
         )
+        from uuid import uuid4
+
+        from grow.genre_graph.service import set_song_genre
+
         for song in list(self._songs_of(source)):
-            type(song).objects.update_instance(song, actor=actor, genre=target)
+            provenance = {"decisionId": f"alias-{uuid4()}", "source": "admin curation", "rationale": "Genre alias"}
+            if set_song_genre(song, target, provenance=provenance):
+                type(song).objects.record_semantic_genre_change(song, old_genre=source, actor=actor)
+            else:
+                type(song).objects.update_instance(song, actor=actor, genre=target)
         pks = self._essential_track_pks(target)
         pks += [pk for pk in self._essential_track_pks(source) if pk not in pks]
         songs = self.model.essential_songs.field.related_model.objects.in_bulk(pks)

@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import uuid4
 
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet
@@ -44,15 +45,17 @@ class SongCurationManager:
             raise invalid("genre", "Only a wikidata-backed genre can be assigned; no curation list names the others")
         if genre is not None and genre.is_umbrella:
             raise invalid("genre", f"{genre.name} is an umbrella genre; assign one of its sub-genres instead")
+        from grow.genre_graph.service import set_song_genre, song_genre
+
         keys = [self._stable_key(song) for song in songs]
         previous = []
         for song, key in zip(songs, keys, strict=True):
-            old = song.genre
+            old = song_genre(song)
             previous.append(
                 {
                     "uuid": song.uuid,
                     "genre": old.uuid if old else None,
-                    "undoable": old is None or old.genre.wikidata_id is not None,
+                    "undoable": old is None or old.wikidata_id is not None,
                 }
             )
             upsert_admin_rule(
@@ -63,7 +66,15 @@ class SongCurationManager:
                 },
                 actor,
             )
-            Song.objects.update_instance(song, actor=actor, genre=genre)
+            provenance = {
+                "decisionId": f"admin-{uuid4()}",
+                "source": "admin curation",
+                "rationale": f"Assigned by {getattr(actor, 'pk', None)}",
+            }
+            if set_song_genre(song, genre, provenance=provenance):
+                Song.objects.record_semantic_genre_change(song, old_genre=old, actor=actor)
+            else:
+                Song.objects.update_instance(song, actor=actor, genre=genre)
         return previous
 
     @transaction.atomic
@@ -121,14 +132,17 @@ class SongCurationManager:
     @staticmethod
     def link_suggestions(genre: Genre) -> QuerySet[Song]:
         """Genreless songs by artists who already have songs in the genre's subtree, most shared first."""
+        from grow.genre_graph.membership import SongMembership
+
         descendants = CriteriaLineageRel.objects.filter(ascendant=genre).values_list("descendant", flat=True)
+        in_subtree = SongMembership.objects.filter(genre__in=[genre, *descendants]).values("track_id")
+        assigned = SongMembership.objects.filter(genre__isnull=False).values("track_id")
         artist_ids = list(
-            Song.objects.filter(genre__in=[genre, *descendants], artists__isnull=False)
-            .values_list("artists", flat=True)
-            .distinct()
+            Song.objects.filter(pk__in=in_subtree, artists__isnull=False).values_list("artists", flat=True).distinct()
         )
         return (
-            Song.objects.filter(genre__isnull=True, artists__in=artist_ids)
+            Song.objects.exclude(pk__in=assigned)
+            .filter(artists__in=artist_ids)
             .annotate(shared_artists=Count("artists", distinct=True))
             .order_by("-shared_artists", "uuid")[:LINK_SUGGESTIONS_LIMIT]
         )

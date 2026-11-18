@@ -57,7 +57,10 @@ class Song(KitTrack):
         )
         album_str = str(self.album) if self.album else f"[no {TrackFields.ALBUM}]"
 
-        genre_str = f"{TrackFields.GENRE}: {self.genre}" if self.genre else f"{TrackFields.GENRE}: --"
+        from grow.genre_graph.service import song_genre
+
+        genre = song_genre(self)
+        genre_str = f"{TrackFields.GENRE}: {genre}" if genre else f"{TrackFields.GENRE}: --"
         rating_str = f"{TrackFields.RATING}: {self.rating}" if self.rating else f"{TrackFields.RATING}: --"
         language_str = f"{TrackFields.LANGUAGE}: {self.language}" if self.language else f"{TrackFields.LANGUAGE}: --"
 

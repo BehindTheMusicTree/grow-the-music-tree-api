@@ -40,6 +40,11 @@ class TrackManager(AbstractTrackManager[T]):
         instance.refresh_from_db(using=self.db)
         return super().delete_instance(instance, actor=actor)
 
+    def record_semantic_genre_change(self, instance: T, *, old_genre, actor: Any = None) -> None:
+        """Side effects of a genre change made through attributions, where no column changed."""
+        self._on_track_genre_changed(instance, old_genre=old_genre, actor=actor)
+        self._refresh_search(instance)
+
     def _on_updated(self, old_instance: T, updated_instance: T) -> None:
         self._refresh_search(updated_instance)
 
@@ -53,10 +58,13 @@ class TrackManager(AbstractTrackManager[T]):
         if actor is not None and self._model_has_manual_edit_field():
             instance.is_manually_edited = True
             instance.save(update_fields=["is_manually_edited"])
+        from grow.genre_graph.service import song_genre
+
+        new_genre = song_genre(instance)
         HistoryEntry.objects.record(
             instance,
             action=HistoryAction.GENRE_CHANGED,
             actor=actor,
             old_value=old_genre.name if old_genre else None,
-            new_value=instance.genre.name if instance.genre else None,
+            new_value=new_genre.name if new_genre else None,
         )

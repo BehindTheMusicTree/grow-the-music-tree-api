@@ -4,6 +4,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
+from the_music_tree_genre_kit.genre_graph.models import (
+    GenreGraphAssignmentState,
+    GenreGraphAttribution,
+    GenreGraphAttributionEvidence,
+)
 from the_music_tree_genre_kit.track.Track import Track
 
 from grow.bulk_import.analyze import analyze_steps
@@ -315,6 +320,20 @@ AFTER_STALE_STEPS = [
         "DELETE FROM the_music_tree_genre_kit_track_artists WHERE track_id IN (SELECT track_id FROM stale)",
     ),
     ("delete_song_search", projection.delete("SELECT track_id FROM stale")),
+    (
+        "delete_stale_attribution_evidence",
+        """DELETE FROM the_music_tree_genre_kit_genregraphattributionevidence
+    WHERE attribution_id IN (SELECT id FROM the_music_tree_genre_kit_genregraphattribution
+                             WHERE track_id IN (SELECT track_id FROM stale))""",
+    ),
+    (
+        "delete_stale_attributions",
+        "DELETE FROM the_music_tree_genre_kit_genregraphattribution WHERE track_id IN (SELECT track_id FROM stale)",
+    ),
+    (
+        "delete_stale_assignment_states",
+        "DELETE FROM the_music_tree_genre_kit_genregraphassignmentstate WHERE track_id IN (SELECT track_id FROM stale)",
+    ),
     ("delete_stale_songs", "DELETE FROM grow_song WHERE track_id IN (SELECT track_id FROM stale)"),
     ("delete_stale_tracks", "DELETE FROM the_music_tree_genre_kit_track WHERE uuid IN (SELECT track_id FROM stale)"),
     # Each genre's playlists: its own and every primary ascendant's; genreless songs get the genreless playlist.
@@ -432,6 +451,9 @@ WRITTEN_MODELS = (
     Genre.essential_songs.through,
     HistoryEntry,
     SongSearch,
+    GenreGraphAttributionEvidence,
+    GenreGraphAttribution,
+    GenreGraphAssignmentState,
 )
 
 
