@@ -68,7 +68,7 @@ def test_batched_assignment_changes_conserve_null_and_assigned_buckets():
     first_node = dataset.nodes.get(identity=f"LOCAL:{first.pk}")
     second_node = dataset.nodes.get(identity=f"LOCAL:{second.pk}")
     GenreGraphAttribution.objects.bulk_create(
-        [GenreGraphAttribution(track_id=song.pk, node=first_node) for song in songs[:3]]
+        [GenreGraphAttribution(track_id=song.pk, node=first_node, dataset_id="grow") for song in songs[:3]]
     )
     assert_counts({first.pk: 3, None: 1})
     GenreGraphAttribution.objects.filter(track_id__in=[song.pk for song in songs[:2]]).update(node=second_node)

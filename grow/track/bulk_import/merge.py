@@ -326,9 +326,9 @@ SEMANTIC_STEPS = {
 MATERIALIZE_SONG_GENRES = f"""UPDATE grow_song y SET genre_id = sg.uuid
     FROM changed_song s
     LEFT JOIN (the_music_tree_genre_kit_genregraphattribution ga
-        JOIN the_music_tree_genre_kit_genregraphnode gn
-            ON gn.id = ga.node_id AND gn.dataset_id = '{DATASET_KEY}' AND gn.is_active
-        JOIN grow_criteria sg ON sg.graph_node_id = gn.id) ON ga.track_id = s.track_id
+        JOIN the_music_tree_genre_kit_genregraphnode gn ON gn.id = ga.node_id AND gn.is_active
+        JOIN grow_criteria sg ON sg.graph_node_id = gn.id)
+        ON ga.track_id = s.track_id AND ga.dataset_id = '{DATASET_KEY}'
     WHERE y.track_id = s.track_id AND y.genre_id IS DISTINCT FROM sg.uuid"""
 # Every track exists from here, and the playlist steps after it read the published genres.
 PUBLISH_AFTER = "insert_songs"
