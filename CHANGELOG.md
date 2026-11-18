@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.
 - Song genre membership comes from the `grow` dataset: the effective genre is materialized in `grow_song.genre_id` (`Song.membership_genre`), maintained by database triggers from dataset assignments, node state and criteria bindings; counts and buckets read it directly. Imports and writers no longer write the kit's `Track.genre`.
+- Added `song_membership_drift()` to the catalogue verification, which compares the stored song genre with its Python-derived value, and tests for the node retirement, rebind, dataset, direct-write and concurrency paths of the song genre triggers.
 - The Perf and dev seeds convert the pinned Gold trees into a reference graph and assignments (approximate, no polygenre, pinned `deathcore` exception).
 
 ### Removed

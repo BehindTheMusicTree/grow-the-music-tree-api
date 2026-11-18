@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from django.db import connections, transaction
 from django.db.models import Count
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution, GenreGraphDataset
 
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -23,6 +24,30 @@ def catalogue_bucket_counts(*, using: str = "default") -> dict[Bucket, int]:
         .values_list("membership_genre_id")
         .annotate(count=Count("pk"))
     )
+
+
+def derived_song_genres(*, using: str = "default") -> dict[UUID, UUID | None]:
+    """Effective genre of every song, derived from its sources in Python, never from the stored column."""
+    songs = Song.objects.using(using).order_by().values_list("track_id", "genre_id")
+    if not GenreGraphDataset.objects.using(using).filter(key="grow").exists():
+        return dict(songs)
+    attributed = dict(
+        GenreGraphAttribution.objects.using(using)
+        .filter(node__dataset_id="grow", node__is_active=True)
+        .values_list("track_id", "node__id")
+    )
+    genre_by_node = dict(Genre.objects.using(using).values_list("graph_node_id", "pk"))
+    return {track: genre_by_node.get(attributed.get(track)) for track, _ in songs}
+
+
+def song_membership_drift(*, using: str = "default") -> dict[UUID, tuple[UUID | None, UUID | None]]:
+    """Songs whose trigger-maintained `membership_genre` differs from the derived genre, as (derived, stored)."""
+    stored = dict(Song.objects.using(using).order_by().values_list("track_id", "membership_genre_id"))
+    return {
+        track: (genre, stored[track])
+        for track, genre in derived_song_genres(using=using).items()
+        if stored[track] != genre
+    }
 
 
 def stored_catalogue_bucket_counts(*, using: str = "default") -> dict[Bucket, int]:
