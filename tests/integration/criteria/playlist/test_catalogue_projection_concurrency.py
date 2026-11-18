@@ -14,6 +14,7 @@ from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypeP
 from the_music_tree_genre_kit.track.Track import Track
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.ImportPart import ImportPart
 from grow.genre_music.catalogue_verification import (
     catalogue_bucket_counts,
     stored_catalogue_bucket_counts,
@@ -31,8 +32,10 @@ from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
 from grow.track.bulk_import import merge as song_merge
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.song_graph import install_song_graph
 
 pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
 
@@ -105,6 +108,41 @@ def catalogue():
     return factory, a, b, c, song
 
 
+EVIDENCE = {"decisionId": "import-test", "source": "fixture", "rationale": "Reviewed"}
+
+
+def reviewed_import(catalogue, mode, target):
+    """Stages a reviewed run assigning the catalogue's song to `target`; returns the run and the merge params."""
+    _, a, b, c, song = catalogue
+    mbid = uuid4()
+    Song.objects.filter(pk=song.pk).update(musicbrainz_recording_id=mbid)
+    dataset = install_song_graph({a: [song], b: [], c: []})
+    dataset.refresh_from_db()
+    run = BulkImportRun.objects.create(
+        kind=ImportRun.Kind.SONGS,
+        mode=mode,
+        graph_revision=dataset.revision,
+        membership_revision=dataset.membership_revision,
+        expected_parts={"songs": 1, "assignments": 1, **({"deletions": 0} if mode == BulkImportRun.Mode.DELTA else {})},
+    )
+    SongImportStaging.objects.create(
+        run_id=run.pk, part=0, musicbrainz_recording_id=mbid, title="Imported", artist="Artist"
+    )
+    SongAssignmentStaging.objects.create(
+        run_id=run.pk, part=0, musicbrainz_recording_id=mbid, assignments={f"LOCAL:{target.pk}": [EVIDENCE]}
+    )
+    for stream in ("songs", "assignments"):
+        ImportPart.objects.create(run=run, stream=stream, part=0, row_count=1, sha256="a" * 64)
+    params = {
+        "run": run.pk,
+        "user": None,
+        "genre_changed": HistoryAction.GENRE_CHANGED.value,
+        "genre_type": CriteriaTypePks.GENRE.value,
+        "content_type": ContentType.objects.get_for_model(Song).pk,
+    }
+    return run, params
+
+
 def race(first, second):
     held, release, started, finished = Event(), Event(), Event(), Event()
 
@@ -122,7 +160,9 @@ def race(first, second):
     with ThreadPoolExecutor(max_workers=2) as pool:
         writer = pool.submit(in_connection, hold)
         try:
-            assert held.wait(5)
+            if not held.wait(5):
+                writer.result(timeout=1)  # surface the writer's own failure
+                raise AssertionError("Source writer never held the lock")
             contender = pool.submit(in_connection, wait)
             assert started.wait(5)
             assert not finished.wait(0.1), "Source exclusion was bypassed"
@@ -214,20 +254,8 @@ def test_genre_delete_waits_for_song_assignment(catalogue, rollback_move):
 
 @pytest.mark.parametrize("edit_kind", ["genre_move", "unchanged_video_lock"])
 def test_import_snapshot_excludes_concurrent_admin_edit(catalogue, edit_kind):
-    _, _, b, c, song = catalogue
-    mbid = uuid4()
-    Song.objects.filter(pk=song.pk).update(musicbrainz_recording_id=mbid)
-    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, mode=BulkImportRun.Mode.DELTA)
-    SongImportStaging.objects.create(
-        run_id=run.pk, part=0, musicbrainz_recording_id=mbid, title="Imported", artist="Artist", genre_name=b.name
-    )
-    params = {
-        "run": run.pk,
-        "user": None,
-        "genre_changed": HistoryAction.GENRE_CHANGED.value,
-        "genre_type": CriteriaTypePks.GENRE.value,
-        "content_type": ContentType.objects.get_for_model(Song).pk,
-    }
+    _, a, b, c, song = catalogue
+    run, params = reviewed_import(catalogue, BulkImportRun.Mode.DELTA, b)
     snapshot, release, started, finished = Event(), Event(), Event(), Event()
     original = song_merge.run_steps
 
@@ -268,7 +296,7 @@ def test_import_snapshot_excludes_concurrent_admin_edit(catalogue, edit_kind):
     if edit_kind == "genre_move":
         assert song.genre_id == c.pk
     else:
-        assert song.genre_id == b.pk
+        assert song.genre_id == a.pk
         assert song.is_manually_edited
 
 
@@ -276,19 +304,7 @@ def test_import_snapshot_excludes_concurrent_admin_edit(catalogue, edit_kind):
 @pytest.mark.parametrize("repair", [False, True])
 def test_verification_waits_for_running_import(catalogue, mode, repair):
     _, _, b, _, song = catalogue
-    mbid = uuid4()
-    Song.objects.filter(pk=song.pk).update(musicbrainz_recording_id=mbid)
-    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, mode=mode)
-    SongImportStaging.objects.create(
-        run_id=run.pk, part=0, musicbrainz_recording_id=mbid, title="Imported", artist="Artist", genre_name=b.name
-    )
-    params = {
-        "run": run.pk,
-        "user": None,
-        "genre_changed": HistoryAction.GENRE_CHANGED.value,
-        "genre_type": CriteriaTypePks.GENRE.value,
-        "content_type": ContentType.objects.get_for_model(Song).pk,
-    }
+    run, params = reviewed_import(catalogue, mode, b)
 
     def second():
         assert verify_catalogue_counts(repair=repair)["catalogue"].valid
@@ -296,7 +312,7 @@ def test_verification_waits_for_running_import(catalogue, mode, repair):
     race(lambda: song_merge._merge(run.pk, params, False), second)
     assert all(report.valid for report in verify_catalogue_counts().values())
     song.refresh_from_db()
-    assert song.genre_id == b.pk
+    assert song.title == "Imported"
 
 
 def test_savepoint_failure_preserves_outer_projection(catalogue):

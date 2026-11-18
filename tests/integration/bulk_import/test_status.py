@@ -56,7 +56,11 @@ class TestProgressStatus(AppTestCase):
         assert response["error"] == "cleanup failed"
 
     def test_enqueue_failure_is_durable(self):
-        with patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")):
+        with (
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_complete_run"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_reviewed_contract"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")),
+        ):
             response = self.api_client.post(f"{PREFIX}import-runs/{self.run.pk}/commit/")
         assert response.status_code == 500
         attempt = ImportAttempt.objects.filter(run_id=self.run.pk).latest("attempt")

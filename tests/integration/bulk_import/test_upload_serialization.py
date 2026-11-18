@@ -24,8 +24,16 @@ pytestmark = [pytest.mark.postgres, pytest.mark.django_db(transaction=True)]
 MODULE = "grow.view.viewset.mixin.BulkImportRunMixin"
 
 
-def request(body=b""):
-    return SimpleNamespace(data={}, body=body, user=None, owner=None, auth=SimpleNamespace(role="pipeline"))
+def reviewed_data(**parts):
+    return {
+        "graph_revision": str(uuid4()),
+        "membership_revision": str(uuid4()),
+        "expected_parts": {"songs": 1, "assignments": 1, **parts},
+    }
+
+
+def request(body=b"", data=None):
+    return SimpleNamespace(data=data or {}, body=body, user=None, owner=None, auth=SimpleNamespace(role="pipeline"))
 
 
 def actions(loader):
@@ -53,7 +61,12 @@ def in_connection(operation):
 
 @pytest.mark.parametrize("operation", ["commit", "abandon", "replace"])
 def test_inflight_part_is_serialized_with_commit_abandonment_and_replacement(operation):
-    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
+    run = BulkImportRun.objects.create(
+        kind=ImportRun.Kind.SONGS,
+        graph_revision=uuid4(),
+        membership_revision=uuid4(),
+        expected_parts={"songs": 1, "assignments": 1},
+    )
     held, release, started, finished = Event(), Event(), Event(), Event()
     mbid = uuid4()
 
@@ -77,7 +90,7 @@ def test_inflight_part_is_serialized_with_commit_abandonment_and_replacement(ope
         if operation == "commit":
             response = commit(None, request(), str(run.pk))
         elif operation == "abandon":
-            response = create(None, request())
+            response = create(None, request(data=reviewed_data()))
         else:
             response = upload(None, request(b"second"), str(run.pk), "0")
         finished.set()
@@ -85,6 +98,8 @@ def test_inflight_part_is_serialized_with_commit_abandonment_and_replacement(ope
 
     with (
         patch(f"{MODULE}.spooled_body", side_effect=lambda req: io.BytesIO(req.body)),
+        patch(f"{MODULE}.require_reviewed_contract"),
+        patch(f"{MODULE}.require_complete_run"),
         patch(f"{MODULE}.enqueue_merge"),
         ThreadPoolExecutor(max_workers=2) as pool,
     ):
@@ -112,14 +127,20 @@ def test_inflight_part_is_serialized_with_commit_abandonment_and_replacement(ope
 @pytest.mark.parametrize("upload_kind", ["songs", "deletions"])
 @pytest.mark.parametrize("operation", ["commit", "abandon"])
 def test_upload_rechecks_run_after_spooling(upload_kind, operation):
-    run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS, mode=BulkImportRun.Mode.DELTA)
+    run = BulkImportRun.objects.create(
+        kind=ImportRun.Kind.SONGS,
+        mode=BulkImportRun.Mode.DELTA,
+        graph_revision=uuid4(),
+        membership_revision=uuid4(),
+        expected_parts={"songs": 1, "assignments": 1, "deletions": 1},
+    )
     create, upload, deletions, commit = actions(lambda *args: pytest.fail("Late song part was loaded"))
 
     def spool(req):
         if operation == "commit":
             commit(None, request(), str(run.pk))
         else:
-            create(None, request())
+            create(None, request(data=reviewed_data()))
         return io.BytesIO(gzip.compress(json.dumps({"musicbrainz_recording_id": str(uuid4())}).encode()))
 
     invoke = (
@@ -129,6 +150,7 @@ def test_upload_rechecks_run_after_spooling(upload_kind, operation):
     )
     with (
         patch(f"{MODULE}.spooled_body", side_effect=spool),
+        patch(f"{MODULE}.require_reviewed_contract"),
         patch(f"{MODULE}.enqueue_merge"),
         pytest.raises(ValidationError if operation == "commit" else Http404),
     ):
@@ -167,7 +189,7 @@ def test_assignment_upload_serializes_with_publication_and_abandonment(operation
         if operation == "commit":
             response = commit(None, request(), str(run.pk))
         elif operation == "abandon":
-            response = create(None, request())
+            response = create(None, request(data=reviewed_data()))
         else:
             response = upload(None, request(b"second"), str(run.pk), "0")
         finished.set()
@@ -177,7 +199,6 @@ def test_assignment_upload_serializes_with_publication_and_abandonment(operation
         patch(f"{MODULE}.spooled_body", side_effect=lambda req: io.BytesIO(req.body)),
         patch(f"{MODULE}.load_assignment_part", side_effect=loader),
         patch(f"{MODULE}.require_reviewed_contract"),
-        patch(f"{MODULE}.require_legacy_import_contract"),
         patch(f"{MODULE}.enqueue_merge"),
         ThreadPoolExecutor(max_workers=2) as pool,
     ):
@@ -219,14 +240,13 @@ def test_assignment_upload_rechecks_run_after_spooling(operation):
         if operation == "commit":
             commit(None, request(), str(run.pk))
         else:
-            create(None, request())
+            create(None, request(data=reviewed_data()))
         return io.BytesIO(b"body")
 
     with (
         patch(f"{MODULE}.spooled_body", side_effect=spool),
         patch(f"{MODULE}.require_complete_run"),
         patch(f"{MODULE}.require_reviewed_contract"),
-        patch(f"{MODULE}.require_legacy_import_contract"),
         patch(f"{MODULE}.enqueue_merge"),
         patch(f"{MODULE}.load_assignment_part", side_effect=lambda *args: pytest.fail("Late assignments loaded")),
         pytest.raises(ValidationError if operation == "commit" else Http404),

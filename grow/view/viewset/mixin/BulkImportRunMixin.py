@@ -33,7 +33,6 @@ from grow.track.bulk_import.assignment_part_loader import load_part as load_assi
 from grow.track.bulk_import.contract import (
     require_complete_run,
     require_declared_part,
-    require_legacy_import_contract,
     require_reviewed_contract,
     run_metadata,
 )
@@ -263,12 +262,9 @@ def bulk_import_run_actions(
             run = uncommitted_run(run_id, lock=True)
             require_complete_run(run)
             if kind == ImportRun.Kind.SONGS:
-                if run.expected_parts is not None:
-                    require_reviewed_contract(
-                        {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
-                    )
-                # Keep activation closed until all catalogue consumers share the assignment authority.
-                require_legacy_import_contract()
+                require_reviewed_contract(
+                    {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
+                )
             if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
                 committed_on=timezone.now(), user_id=user_id, record=record
             ):

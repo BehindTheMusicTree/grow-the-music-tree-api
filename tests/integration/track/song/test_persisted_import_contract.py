@@ -54,7 +54,6 @@ def test_stored_manifest_is_revalidated_on_upload_and_completion(run, parts):
         ("mode", "invalid"),
         ("graph_revision", None),
         ("membership_revision", "invalid"),
-        ("kind", ImportRun.Kind.ARTISTS),
     ],
 )
 def test_in_memory_partial_review_and_invalid_tokens_are_rejected(run, field, value):

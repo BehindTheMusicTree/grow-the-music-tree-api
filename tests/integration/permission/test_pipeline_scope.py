@@ -8,6 +8,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
+from tests.utils.song_graph import install_song_graph
 
 TREE_PAYLOAD = {
     Fields.TREE_NAME: "canonical",
@@ -23,7 +24,15 @@ class TestCase(AppTestCase):
         return self.api_client.post(path=reverse("genre-list") + "tree/import/", data=data)
 
     def _songs_import(self):
-        return self.api_client.post(path=reverse("song-list") + "songs/import-runs/")
+        genre = self.model_fixture_factory.create_genre("Rock")
+        dataset = install_song_graph({genre: []})
+        dataset.refresh_from_db()
+        data = {
+            "graph_revision": str(dataset.revision),
+            "membership_revision": str(dataset.membership_revision),
+            "expected_parts": {"songs": 1, "assignments": 1},
+        }
+        return self.api_client.post(path=reverse("song-list") + "songs/import-runs/", data=data, format="json")
 
     def _use_api_key(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
