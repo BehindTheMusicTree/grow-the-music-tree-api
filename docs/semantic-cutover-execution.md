@@ -130,3 +130,25 @@ reassignment, clearing, obsolete legacy writes, deletion and rollback. Validatio
 runs in draft PR CI at the user's request. Playlist and search projections and
 semantic bulk publication remain incomplete; keep this PR draft and retain the
 publication barrier until the complete cutover has passed review and CI.
+
+## Reviewed song runs and Perf seed
+
+Legacy song runs are removed. Every songs run declares `graph_revision`,
+`membership_revision` and `expected_parts` (`songs`, `assignments`), uploads both
+kinds of parts (`PUT …/import-runs/<runId>/parts/<n>/` and
+`…/assignments/parts/<n>/`) and commits only when both are complete (incomplete
+commit: 400). Each imported song needs exactly one assignment row (`{}` when it
+has no genre). A pipelines import without assignments is refused (400); the
+pipelines producer must export the Gold graph and the assignments.
+
+The Perf and dev seeds (`perf/gold_graph.py`, `perf/conftest.py`,
+`scripts/seed_dev_db.py`) bridge the gap: they convert the pinned Gold trees into
+a v2 graph, map identities to genre UUIDs through `wikidata_id` (never by label)
+and derive one assignment per song. The conversion is approximate (no
+polygenre). Resolution is strict: an unknown or ambiguous name is an error, a
+canonical genre wins over a regional one with the same name (`new wave`), and the
+only pinned exception is `UNRESOLVED_GENRE_NAMES = {"deathcore": 5}` (five songs
+without genre; the seed fails if the set differs). Remove the exceptions once the
+producer exports the Gold graph and assignments.
+
+A genre's song list includes unassigned songs; server-side undo is tracked in #505.
