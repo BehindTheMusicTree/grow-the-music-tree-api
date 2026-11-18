@@ -6,6 +6,8 @@ from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
+from grow.bulk_import.ImportPart import ImportPart
+from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
@@ -41,6 +43,7 @@ from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.model.user.UserProfile import UserProfile
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 __all__ = [
@@ -63,12 +66,15 @@ __all__ = [
     "GenreCatalogueCount",
     "GenreEdgeRule",
     "GenreEssentialSong",
+    "GenreGraphAssignmentBackup",
+    "GenreGraphImport",
     "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeImportPayload",
     "GenreTreeVersion",
     "HistoryEntry",
     "ImportAttempt",
+    "ImportPart",
     "ImportReceipt",
     "ImportRun",
     "ManualPlaylist",
@@ -79,6 +85,7 @@ __all__ = [
     "RegionMapFileStaging",
     "RegionMapSnapshot",
     "Song",
+    "SongAssignmentStaging",
     "SongImportStaging",
     "SongSearch",
     "SongSearchState",

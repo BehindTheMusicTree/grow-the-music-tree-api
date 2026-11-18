@@ -11,6 +11,7 @@ from django.http import UnreadablePostError
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
@@ -18,7 +19,7 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.bulk_import.run_steps import run_steps
-from grow.genre_music.catalogue_verification import verify_catalogue_counts
+from grow.genre_music.catalogue_verification import stored_catalogue_bucket_counts, verify_catalogue_counts
 from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.model.artist.Artist import Artist
 from grow.model.history.HistoryAction import HistoryAction
@@ -30,9 +31,11 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.song_search.rebuild import rebuild_song_search
+from grow.track.bulk_import.merge import _merge
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.essential_songs import add_essential_song
+from tests.utils.song_graph import install_song_graph
 
 MBID = "b1a9c0e9-d987-4042-ae91-78d6a3267d69"
 OTHER_MBID = "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"
@@ -54,6 +57,47 @@ def _gzip_ndjson(songs: list[dict]) -> bytes:
 
 
 class TestImportRunProtocol(AppTestCase):
+    def test_reference_graph_rejects_legacy_runs_without_abandoning_uploads(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        install_song_graph({genre: []})
+
+        for mode in ("full", "delta"):
+            response = self.api_client.post(path=RUNS, data={"mode": mode})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "semantic assignment imports are required" in str(response.json())
+        assert list(BulkImportRun.objects.values_list("pk", flat=True)) == [run_id]
+
+    def test_commit_rejects_legacy_run_when_graph_activated_after_upload(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        install_song_graph({genre: []})
+        with patch("grow.view.viewset.mixin.BulkImportRunMixin.enqueue_merge") as enqueue:
+            response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "semantic assignment imports are required" in str(response.json())
+        enqueue.assert_not_called()
+        assert BulkImportRun.objects.get(pk=run_id).committed_on is None
+
+    def test_merge_rechecks_graph_activated_after_upload(self):
+        run_id = self._create_run()
+        genre = self.model_fixture_factory.create_genre("Rock")
+        song = self.model_fixture_factory.create_song(title="Kept", genre=genre)
+        dataset = install_song_graph({genre: [song]})
+        dataset.refresh_from_db()
+        revision = dataset.membership_revision
+
+        with (
+            patch("grow.track.bulk_import.merge.run_steps") as steps,
+            pytest.raises(ValidationError, match="semantic assignment imports are required"),
+        ):
+            _merge(run_id, {}, False)
+        steps.assert_not_called()
+        song.refresh_from_db()
+        dataset.refresh_from_db()
+        assert song.title == "Kept"
+        assert dataset.membership_revision == revision
+
     def _create_run(self) -> int:
         response = self.api_client.post(path=RUNS)
         assert response.status_code == status.HTTP_201_CREATED
@@ -152,9 +196,11 @@ class TestImportRunProtocol(AppTestCase):
 
     def test_list_includes_tracks_without_video_but_hides_genreless(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
-        self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
+        kept = self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
+        no_video = self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
         self.model_fixture_factory.create_song(title="No genre", genre=None, youtube_video_id="xyz789uvwab")
+
+        install_song_graph({genre: [kept, no_video]})
 
         response = self.api_client.get(path=reverse("song-list"))
 
@@ -697,7 +743,7 @@ class TestImportRunMerge(AppTestCase):
                 timings.extend(run_steps(cursor, [(label, sql)], params))
                 if label == "update_tracks":
                     observed.append(Song.objects.get(musicbrainz_recording_id=MBID).genre_id)
-                    assert verify_catalogue_counts()["shadow"].valid
+                    assert verify_catalogue_counts()["catalogue"].valid
                     raise ValueError("Injected partial merge failure")
             return timings
 
@@ -881,32 +927,35 @@ class TestImportRunMerge(AppTestCase):
         self._sync([{**playable, "artist_musicbrainz_id": None, "artist": "Syd Barrett"}])
         assert Artist.objects.get(musicbrainz_artist_id=ARTIST_MBID).recording_count == 0
 
-    def _direct_songs_counts(self) -> dict:
-        return dict(GenrePlaylist.objects.filter(user=None).values_list("criteria_id", "direct_songs_count"))
+    def _catalogue_counts(self) -> dict:
+        return {
+            **dict.fromkeys(GenrePlaylist.objects.filter(user=None).values_list("criteria_id", flat=True), 0),
+            **stored_catalogue_bucket_counts(),
+        }
 
-    def _assert_direct_songs_counts_exact(self) -> dict:
-        stored = self._direct_songs_counts()
+    def _assert_catalogue_counts_exact(self) -> dict:
+        stored = self._catalogue_counts()
         assert all(report.valid for report in verify_catalogue_counts().values())
         return stored
 
-    def test_direct_songs_count_follows_new_moved_and_unplayable_songs(self):
+    def test_catalogue_count_follows_new_moved_and_unplayable_songs(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
         other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": None}
         nameless = {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Nameless", "genre_name": None}
 
         self._sync([SONG, other, nameless])
-        counts = self._assert_direct_songs_counts_exact()
+        counts = self._assert_catalogue_counts_exact()
         assert (counts[rock.pk], counts[pop.pk], counts[None]) == (2, 0, 1)
 
         self._sync([{**SONG, "youtube_unplayable_reason": "private"}, other, nameless])
-        assert self._assert_direct_songs_counts_exact()[rock.pk] == 2
+        assert self._assert_catalogue_counts_exact()[rock.pk] == 2
 
         self._sync([{**SONG, "genre_name": "Pop"}, other, {**nameless, "genre_name": "Rock"}])
-        counts = self._assert_direct_songs_counts_exact()
+        counts = self._assert_catalogue_counts_exact()
         assert (counts[rock.pk], counts[pop.pk], counts[None]) == (2, 1, 0)
 
-    def test_direct_songs_count_drops_stale_songs_but_keeps_locked_ones(self):
+    def test_catalogue_count_drops_stale_songs_but_keeps_locked_ones(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
         self.model_fixture_factory.create_song(title="Locked", genre=pop, is_manually_edited=True)
@@ -915,20 +964,20 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([SONG])
 
-        counts = self._assert_direct_songs_counts_exact()
+        counts = self._assert_catalogue_counts_exact()
         assert (counts[rock.pk], counts[pop.pk]) == (1, 1)
 
-    def test_direct_songs_count_with_delta_run_and_deletions(self):
+    def test_catalogue_count_with_delta_run_and_deletions(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         pop = self.model_fixture_factory.create_genre("Pop")
         self._sync([SONG, {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Other", "youtube_video_id": None}])
 
         self._sync([{**SONG, "genre_name": "Pop"}], mode="delta", deleted=(OTHER_MBID,))
 
-        counts = self._assert_direct_songs_counts_exact()
+        counts = self._assert_catalogue_counts_exact()
         assert (counts[rock.pk], counts[pop.pk]) == (0, 1)
 
-    def test_direct_songs_count_counts_an_adopted_legacy_song_once(self):
+    def test_catalogue_count_counts_an_adopted_legacy_song_once(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_song(
             title="Legacy", genre=rock, youtube_video_id=SONG["youtube_video_id"], musicbrainz_recording_id=None
@@ -936,7 +985,7 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([SONG])
 
-        assert self._assert_direct_songs_counts_exact()[rock.pk] == 1
+        assert self._assert_catalogue_counts_exact()[rock.pk] == 1
 
     def test_membership_buckets_follow_full_and_delta_sql_imports(self):
         self.model_fixture_factory.create_genre("Rock")

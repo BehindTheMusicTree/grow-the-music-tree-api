@@ -1,5 +1,6 @@
 from the_music_tree_genre_kit.filtering.set.manual_playlist.ManualPlaylistFilterSet import ManualPlaylistFilterSet
 
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.playlist.children.manual.ManualPlaylist import ManualPlaylist
 from grow.serializer.model.playlist.children.manual.input.post import ManualPlaylistPostSerializer
 from grow.serializer.model.playlist.children.manual.input.put import ManualPlaylistPutSerializer
@@ -27,9 +28,11 @@ class ManualPlaylistViewSet(RegionPlaylistTracksMixin, GrowModelViewSet[ManualPl
     def create(self, request, *args, **kwargs):
         return self._handle_post(request)
 
+    @graph_snapshot
     def list(self, *args, **kwargs):
         return self._handle_list()
 
+    @graph_snapshot
     def retrieve(self, *args, **kwargs):
         return self._handle_retrieve()
 

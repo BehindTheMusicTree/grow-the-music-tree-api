@@ -36,6 +36,7 @@ CANONICAL_NODES = [
         # grow requires a root genre with this exact name (REQUIRED_ROOT_GENRE_NAMES)
         "name": "Mainstream Pop",
         "isUmbrella": True,
+        "overviewType": "current",
         "summary": "A genre used to exercise the contract.",
         "summarySourceUrl": "https://en.wikipedia.org/wiki/Pop_music",
         "description": "A longer description of the genre.",

@@ -12,9 +12,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [18.0.0] - 2026-11-18
+
 ### Added
 
-- Optional host workload admission for HTTP mutations, queued tasks, direct bulk merges and search rebuilds. Background work acquires its own lease; failed or interrupted work retains a receipt that blocks benchmarks until reconciled. Tests cover coordinator failures, task results and incomplete responses.
+- New `overview_status_overrides` curation list (`item_id`, `status` = `current` | `historical`, `reason`, exported to the pipelines): marks a regional overview, Wikidata or generated `LOCAL:`, as current or historical when Gold cannot derive it. Deploy before the pipelines change that reads it. Tests in `test_curation_api.py`.
+- Import the inactive catalogue benchmark harness from `infrastructure` into `benchmarks/catalogue/` with its tests and a non-required `Catalogue benchmark harness` CI job; nothing runs a benchmark yet.
+
+### Changed
+
+- Keep local agent plans and temporary files out of Git.
+
+### Removed
+
+- Remove the obsolete direct-song counter and its duplicate maintenance; public catalogue counts use the authoritative projection.
+
+### Fixed
+
+- Make the catalogue restore verifications finish on tables restored without statistics: they count violations instead of probing for a first row, which planned a nested-loop anti join that never completed at catalogue scale. A policy test guards the SQL.
+- Enforce at most one directly assigned genre per song in semantic uploads, publication, curation and restores; retain multiple evidence decisions for that genre and inherited semantic parents.
+- Serialize staged uploads with commit and abandonment, and clean every staging stream atomically after success, failure or recovered publication. PostgreSQL thread tests cover uploads racing with commit, replacement and abandonment.
+- Reject legacy song imports when a semantic reference graph is active, checking again under the publication gate so an upload cannot overwrite a graph activated while it was staged.
+- Empty initial assignment snapshots remain restorable without changing songs added later.
+- Retired genres return empty song lists; PostgreSQL search and performance tests preserve outermost snapshot transactions and isolated fixture data.
+- Enforce separate data-query and snapshot transaction budgets without relaxing query limits, including latency A/B measurements with strict protocol checks and worst-run data-query counts.
+- Use genre-kit 0.64.0 and API-kit 0.12.3 for shared snapshots, filtered detail lookups and object permissions.
+
+### Changed
+
+- Genre catalogue counts (`songsCount`, `catalogue`) now read the `grow_genre_catalogue_count` projection in the genre tree and the genre playlist summaries instead of the removed `direct_songs_count`. A genre without a bucket counts 0 and Genreless reads the NULL bucket. Run `manage.py verify_genre_catalogue_counts` against prod after migration 0115 and before deploying.
+
+### Added
+
+- Optional host workload admission for HTTP mutations, queued tasks, direct bulk merges and search rebuilds. Background work acquires its own lease; failed or interrupted work retains a receipt that blocks benchmarks until reconciled. Tests cover admission failure, worker signals and incomplete responses.
+
+- Preview semantic song-assignment staging with reviewed graph/membership revisions, separate gzip NDJSON assignment parts and durable upload receipts. Commit rejects incomplete or lost staging data; assignment publication preserves locked sets, immutable evidence and history atomically. Semantic publication remains disabled pending the catalogue, playlist and search cutover.
+- Draft semantic reference graph API with explicit genre UUID mappings, revision-checked song attributions and archived graph restoration; song lists use normalized graph membership, name/refinement filters, UUID cursors and consistent revision headers. Explicit retirement decisions remap or unassign removed concepts after archiving direct assignments; permanent semantic bindings preserve genre UUIDs through retirement and reactivation. Initial assignments can be restored from their archive with revision checks. Tests cover conflicting legacy assignments, duplicate labels, atomic rollback and 1,710-node imports. The catalogue, playlist, search and bulk-import cutover remains incomplete.
+
+- Pipeline run stages `ingesting_discogs`, `building_gold`, `uploading_region_map` and `merging_region_map`, so the admin panel shows the Discogs dump ingestion, the Gold build and the region map import instead of folding them into a neighbouring step (migration `0128`; the runner in `infrastructure` reports them once this ships). `ingesting_wikidata` stays accepted for older runs. Test in `test_pipeline_run.py`.
+
+### Documentation
+
+- Agent guidance now allows enabling auto-merge while required CI checks are pending or failing, while preserving performance regression safeguards and blocking merges over failing optional checks.
 
 ## [17.0.0] - 2026-11-13
 

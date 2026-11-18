@@ -3,6 +3,7 @@ from rest_framework import status
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
 
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCase(AppTestCase):
@@ -27,37 +28,53 @@ class TestCase(AppTestCase):
             language="fr",
         )
 
+    def _install_graph(self, extra=None, *, classifications=(), **kwargs):
+        assignments = {self.rock: [self.matching_track], self.jazz: [self.other_track]}
+        assignments.update(extra or {})
+        return install_song_graph(assignments, classifications=classifications, **kwargs)
+
     def _list_uuids(self, **params):
         response = self.api_client.get(path=reverse(self.list_endpoint), data=params)
         assert response.status_code == status.HTTP_200_OK
         return {track["uuid"] for track in response.data["results"]}
 
     def test_filter_by_title(self):
+        self._install_graph()
         assert self._list_uuids(title="comfortably") == {str(self.matching_track.uuid)}
 
     def test_filter_by_artists_name(self):
+        self._install_graph()
         assert self._list_uuids(artists_name="pink floyd") == {str(self.matching_track.uuid)}
 
     def test_filter_by_album_name(self):
+        self._install_graph()
         assert self._list_uuids(album_name="the wall") == {str(self.matching_track.uuid)}
 
     def test_filter_by_genre_name(self):
+        self._install_graph()
+        type(self.matching_track).objects.filter(pk=self.matching_track.pk).update(genre=self.jazz)
         assert self._list_uuids(genre_name="rock") == {str(self.matching_track.uuid)}
 
     def test_filter_by_genre_covers_primary_descendants_regardless_of_video(self):
+        self._install_graph()
         prog = self.model_fixture_factory.create_genre("Progressive Rock", parent=self.rock)
         prog_track = self.model_fixture_factory.create_song(title="Echoes", genre=prog, youtube_video_id=None)
+
+        self._install_graph({prog: [prog_track]}, classifications=[(prog, self.rock)])
 
         assert self._list_uuids(genre=str(self.rock.uuid)) == {str(self.matching_track.uuid), str(prog_track.uuid)}
         assert self._list_uuids(genre=str(prog.uuid)) == {str(prog_track.uuid)}
 
     def test_filter_by_language(self):
+        self._install_graph()
         assert self._list_uuids(language="en") == {str(self.matching_track.uuid)}
 
     def test_filter_with_no_match_then_empty(self):
+        self._install_graph()
         assert self._list_uuids(title="nonexistent") == set()
 
     def test_filter_by_artist_uuid(self):
+        self._install_graph()
         assert self._list_uuids(artist=str(self.pink_floyd.uuid)) == {str(self.matching_track.uuid)}
 
     def _titles(self, **params):
@@ -80,8 +97,12 @@ class TestCase(AppTestCase):
         factory.create_song(title="Bootleg", genre=self.rock, album=factory.create_album("Live", year="c.70"))
         factory.create_song(title="Demo", genre=self.rock, album=factory.create_album("Demos", year="70"))
         factory.create_song(title="Money", genre=self.rock, album=self.album, first_release_year=1979)
+        install_song_graph(
+            {self.rock: list(type(self.matching_track).objects.filter(genre=self.rock)), self.jazz: [self.other_track]}
+        )
 
     def test_ordering_by_title_and_album_year(self):
+        self._install_graph()
         self._with_years()
         Song = type(self.matching_track)
 
@@ -110,6 +131,7 @@ class TestCase(AppTestCase):
         ]
 
     def test_from_starts_at_the_anchor_in_the_active_ordering(self):
+        self._install_graph()
         self._with_years()
         Song = type(self.matching_track)
 
@@ -121,8 +143,10 @@ class TestCase(AppTestCase):
                 assert self._titles(**params, **{"from": anchor}) == full[index:], (ordering, title)
 
     def test_from_anchor_filtered_out_then_404(self):
+        self._install_graph()
         unplayable = self.model_fixture_factory.create_song(title="Gone", genre=self.rock, youtube_video_id=None)
 
+        self._install_graph({self.rock: [self.matching_track, unplayable]})
         response = self.api_client.get(
             path=reverse(self.list_endpoint), data={"playable": "true", "from": str(unplayable.pk)}
         )
@@ -130,29 +154,35 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_from_not_a_uuid_then_400(self):
+        self._install_graph()
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"from": "nope"})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_filter_playable(self):
+        self._install_graph()
         factory = self.model_fixture_factory
         no_video = factory.create_song(title="No Video", genre=self.rock, youtube_video_id=None)
         unplayable = factory.create_song(
             title="Private", genre=self.rock, youtube_unplayable_reason=YoutubeUnplayableReason.values[0]
         )
+        self._install_graph({self.rock: [self.matching_track, no_video, unplayable]})
         playable = {str(self.matching_track.uuid), str(self.other_track.uuid)}
 
         assert self._list_uuids(playable="true") == playable
         assert self._list_uuids(playable="false") == {str(no_video.uuid), str(unplayable.uuid)}
 
     def test_unknown_ordering_then_400(self):
+        self._install_graph()
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"ordering": "genre"})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_genre_coverage_selects_exact_or_primary_descendants(self):
+        self._install_graph()
         child = self.model_fixture_factory.create_genre("Progressive Rock", parent=self.rock)
         child_song = self.model_fixture_factory.create_song(title="Echoes", genre=child, youtube_video_id=None)
+        self._install_graph({child: [child_song]}, classifications=[(child, self.rock)])
         genre = str(self.rock.uuid)
         assert self._list_uuids(genre=genre, coverage="genre_only") == {str(self.matching_track.uuid)}
         assert self._list_uuids(genre=genre, coverage="genre_and_subgenres") == {
@@ -164,9 +194,15 @@ class TestCase(AppTestCase):
         assert self.api_client.get(reverse(self.list_endpoint), {"genre": genre, "coverage": ""}).status_code == 400
 
     def test_genre_subgenre_scopes_and_validation(self):
+        self._install_graph()
         regional = self.model_fixture_factory.create_genre("Regional rock", tree_name="regional")
-        regional.additional_primary_parents.add(self.rock)
         regional_song = self.model_fixture_factory.create_song("Regional song", genre=regional)
+        self._install_graph(
+            {regional: [regional_song]},
+            classifications=[(regional, self.rock)],
+            node_overrides={regional: {"canonicalState": "after_exit"}},
+            boundaries=[(regional, "exit")],
+        )
         genre = str(self.rock.uuid)
         direct = str(self.matching_track.uuid)
         assert self._list_uuids(genre=genre) == {direct}

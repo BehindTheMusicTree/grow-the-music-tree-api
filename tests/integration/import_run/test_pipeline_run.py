@@ -178,7 +178,14 @@ class TestPipelineRun(AppTestCase):
         claimed = self._claim().json()
 
         assert (claimed["uuid"], claimed["kind"], claimed["status"]) == (uuid, "sync", "running")
-        for stage in ("uploading_artists", "merging_artists"):
+        for stage in (
+            "ingesting_discogs",
+            "building_gold",
+            "uploading_artists",
+            "merging_artists",
+            "uploading_region_map",
+            "merging_region_map",
+        ):
             response = self._patch(uuid, {"stage": stage})
             assert response.status_code == status.HTTP_200_OK, response.content
             assert response.json()["stage"] == stage

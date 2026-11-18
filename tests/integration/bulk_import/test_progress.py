@@ -7,10 +7,12 @@ from django.utils import timezone
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
+from grow.bulk_import.ImportPart import ImportPart
 from grow.bulk_import.lifecycle import execute_merge, queue_attempt
 from grow.bulk_import.progress import ProgressReporter, report_step
 from grow.bulk_import.status import progress_payload
 from grow.model.import_run.ImportRun import ImportRun
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -158,3 +160,37 @@ def test_receipt_path_marks_run_started_before_reporting():
     ):
         execute_merge(run.pk, attempt.pk, SongImportStaging, Mock())
     assert BulkImportRun.objects.get(pk=run.pk).started_on is not None
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "receipt"])
+def test_all_song_staging_is_cleaned_on_completion_failure_and_receipt_recovery(outcome):
+    run, attempt = make_attempt()
+    other = BulkImportRun.objects.create(kind="songs")
+    for run_id in (run.pk, other.pk):
+        SongAssignmentStaging.objects.create(
+            run_id=run_id, part=0, musicbrainz_recording_id="b1a9c0e9-d987-4042-ae91-78d6a3267d69", assignments={}
+        )
+    for import_run in (run, other):
+        ImportPart.objects.create(run=import_run, stream="assignments", part=0, row_count=1, sha256="a" * 64)
+    if outcome == "receipt":
+        ImportReceipt.objects.create(run_id=run.pk, result={"imported": 4})
+    merge = Mock(side_effect=RuntimeError("injected failure")) if outcome == "failure" else Mock(return_value={})
+
+    def execute():
+        return execute_merge(
+            run.pk, attempt.pk, SongImportStaging, merge, extra_staging_models=(SongAssignmentStaging,)
+        )
+
+    if outcome == "failure":
+        with pytest.raises(RuntimeError, match="injected failure"):
+            execute()
+    else:
+        execute()
+    if outcome == "receipt":
+        merge.assert_not_called()
+    assert not SongAssignmentStaging.objects.filter(run_id=run.pk).exists()
+    assert SongAssignmentStaging.objects.filter(run_id=other.pk).count() == 1
+    assert not BulkImportRun.objects.filter(pk=run.pk).exists()
+
+    assert not ImportPart.objects.filter(run_id=run.pk).exists()
+    assert ImportPart.objects.filter(run_id=other.pk).count() == 1

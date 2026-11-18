@@ -121,7 +121,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | `/v1/curation/wikidata-items/` | `POST {items: [{id, label}]}`, the pipeline's catalog of every Wikidata item it knows (pruned ones and `LOCAL:` ones included), `X-API-Key` or admin. Replaces the whole catalog; names the item ids that aren't in the canonical tree. Returns `{itemCount}` |
 | `/v1/curation/items/` | `GET ?q=` (admin) searches item ids by name or id across the canonical tree, the catalog and pending additions: `{results: [{id, label}]}`, 400 without `q` |
 | `/v1/curation/review/`        | `GET` the last report's review items, the ids the pipeline dropped: `[{ruleId, list, key, column, itemId, reason, target, evidence, reportedOn}]` (`ruleId` set for an edge rule) (`evidence` null when not reported, always null on API-side remap conflicts) (admin only) |
-| `/v1/pipeline/runs/`          | `GET` the run requests, newest first, paginated (admin only). `POST {kind: curation\|full\|sync}` queues a pipeline run: a rebuild from current curation, a full ingestion, or a replay of the last complete Gold output into grow. An admin's request has `trigger: manual` and `requestedBy` their email; the `X-API-Key`'s (the nightly) has `trigger: scheduled`, `requestedBy: null`, and may only request `full` (400 otherwise, so `sync` is admin-only). 409 if any run is queued or running, 400 for `curation` with no edit pending. A request is `{uuid, kind, trigger, requestedBy, status, stage, stageCurrent, stageTotal, error, cancelRequested, requestedOn, startedOn, heartbeatOn, finishedOn}`, `status` `queued\|running\|succeeded\|failed\|superseded\|cancelled\|expired`, `stage` `fetching_rules\|ingesting_musicbrainz\|ingesting_wikidata\|building_songs\|building_genres\|matching_songs\|importing_tree\|uploading_songs\|merging_songs\|uploading_artists\|merging_artists` |
+| `/v1/pipeline/runs/`          | `GET` the run requests, newest first, paginated (admin only). `POST {kind: curation\|full\|sync}` queues a pipeline run: a rebuild from current curation, a full ingestion, or a replay of the last complete Gold output into grow. An admin's request has `trigger: manual` and `requestedBy` their email; the `X-API-Key`'s (the nightly) has `trigger: scheduled`, `requestedBy: null`, and may only request `full` (400 otherwise, so `sync` is admin-only). 409 if any run is queued or running, 400 for `curation` with no edit pending. A request is `{uuid, kind, trigger, requestedBy, status, stage, stageCurrent, stageTotal, error, cancelRequested, requestedOn, startedOn, heartbeatOn, finishedOn}`, `status` `queued\|running\|succeeded\|failed\|superseded\|cancelled\|expired`, `stage` `fetching_rules\|ingesting_discogs\|ingesting_musicbrainz\|ingesting_wikidata\|building_songs\|building_genres\|matching_songs\|building_gold\|importing_tree\|uploading_songs\|merging_songs\|uploading_artists\|merging_artists\|uploading_region_map\|merging_region_map` |
 | `/v1/pipeline/runs/latest/`   | `GET` the newest run request, 204 if none (`X-API-Key` or admin) |
 | `/v1/pipeline/runs/claim/`    | `POST` starts the oldest queued request (`running`), or marks a `curation` one `superseded` if no edit is pending anymore; 204 if none queued (`X-API-Key` or admin) |
 | `/v1/pipeline/runs/{uuid}/`   | `PATCH {stage?, stageCurrent?, stageTotal?, status?: succeeded\|failed\|cancelled, error?}` on the running request, an empty body being a heartbeat; a new `stage` resets the progress counts, a `status` sets `finishedOn`; `cancelRequested: true` in the response means stop the run and report `cancelled`; 409 if not running (`X-API-Key` or admin). A running request with no PATCH for 30 min becomes `expired` |
@@ -154,9 +154,9 @@ uv run mypy grow
 
 Three gates keep endpoints fast. The query budgets run in `Pytest`, and `Perf` runs the latency SLOs and the A/B gate. Both are required checks on `develop`; on `main`, `Perf` is not required yet. Changing a budget or an SLO is a deliberate, reviewed diff, not a way to make CI pass.
 
-- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` entry. A gain lowers the budget in the same PR.
+- **Query budgets** (`tests/integration/perf/test_query_budgets.py`, part of `uv run pytest`): each endpoint must run a fixed number of queries whatever the number of rows, and exactly its `BUDGETS` data-statement entry. Transaction commands have a separate exact protocol: one snapshot boundary, PostgreSQL read-only `REPEATABLE READ` before data reads, and no redundant savepoints. Unrecognized SQL counts as data work; totals include both categories. These checks run outside test-managed transactions. A gain lowers the data budget in the same PR.
 - **Latency SLOs** (`perf/`, CI job `Perf`): median latency per endpoint on Postgres (p95 is printed too), seeded with a pinned snapshot of the prod pipeline's Gold exports (`perf/fixtures/`), imported through the same endpoints and in the same order as the nightly sync.
-- **A/B regression gate** (CI job `Perf` on PRs, `scripts/perf_ab.sh`): the PR's base and head run `perf/` in turn on the same runner (base, head, base, head), each on its own seeded database. Before every measured round, `VACUUM (FREEZE, ANALYZE)` resets visibility and planner statistics: rolled-back reparenting still grows physical tables and can otherwise trigger JIT compilation only in later rounds. `perf/compare.py` pairs round i of base with round i of head (back to back, so runner drift cancels) and fails a scenario whose median head/base ratio exceeds `RATIO` **and** adds more than `FLOOR_MS`, or that runs more queries. A suspected regression gets two more rounds before the verdict. A side whose rounds split into two groups that far apart is `unstable` and fails too: its pooled median would sit between two query plans. With four rounds or more, each group needs at least two rounds, so one odd round is noise, not a split. The runner's drift is estimated per round within the side and removed first, so a slowdown shared by every scenario is not flagged; the summary shows each round's p50 and the drift. This catches what an absolute SLO can't: a 13 ms endpoint going to 130 ms under a 150 ms SLO. The table lands in the job summary. Pushes to `main` and `develop` judge the SLOs only; `workflow_dispatch` compares a ref with itself to measure noise.
+- **A/B regression gate** (CI job `Perf` on PRs, `scripts/perf_ab.sh`): the PR's base and head run `perf/` in turn on the same runner (base, head, base, head), each on its own seeded database. Before every measured round, `VACUUM (FREEZE, ANALYZE)` resets visibility and planner statistics: rolled-back reparenting still grows physical tables and can otherwise trigger JIT compilation only in later rounds. `perf/compare.py` pairs round i of base with round i of head (back to back, so runner drift cancels) and fails a scenario whose median head/base ratio exceeds `RATIO` **and** adds more than `FLOOR_MS`, or that runs more data queries. Captured requests assert the exact transaction protocol separately, using the same accounting as the fixed query budgets; the full transaction remains inside the latency measurement. Every measured run is checked and the worst data-query count is compared. Older base results without explicit transaction statements already report data-query counts. A suspected regression gets two more rounds before the verdict. A side whose rounds split into two groups that far apart is `unstable` and fails too: its pooled median would sit between two query plans. With four rounds or more, each group needs at least two rounds, so one odd round is noise, not a split. The runner's drift is estimated per round within the side and removed first, so a slowdown shared by every scenario is not flagged; the summary shows each round's p50 and the drift. This catches what an absolute SLO can't: a 13 ms endpoint going to 130 ms under a 150 ms SLO. The table lands in the job summary. Pushes to `main` and `develop` judge the SLOs only; `workflow_dispatch` compares a ref with itself to measure noise.
 - **Accepting a regression** (a deliberate trade-off, for example a feature that must do more work): add the `perf-regression-accepted` label to the PR, which reruns `Perf` with slowdowns and query increases reported but not failed. SLOs still apply.
 
 The absolute SLOs use 3× the slowest side's pooled median across five CI self-comparisons on 2026-11-07, rounded up to 10 ms (100 ms when the ceiling is at least 1 s). For example, artist genre counts measured about 9 ms (30 ms SLO), the largest genre's track page about 84 ms (260 ms), and the 100-row genre playlist list about 155 ms (470 ms). This covers runner-speed variation while the A/B gate still catches relative regressions. Calibration runs: [1](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42382519148), [2](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42382845469), [3](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42383175534), [4](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42383477978), [5](https://github.com/BehindTheMusicTree/grow-the-music-tree-api/actions/runs/42383729328).
@@ -257,19 +257,89 @@ one membership scan per genre or folding child playlists whose actual members ma
 graph and catalogue inputs are reused within a worker when the statement observes the same tree version;
 actual playlist membership is always read again. Rolled-back writes cannot leave stale summary values.
 
-`uv run python manage.py verify_genre_catalogue_counts` compares canonical Song/Track joins with both the
-legacy `direct_songs_count` fields and the sparse shadow catalogue buckets. It includes unplayable and
+`uv run python manage.py verify_genre_catalogue_counts` compares canonical Song/Track joins with the
+sparse catalogue buckets. It includes unplayable and
 genreless songs, reports drift without changing data, and exits unsuccessfully on a mismatch. An absent
-shadow bucket means zero. Missing required genre playlists or the tree-version singleton are configuration
+catalogue bucket means zero. Missing required genre playlists or the tree-version singleton are configuration
 errors rather than zero counts.
 
-Use `--repair` explicitly to rebuild both projections in one transaction, retaining the original mismatch
-report and independently checking the result before commit. Repair removes orphan shadow buckets but
+Use `--repair` explicitly to rebuild the projection in one transaction, retaining the original mismatch
+report and independently checking the result before commit. Repair removes orphan catalogue buckets but
 does not create or remove playlists. `--database <alias>` selects the database. On PostgreSQL, verification
 and repair require READ COMMITTED isolation and acquire the same source-write gate as membership repair;
 ordinary detail requests do not acquire that gate.
 
-Migration `0115` installs shadow maintenance on both halves of the Song/Track join and backfills while
+Migration `0115` installs catalogue maintenance on both halves of the Song/Track join and backfills while
 source writers are excluded. Relation locks precede the advisory gate. A busy source relation or gate makes
 the migration fail immediately and roll back; retry after the writer completes. This migration temporarily
 takes exclusive source-table locks; its operational window must be measured on representative data.
+
+
+### Semantic reference graph (draft)
+
+Semantic song-assignment staging is available as a preview with reviewed revisions and durable part receipts; commit remains disabled pending the catalogue, playlist and search cutover. See the [song import contract](docs/api/songs.md#import). Legacy imports remain blocked once a reference graph is active.
+
+This branch starts the reference graph v2 cutover and is not ready for deployment.
+`GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
+mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
+`graph`, a complete `mapping` (existing genre UUID or `null` for a new identity),
+and `expectedRevision` (`null` for the initial import). The graph must carry the
+current curation export timestamp. Missing mappings and stale revisions fail;
+labels never resolve identities. Check the route definitions in `grow/urls.py`
+for the graph restore endpoint.
+
+`GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
+`membershipRevision`, `assignmentRevision`, complete direct `attributions`,
+`effectiveAttributions` and `needsRefinement`. Curator/admin `PUT` on the same
+route accepts zero or one semantic identity, with an array of independent evidence decisions for that genre:
+
+```json
+{
+  "expectedRevision": "<graph revision UUID>",
+  "expectedMembershipRevision": "<membership revision UUID>",
+  "expectedAssignmentRevision": "<assignment revision UUID or null>",
+  "attributions": {
+    "LOCAL:expression": [
+      {"decisionId": "<permanent decision ID>", "source": "<source>", "rationale": "<justification>"}
+    ]
+  }
+}
+```
+
+`expectedAssignmentRevision: null` creates the first assignment set; subsequent
+edits require the token returned by the latest GET, including after clearing the
+set with `attributions: {}`. A stale graph, population or assignment token returns
+409; reload all tokens and assignments before resolving the edit. Evidence order
+does not change the set. Reusing a decision ID with different content fails;
+several independent decisions for the same identity are preserved. A successful
+PUT returns all three current tokens. A song has at most one directly assigned
+genre; it inherits all semantic parents through deduplicated graph paths. Writes
+and restores containing several direct genres are rejected. Graph-only songs
+are included in song lists. Song cursors now contain a UUID alone; previous
+cursors must be restarted. Graph import is required before listing songs.
+Song-list name and umbrella filters use normalized graph attributions. Each list
+holds a consistent graph through counts, pagination and serialization, returning
+`X-Genre-Graph-Revision` and `X-Genre-Membership-Revision` response headers.
+Genre/playlist list, detail and tree responses also evaluate their data within
+one read-only REPEATABLE READ snapshot after authentication. Readers can overlap
+publication; response bodies and cache validators describe the same committed
+state. Lazy querysets must be evaluated before leaving the snapshot.
+
+Graph/membership archives and initial assignment backups are retained. Imports
+and graph restores require `retirements` for every removed identity, each with
+`{"target": "<retained identity>"}` (or an explicit `null` to unassign) and
+`provenance: {decisionId, source, rationale}`. Complete direct assignments are
+archived before any remap. Retired genre UUIDs and semantic identities remain
+reserved; reintroducing an identity reuses its original UUID, including when
+several concepts share a display label.
+
+Curator/admin `POST /v1/genres/graph/assignments/restore/` accepts the initial
+import `revision`, `expectedRevision`, `expectedMembershipRevision` and explicit
+`provenance`. It restores surviving songs' initial assignments through the
+archived genre UUIDs' semantic bindings; required identities must be active.
+It snapshots current assignments first and preserves songs added after cutover.
+An identical retry with current revision tokens makes no changes.
+
+Catalogue/playlist counts, search,
+legacy writes and bulk imports still require migration to semantic memberships.
+Do not mix the old write APIs with graph attribution writes.

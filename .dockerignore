@@ -6,6 +6,7 @@
 graphify-out
 tests
 perf
+benchmarks
 docs
 bruno
 **/__pycache__

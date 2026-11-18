@@ -7,12 +7,11 @@ from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
     PrivateUniqueResourceFilterSet,
 )
-from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage, parse_coverage
+from the_music_tree_genre_kit.criteria.selection.coverage import parse_coverage
 
-from grow.genre_music.selection import genre_graph, parse_subgenres, selected_genres
+from grow.genre_graph.selection import select_songs
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
-from grow.model.criteria.Criteria import Fields as CriteriaFields
 from grow.model.song.Fields import Fields as ModelFields
 from grow.model.song.Song import Song
 from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM
@@ -52,16 +51,11 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         field_name_public=Fields.ALBUM_NAME,
         lookup_expr="icontains",
     )
-    genre_name = RelatedObjectCharFilter(
-        primary_field=CriteriaFields.NAME_INTERNAL,
-        field_name=ModelFields.GENRE,
-        field_name_public=Fields.GENRE_NAME,
-        lookup_expr="icontains",
-    )
+    genre_name = CharFilter(method="filter_genre_name")
     genre = UUIDFilter(method="filter_genre")
     coverage = CharFilter(method="filter_coverage")
     subgenres = CharFilter(method="filter_coverage")
-    genre_is_umbrella = BooleanFilter(field_name="genre__genre__is_umbrella")
+    genre_is_umbrella = BooleanFilter(method="filter_genre_is_umbrella")
     artist = UUIDFilter(field_name=ModelFields.ARTISTS)
     playable = BooleanFilter(method="filter_playable")
     ordering = ChoiceFilter(
@@ -75,19 +69,37 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         model = Song
         fields = [Fields.TITLE, Fields.LANGUAGE, *PrivateUniqueResourceFilterSet.get_date_fields()]
 
+    def filter_genre_name(self, queryset: QuerySet[Song], name: str, value: str) -> QuerySet[Song]:
+        from the_music_tree_genre_kit.genre_graph.storage import effective_attributions
+
+        from grow.genre_graph.selection import require_reference_graph
+        from grow.genre_graph.service import DATASET_KEY
+        from grow.model.criteria.children.genre.Genre import Genre
+
+        require_reference_graph()
+        nodes = Genre.objects.filter(user__isnull=True, _name__icontains=value).values("graph_node_id")
+        attributions = effective_attributions(key=DATASET_KEY).filter(node_id__in=nodes)
+        return queryset.filter(pk__in=attributions.values("track_id"))
+
+    def filter_genre_is_umbrella(self, queryset: QuerySet[Song], name: str, value: bool) -> QuerySet[Song]:
+        from the_music_tree_genre_kit.genre_graph.storage import tracks_needing_refinement
+
+        from grow.genre_graph.selection import require_reference_graph
+        from grow.genre_graph.service import DATASET_KEY
+
+        require_reference_graph()
+        refining = tracks_needing_refinement(queryset, key=DATASET_KEY)
+        return refining if value else queryset.exclude(pk__in=refining.values("pk"))
+
     def filter_genre(self, queryset: QuerySet[Song], name: str, value) -> QuerySet[Song]:
-        """The genre's songs and its primary descendants', the same subtree its playlists cover."""
+        """Select normalized semantic attributions, independently of display parents."""
         coverage = parse_coverage(self.data.get("coverage"))
-        scope_value = self.data.get("subgenres")
-        if coverage == CriteriaCoverage.ONLY:
-            parse_subgenres(scope_value, coverage, "canonical")
-            return queryset.filter(genre=value)
-        trees, edges = genre_graph()
-        if value not in trees:
-            parse_subgenres(scope_value, coverage, "canonical")
-            return queryset.none()
-        scope = parse_subgenres(scope_value, coverage, trees[value])
-        return queryset.filter(genre__in=selected_genres(value, trees, edges, scope))
+        return select_songs(
+            queryset,
+            genre_id=value,
+            coverage=coverage,
+            subgenres=self.data.get("subgenres"),
+        )
 
     def filter_coverage(self, queryset: QuerySet[Song], name: str, value: str) -> QuerySet[Song]:
         return queryset

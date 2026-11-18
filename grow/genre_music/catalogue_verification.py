@@ -62,14 +62,13 @@ def _report(expected, actual, required, playlists):
 def _compare(using):
     expected = catalogue_bucket_counts(using=using)
     required = set(Genre.objects.using(using).filter(user__isnull=True).values_list("pk", flat=True)) | {None}
-    playlists = dict(
+    playlists = set(
         CriteriaPlaylist.objects.using(using)
         .filter(user__isnull=True, type_id=CriteriaTypePks.GENRE)
-        .values_list("criteria_id", "direct_songs_count")
+        .values_list("criteria_id", flat=True)
     )
     return {
-        "legacy": _report(expected, playlists, required, playlists.keys()),
-        "shadow": _report(expected, stored_catalogue_bucket_counts(using=using), required, playlists.keys()),
+        "catalogue": _report(expected, stored_catalogue_bucket_counts(using=using), required, playlists),
     }
 
 
@@ -86,15 +85,9 @@ def verify_catalogue_counts(*, repair: bool = False, using: str = "default") -> 
         GenreTreeVersion.objects.using(using).select_for_update().get(pk=1)
         reports = _compare(using)
         if repair and any(not report.valid for report in reports.values()):
-            if any(report.missing_playlists for report in reports.values()) or reports["legacy"].unexpected:
+            if any(report.missing_playlists for report in reports.values()):
                 raise ValueError("Catalogue configuration is invalid; repair cannot create or remove playlists")
-            expected = reports["shadow"].expected
-            playlists = list(
-                CriteriaPlaylist.objects.using(using).filter(user__isnull=True, type_id=CriteriaTypePks.GENRE)
-            )
-            for playlist in playlists:
-                playlist.direct_songs_count = expected.get(playlist.criteria_id, 0)
-            CriteriaPlaylist.objects.using(using).bulk_update(playlists, ["direct_songs_count"], batch_size=500)
+            expected = reports["catalogue"].expected
             GenreCatalogueCount.objects.using(using).all().delete()
             GenreCatalogueCount.objects.using(using).bulk_create(
                 GenreCatalogueCount(genre_id=genre, tracks_count=count) for genre, count in expected.items()

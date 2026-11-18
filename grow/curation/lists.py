@@ -35,6 +35,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "synthetic_overview_resolutions": {"action": ("replace", "remove")},
+    "overview_status_overrides": {"status": ("current", "historical")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
         "entity_kind": ("cultural_region", "macro_region", "city", "admin_unit", "historical_country")
@@ -131,6 +132,13 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
+    "overview_status_overrides": CurationList(
+        "gold",
+        ("item_id",),
+        ("item_id", "status", "reason"),
+        "Whether a regional overview (Wikidata item or generated `LOCAL:` one) is `current` or `historical`, "
+        "overriding the status Gold derives; an overview with neither a derived status nor an entry fails the export.",
+    ),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "synthetic_overview_resolutions": CurationList(
         "gold",

@@ -4,8 +4,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
+from grow.genre_graph.selection import attributed_songs, require_reference_graph
+from grow.genre_graph.service import DATASET_KEY
+from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
@@ -17,6 +21,7 @@ from grow.serializer.model.song.output.full import SongFullSerializer
 from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
+from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_ORDERING,
@@ -26,7 +31,7 @@ from grow.view.pagination.OptionalTotalPagination import (
 )
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
-from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
+from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
@@ -34,6 +39,7 @@ from grow.youtube_regions import viewer_country
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
     throttle_scope = "song-search"
+    upload_assignment_part = assignment_part_upload_action("songs/")
 
     def __init__(self, **kwargs):
         super().__init__(
@@ -69,18 +75,27 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         return response
 
     def list(self, *args, **kwargs):
-        # Genreless songs are stored for later linking but have no place in the tree.
-        queryset = self.get_queryset().filter(genre__isnull=False)
+        require_reference_graph()
+        with graph_read_transaction(key=DATASET_KEY) as dataset:
+            response = self._list_graph_songs()
+            response["X-Genre-Graph-Revision"] = str(dataset.revision)
+            response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
+            return response
+
+    def _list_graph_songs(self):
+        # Songs without semantic attributions remain available for later curation.
+        queryset = attributed_songs(self.get_queryset())
         if wants_cursor(self.request):
             params = self.request.query_params
             if "genre" not in params or "ordering" in params or "from" in params:
                 raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
-            # (genre, uuid) matches the track index, so each page is one range scan instead of a sort of the subtree.
+            # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
 
+    @graph_snapshot
     def retrieve(self, *args, **kwargs):
         return self._handle_retrieve()
 
@@ -140,5 +155,11 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         commit_import_run,
         import_run_status,
     ) = bulk_import_run_actions(
-        "songs/", ImportRun.Kind.SONGS, SongImportStaging, load_part, merge_song_import_run, "musicbrainz_recording_id"
+        "songs/",
+        ImportRun.Kind.SONGS,
+        SongImportStaging,
+        load_part,
+        merge_song_import_run,
+        "musicbrainz_recording_id",
+        extra_staging_models=(SongAssignmentStaging,),
     )
