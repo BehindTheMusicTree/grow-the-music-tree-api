@@ -145,4 +145,4 @@ only pinned exception is `UNRESOLVED_GENRE_NAMES = {"deathcore": 5}` (five songs
 without genre; the seed fails if the set differs). Remove the exceptions once the
 producer exports the Gold graph and assignments.
 
-A genre's song list includes unassigned songs; server-side undo is tracked in #505.
+A genre's song list includes unassigned songs; `assign-genre` returns an `undoToken`, and `POST library/songs/assign-genre/undo/` restores the snapshot (#505).

@@ -39,6 +39,7 @@ from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.model.song.Song import Song
+from grow.model.song.SongGenreUndo import SongGenreUndo
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.model.user.UserProfile import UserProfile
@@ -86,6 +87,7 @@ __all__ = [
     "RegionMapSnapshot",
     "Song",
     "SongAssignmentStaging",
+    "SongGenreUndo",
     "SongImportStaging",
     "SongSearch",
     "SongSearchState",

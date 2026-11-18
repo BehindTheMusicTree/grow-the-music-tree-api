@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.permissions import AllowAny
@@ -15,7 +16,11 @@ from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
 from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import SearchCache, cached_search
-from grow.serializer.model.song.input import SongAssignGenreSerializer, SongYoutubePatchSerializer
+from grow.serializer.model.song.input import (
+    SongAssignGenreSerializer,
+    SongAssignGenreUndoSerializer,
+    SongYoutubePatchSerializer,
+)
 from grow.serializer.model.song.output.detailed import SongDetailedSerializer
 from grow.serializer.model.song.output.full import SongFullSerializer
 from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
@@ -116,10 +121,17 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     def assign_genre(self, request):
         serializer = SongAssignGenreSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        previous = SongCurationManager().assign_genre(
+        previous, undo_token = SongCurationManager().assign_genre(
             serializer.validated_data["songs"], serializer.validated_data["genre"], request.user
         )
-        return Response({"previous": previous})
+        return Response({"previous": previous, "undo_token": undo_token})
+
+    @action(detail=False, methods=["post"], url_path="assign-genre/undo", permission_classes=[IsAdmin])
+    def undo_assign_genre(self, request):
+        serializer = SongAssignGenreUndoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        SongCurationManager().undo_assign_genre(serializer.validated_data["undo_token"], request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=False,
