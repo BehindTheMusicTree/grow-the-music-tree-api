@@ -38,6 +38,7 @@ class SongCurationManager:
     def assign_genre(self, songs: list[Song], genre: Genre | None, actor: Any) -> list[dict[str, Any]]:
         """Links, moves or (genre None) unlinks songs; returns each one's previous genre uuid for Undo, which
         can't restore a genre without a wikidata id since no curation list names it (`undoable` false)."""
+        lock_catalogue_sources()
         lock_writes(CurationEntry.objects.all())
         if genre is not None and genre.wikidata_id is None:
             raise invalid("genre", "Only a wikidata-backed genre can be assigned; no curation list names the others")
@@ -68,7 +69,6 @@ class SongCurationManager:
     @transaction.atomic
     def update_youtube(self, song: Song, fields: dict[str, Any], actor: Any) -> Song:
         """Sets the video and/or its unplayable reason. Without an explicit reason, YouTube decides it."""
-        lock_writes(CurationEntry.objects.all())
         key = self._stable_key(song)
         video_id = fields.get("youtube_video_id", song.youtube_video_id)
         reason = fields.get("youtube_unplayable_reason")
@@ -85,6 +85,7 @@ class SongCurationManager:
         # The import's locked-row decision reads is_manually_edited, and an unchanged video skips update_instance's
         # gate. Taken after the YouTube call so the global gate is never held across the network.
         lock_catalogue_sources()
+        lock_writes(CurationEntry.objects.all())
         explicit = fields.get("youtube_unplayable_reason") or ""
         upsert_admin_rule(
             "recording_youtube_video",

@@ -9,6 +9,7 @@ from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager impo
     TrackMixinWithInternalNameManager,
 )
 
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.search.trigram import fold_query, match_rank
 
 if TYPE_CHECKING:
@@ -94,6 +95,8 @@ class ArtistManager(TrackMixinWithInternalNameManager["Artist"]):
         from the_music_tree_genre_kit.track.Track import Track
 
         from grow.model.album.Album import Album
+
+        lock_catalogue_sources(using=self.db)
 
         # Keep deletion order for rollback tests
 

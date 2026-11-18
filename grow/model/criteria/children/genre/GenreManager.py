@@ -529,6 +529,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def update_instance(self, instance: Genre, actor: Any = None, **kwargs) -> Genre:
+        lock_catalogue_sources(using=self.db)
         self._lock_curation_writes(actor)
         was_required_root = self._is_required_root(instance)
         old_side = instance.side or CriteriaSide.CORE
@@ -592,6 +593,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
     @transaction.atomic
     def set_secondary_parent(self, instance: Genre, parent: Genre, *, add: bool, actor: Any) -> Genre:
+        lock_catalogue_sources(using=self.db)
         self._lock_curation_writes(actor)
         if parent.pk == instance.pk:
             raise self._invalid("parent", "A genre can't be its own secondary parent")
@@ -635,6 +637,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def alias_instance(self, source: Genre, target: Genre, actor: Any) -> Genre:
         """Merges a MusicBrainz-only genre into the wikidata genre it names: the rule lets the next import match
         them, and the source's songs, essential songs and children move to the target before it is deleted."""
+        lock_catalogue_sources(using=self.db)
         self._lock_curation_writes(actor)
         self.alias_counts(source, target)
         upsert_admin_rule(

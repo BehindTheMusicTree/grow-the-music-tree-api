@@ -21,6 +21,7 @@ class TrackManager(AbstractTrackManager[T]):
 
     def create(self, actor: Any = None, **kwargs) -> T:
         with transaction.atomic():
+            lock_catalogue_sources(using=self.db)
             instance = super().create(actor=actor, **kwargs)
             self._refresh_search(instance)
         return instance
