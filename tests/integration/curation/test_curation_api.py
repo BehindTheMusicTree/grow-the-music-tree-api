@@ -435,6 +435,26 @@ class TestCase(AppTestCase):
             {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
         ]
 
+    def test_overview_status_override_then_status_enumerated(self):
+        row = {"item_id": "Q1", "status": "historical", "reason": "testing"}
+
+        first = self._create(row, "overview_status_overrides")
+        local = self._create({**row, "item_id": "LOCAL:region-europe"}, "overview_status_overrides")
+        duplicate = self._create(row, "overview_status_overrides")
+        bad_status = self._create({**row, "item_id": "Q2", "status": "former"}, "overview_status_overrides")
+
+        assert first.status_code == status.HTTP_201_CREATED
+        assert local.status_code == status.HTTP_201_CREATED
+        assert duplicate.status_code == status.HTTP_400_BAD_REQUEST
+        assert bad_status.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_export_then_overview_status_override_rows(self):
+        self._create({"item_id": "Q1", "status": "current", "reason": "testing"}, "overview_status_overrides")
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["overview_status_overrides"] == [{"item_id": "Q1", "status": "current", "reason": "testing"}]
+
     def test_tradition_link_override_then_kind_and_action_enumerated(self):
         row = {
             "from_wikidata_id": "Q1",
