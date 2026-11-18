@@ -1,6 +1,6 @@
 """
 A song's static search rank, stored in `grow_song_search.rank_score` and computed from the song (`s`) and its track
-(`t`) rows. Having a genre weighs most, then being playable, then popularity: MusicBrainz recordings grouped into the
+(`t`) rows and its membership (`m`). Having a genre weighs most, then being playable, then popularity: MusicBrainz recordings grouped into the
 song (live versions, remasters, compilations) on a log scale, and YouTube views on a log10 scale, each capped. The caps
 keep one huge number from drowning the other signals.
 """
@@ -14,7 +14,8 @@ VIEW_COUNT_CAP = 499
 
 # Same predicate as TrackManager._is_playable and PLAYABLE in grow/model/song/playable.py.
 PLAYABLE_SQL = "(s.youtube_video_id IS NOT NULL AND s.youtube_unplayable_reason IS NULL)"
-HAS_GENRE_SQL = "(t.genre_id IS NOT NULL)"
+# `m` is the song's row in grow_song_membership: the dataset assignment once one exists, the legacy column before.
+HAS_GENRE_SQL = "(m.genre_id IS NOT NULL)"
 
 RANK_SCORE_SQL = f"""(
     CASE WHEN {HAS_GENRE_SQL} THEN {GENRE_WEIGHT} ELSE 0 END

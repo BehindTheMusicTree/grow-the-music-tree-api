@@ -30,6 +30,7 @@ PROJECTION = f"""SELECT t.uuid AS track_id,
     {RANK_SCORE_SQL} AS rank_score
 FROM grow_song s
 JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
+JOIN grow_song_membership m ON m.track_id = t.uuid
 LEFT JOIN LATERAL (
     SELECT string_agg(ar.name, ' ' ORDER BY ta.id) AS names
     FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist ar ON ar.uuid = ta.artist_id

@@ -19,6 +19,7 @@ from grow.model.song_search.SongSearchState import SongSearchState
 from grow.serializer.model.song.search import SEARCH_LIMIT_MAX
 from grow.song_search.rebuild import queue_song_search_build, rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestSongSearchValidation(AppTestCase):
@@ -272,6 +273,18 @@ class TestSongSearch(AppTestCase):
         Genre.objects.delete_instance(grunge)
 
         assert SongSearch.objects.get(pk=song.pk).has_genre is False
+        assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+
+    def test_dataset_assignment_decides_has_genre_not_the_column(self):
+        legacy = self.factory.create_genre("Legacy Genre")
+        rock = self.factory.create_genre("Assigned Genre")
+        assigned = self.song("Assigned", genre=legacy)
+        unassigned = self.song("Unassigned", genre=legacy)
+        install_song_graph({legacy: [], rock: [assigned]})
+        rebuild_song_search()
+
+        assert SongSearch.objects.get(pk=assigned.pk).has_genre is True
+        assert SongSearch.objects.get(pk=unassigned.pk).has_genre is False
         assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
 
     def test_rebuild_swaps_table_keeping_indexes_and_marks_ready(self):
