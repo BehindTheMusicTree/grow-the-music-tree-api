@@ -183,6 +183,8 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     editor = connection.schema_editor()
     before = list(GenreGraphAttribution.objects.values_list("pk", "track_id", "node_id"))
     catalogue = import_module("grow.migrations.0141_semantic_catalogue_projection")
+    playlists = import_module("grow.migrations.0142_semantic_playlist_projection")
+    playlists.backwards(apps, editor)
     catalogue.backwards(apps, editor)
     migration.drop_boundary(apps, editor)
     with connection.cursor() as cursor:
@@ -191,6 +193,7 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     assert Song.objects.get(pk=song.pk).genre_id == legacy.pk
     migration.create_boundary(apps, editor)
     catalogue.forwards(apps, editor)
+    playlists.forwards(apps, editor)
     assert SongMembership.objects.get(pk=song.pk).genre_id == semantic.pk
 
 
@@ -203,6 +206,8 @@ def test_boundary_installation_rejects_existing_multiple_direct_genres():
     migration = import_module("grow.migrations.0140_song_membership_boundary")
     editor = connection.schema_editor()
     catalogue = import_module("grow.migrations.0141_semantic_catalogue_projection")
+    playlists = import_module("grow.migrations.0142_semantic_playlist_projection")
+    playlists.backwards(apps, editor)
     catalogue.backwards(apps, editor)
     migration.drop_boundary(apps, editor)
     extra = GenreGraphAttribution.objects.create(
@@ -215,6 +220,7 @@ def test_boundary_installation_rejects_existing_multiple_direct_genres():
     extra.delete()
     migration.create_boundary(apps, editor)
     catalogue.forwards(apps, editor)
+    playlists.forwards(apps, editor)
     assert SongMembership.objects.get(pk=song.pk).genre_id == first.pk
 
 
@@ -227,6 +233,9 @@ def test_boundary_ddl_and_assignments_roll_back_together():
 
     def reverse_and_abort():
         with transaction.atomic():
+            import_module("grow.migrations.0142_semantic_playlist_projection").backwards(
+                apps, connection.schema_editor()
+            )
             import_module("grow.migrations.0141_semantic_catalogue_projection").backwards(
                 apps, connection.schema_editor()
             )

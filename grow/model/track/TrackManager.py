@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from django.db import transaction
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.track.AbstractTrackManager import AbstractTrackManager
 
 from grow.genre_music.source_gate import lock_catalogue_sources
@@ -42,8 +43,34 @@ class TrackManager(AbstractTrackManager[T]):
 
     def record_semantic_genre_change(self, instance: T, *, old_genre, actor: Any = None) -> None:
         """Side effects of a genre change made through attributions, where no column changed."""
+        from grow.genre_graph.service import song_genre
+
         self._on_track_genre_changed(instance, old_genre=old_genre, actor=actor)
+        if self._is_playable(instance):
+            old_playlists = super()._genre_playlists(instance, old_genre)
+            new_playlists = super()._genre_playlists(instance, song_genre(instance))
+            present = set(
+                TrackPlaylistRel.objects.filter(user=instance.user, track=instance).values_list(
+                    "playlist_id", flat=True
+                )
+            )
+            for playlist_pk in new_playlists.keys() - old_playlists.keys() - present:
+                TrackPlaylistRel.objects.create(user=instance.user, playlist=new_playlists[playlist_pk], track=instance)
+            self._remove_from_playlists(
+                instance,
+                {pk: old_playlists[pk] for pk in (old_playlists.keys() - new_playlists.keys()) & present},
+                old_genre,
+            )
         self._refresh_search(instance)
+
+    def _genre_playlists(self, instance: T, genre) -> dict[Any, Any]:
+        # The column no longer decides the genre once a dataset assigns it: a request for the column's genre
+        # means the song's current one.
+        if genre is not None and genre.pk == instance.genre_id:
+            from grow.genre_graph.service import song_genre
+
+            genre = song_genre(instance)
+        return super()._genre_playlists(instance, genre)
 
     def _on_updated(self, old_instance: T, updated_instance: T) -> None:
         self._refresh_search(updated_instance)
