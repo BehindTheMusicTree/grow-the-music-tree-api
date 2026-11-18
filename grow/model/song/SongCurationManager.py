@@ -9,7 +9,8 @@ from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
-from grow.curation.rows import lock_writes
+from grow.curation.rows import InvalidRow, lock_writes
+from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
@@ -104,6 +105,8 @@ class SongCurationManager:
         """Restores what `assign_genre` overwrote, for the whole batch or not at all: 409 when any song's assignment
         changed since (import, another admin). The token is single-use and only its creator can spend it."""
         lock_catalogue_sources()
+        # Documented order: gate, dataset, curation rows, then track rows (a merge holds the dataset before tracks).
+        GenreGraphDataset.objects.select_for_update().filter(pk=DATASET_KEY).first()
         lock_writes(CurationEntry.objects.all())
         undo = SongGenreUndo.objects.select_for_update().filter(token=token, actor=actor).first()
         if undo is None:
@@ -133,7 +136,10 @@ class SongCurationManager:
                 Song.objects.update_instance(song, actor=actor, genre=old)
             rule = CurationEntry.objects.filter(user=None, list_name=SONG_GENRE_LIST, key=entry["key"]).first()
             if entry["rule"] is not None:
-                CurationEntry.objects.upsert(SONG_GENRE_LIST, entry["rule"], actor=actor)
+                try:
+                    CurationEntry.objects.upsert(SONG_GENRE_LIST, entry["rule"], actor=actor)
+                except InvalidRow as e:
+                    raise UndoConflict from e
             elif rule is not None:
                 CurationEntry.objects.delete_instance(rule, actor=actor)
             Song.objects.filter(pk=song.pk).update(is_manually_edited=entry["was_manually_edited"])
