@@ -132,7 +132,8 @@ class TestCatalogueProjection(AppTestCase):
         with connection.cursor() as cursor:
             cursor.execute("UPDATE grow_song SET track_id = %s WHERE track_id = %s", [encode(two_pk), encode(one.pk)])
         self.assert_projection()
-        assert catalogue_bucket_counts() == {b.pk: 1}
+        # The genre now lives on the grow_song row, so relinking its track keeps it.
+        assert catalogue_bucket_counts() == {a.pk: 1}
         # The first deleted half removes the join; the second must not decrement twice.
         TrackPlaylistRel.objects.filter(track_id=two_pk).delete()
         with connection.cursor() as cursor:
@@ -208,11 +209,14 @@ class TestCatalogueProjection(AppTestCase):
         song = self.model_fixture_factory.create_song("Song", genre=genre)
         migration = import_module("grow.migrations.0115_maintain_genre_catalogue_counts")
         editor = connection.schema_editor()
+        semantic = import_module("grow.migrations.0141_semantic_catalogue_projection")
+        semantic.backwards(apps, editor)
         migration.drop(apps, editor)
         Track.objects.filter(pk=song.pk).update(genre=None)
         assert stored_catalogue_bucket_counts() != catalogue_bucket_counts()
         GenreCatalogueCount.objects.all().delete()
         migration.create(apps, editor)
+        semantic.forwards(apps, editor)
         self.assert_projection()
 
     def test_genre_delete_and_alias_preserve_source_counts(self):

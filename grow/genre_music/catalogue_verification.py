@@ -20,7 +20,7 @@ def catalogue_bucket_counts(*, using: str = "default") -> dict[Bucket, int]:
         Song.objects.using(using)
         .filter(user__isnull=True)
         .order_by()
-        .values_list("genre_id")
+        .values_list("membership_genre_id")
         .annotate(count=Count("pk"))
     )
 

@@ -6,6 +6,7 @@ from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 from the_music_tree_genre_kit.genre_graph.assignments import register_evidence
 from the_music_tree_genre_kit.genre_graph.models import (
+    GenreGraphAssignmentState,
     GenreGraphAttributionRevision,
     GenreGraphDataset,
     GenreGraphNode,
@@ -284,6 +285,37 @@ def write_song_attributions(
         )
         dataset.refresh_from_db()
         return dataset
+
+
+@transaction.atomic
+def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> bool:
+    """Single writer entry for a song's direct genre. With a reference dataset installed the attribution is the only
+    authority (`Track.genre_id` is left alone) and True is returned; without one, False tells the caller to use the
+    legacy column. Gate and dataset locks are taken here, before the song row, in the canonical order."""
+    lock_catalogue_sources()
+    dataset = GenreGraphDataset.objects.select_for_update().filter(pk=DATASET_KEY).first()
+    if dataset is None:
+        return False
+    attributions = {}
+    if genre is not None:
+        node = genre.graph_node
+        if node is None or not node.is_active:
+            raise GraphValidationError(f"{genre.name} has no active node in the reference graph")
+        attributions[node.identity] = [provenance]
+    state = GenreGraphAssignmentState.objects.filter(dataset=dataset, track_id=song.pk).first()
+    write_song_attributions(
+        song_id=song.pk,
+        attributions=attributions,
+        expected_revision=dataset.revision,
+        expected_membership_revision=dataset.membership_revision,
+        expected_assignment_revision=state.revision if state else None,
+    )
+    return True
+
+
+def song_genre(song: Song) -> Genre | None:
+    """The song's effective genre, materialised on `grow_song.genre_id` (legacy column before the dataset)."""
+    return Song.objects.select_related("membership_genre").get(pk=song.pk).membership_genre
 
 
 @transaction.atomic

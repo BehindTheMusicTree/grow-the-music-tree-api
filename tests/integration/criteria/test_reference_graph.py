@@ -425,6 +425,16 @@ def test_song_selection_requires_graph_and_identity_mapping(payload):
     assert not select_songs(Song.objects.all(), genre_id=genre.pk, coverage=CriteriaCoverage.ONLY).exists()
 
 
+def test_song_list_keeps_unassigned_and_unplayable_songs(payload):
+    factory = ModelFixtureFactory(None)
+    songs = [factory.create_song(f"Unassigned {index}", None, youtube_video_id=None) for index in range(2)]
+    dataset = import_graph(payload)
+    response = APIClient().get(reverse("song-list") + "?with_total=false&page=1")
+    assert response.status_code == 200, response.content
+    assert {row["uuid"] for row in response.json()["results"]} == {str(song.pk) for song in songs}
+    assert response["X-Genre-Membership-Revision"] == str(dataset.membership_revision)
+
+
 def test_song_list_and_cursor_include_graph_only_assignments(payload):
     factory = ModelFixtureFactory(None)
     songs = [factory.create_song(f"Graph song {index}", None) for index in range(3)]

@@ -8,6 +8,7 @@ from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportPart import ImportPart
+from grow.model.song.Song import Song
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from tests.integration.track.song.test_song_import_runs import SONG, _gzip_ndjson
 from tests.utils.AppTestCase import AppTestCase
@@ -78,9 +79,9 @@ class TestSemanticImportProtocol(AppTestCase):
         response = self.api_client.put(path=path, data=payload, format=None, content_type="application/x-ndjson")
         assert response.status_code == 200
         response = self.api_client.post(path=commit)
-        assert response.status_code == 400
-        assert "semantic assignment imports are required" in str(response.json())
-        assert BulkImportRun.objects.get(pk=run_id).committed_on is None
+        assert response.status_code == 202
+        assert not BulkImportRun.objects.filter(pk=run_id).exists()
+        assert Song.objects.filter(musicbrainz_recording_id=SONG["musicbrainz_recording_id"]).exists()
 
     def test_invalid_part_counts_fail_before_abandonment(self):
         for parts in ({"songs": 1}, {"songs": 0, "assignments": 0}, {"songs": True, "assignments": 1}):

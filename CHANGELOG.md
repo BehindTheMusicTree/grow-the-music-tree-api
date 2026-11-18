@@ -12,8 +12,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.
+- Song genre membership comes from the `grow` dataset: the effective genre is materialized in `grow_song.genre_id` (`Song.membership_genre`), maintained by database triggers from dataset assignments, node state and criteria bindings; counts and buckets read it directly. Imports and writers no longer write the kit's `Track.genre`.
+- The Perf and dev seeds convert the pinned Gold trees into a reference graph and assignments (approximate, no polygenre, pinned `deathcore` exception).
+
 ### Removed
 
+- Legacy (non reviewed) songs import runs.
 - Drop the tracked `.agent-plans/.gitignore`: plans now live in the common git directory.
 
 ## [18.0.0] - 2026-11-18
@@ -34,6 +41,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - Make the catalogue restore verifications finish on tables restored without statistics: they count violations instead of probing for a first row, which planned a nested-loop anti join that never completed at catalogue scale. A policy test guards the SQL.
+- Derive direct song catalogue buckets from semantic assignments, including unassigned songs, with transactional projection maintenance and singular database membership enforcement. Revalidate persisted semantic import metadata at worker boundaries.
+- Adopt genre-kit 0.64.0 (includes 0.63.2) to preserve singular assignments and archived evidence during retirement.
 - Enforce at most one directly assigned genre per song in semantic uploads, publication, curation and restores; retain multiple evidence decisions for that genre and inherited semantic parents.
 - Serialize staged uploads with commit and abandonment, and clean every staging stream atomically after success, failure or recovered publication. PostgreSQL thread tests cover uploads racing with commit, replacement and abandonment.
 - Reject legacy song imports when a semantic reference graph is active, checking again under the publication gate so an upload cannot overwrite a graph activated while it was staged.

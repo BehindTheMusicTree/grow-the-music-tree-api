@@ -80,7 +80,7 @@ def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
 
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
-def test_song_import_waits_for_graph_activation_then_rejects_legacy_publication():
+def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publication():
     payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
     run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
     backend = Queue()
@@ -90,7 +90,7 @@ def test_song_import_waits_for_graph_activation_then_rejects_legacy_publication(
             with connections["default"].cursor() as cursor:
                 cursor.execute("SELECT pg_backend_pid()")
                 backend.put(cursor.fetchone()[0])
-            with pytest.raises(ValidationError, match="semantic assignment imports are required"):
+            with pytest.raises(ValidationError, match="Song imports require"):
                 _merge(run.pk, {}, False)
         finally:
             connections.close_all()

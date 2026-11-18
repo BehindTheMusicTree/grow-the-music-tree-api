@@ -10,6 +10,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 
 from grow.bulk_import.analyze import analyze
 from grow.bulk_import.lifecycle import execute_merge
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
@@ -69,6 +70,7 @@ def merge_genre_trees_import_run(
 
 
 def _merge(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
+    lock_catalogue_sources()
     payload = GenreTreeImportPayload.objects.get(run_id=run_id).payload
     trees = payload["trees"]
     user = get_user_model().objects.get(pk=user_id) if user_id is not None else None

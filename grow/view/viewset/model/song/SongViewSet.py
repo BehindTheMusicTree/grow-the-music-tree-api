@@ -7,7 +7,7 @@ from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
-from grow.genre_graph.selection import attributed_songs, require_reference_graph
+from grow.genre_graph.selection import require_reference_graph
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.import_run.ImportRun import ImportRun
@@ -84,7 +84,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
 
     def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
-        queryset = attributed_songs(self.get_queryset())
+        queryset = self.get_queryset()
         if wants_cursor(self.request):
             params = self.request.query_params
             if "genre" not in params or "ordering" in params or "from" in params:
