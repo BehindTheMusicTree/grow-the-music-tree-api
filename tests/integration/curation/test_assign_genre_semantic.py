@@ -2,7 +2,7 @@ from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution
 
-from grow.genre_graph.service import song_genre
+from grow.genre_graph.service import song_attribution_state, song_genre
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.song_graph import install_song_graph
@@ -31,7 +31,7 @@ class TestCase(AppTestCase):
         response = self._assign([song], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None, "undoable": True}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None}]
         assert song_genre(Song.objects.get(pk=song.pk)) == rock
         assert Song.objects.get(pk=song.pk).genre_id is None
 
@@ -41,7 +41,7 @@ class TestCase(AppTestCase):
 
         response = self._assign([song], jazz)
 
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(rock.uuid), "undoable": True}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(rock.uuid)}]
         assert song_genre(song) == jazz
         assert GenreGraphAttribution.objects.filter(track_id=song.pk).count() == 1
 
@@ -72,3 +72,36 @@ class TestCase(AppTestCase):
         assert self._assign([song], rock).status_code == status.HTTP_200_OK
         assert Song.objects.get(pk=song.pk).genre_id == rock.pk
         assert song_genre(song) == rock
+
+    def test_with_dataset_then_undo_restores_original_attribution_and_provenance(self):
+        rock, jazz, song = self._setup()
+        install_song_graph({rock: [song], jazz: []})
+        before = song_attribution_state(song)
+
+        response = self._assign([song], jazz)
+        assert song_genre(song) == jazz
+
+        undo = self.api_client.post(
+            path=reverse("song-undo-assign-genre"), data={"undoToken": response.json()["undoToken"]}, format="json"
+        )
+
+        assert undo.status_code == status.HTTP_204_NO_CONTENT
+        assert song_genre(song) == rock
+        assert song_attribution_state(song)[0] == before[0]
+
+    def test_with_dataset_then_undo_after_another_write_is_409_for_the_whole_batch(self):
+        rock, jazz, song = self._setup()
+        other = self.model_fixture_factory.create_song(
+            "Other", None, musicbrainz_recording_id="22222222-2222-4222-8222-222222222222"
+        )
+        install_song_graph({rock: [], jazz: []})
+        response = self._assign([song, other], rock)
+        self._assign([other], jazz)
+
+        undo = self.api_client.post(
+            path=reverse("song-undo-assign-genre"), data={"undoToken": response.json()["undoToken"]}, format="json"
+        )
+
+        assert undo.status_code == status.HTTP_409_CONFLICT
+        assert song_genre(song) == rock
+        assert song_genre(other) == jazz

@@ -12,7 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `POST library/songs/assign-genre/undo/` `{undoToken}` restores what an assign-genre call overwrote (#505): each song's previous attributions with their provenance, and the previous `song_genre` curation rule or its absence. It answers 409 for the whole batch when any song's assignment changed since, and a token is single-use and only its creator can spend it. New table `grow_song_genre_undo` (migration `0145`); tests cover provenance restoration, rule restoration, the batch 409, token reuse and the legacy (no dataset) path.
+
 ### Changed
+
+- **Breaking:** `assign-genre` returns `undoToken` and `previous` items drop `undoable`, since every case is now exactly undoable; the frontend must call the undo endpoint instead of re-assigning the previous genre.
 
 - Adopt the-music-tree-genre-kit v0.65.0, which enforces one graph node per track and dataset (`UNIQUE(dataset_id, track_id)`): migration `0144` drops grow's own `grow_single_assignment_guard`, and the songs merge joins attributions on `dataset_id`. Migration 0022 of the kit fails, naming dataset and track, if a track holds several nodes in one dataset.
 - **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.

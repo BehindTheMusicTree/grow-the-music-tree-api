@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from django.db import connection, transaction
 from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
-from the_music_tree_genre_kit.genre_graph.assignments import register_evidence
+from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot, register_evidence
 from the_music_tree_genre_kit.genre_graph.models import (
     GenreGraphAssignmentState,
     GenreGraphAttributionRevision,
@@ -316,6 +316,30 @@ def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> bool
 def song_genre(song: Song) -> Genre | None:
     """The song's effective genre, materialised on `grow_song.genre_id` (legacy column before the dataset)."""
     return Song.objects.select_related("membership_genre").get(pk=song.pk).membership_genre
+
+
+def song_attribution_state(song: Song) -> tuple[dict, UUID | None] | None:
+    """The song's current attributions and assignment revision, or None before the reference dataset exists."""
+    dataset = GenreGraphDataset.objects.filter(pk=DATASET_KEY).first()
+    if dataset is None:
+        return None
+    state = GenreGraphAssignmentState.objects.filter(dataset=dataset, track_id=song.pk).first()
+    return assignment_snapshot(dataset=dataset, track_id=song.pk), state.revision if state else None
+
+
+@transaction.atomic
+def restore_song_snapshot(song: Song, attributions: dict, *, expected_assignment_revision: UUID | None) -> None:
+    """Puts back attributions captured by `song_attribution_state`; GraphRevisionConflict when the song's assignment
+    revision moved since `expected_assignment_revision`."""
+    lock_catalogue_sources()
+    dataset = GenreGraphDataset.objects.select_for_update().get(pk=DATASET_KEY)
+    write_song_attributions(
+        song_id=song.pk,
+        attributions=attributions,
+        expected_revision=dataset.revision,
+        expected_membership_revision=dataset.membership_revision,
+        expected_assignment_revision=expected_assignment_revision,
+    )
 
 
 @transaction.atomic
