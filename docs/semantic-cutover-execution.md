@@ -1,7 +1,7 @@
 # Semantic catalogue cutover execution
 
 Resumed 15 November 2026 after PR #492 merged at
-`389dd1b13061492173e5eb377f6e42ba43b6ec97`. Implementation remains incomplete.
+`389dd1b13061492173e5eb377f6e42ba43b6ec97`. The membership cutover merged in PR #503; the producer side remains.
 
 ## Invariant and scope
 
@@ -88,48 +88,41 @@ budgets. Production-scale investigation is staging read-only through diag-vps.
 Obtain independent review through create-pr-and-fix-ci before pushing nontrivial
 implementation, deliver a ready PR and retain auto-merge under the existing policy.
 
-## Current progress
+## Current state: materialized song genre
 
-- Recovered into the main checkout on `feature/semantic-assignment-cutover-resumed`
-  at the user's explicit instruction; preserve the original worktree as recovery material.
-- Queried the existing graph for discovery and inspected current merge,
-  publication, selection, projection and direct writer entry points.
-- Confirmed the worker still calls `require_legacy_import_contract()`
-  unconditionally; attribution write/restore currently do not refresh the legacy
-  catalogue/search projection paths.
-- The uncommitted membership boundary and import-contract checks have focused
-  SQLite and PostgreSQL coverage. The boundary is not yet connected to the
-  catalogue projections, remaining readers or all writers.
-- Catalogue and playlist membership verification now aggregate through the
-  boundary. Focused checks passed on SQLite (33 tests) and PostgreSQL (10 tests);
-  projection maintenance itself still uses the legacy source.
-- Genre-kit PR #279 merged the retirement fix; PostgreSQL CI exposed a test
-  setup error after auto-merge. Follow-up PR #280 fixed it and passed both
-  PostgreSQL driver jobs before merging. Kit v0.63.2 was approved, released in PR #281 and back-merged in PR #282; the Grow dependency and lockfile are updated locally.
+The effective genre of a song is stored in `grow_song.genre_id`
+(`Song.membership_genre`), not computed at read time (a read-time view made `Perf`
+red). Migration `0140` installs the derivation (`grow_effective_genre`), the
+triggers that keep the column current, the single-assignment guard and the
+backfill; `0141`/`0142` derive the catalogue counts and buckets from the column.
 
-## Resumed boundary validation
+- Derivation: without a `grow` dataset, the song's `Track.genre`; with one, the
+  genre bound to the song's attribution on an active `grow` node, else `NULL`
+  (a retired assignment never falls back to the legacy genre).
+- Maintenance: triggers on attributions, nodes, criteria bindings, datasets and
+  `Track.genre` refresh the affected songs; a `BEFORE INSERT` trigger fills new
+  songs. The gate trigger takes the catalogue advisory lock (the one behind
+  `lock_catalogue_sources`) and requires READ COMMITTED, so writers serialize.
+  Writers that bypass the managed service path (admin, raw SQL) rely on the same
+  triggers but not on the service lock order.
+- Direct writes: a write to `genre_id` that differs from the derived value is
+  rejected (`23514`) at trigger depth 1; clearing it (a genre delete's
+  `SET NULL`) and restating the derived value are allowed. Once a dataset exists,
+  `Track.genre` is ignored for membership.
+- Data-model guards: an attributed node cannot be deactivated, a criteria's graph
+  binding cannot be rebound, and a dataset with nodes cannot be deleted, so those
+  trigger branches are reachable only after the attributions are removed.
+- Verification: `song_membership_drift()` (`grow/genre_music/catalogue_verification.py`)
+  recomputes the genre of every song in Python and reports songs whose stored
+  column differs; `verify_catalogue_counts` checks the buckets.
+- Tests: `tests/integration/criteria/test_song_membership_boundary.py` and
+  `test_song_membership_triggers.py` (node retirement/reactivation, rebind and
+  dataset guards, drift, direct-write rejection, attribution-versus-retirement
+  concurrency on PostgreSQL).
 
-- PostgreSQL boundary suite: 15 passed, including concurrent raw writes and a
-  reader snapshot held across committed reassignment. Refresh the fixture dataset
-  before capturing the reviewed membership revision: assignment installation
-  invalidates the revision on the database row. Worker exceptions now surface
-  directly if the concurrency test fails to observe a commit.
-- Focused Ruff lint/format and Django migration drift checks passed. PostgreSQL
-  concurrency tests must be excluded from SQLite runs with `-m "not postgres"`.
-- Projection migration design and implementation remain the next dependency; do
-  not activate the graph or remove the import publication barrier.
-
-## Catalogue projection draft
-
-Migration 0140 reconstructs pre-statement membership from transition rows and
-computes direct bucket deltas only for affected tracks. Dataset activation and
-removal require the full population; ordinary revision changes skip this work.
-Both PostgreSQL statement triggers and SQLite row triggers are included, with a
-reverse path to the legacy projection. Focused regression tests cover raw
-reassignment, clearing, obsolete legacy writes, deletion and rollback. Validation
-runs in draft PR CI at the user's request. Playlist and search projections and
-semantic bulk publication remain incomplete; keep this PR draft and retain the
-publication barrier until the complete cutover has passed review and CI.
+Follow-ups: genre-kit `dataset_id` with `UNIQUE(dataset_id, track_id)` to replace
+`grow_single_assignment_guard`; the pipelines producer for the Gold graph and
+assignments.
 
 ## Reviewed song runs and Perf seed
 
