@@ -274,15 +274,15 @@ def drop_boundary(apps, schema_editor):
         for table, events in sources.items():
             for event in events:
                 name = f"grow_song_genre_{table.removeprefix('the_music_tree_genre_kit_')}_{event}"
-                schema_editor.execute(f"DROP TRIGGER {name} ON {table}")
-                schema_editor.execute(f"DROP FUNCTION {name}()")
+                schema_editor.execute(f"DROP TRIGGER IF EXISTS {name} ON {table}")
+                schema_editor.execute(f"DROP FUNCTION IF EXISTS {name}()")
         for event in ("insert", "delete"):
-            schema_editor.execute(f"DROP TRIGGER grow_song_genre_dataset_{event} ON {DATASET}")
+            schema_editor.execute(f"DROP TRIGGER IF EXISTS grow_song_genre_dataset_{event} ON {DATASET}")
         for table in (ATTRIBUTION, NODE, DATASET):
-            schema_editor.execute(f"DROP TRIGGER grow_song_genre_gate ON {table}")
-        schema_editor.execute(f"DROP TRIGGER grow_single_assignment_guard ON {ATTRIBUTION}")
-        schema_editor.execute(f"DROP TRIGGER grow_song_genre_fill ON {SONG}")
-        schema_editor.execute(f"DROP TRIGGER grow_song_genre_guard ON {SONG}")
+            schema_editor.execute(f"DROP TRIGGER IF EXISTS grow_song_genre_gate ON {table}")
+        schema_editor.execute(f"DROP TRIGGER IF EXISTS grow_single_assignment_guard ON {ATTRIBUTION}")
+        schema_editor.execute(f"DROP TRIGGER IF EXISTS grow_song_genre_fill ON {SONG}")
+        schema_editor.execute(f"DROP TRIGGER IF EXISTS grow_song_genre_guard ON {SONG}")
         for function in (
             "grow_song_genre_dataset()",
             "grow_song_genre_gate()",
@@ -291,7 +291,7 @@ def drop_boundary(apps, schema_editor):
             "grow_song_genre_guard()",
             "grow_effective_genre(uuid)",
         ):
-            schema_editor.execute(f"DROP FUNCTION {function}")
+            schema_editor.execute(f"DROP FUNCTION IF EXISTS {function}")
     else:
         for name in (
             "grow_song_genre_fill",

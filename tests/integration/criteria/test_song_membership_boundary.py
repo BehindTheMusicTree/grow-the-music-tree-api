@@ -220,7 +220,7 @@ def test_boundary_ddl_and_assignments_roll_back_together():
 
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_raw_assignments_serialize_before_single_genre_check():
+def test_concurrent_raw_assignments_leave_a_single_attribution():
     CriteriaType.objects.get_or_create(pk=0, defaults={"label": "genre"})
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     CriteriaPlaylist.objects.get_or_create(user=None, criteria=None, type_id=0)
