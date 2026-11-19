@@ -28,7 +28,8 @@ class QueryCounts:
 
     def without_preamble(self, count: int) -> QueryCounts:
         """Drop `count` data statements issued before the snapshot opens (e.g. the reference-graph presence check)."""
-        assert self.statements[:count] == self.data[:count], self
+        first_control = next((i for i, statement in enumerate(self.statements) if statement in self.control), 0)
+        assert first_control >= count, self
         return QueryCounts(self.statements[count:], self.data[count:], self.control)
 
     def assert_protocol(self, *, snapshot: bool, vendor: str, transaction: bool = False):

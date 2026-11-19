@@ -50,7 +50,7 @@ def test_perf_snapshot_accounting_rejects_invalid_boundaries(statements):
 
 
 def test_preamble_reads_before_the_snapshot_are_dropped_explicitly():
-    statements = ["SELECT 1", "BEGIN", SNAPSHOT_ISOLATION, "SELECT 2", "COMMIT"]
+    statements = ['select "a" from t limit 1', "BEGIN", SNAPSHOT_ISOLATION, "SELECT 2", "COMMIT"]
     counts = QueryCounts.from_queries([{"sql": sql} for sql in statements])
     with pytest.raises(AssertionError):
         counts.assert_protocol(snapshot=True, vendor="postgresql")
