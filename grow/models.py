@@ -14,6 +14,8 @@ from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
+from grow.model.artist_song.ArtistSong import ArtistSong
+from grow.model.artist_song.ArtistSongState import ArtistSongState
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.genre.GenreEssentialSong import GenreEssentialSong
 from grow.model.criteria.children.tag.Tag import Tag
@@ -54,6 +56,8 @@ __all__ = [
     "ArtistImportStaging",
     "ArtistLink",
     "ArtistMembership",
+    "ArtistSong",
+    "ArtistSongState",
     "BulkImportDeletion",
     "BulkImportRun",
     "Criteria",

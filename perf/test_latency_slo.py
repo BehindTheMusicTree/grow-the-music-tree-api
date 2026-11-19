@@ -36,6 +36,9 @@ SLO_MS = {
     "playlist-detail (largest genre)": 120,
     "genre-playlist-tracks?page_size=100 (largest genre)": 260,
     "artist-genre-counts (Canned Heat)": 30,
+    # Provisional until measured: see the CI perf record.
+    "artist-songs?ordering=title (Canned Heat)": 60,
+    "artist-songs?ordering=-albumYear (Canned Heat)": 60,
     # Provisional: 3x a single local p50 (287 / 22 ms) on the bucket-count path, not yet pooled over CI self-comparisons.
     "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": 870,
     "genre-playlist-tracks (front: viewer FR, genre_only)": 70,
@@ -59,6 +62,11 @@ def _largest_artist_genre_counts() -> str:
     return reverse("artist-genre-counts", kwargs={"pk": artist.uuid})
 
 
+def _artist_songs(ordering: str) -> tuple[str, dict]:
+    artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
+    return reverse("song-list"), {"artist": str(artist.uuid), "ordering": ordering, "page_size": 100}
+
+
 PATHS = {
     "genre-playlist-list?page_size=30": lambda: (reverse("genre-playlist-list"), {"page_size": 30}),
     "genre-playlist-list?page_size=100": lambda: (reverse("genre-playlist-list"), {"page_size": 100}),
@@ -72,6 +80,8 @@ PATHS = {
         {"page_size": 100},
     ),
     "artist-genre-counts (Canned Heat)": lambda: (_largest_artist_genre_counts(), {}),
+    "artist-songs?ordering=title (Canned Heat)": lambda: _artist_songs("title"),
+    "artist-songs?ordering=-albumYear (Canned Heat)": lambda: _artist_songs("-albumYear"),
     "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": lambda: (
         _large_playlist("genre-playlist-tracks"),
         {"page_size": 100, "coverage": "genre_and_subgenres", "subgenres": "all"},

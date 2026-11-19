@@ -16,7 +16,9 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.Fields import Fields a
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
 from grow.artist.bulk_import.merge import WRITTEN_MODELS as ARTIST_MERGE_MODELS
+from grow.artist_song.rebuild import rebuild_artist_song
 from grow.bulk_import.analyze import tables
+from grow.model.artist_song.ArtistSongState import ArtistSongState
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song_search.SongSearchState import SongSearchState
@@ -155,6 +157,11 @@ def django_db_setup(django_db_setup, django_db_blocker):
             start = time.perf_counter()
             rows = rebuild_song_search()
             label = f"song search rebuild ({rows} songs)"
+            print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
+        if not ArtistSongState.load().ready:
+            start = time.perf_counter()
+            rows = rebuild_artist_song()
+            label = f"artist song rebuild ({rows} rows)"
             print(f"\nimport {label:<38} {(time.perf_counter() - start) * 1000:8.0f}ms")
 
 

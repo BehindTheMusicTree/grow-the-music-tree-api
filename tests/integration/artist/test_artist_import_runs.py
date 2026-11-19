@@ -16,12 +16,14 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.artist_song.rebuild import rebuild_artist_song
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.model.album.Album import Album
 from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
+from grow.model.artist_song.ArtistSong import ArtistSong
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
@@ -262,6 +264,24 @@ class TestImportRunMerge(AppTestCase):
         assert steps["renamed_artist"] == steps["upsert_song_search"] == 1
         assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
         assert [s.pk for s in SongSearch.objects.search("the pink money", 8)] == [song.pk]
+
+    def test_album_year_change_rederives_the_artist_song_sort_key(self):
+        self._sync([ARTIST, PERSON])
+        album = Album.objects.get(musicbrainz_release_group_id=RELEASE_GROUP)
+        song = self.model_fixture_factory.create_song("Money", None, album=album)
+        song.artists.add(Artist.objects.get(musicbrainz_artist_id=BAND))
+        rebuild_artist_song()
+        assert ArtistSong.objects.get().album_year == 1979
+
+        changed = {**ARTIST["release_groups"][0], "first_release_year": 1980}
+        steps = {
+            t["label"]: t["rowcount"]
+            for t in self._sync([{**ARTIST, "release_groups": [changed]}, PERSON])["stepTimings"]
+        }
+
+        assert steps["upsert_artist_song_albums"] == 1
+        assert ArtistSong.objects.get().album_year == 1980
+        assert ArtistSong.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
 
     def test_rename_with_unbuilt_projection_skips_the_row_by_row_step_and_builds_in_bulk(self):
         with mock.patch("grow.artist.bulk_import.merge.queue_song_search_build"):  # the first sync would build it

@@ -14,10 +14,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `library/songs/?artist=<uuid>&ordering=title|-albumYear` reads a keyset page from the new denormalized table `grow_artist_song` (migration `0146`), so its cost no longer grows with the artist's song count. Pages are chained by an opaque `cursor` in `next`; `count`, `page` and `totalPages` are null. The songs and artists merges and the song, album and credit ORM writes keep the table current. `manage.py rebuild_artist_song` builds it (`--check` reports drift). The endpoint answers 503 until it has been built; there is no fallback to the old query. Tests cover the endpoint, the keyset, the projection and the merges (Postgres-marked tests included), and `perf` gains two scenarios.
 - `POST library/songs/assign-genre/undo/` `{undoToken}` restores what an assign-genre call overwrote (#505): each song's previous attributions with their provenance, and the previous `song_genre` curation rule or its absence. It answers 409 for the whole batch when any song's assignment changed since, and a token is single-use and only its creator can spend it. New table `grow_song_genre_undo` (migration `0145`); tests cover provenance restoration, rule restoration, the batch 409, token reuse and the legacy (no dataset) path.
 
 ### Changed
 
+- **Breaking:** `?artist` accepts only `artist`, `ordering` (`title` or `-albumYear`), `cursor`, `page_size` and `with_total`; combining it with other filters now returns 400, and `?page=` is replaced by `cursor`.
 - **Breaking:** `assign-genre` returns `undoToken` and `previous` items drop `undoable`, since every case is now exactly undoable; the frontend must call the undo endpoint instead of re-assigning the previous genre.
 
 - Adopt the-music-tree-genre-kit v0.65.0, which enforces one graph node per track and dataset (`UNIQUE(dataset_id, track_id)`): migration `0144` drops grow's own `grow_single_assignment_guard`, and the songs merge joins attributions on `dataset_id`. Migration 0022 of the kit fails, naming dataset and track, if a track holds several nodes in one dataset.
