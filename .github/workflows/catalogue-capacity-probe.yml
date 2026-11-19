@@ -26,17 +26,28 @@ jobs:
 
       - name: Free disk
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/share/swift /usr/local/lib/node_modules /opt/microsoft \
+            /usr/local/share/powershell /usr/local/.ghcup
+          docker image prune -af
+          df -h /
 
-      - name: Pick the work directory
+      - name: XFS work volume
         run: |
-          root_free=$(df --output=avail -B1G / | tail -1 | tr -d ' ')
-          mnt_free=$(df --output=avail -B1G /mnt | tail -1 | tr -d ' ')
-          echo "free GB: / = $root_free, /mnt = $mnt_free"
-          if [[ $mnt_free -gt $root_free ]]; then base=/mnt; else base=/home/runner; fi
-          sudo mkdir -p "$base/probe" && sudo chown "$USER" "$base/probe"
-          echo "PROBE_DIR=$base/probe" >>"$GITHUB_ENV"
+          avail=$(df --output=avail -B1G / | tail -1 | tr -d ' ')
+          # 6 GB are left for Docker images, logs and uv.
+          size=$((avail - 6))
+          echo "free on /: ${avail} GB, volume: ${size} GB"
+          # Preallocated so that running out of space fails inside XFS, not as a loop I/O error.
+          sudo fallocate -l "${size}G" /mnt/catalogue.img
+          sudo mkfs.xfs -q -m reflink=1 /mnt/catalogue.img
+          sudo mkdir -p /mnt/catalogue
+          sudo mount -o loop,noatime /mnt/catalogue.img /mnt/catalogue
+          sudo chown "$USER" /mnt/catalogue
+          xfs_info /mnt/catalogue | tee /dev/stderr | grep -q 'reflink=1'
+          df -h /mnt/catalogue
+          echo "PROBE_DIR=/mnt/catalogue" >>"$GITHUB_ENV"
 
       - uses: astral-sh/setup-uv@v5
         with:
