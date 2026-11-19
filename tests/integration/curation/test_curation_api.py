@@ -18,6 +18,8 @@ from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWE
 from tests.utils.AppTestCase import AppTestCase
 
 ITEM = {"item_id": "Q999999991", "reason": "testing"}
+PROVENANCE = {"decision_id": "d-1", "decision_source": "gold", "reason": "testing"}
+OVERVIEW_TYPE = {"item_id": "Q1", "overview_type": "current", **PROVENANCE}
 
 
 class TestCase(AppTestCase):
@@ -435,25 +437,129 @@ class TestCase(AppTestCase):
             {"wikidata_id": "Q5619688", "entity_id": "Q148", "reason": "testing"}
         ]
 
-    def test_overview_status_override_then_status_enumerated(self):
-        row = {"item_id": "Q1", "status": "historical", "reason": "testing"}
+    def test_overview_type_then_type_and_provenance_enforced(self):
+        name = "regional_overview_types"
+        row = {**OVERVIEW_TYPE, "overview_type": "historical"}
 
-        first = self._create(row, "overview_status_overrides")
-        local = self._create({**row, "item_id": "LOCAL:region-europe"}, "overview_status_overrides")
-        duplicate = self._create(row, "overview_status_overrides")
-        bad_status = self._create({**row, "item_id": "Q2", "status": "former"}, "overview_status_overrides")
+        first = self._create(row, name)
+        self._create(
+            {
+                "item_id": "LOCAL:region-europe",
+                "kind": "overview",
+                "label": "Europe",
+                **PROVENANCE,
+                "decision_id": "d-0",
+            },
+            "local_identities",
+        )
+        local = self._create({**row, "item_id": "LOCAL:region-europe", "decision_id": "d-2"}, name)
+        duplicate = self._create(row, name)
+        bad_type = self._create({**row, "item_id": "Q2", "decision_id": "d-3", "overview_type": "former"}, name)
+        no_reason = self._create({**row, "item_id": "Q3", "decision_id": "d-4", "reason": " "}, name)
+        no_decision = self._create({**row, "item_id": "Q4", "decision_id": ""}, name)
+        bad_id = self._create({**row, "item_id": "LOCAL:Bad Slug", "decision_id": "d-5"}, name)
 
         assert first.status_code == status.HTTP_201_CREATED
         assert local.status_code == status.HTTP_201_CREATED
-        assert duplicate.status_code == status.HTTP_400_BAD_REQUEST
-        assert bad_status.status_code == status.HTTP_400_BAD_REQUEST
+        for rejected in (duplicate, bad_type, no_reason, no_decision, bad_id):
+            assert rejected.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_export_then_overview_status_override_rows(self):
-        self._create({"item_id": "Q1", "status": "current", "reason": "testing"}, "overview_status_overrides")
+    def test_export_then_overview_type_rows_and_deprecated_projection(self):
+        self._create(OVERVIEW_TYPE, "regional_overview_types")
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
+        assert export["regional_overview_types"] == [OVERVIEW_TYPE]
         assert export["overview_status_overrides"] == [{"item_id": "Q1", "status": "current", "reason": "testing"}]
+
+    def test_b13_undeclared_local_then_rejected_without_substitution(self):
+        anchoring = {"item_id": "Q1", "overview_item_id": "LOCAL:ghost", **PROVENANCE}
+
+        response = self._create(anchoring, "regional_anchorings")
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "LOCAL:ghost" in str(response.json())
+
+    def test_r21_contradicting_pair_and_reused_decision_then_rejected(self):
+        name = "regional_memberships"
+        pair = {"child_item_id": "Q1", "parent_item_id": "Q2", "action": "add", **PROVENANCE}
+
+        added = self._create(pair, name)
+        prohibited = self._create({**pair, "action": "prohibit", "decision_id": "d-9"}, name)
+        reused = self._create({**pair, "child_item_id": "Q3"}, name)
+
+        assert added.status_code == status.HTTP_201_CREATED
+        assert prohibited.status_code == status.HTTP_400_BAD_REQUEST
+        assert reused.status_code == status.HTTP_400_BAD_REQUEST
+        assert "d-1" in str(reused.json())
+
+    def test_m15_expression_membership_without_boundary_or_style_then_valid_and_exported(self):
+        declare = {"item_id": "LOCAL:french-dub", "kind": "expression", "label": "French dub", **PROVENANCE}
+        membership = {
+            "child_item_id": "LOCAL:french-dub",
+            "parent_item_id": "Q2",
+            "action": "add",
+            **PROVENANCE,
+            "decision_id": "d-2",
+        }
+
+        assert self._create(declare, "local_identities").status_code == status.HTTP_201_CREATED
+        assert self._create(membership, "regional_memberships").status_code == status.HTTP_201_CREATED
+        export = self.api_client.get(path=reverse("curation-export"))
+        assert export.status_code == status.HTTP_200_OK
+        assert [r["child_item_id"] for r in export.json()["regional_memberships"]] == ["LOCAL:french-dub"]
+
+    def test_graph_lists_round_trip_and_validation(self):
+        rows = {
+            "local_identities": {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE},
+            "canonical_boundaries": {"item_id": "Q1", "boundary": "entry", **PROVENANCE},
+            "regional_memberships": {
+                "child_item_id": "Q1",
+                "parent_item_id": "LOCAL:x",
+                "action": "add",
+                **PROVENANCE,
+            },
+            "expression_styles": {"expression_item_id": "Q2", "style_item_id": "Q3", **PROVENANCE},
+            "regional_anchorings": {"item_id": "Q4", "overview_item_id": "LOCAL:x", **PROVENANCE},
+        }
+        for index, (name, row) in enumerate(rows.items()):
+            assert self._create({**row, "decision_id": f"ok-{index}"}, name).status_code == status.HTTP_201_CREATED
+            assert self._create({**row, "reason": ""}, name).status_code == status.HTTP_400_BAD_REQUEST
+            assert self._create({**row, "decision_source": ""}, name).status_code == status.HTTP_400_BAD_REQUEST
+        assert (
+            self._create(
+                {**rows["canonical_boundaries"], "item_id": "Q9", "boundary": "x"}, "canonical_boundaries"
+            ).status_code
+            == status.HTTP_400_BAD_REQUEST
+        )
+        assert (
+            self._create(
+                {**rows["local_identities"], "item_id": "Q5", "decision_id": "z"}, "local_identities"
+            ).status_code
+            == status.HTTP_400_BAD_REQUEST
+        )
+        for name in ("regional_memberships", "expression_styles", "regional_anchorings"):
+            row = rows[name]
+            first_column = CURATION_LISTS[name].key[0]
+            second_column = CURATION_LISTS[name].key[1]
+            same = {**row, second_column: row[first_column], "decision_id": "same"}
+            assert self._create(same, name).status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_regional_memberships_contradiction_cycle_and_undeclared_local_rejected(self):
+        name = "regional_memberships"
+        add = {"child_item_id": "Q1", "parent_item_id": "Q2", "action": "add", **PROVENANCE}
+        assert self._create({**add, "decision_id": "m1"}, name).status_code == status.HTTP_201_CREATED
+
+        prohibit = self._create({**add, "action": "prohibit", "decision_id": "m2"}, name)
+        cycle = self._create({**add, "child_item_id": "Q2", "parent_item_id": "Q1", "decision_id": "m3"}, name)
+        undeclared = self._create(
+            {**add, "child_item_id": "Q3", "parent_item_id": "LOCAL:nowhere", "decision_id": "m4"}, name
+        )
+        reused = self._create({**add, "child_item_id": "Q5", "decision_id": "m1"}, name)
+
+        for rejected in (prohibit, cycle, undeclared, reused):
+            assert rejected.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT)
+        assert CurationEntry.objects.filter(list_name=name).count() == 1
 
     def test_tradition_link_override_then_kind_and_action_enumerated(self):
         row = {
@@ -514,7 +620,7 @@ class TestCase(AppTestCase):
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
-        assert set(export) == {*CURATION_LISTS, "edges", "exported_on"}
+        assert set(export) == {*CURATION_LISTS, "edges", "exported_on", "overview_status_overrides"}
         assert not {
             "canonical_parent",
             "accepted_canonical_roots",

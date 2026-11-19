@@ -430,6 +430,12 @@ class CurationExportView(CurationView):
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
+        # Deprecated projection for pipelines that still read `overview_status_overrides`: dropped once they read
+        # `regional_overview_types`.
+        export["overview_status_overrides"] = [
+            {"item_id": row["item_id"], "status": row["overview_type"], "reason": row["reason"]}
+            for row in export["regional_overview_types"]
+        ]
         export["edges"] = [
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]

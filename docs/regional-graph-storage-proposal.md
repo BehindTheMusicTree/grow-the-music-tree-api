@@ -109,3 +109,7 @@ Implement and review bottom-up without compatibility fallbacks: kit storage and 
 7. Production-scale performance evidence comes from staging read-only after an explicitly authorized deployment makes the schema available. Capture representative SELECT plans and buffers; assess write performance through authorized validation/CI rather than running a mutating EXPLAIN ANALYZE on staging. Never restore production locally or waive a red Perf check.
 
 Current validation status: the prior PostgreSQL run did not complete; the SQLite log resumed from handoff has no final summary and its process has ended. Neither is a passing suite. This proposal changes documentation only; the existing dirty implementation is preserved and is not claimed ready to merge.
+
+## Curation decision lists (grow#520)
+
+The curation export carries the regional graph decisions as five Gold lists (`local_identities`, `canonical_boundaries`, `regional_memberships`, `expression_styles`, `regional_anchorings`) and `regional_overview_types`, which replaces `overview_status_overrides`. Every row has `decision_id`, `decision_source` and `reason`. Grow checks what it can see (duplicate decisions, `LOCAL:` declarations and kinds, membership cycles); unknown QIDs and classification cycles stay with the pipeline and the genre kit's `GenreGraph`. The export still projects `overview_status_overrides` until the pipelines migrate.

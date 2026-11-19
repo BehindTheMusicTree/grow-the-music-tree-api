@@ -116,3 +116,73 @@ class TestStoredViolationsDontBlockOthers(AppTestCase):
         GenreEdgeRule.objects.upsert("secondary_parent", A, B, action="remove", reason="r")
 
         assert _violations() == []
+
+
+def _graph(list_name: str, key: str, decision: str, **values: str) -> None:
+    CurationEntry.objects.create(
+        user=None,
+        list_name=list_name,
+        key=key,
+        values={**values, "decision_id": decision, "decision_source": "gold"},
+        reason="r",
+    )
+
+
+def _local(item: str, kind: str, decision: str) -> None:
+    _graph("local_identities", item, decision, kind=kind, label=item)
+
+
+def _kinds() -> list[str]:
+    return sorted(v.kind for v in _violations())
+
+
+class TestGraphViolations(AppTestCase):
+    def test_reused_decision_then_duplicate_decision_and_export_409(self):
+        _graph("canonical_boundaries", "Q1", "d1", boundary="entry")
+        _graph("canonical_boundaries", "Q2", "d1", boundary="exit")
+
+        assert _kinds() == ["duplicate_decision"]
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_409_CONFLICT
+
+    def test_undeclared_local_then_violation(self):
+        _graph("regional_anchorings", "Q1\tLOCAL:ghost", "d1")
+
+        assert _kinds() == ["undeclared_local"]
+
+    def test_wrong_local_kind_then_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_anchorings", "Q1\tLOCAL:genre-a", "d2")
+        _local("LOCAL:over-a", "overview", "d3")
+        _graph("expression_styles", "LOCAL:over-a\tQ5", "d4")
+
+        assert _kinds() == ["local_kind", "local_kind"]
+
+    def test_overview_as_style_then_violation(self):
+        _local("LOCAL:expr", "expression", "d1")
+        _local("LOCAL:over-a", "overview", "d2")
+        _graph("expression_styles", "LOCAL:expr\tLOCAL:over-a", "d3")
+
+        assert _kinds() == ["local_kind"]
+
+    def test_membership_cycle_then_violation(self):
+        _local("LOCAL:a", "overview", "d1")
+        _local("LOCAL:b", "overview", "d2")
+        _graph("regional_memberships", "LOCAL:a\tLOCAL:b", "d3", action="add")
+        _graph("regional_memberships", "LOCAL:b\tLOCAL:a", "d4", action="add")
+
+        assert _kinds() == ["membership_cycle"]
+
+    def test_prohibited_membership_cycle_then_no_violation(self):
+        _local("LOCAL:a", "overview", "d1")
+        _local("LOCAL:b", "overview", "d2")
+        _graph("regional_memberships", "LOCAL:a\tLOCAL:b", "d3", action="add")
+        _graph("regional_memberships", "LOCAL:b\tLOCAL:a", "d4", action="prohibit")
+
+        assert _violations() == []
+
+    def test_consistent_graph_then_export_200(self):
+        _local("LOCAL:a", "overview", "d1")
+        _graph("regional_anchorings", "Q1\tLOCAL:a", "d2")
+
+        assert _violations() == []
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
