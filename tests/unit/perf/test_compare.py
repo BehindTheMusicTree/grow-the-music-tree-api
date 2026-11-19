@@ -10,6 +10,7 @@ from perf.compare import (
     OK,
     REMOVED,
     SLO_BREACH,
+    SLO_BREACH_BASE,
     SLOWER,
     UNSTABLE_BASE,
     UNSTABLE_HEAD,
@@ -73,6 +74,43 @@ def test_label_accepts_regressions_but_never_an_slo_breach():
     head = {"x": Side(90, 100, 9), "y": Side(110, 100, 3)}
 
     assert _statuses(base, head, accept_regressions=True) == {"x": (OK,), "y": (SLO_BREACH,)}
+
+
+def test_an_slo_breach_shared_with_the_base_is_reported_not_failed():
+    rows = compare({"x": Side(70, 60, 3)}, {"x": Side(68, 60, 3)})
+
+    assert [row.statuses for row in rows] == [(SLO_BREACH_BASE,)]
+    assert not rows[0].failing
+
+
+def test_an_slo_breach_only_the_head_has_fails():
+    assert _statuses({"x": Side(50, 60, 3)}, {"x": Side(61, 60, 3)}) == {"x": (SLO_BREACH,)}
+
+
+def test_a_shared_breach_still_fails_when_the_head_is_slower():
+    rows = compare({"x": Side(70, 60, 3)}, {"x": Side(100, 60, 3)})
+
+    assert rows[0].statuses == (SLO_BREACH_BASE, SLOWER)
+    assert rows[0].failing
+
+
+def test_the_label_with_a_breach_only_the_head_has_still_fails():
+    rows = compare({"x": Side(50, 60, 3)}, {"x": Side(61, 60, 3)}, accept_regressions=True)
+
+    assert rows[0].statuses == (SLO_BREACH,) and rows[0].failing
+
+
+def test_a_base_without_a_ceiling_cannot_share_a_breach():
+    assert _statuses({"x": Side(70, None, 3)}, {"x": Side(70, 60, 3)}) == {"x": (SLO_BREACH,)}
+
+
+def test_main_exits_0_on_a_shared_breach_and_does_not_bold_it(tmp_path, capsys):
+    base = _write(tmp_path / "base-1.json", {"x": _result(70, slo_ms=60, queries=2)})
+    head = _write(tmp_path / "head-1.json", {"x": _result(68, slo_ms=60, queries=2)})
+
+    assert main(["--base", str(base), "--head", str(head)]) == 0
+    out = capsys.readouterr().out
+    assert SLO_BREACH_BASE in out and f"**{SLO_BREACH_BASE}**" not in out
 
 
 def test_scenarios_on_one_side_only_are_reported_not_failed():

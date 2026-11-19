@@ -6,6 +6,7 @@
 #
 # Usage: PERF_PG_URL=postgres://user:pass@host:port scripts/perf_ab.sh <base-dir|none> <head-dir> <out-dir>
 # With `none` as base (pushes), only the head's SLOs are judged, still on the median pooled over two runs.
+# A breach the base shares is reported by compare.py without failing, so only a real regression escalates to 4 more rounds.
 # Optional: PERF_ACCEPT_REGRESSIONS=1 (label perf-regression-accepted), PERF_SUMMARY=<markdown file to append to>.
 set -euo pipefail
 
