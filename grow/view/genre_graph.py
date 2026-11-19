@@ -114,7 +114,7 @@ class ReferenceGraphView(GraphView):
 
     def get(self, request):
         reference_dataset()
-        with graph_read_transaction(key=DATASET_KEY) as dataset:
+        with graph_read_transaction(key=DATASET_KEY, with_payload=True) as dataset:
             mapping = dict(dataset.nodes.filter(is_active=True).values_list("identity", "grow_criteria__pk"))
             if any(pk is None for pk in mapping.values()):
                 raise GraphValidationError("Reference graph contains unbound identities")
