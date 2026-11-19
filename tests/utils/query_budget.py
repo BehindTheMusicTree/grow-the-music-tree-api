@@ -26,6 +26,11 @@ class QueryCounts:
                 data.append(sql)
         return cls(tuple(statements), tuple(data), tuple(control))
 
+    def without_preamble(self, count: int) -> QueryCounts:
+        """Drop `count` data statements issued before the snapshot opens (e.g. the reference-graph presence check)."""
+        assert self.statements[:count] == self.data[:count], self
+        return QueryCounts(self.statements[count:], self.data[count:], self.control)
+
     def assert_protocol(self, *, snapshot: bool, vendor: str, transaction: bool = False):
         expected = ()
         if snapshot or transaction:
