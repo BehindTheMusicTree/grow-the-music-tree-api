@@ -14,6 +14,9 @@ With four rounds or more, each group must hold at least MIN_SPLIT_ROUNDS rounds:
 pooled median on the majority plan), while fewer rounds cannot tell, so the gap stays suspect and the runner measures more.
 Limit: a shift of most scenarios in the same round of one side reads as drift; only `slower` (paired ratios) can still
 catch it, and only when about half the rounds are affected. A scenario missing from some rounds is judged raw.
+An absolute SLO breach that the base shares (base p50 over the same ceiling) is not the PR's doing: it is reported as
+`over SLO (base too)` and does not fail a PR, since the A/B verdict judges the PR and the SLO judges develop (pushes and
+runs without a base still fail on it). A breach only the head has, or a removed ceiling, still fails.
 Exit 0 when clean, 1 on an SLO breach, a regression or an unstable side.
 """
 
@@ -40,6 +43,7 @@ MIN_DRIFT_SCENARIOS = 10
 MIN_SPLIT_ROUNDS = 2
 
 OK, SLOWER, SLO_BREACH, MORE_QUERIES, NEW, REMOVED = "ok", "slower", "over SLO", "more queries", "new", "removed"
+SLO_BREACH_BASE = "over SLO (base too)"
 UNSTABLE_BASE, UNSTABLE_HEAD = "unstable base", "unstable head"
 
 
@@ -157,9 +161,10 @@ def compare(base: dict[str, Side] | None, head: dict[str, Side], *, accept_regre
         if after is None:
             statuses.append(REMOVED)
         else:
-            if (after.slo_ms is not None and after.p50 > after.slo_ms) or (
-                before is not None and before.slo_ms is not None and after.slo_ms is None
-            ):
+            if after.slo_ms is not None and after.p50 > after.slo_ms:
+                shared = before is not None and before.slo_ms is not None and before.p50 > before.slo_ms
+                statuses.append(SLO_BREACH_BASE if shared else SLO_BREACH)
+            elif before is not None and before.slo_ms is not None and after.slo_ms is None:
                 statuses.append(SLO_BREACH)
             if after.unstable:
                 statuses.append(UNSTABLE_HEAD)
@@ -212,7 +217,8 @@ def render(rows: list[Row], *, with_base: bool, accept_regressions: bool) -> str
             f"the head/base ratios of the paired rounds exceeds {RATIO}x **and** adds {FLOOR_MS:.0f} ms. A side is "
             f"unstable when its drift-corrected round p50s split into two groups that far apart, each of at least "
             f"{MIN_SPLIT_ROUNDS} rounds once there are {2 * MIN_SPLIT_ROUNDS} (an unstable head "
-            f"fails even with the label)."
+            f"fails even with the label). `{SLO_BREACH_BASE}`: the base is over the same SLO, so the breach is not "
+            f"this PR's and is reported, not failed."
         )
         drift_line = _drift_line(rows)
         if drift_line:
