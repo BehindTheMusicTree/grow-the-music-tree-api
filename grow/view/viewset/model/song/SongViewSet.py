@@ -10,7 +10,7 @@ from rest_framework.utils.urls import replace_query_param
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
-from the_music_tree_genre_kit.genre_graph.storage import graph_read_snapshot
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
 from grow.artist_song import page as artist_song_page
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
@@ -90,9 +90,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
 
     def list(self, *args, **kwargs):
         try:
-            with graph_read_snapshot():
-                # Only the revisions: `payload` is the whole serialized graph, parsed on every request otherwise.
-                dataset = GenreGraphDataset.objects.only("revision", "membership_revision").get(pk=DATASET_KEY)
+            with graph_read_transaction(key=DATASET_KEY) as dataset:
                 response = self._list_graph_songs()
                 response["X-Genre-Graph-Revision"] = str(dataset.revision)
                 response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)

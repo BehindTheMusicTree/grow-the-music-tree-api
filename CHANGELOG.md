@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Adopt the-music-tree-genre-kit v0.67.0, whose `graph_read_transaction` defers `GenreGraphDataset.payload` unless `with_payload=True`: `SongViewSet.list` uses it again (no payload decode per read, restoring the artist-songs list latency) and `ReferenceGraphView.get` opts in. Song genre selection follows the kit's `select_tracks(tracks, *, node=...)` signature.
 - **Breaking:** `?artist` accepts only `artist`, `ordering` (`title` or `-albumYear`), `cursor`, `page_size` and `with_total`; combining it with other filters now returns 400, and `?page=` is replaced by `cursor`.
 - **Breaking:** `assign-genre` returns `undoToken` and `previous` items drop `undoable`, since every case is now exactly undoable; the frontend must call the undo endpoint instead of re-assigning the previous genre.
 
