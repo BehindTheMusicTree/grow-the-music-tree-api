@@ -9,6 +9,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = "fixture-only-not-for-production"
 
+REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": 1}
+
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.auth",

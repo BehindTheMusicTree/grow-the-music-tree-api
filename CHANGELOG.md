@@ -18,8 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- **Breaking:** `GET library/songs/` is bounded for non-admin callers, before any SQL runs. A list needs a `genre` or `artist` filter (400 otherwise); a `genre`-only list must use cursor paging (`withTotal=false`, no `page`); OFFSET paging stops at 10 000 rows (deeper or non-numeric pages 400, `totalPages` is clamped, `overallTotal` stays exact); and the list is throttled to 300/min per client (429). Admins are exempt. Covered by `test_list_bounds.py`.
 - **Breaking:** `assign-genre` returns `undoToken` and `previous` items drop `undoable`, since every case is now exactly undoable; the frontend must call the undo endpoint instead of re-assigning the previous genre.
-
 - Adopt the-music-tree-genre-kit v0.65.0, which enforces one graph node per track and dataset (`UNIQUE(dataset_id, track_id)`): migration `0144` drops grow's own `grow_single_assignment_guard`, and the songs merge joins attributions on `dataset_id`. Migration 0022 of the kit fails, naming dataset and track, if a track holds several nodes in one dataset.
 - **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.
 - Song genre membership comes from the `grow` dataset: the effective genre is materialized in `grow_song.genre_id` (`Song.membership_genre`), maintained by database triggers from dataset assignments, node state and criteria bindings; counts and buckets read it directly. Imports and writers no longer write the kit's `Track.genre`.
@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Throttles keyed on the wrong client: `NUM_PROXIES` was unset, so behind Cloudflare and Traefik every client shared one bucket or could dodge it by forging `X-Forwarded-For`. The new required env var `TRUSTED_PROXY_COUNT` (prod and staging `2`, local `0`) sets it. Covered by `test_throttle_ignores_spoofed_leading_forwarded_for_hops` and `test_artist_search_is_throttled`.
 - Migration `0140` reverse now drops its triggers and functions with `IF EXISTS`, so a partial reverse can be re-run; the concurrent raw assignment test is renamed to say what it asserts (follow-ups of #507).
 - The song genre fill and guard triggers skipped silently on a connection that never set `grow.membership_maintenance` (the setting is NULL, so `NOT (flag = 'on')` was NULL): migration `0143` redefines both functions with `COALESCE`.
 

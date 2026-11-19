@@ -427,9 +427,12 @@ def test_song_selection_requires_graph_and_identity_mapping(payload):
 
 def test_song_list_keeps_unassigned_and_unplayable_songs(payload):
     factory = ModelFixtureFactory(None)
-    songs = [factory.create_song(f"Unassigned {index}", None, youtube_video_id=None) for index in range(2)]
+    artist = factory.create_artist("Unassigned artist")
+    songs = [
+        factory.create_song(f"Unassigned {index}", None, youtube_video_id=None, artists=[artist]) for index in range(2)
+    ]
     dataset = import_graph(payload)
-    response = APIClient().get(reverse("song-list") + "?with_total=false&page=1")
+    response = APIClient().get(reverse("song-list") + f"?artist={artist.pk}&with_total=false&page=1")
     assert response.status_code == 200, response.content
     assert {row["uuid"] for row in response.json()["results"]} == {str(song.pk) for song in songs}
     assert response["X-Genre-Membership-Revision"] == str(dataset.membership_revision)
@@ -721,7 +724,7 @@ def test_retirement_api_hides_archived_genres_and_playlists(payload):
     client = APIClient()
     for basename, pk in (("genre", retired.pk), ("genre-playlist", playlist_id), ("playlist", playlist_id)):
         assert client.get(reverse(f"{basename}-detail", kwargs={"pk": pk})).status_code == 404
-    songs = client.get(reverse("song-list"), {"genre": str(retired.pk)})
+    songs = client.get(reverse("song-list"), {"genre": str(retired.pk), "with_total": "false"})
     assert songs.status_code == 200, songs.content
     assert songs.json()["results"] == []
     loaded = client.get(reverse("reference-graph")).json()

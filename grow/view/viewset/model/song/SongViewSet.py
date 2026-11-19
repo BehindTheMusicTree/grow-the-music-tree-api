@@ -7,7 +7,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
-from grow.filtering.set.song.SongFilterSet import SongFilterSet
+from grow.filtering.set.song.SongFilterSet import SCOPE_PARAMS, SongFilterSet
 from grow.genre_graph.selection import require_reference_graph
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_graph.snapshot import graph_snapshot
@@ -34,16 +34,22 @@ from grow.view.pagination.OptionalTotalPagination import (
     wants_cursor,
     wants_no_total,
 )
-from grow.view.permission.IsAdmin import IsAdmin
+from grow.view.permission.IsAdmin import IsAdmin, is_admin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
 
+class SongsListThrottle(ScopedRateThrottle):
+    scope_attr = "list_throttle_scope"
+
+
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
     throttle_scope = "song-search"
+    # The public list is throttled under its own bucket; `throttle_scope` stays the search action's.
+    list_throttle_scope = "songs-list"
     upload_assignment_part = assignment_part_upload_action("songs/")
 
     def __init__(self, **kwargs):
@@ -54,6 +60,12 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             detailed_serializer_class=SongFullSerializer,
             **kwargs,
         )
+
+    def get_throttles(self):
+        # Only the public list is throttled here; admins and the other actions (search, imports) keep their own limits.
+        if self.action == "list" and not is_admin(self.request):
+            return [SongsListThrottle()]
+        return super().get_throttles()
 
     def _get_detailed_serializer(self, instance):
         serializer = super()._get_detailed_serializer(instance)
@@ -79,7 +91,19 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         response["X-Playback-Country"] = viewer_country(request) or "unknown"
         return response
 
+    def _reject_unbounded_list(self) -> None:
+        """Public callers can't make Postgres count, sort or skip through the whole catalog."""
+        params = self.request.query_params
+        if not any(params.get(param) for param in SCOPE_PARAMS):
+            raise ParseError("Listing songs requires a `genre` or `artist` filter.")
+        if not params.get("artist") and not wants_cursor(self.request):
+            # A genre subtree can be most of the catalog: only the keyset path stays cheap at any depth.
+            raise ParseError("Listing a genre's songs requires `withTotal=false` and no `page`.")
+
     def list(self, *args, **kwargs):
+        if not is_admin(self.request):
+            self._reject_unbounded_list()
+            self.paginator.reject_public_overreach(self.request)
         require_reference_graph()
         with graph_read_transaction(key=DATASET_KEY) as dataset:
             response = self._list_graph_songs()

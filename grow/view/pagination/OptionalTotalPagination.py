@@ -9,9 +9,13 @@ from rest_framework.utils.urls import remove_query_param, replace_query_param
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
+from grow.view.permission.IsAdmin import is_admin
+
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
 CURSOR_ORDERING = ("uuid",)
+# Rows a non-admin may skip with OFFSET paging; deeper pages are refused (keyset mode has no such limit).
+MAX_PUBLIC_OFFSET = 10_000
 
 
 def wants_no_total(request: Request) -> bool:
@@ -43,9 +47,31 @@ class _NoLastPage:
 class OptionalTotalPagination(AppPagination):
     """`?withTotal=false` (seen as `with_total` after CamelToSnakeMiddleware) skips the COUNT(*): fetches one extra row to know whether a next page exists."""
 
+    def _reject_deep_offset(self, request: Request) -> None:
+        """Before any query runs, so a refused page costs neither the COUNT nor the OFFSET scan."""
+        try:
+            page = int(request.query_params.get(self.page_query_param, 1))
+        except ValueError as error:  # `page=last` would need the exact page count the cap forbids paying for
+            raise ParseError("Invalid page.") from error
+        if page < 1:
+            raise ParseError("Invalid page.")
+        if (page - 1) * self.get_page_size(request) > MAX_PUBLIC_OFFSET:
+            raise ParseError("Page too deep: reverse the ordering or narrow the filter.")
+
+    def reject_public_overreach(self, request: Request) -> None:
+        """Public page-size and depth guards; the song list calls it first so a refusal precedes every query."""
+        if is_admin(request):
+            return
+        if self.get_page_size(request) < 1:  # page_size=0 would switch pagination off
+            raise ParseError("Invalid page size.")
+        if not wants_cursor(request):
+            self._reject_deep_offset(request)
+
     def paginate_queryset(self, queryset, request, view=None):
         self._no_total = wants_no_total(request)
         self._cursor_mode = wants_cursor(request)
+        self._public = not is_admin(request)
+        self.reject_public_overreach(request)
         if not self._no_total:
             return super().paginate_queryset(queryset, request, view)
         self.request = request
@@ -72,7 +98,14 @@ class OptionalTotalPagination(AppPagination):
 
     def get_paginated_response(self, data):
         if not self._no_total:
-            return super().get_paginated_response(data)
+            response = super().get_paginated_response(data)
+            if self._public and response.data[PaginatedResponseFields.PAGE_SIZE]:
+                # Never advertise a page the depth guard would refuse.
+                last_reachable = MAX_PUBLIC_OFFSET // response.data[PaginatedResponseFields.PAGE_SIZE] + 1
+                response.data[PaginatedResponseFields.TOTAL_PAGES] = min(
+                    response.data[PaginatedResponseFields.TOTAL_PAGES], last_reachable
+                )
+            return response
         if self._cursor_mode:
             next_link = (
                 replace_query_param(self.request.build_absolute_uri(), CURSOR_PARAM, self._next_cursor)

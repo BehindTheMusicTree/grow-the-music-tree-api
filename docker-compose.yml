@@ -51,6 +51,7 @@ services:
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-0}
     ports:
       - "${APP_PORT:-8001}:${APP_PORT:-8001}"
     depends_on:
@@ -90,6 +91,7 @@ services:
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/gtmt_api}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-0}
     depends_on:
       db:
         condition: service_healthy

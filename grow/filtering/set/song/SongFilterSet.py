@@ -30,6 +30,8 @@ ORDERINGS = {
 }
 DEFAULT_ORDERING = F(ModelFields.CREATED_ON)  # the viewset's default, see AppModelViewSet.queryset
 SORT_KEY = "sort_key"
+# A public list must carry one of these: both resolve through an index, unlike the text filters.
+SCOPE_PARAMS = ("genre", "artist")
 
 
 class SongFilterSet(PrivateUniqueResourceFilterSet):
