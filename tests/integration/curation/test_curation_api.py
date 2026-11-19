@@ -509,6 +509,39 @@ class TestCase(AppTestCase):
         assert export.status_code == status.HTTP_200_OK
         assert [r["child_item_id"] for r in export.json()["regional_memberships"]] == ["LOCAL:french-dub"]
 
+    def _declared_and_referenced_local(self):
+        declare = self._create(
+            {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE}, "local_identities"
+        )
+        membership = {
+            "child_item_id": "Q1",
+            "parent_item_id": "LOCAL:x",
+            "action": "add",
+            **PROVENANCE,
+            "decision_id": "d-2",
+        }
+        assert declare.status_code == status.HTTP_201_CREATED
+        assert self._create(membership, "regional_memberships").status_code == status.HTTP_201_CREATED
+        return declare.json()["uuid"]
+
+    def test_delete_referenced_local_identity_then_rejected_and_kept(self):
+        uuid = self._declared_and_referenced_local()
+
+        response = self.api_client.delete(path=self._entry_url(uuid, "local_identities"))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.filter(uuid=uuid).exists()
+
+    def test_rename_referenced_local_identity_then_rejected(self):
+        uuid = self._declared_and_referenced_local()
+
+        response = self.api_client.patch(
+            path=self._entry_url(uuid, "local_identities"), data={"row": {"item_id": "LOCAL:y"}}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.get(uuid=uuid).key == "LOCAL:x"
+
     def test_graph_lists_round_trip_and_validation(self):
         rows = {
             "local_identities": {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE},

@@ -45,3 +45,18 @@ class TestCase(AppTestCase):
         assert not self.entries.filter(list_name=migration.NEW).exists()
         assert self.entries.get(list_name=migration.OLD, key="Q1").values == {"status": "historical"}
         assert self.entries.get(list_name=migration.OLD, key="Q2").reason == ""
+
+    def test_forwards_then_local_item_gets_identity_and_backwards_removes_it(self):
+        self._old("LOCAL:region-x", "")
+        self._old("Q1", "")
+
+        migration.forwards(self.apps, None)
+
+        identity = self.entries.get(list_name="local_identities", key="LOCAL:region-x")
+        assert identity.values["kind"] == "overview"
+        assert identity.values["decision_source"] == migration.LEGACY_SOURCE
+        assert not self.entries.filter(list_name="local_identities", key="Q1").exists()
+
+        migration.backwards(self.apps, None)
+
+        assert not self.entries.filter(list_name="local_identities").exists()

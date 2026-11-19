@@ -312,18 +312,35 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
 
 
 def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
-    """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items."""
+    """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
+    and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
     if list_name not in GRAPH_LISTS:
         return None
     from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
 
-    others = (
-        entries.filter(list_name__in=GRAPH_LISTS).exclude(pk=exclude_pk).exclude(list_name=list_name, key=parsed.key)
-    )
+    graph_entries = entries.filter(list_name__in=GRAPH_LISTS)
+    others = graph_entries.exclude(pk=exclude_pk).exclude(list_name=list_name, key=parsed.key)
     rows = [(e.list_name, e.key, e.values) for e in others]
     rows.append((list_name, parsed.key, parsed.values))
-    items = graph_row_items(list_name, parsed.key, parsed.values).values()
+    items = set(graph_row_items(list_name, parsed.key, parsed.values).values())
+    replaced = graph_entries.filter(pk=exclude_pk).first() if exclude_pk is not None else None
+    if replaced is not None:
+        items |= set(graph_row_items(replaced.list_name, replaced.key, replaced.values).values())
     violations = involving(find_graph_violations(rows), items)
+    return violations[0].message if violations else None
+
+
+def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
+    if entry.list_name not in GRAPH_LISTS:
+        return None
+    from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
+
+    others = entries.filter(list_name__in=GRAPH_LISTS).exclude(pk=entry.pk)
+    violations = involving(
+        find_graph_violations([(e.list_name, e.key, e.values) for e in others]),
+        graph_row_items(entry.list_name, entry.key, entry.values).values(),
+    )
     return violations[0].message if violations else None
 
 

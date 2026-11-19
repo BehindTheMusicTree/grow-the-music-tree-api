@@ -47,6 +47,7 @@ from grow.curation.rows import (
     ParsedRow,
     RowConflict,
     check_edit,
+    find_graph_removal_error,
     find_item_rules,
     lock_writes,
 )
@@ -219,6 +220,9 @@ class CurationEntryView(CurationView):
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
         entry = self._get(list_name, uuid)
         item_id = entry.row.get("item_id")
+        graph_error = find_graph_removal_error(_entries(), entry)
+        if graph_error:
+            raise ValidationError({"row": graph_error})
         CurationEntry.objects.delete_instance(entry, actor=request.user)
         _apply_essential_songs(list_name, item_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
