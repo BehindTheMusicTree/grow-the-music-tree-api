@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `?artist=<uuid>&ordering=-albumYear` now orders songs with a year `DESC NULLS LAST`, matching `grow_artist_song_year_idx`. Postgres defaulted to `NULLS FIRST`, so each page read all the artist's songs with a year and sorted them instead of walking the index. Postgres-marked tests assert that the year and title pages are ordered index scans without a sort.
 - Migration `0140` reverse now drops its triggers and functions with `IF EXISTS`, so a partial reverse can be re-run; the concurrent raw assignment test is renamed to say what it asserts (follow-ups of #507).
 - The song genre fill and guard triggers skipped silently on a connection that never set `grow.membership_maintenance` (the setting is NULL, so `NOT (flag = 'on')` was NULL): migration `0143` redefines both functions with `COALESCE`.
 
