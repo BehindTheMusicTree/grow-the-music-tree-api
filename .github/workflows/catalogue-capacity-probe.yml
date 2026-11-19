@@ -14,6 +14,9 @@ jobs:
     name: Catalogue capacity probe
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    env:
+      # 1 is the prod scale; 1000 is the smoke run that checks the plumbing in a few minutes.
+      SCALE_DIVISOR: "1000"
     steps:
       - uses: actions/checkout@v5.0.1
 
@@ -48,6 +51,7 @@ jobs:
           xfs_info /mnt/catalogue | tee /dev/stderr | grep -q 'reflink=1'
           df -h /mnt/catalogue
           echo "PROBE_DIR=/mnt/catalogue" >>"$GITHUB_ENV"
+          echo "PROBE_STATE=$RUNNER_TEMP/probe" >>"$GITHUB_ENV"
 
       - uses: astral-sh/setup-uv@v5
         with:
@@ -55,17 +59,46 @@ jobs:
 
       - run: uv sync --all-extras
 
-      - name: Probe
-        run: benchmarks/catalogue/capacity_probe/probe.sh "$PROBE_DIR" "$RUNNER_TEMP/summary.md"
+      - name: Probe generate
+        timeout-minutes: 75
+        run: benchmarks/catalogue/capacity_probe/probe.sh generate
+
+      - name: Probe dump
+        timeout-minutes: 30
+        run: benchmarks/catalogue/capacity_probe/probe.sh dump
+
+      - name: Probe restore
+        timeout-minutes: 100
+        run: benchmarks/catalogue/capacity_probe/probe.sh restore
+
+      - name: Probe copy
+        timeout-minutes: 15
+        run: benchmarks/catalogue/capacity_probe/probe.sh copy
+
+      - name: Probe diverge
+        timeout-minutes: 60
+        run: benchmarks/catalogue/capacity_probe/probe.sh diverge
+
+      - name: Probe coexist
+        timeout-minutes: 10
+        run: benchmarks/catalogue/capacity_probe/probe.sh coexist
+
+      - name: Probe verdict
+        if: always()
+        timeout-minutes: 10
+        run: benchmarks/catalogue/capacity_probe/probe.sh verdict
 
       - name: Job summary
         if: always()
-        run: if [[ -f "$RUNNER_TEMP/summary.md" ]]; then cat "$RUNNER_TEMP/summary.md" >>"$GITHUB_STEP_SUMMARY"; fi
+        run: if [[ -f "$PROBE_STATE/summary.md" ]]; then cat "$PROBE_STATE/summary.md" >>"$GITHUB_STEP_SUMMARY"; fi
 
       - name: Upload summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: capacity-probe-summary
-          path: ${{ runner.temp }}/summary.md
+          path: |
+            ${{ runner.temp }}/probe/summary.md
+            ${{ runner.temp }}/probe/samples.tsv
+            ${{ runner.temp }}/probe/durations.tsv
           if-no-files-found: ignore
