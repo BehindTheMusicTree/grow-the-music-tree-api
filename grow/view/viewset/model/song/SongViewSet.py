@@ -9,6 +9,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.utils.urls import replace_query_param
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
 
 from grow.artist_song import page as artist_song_page
@@ -88,12 +89,16 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         return response
 
     def list(self, *args, **kwargs):
-        require_reference_graph()
-        with graph_read_transaction(key=DATASET_KEY) as dataset:
-            response = self._list_graph_songs()
-            response["X-Genre-Graph-Revision"] = str(dataset.revision)
-            response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
-            return response
+        try:
+            # The dataset is read inside the snapshot, so a missing graph surfaces from entering it.
+            with graph_read_transaction(key=DATASET_KEY) as dataset:
+                response = self._list_graph_songs()
+                response["X-Genre-Graph-Revision"] = str(dataset.revision)
+                response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
+                return response
+        except GenreGraphDataset.DoesNotExist:
+            require_reference_graph()
+            raise
 
     def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
