@@ -47,12 +47,6 @@ SLO_MS = {
     "song-list?genre cursor (largest genre)": 300,
 }
 
-# The list checks the reference graph exists before it opens its snapshot, so one data read precedes `BEGIN`.
-SONG_LIST_SCENARIOS = {
-    "song-list?artist (largest artist, deepest public page)",
-    "song-list?genre cursor (largest genre)",
-}
-
 VIEWER_TOKEN = "perf-viewer-token"
 # The front always sends the trusted viewer headers, so regional policies are evaluated per row, not skipped.
 VIEWER_HEADERS = {"HTTP_X_VIEWER_CONTEXT_TOKEN": VIEWER_TOKEN, "HTTP_X_VIEWER_COUNTRY": "FR"}
@@ -134,8 +128,6 @@ def test_median_latency_within_slo(scenario, perf_record, settings):
         assert response.status_code == status.HTTP_200_OK, response.content[:500]
         timings.append((time.perf_counter() - start) * 1000)
         counts = QueryCounts.from_queries(queries)
-        if scenario in SONG_LIST_SCENARIOS:
-            counts = counts.without_preamble(1)
         query_counts.append(
             counts.assert_protocol(snapshot=scenario != "artist-genre-counts (Canned Heat)", vendor=connection.vendor)
         )

@@ -5,11 +5,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
-from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_snapshot
 
 from grow.filtering.set.song.SongFilterSet import SCOPE_PARAMS, SongFilterSet
 from grow.genre_graph.selection import require_reference_graph
-from grow.genre_graph.service import DATASET_KEY
 from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
@@ -104,8 +103,9 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         if not is_admin(self.request):
             self._reject_unbounded_list()
             self.paginator.reject_public_overreach(self.request)
-        require_reference_graph()
-        with graph_read_transaction(key=DATASET_KEY) as dataset:
+        with graph_read_snapshot():
+            # Inside the snapshot so the graph check and the revision headers describe the rows served.
+            dataset = require_reference_graph()
             response = self._list_graph_songs()
             response["X-Genre-Graph-Revision"] = str(dataset.revision)
             response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
