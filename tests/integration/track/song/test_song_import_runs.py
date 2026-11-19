@@ -15,6 +15,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
+from grow.artist_song.rebuild import rebuild_artist_song
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt
@@ -22,6 +23,8 @@ from grow.bulk_import.run_steps import run_steps
 from grow.genre_music.catalogue_verification import stored_catalogue_bucket_counts, verify_catalogue_counts
 from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.model.artist.Artist import Artist
+from grow.model.artist_song.ArtistSong import ArtistSong
+from grow.model.artist_song.ArtistSongState import ArtistSongState
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -608,6 +611,32 @@ class TestImportRunMerge(AppTestCase):
         (row,) = SongSearch.objects.all()
         assert (row.title_key, row.has_genre) == ("comfortably numb live", False)
         assert [s.title for s in SongSearch.objects.search("waters numb", 8)] == ["Comfortably Numb (Live)"]
+
+    def test_merges_keep_artist_song_in_sync(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
+        rebuild_artist_song()
+        no_drift = {"missing": 0, "orphaned": 0, "stale": 0}
+
+        self._sync([SONG, other])
+        assert ArtistSong.objects.count() == 2 and ArtistSong.objects.drift() == no_drift
+
+        steps = self._steps(self._sync([SONG, other]))
+        assert steps["upsert_artist_song"] == 0
+
+        self._sync([{**SONG, "title": "Comfortably Numb (Live)", "artist": "Roger Waters"}])
+        assert ArtistSong.objects.count() == 1 and ArtistSong.objects.drift() == no_drift
+        assert ArtistSong.objects.get().title == "Comfortably Numb (Live)"
+
+    def test_unbuilt_artist_song_projection_is_built_after_the_merge(self):
+        self.model_fixture_factory.create_genre("Rock")
+
+        result = self._sync([SONG])
+
+        assert not {"upsert_artist_song", "delete_artist_song"} & {t["label"] for t in result["stepTimings"]}
+        assert ArtistSongState.load().ready
+        assert ArtistSong.objects.count() == 1
+        assert ArtistSong.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
 
     def test_unbuilt_projection_is_built_in_bulk_after_the_merge(self):
         self.model_fixture_factory.create_genre("Rock")

@@ -1,16 +1,23 @@
+from uuid import UUID
+
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.utils.urls import replace_query_param
 from the_music_tree_api_kit.serializer.SerializerType import SerializerType
-from the_music_tree_genre_kit.genre_graph.storage import graph_read_transaction
+from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_snapshot
 
+from grow.artist_song import page as artist_song_page
 from grow.filtering.set.song.SongFilterSet import SongFilterSet
 from grow.genre_graph.selection import require_reference_graph
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_graph.snapshot import graph_snapshot
+from grow.model.artist_song.ArtistSong import ArtistSong
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song.Song import Song
 from grow.model.song.SongCurationManager import SongCurationManager
@@ -39,6 +46,8 @@ from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
+
+ARTIST_LIST_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
 
 
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
@@ -80,16 +89,23 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         return response
 
     def list(self, *args, **kwargs):
-        require_reference_graph()
-        with graph_read_transaction(key=DATASET_KEY) as dataset:
-            response = self._list_graph_songs()
-            response["X-Genre-Graph-Revision"] = str(dataset.revision)
-            response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
-            return response
+        try:
+            with graph_read_snapshot():
+                # Only the revisions: `payload` is the whole serialized graph, parsed on every request otherwise.
+                dataset = GenreGraphDataset.objects.only("revision", "membership_revision").get(pk=DATASET_KEY)
+                response = self._list_graph_songs()
+                response["X-Genre-Graph-Revision"] = str(dataset.revision)
+                response["X-Genre-Membership-Revision"] = str(dataset.membership_revision)
+                return response
+        except GenreGraphDataset.DoesNotExist:
+            require_reference_graph()
+            raise
 
     def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
         queryset = self.get_queryset()
+        if "artist" in self.request.query_params:
+            return self._list_artist_songs(queryset)
         if wants_cursor(self.request):
             params = self.request.query_params
             if "genre" not in params or "ordering" in params or "from" in params:
@@ -99,6 +115,53 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
+
+    def _list_artist_songs(self, queryset):
+        """`?artist`: a keyset page read from `grow_artist_song`, whose cost doesn't grow with the artist's size."""
+        params = self.request.query_params
+        unsupported = set(params) - ARTIST_LIST_PARAMS
+        if unsupported:
+            raise ParseError(f"`artist` supports only {sorted(ARTIST_LIST_PARAMS)}, not {sorted(unsupported)}.")
+        ordering = params.get("ordering", artist_song_page.DEFAULT_ORDERING)
+        if ordering not in artist_song_page.ORDERINGS:
+            raise ParseError(f"`ordering` with `artist` must be one of {list(artist_song_page.ORDERINGS)}.")
+        try:
+            artist_id = UUID(params["artist"])
+        except ValueError as error:
+            raise ParseError("Invalid artist.") from error
+        raw_cursor = params.get("cursor")
+        cursor = artist_song_page.Cursor.decode(raw_cursor, ordering) if raw_cursor else None
+        ArtistSong.objects.require_ready()
+        size = self.paginator.get_page_size(self.request)
+        found = artist_song_page.page(artist_id, ordering, cursor, size + 1)
+        has_next = len(found) > size
+        found = found[:size]
+        serializer_class = self._require_serializer(SerializerType.SIMPLE)
+        songs = {
+            song.pk: song
+            for song in self._eager_load(serializer_class, queryset.filter(pk__in=[song_id for song_id, _ in found]))
+        }
+        data = serializer_class(
+            [songs[song_id] for song_id, _ in found if song_id in songs],
+            many=True,
+            context=self.get_serializer_context(),
+        ).data
+        next_link = (
+            replace_query_param(self.request.build_absolute_uri(), "cursor", found[-1][1].encode())
+            if has_next
+            else None
+        )
+        return Response(
+            {
+                PaginatedResponseFields.OVERALL_TOTAL: None,
+                PaginatedResponseFields.NEXT: next_link,
+                PaginatedResponseFields.PREVIOUS: None,
+                PaginatedResponseFields.RESULTS: data,
+                PaginatedResponseFields.PAGE: None,
+                PaginatedResponseFields.PAGE_SIZE: size,
+                PaginatedResponseFields.TOTAL_PAGES: None,
+            }
+        )
 
     @graph_snapshot
     def retrieve(self, *args, **kwargs):

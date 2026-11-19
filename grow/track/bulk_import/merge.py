@@ -15,6 +15,8 @@ from the_music_tree_genre_kit.genre_graph.models import (
 )
 from the_music_tree_genre_kit.track.Track import Track
 
+from grow.artist_song import projection as artist_song_projection
+from grow.artist_song.rebuild import queue_artist_song_build_if_needed
 from grow.bulk_import.analyze import analyze_steps
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.lifecycle import execute_merge
@@ -23,6 +25,7 @@ from grow.bulk_import.run_steps import run_steps
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.artist.Artist import Artist
+from grow.model.artist_song.ArtistSong import ArtistSong
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -313,6 +316,12 @@ STEPS = [
     ),
     # Every new, changed or re-credited song, once its track, song and artist rows hold their final values.
     ("upsert_song_search", projection.upsert("SELECT track_id FROM changed_song")),
+    # The artist song list: credits the artist steps removed, then the new or changed songs' rows.
+    (
+        "delete_artist_song_links",
+        artist_song_projection.delete_removed_links("SELECT track_id FROM changed_song WHERE artist_changed"),
+    ),
+    ("upsert_artist_song", artist_song_projection.upsert("SELECT track_id FROM changed_song")),
 ]
 
 # A reviewed run leaves the legacy genre column alone: its attributions are the only genre authority.
@@ -361,6 +370,7 @@ AFTER_STALE_STEPS = [
         "DELETE FROM the_music_tree_genre_kit_track_artists WHERE track_id IN (SELECT track_id FROM stale)",
     ),
     ("delete_song_search", projection.delete("SELECT track_id FROM stale")),
+    ("delete_artist_song", artist_song_projection.delete_songs("SELECT track_id FROM stale")),
     (
         "delete_stale_attribution_evidence",
         """DELETE FROM the_music_tree_genre_kit_genregraphattributionevidence
@@ -492,6 +502,7 @@ WRITTEN_MODELS = (
     Genre.essential_songs.through,
     HistoryEntry,
     SongSearch,
+    ArtistSong,
     GenreGraphEvidence,
     GenreGraphAttributionEvidence,
     GenreGraphAttribution,
@@ -532,6 +543,7 @@ def merge_song_import_run(
         invalidate_search_cache()
         if not live:
             queue_song_search_build()
+        queue_artist_song_build_if_needed()
 
     return execute_merge(
         run_id,
@@ -563,6 +575,7 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         cursor.execute("SELECT set_config(%s, 'on', true)", [SKIP_VIEWS_COUNT_SONG_UPDATE])
         with report_step("lock_search_projection"):
             live = projection.lock_if_live(cursor)
+            artist_song_live = artist_song_projection.lock_if_live(cursor)
         timings = run_steps(cursor, [("song_import", song_import)], params)
         with report_step("validate_staging"):
             cursor.execute("SELECT EXISTS (SELECT 1 FROM song_import)")
@@ -574,6 +587,12 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS, *analyze_steps(WRITTEN_MODELS)]
         if not live:
             steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]
+        if not artist_song_live:
+            steps = [
+                step
+                for step in steps
+                if step[0] not in {"delete_artist_song_links", "upsert_artist_song", "delete_artist_song"}
+            ]
         cut = [label for label, _ in steps].index(PUBLISH_AFTER) + 1
         timings += run_steps(cursor, steps[:cut], params)
         started = perf_counter()

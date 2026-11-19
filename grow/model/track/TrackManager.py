@@ -25,6 +25,7 @@ class TrackManager(AbstractTrackManager[T]):
             lock_catalogue_sources(using=self.db)
             instance = super().create(actor=actor, **kwargs)
             self._refresh_search(instance)
+            self._refresh_artist_songs(instance)
         return instance
 
     @transaction.atomic
@@ -65,6 +66,14 @@ class TrackManager(AbstractTrackManager[T]):
 
     def _on_updated(self, old_instance: T, updated_instance: T) -> None:
         self._refresh_search(updated_instance)
+        self._refresh_artist_songs(updated_instance)
+
+    @staticmethod
+    def _refresh_artist_songs(instance: T) -> None:
+        # Deletions need no hook: the rows cascade with their song or artist.
+        from grow.model.artist_song.ArtistSong import ArtistSong
+
+        ArtistSong.objects.refresh_songs([instance.pk])
 
     @staticmethod
     def _refresh_search(instance: T) -> None:

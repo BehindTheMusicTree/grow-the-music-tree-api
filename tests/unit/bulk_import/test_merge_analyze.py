@@ -4,6 +4,7 @@ import re
 import pytest
 
 from grow.artist.bulk_import import merge as artist_merge
+from grow.artist_song import projection as artist_song_projection
 from grow.bulk_import.analyze import analyze_steps, tables
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
@@ -17,12 +18,13 @@ WRITE = re.compile(r"\b(?:INSERT INTO|UPDATE|DELETE FROM)\s+(?!SET\b)(\w+)")
 def test_merge_analyzes_every_table_it_writes(module):
     temp_tables = {name.strip() for name in module.TEMP_TABLES.split(",")}
     # The grow_song_search writes live in projection, which both merges call.
-    source = inspect.getsource(module) + inspect.getsource(projection)
+    source = inspect.getsource(module) + inspect.getsource(projection) + inspect.getsource(artist_song_projection)
     written = set(WRITE.findall(source)) - temp_tables
     analyzed = set(tables(module.WRITTEN_MODELS))
 
     # projection interpolates its table names, which the regex can't see.
     written.add(projection.TABLE)
+    written.add(artist_song_projection.TABLE)
     assert written <= analyzed, f"add the models of {sorted(written - analyzed)} to WRITTEN_MODELS"
 
 

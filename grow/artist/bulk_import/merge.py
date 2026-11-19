@@ -3,6 +3,8 @@ from typing import Any
 from django.db import connection, transaction
 
 from grow.artist.bulk_import.ArtistImportStaging import ArtistImportStaging
+from grow.artist_song import projection as artist_song_projection
+from grow.artist_song.rebuild import queue_artist_song_build_if_needed
 from grow.bulk_import.analyze import analyze_steps
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.lifecycle import execute_merge
@@ -13,6 +15,7 @@ from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
+from grow.model.artist_song.ArtistSong import ArtistSong
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.song_search.SongSearch import SongSearch
 from grow.search.cache import invalidate_search_cache
@@ -22,7 +25,7 @@ from grow.song_search.rebuild import queue_song_search_build
 TEMP_TABLES = (
     "artist_import, run_artist, membership_import, link_import, alias_import, release_group_row, "
     "release_group_import, credit_import, run_album, desired_membership, desired_link, desired_alias, "
-    "desired_album_artist, stale_artist, renamed_artist"
+    "desired_album_artist, stale_artist, renamed_artist, changed_album"
 )
 
 YEAR = "(({0})::int)"
@@ -155,14 +158,24 @@ RESOLVE_STEPS = [
     ("run_artist_pkey", "ALTER TABLE run_artist ADD PRIMARY KEY (mbid)"),
     ("run_artist_uuid_index", "CREATE UNIQUE INDEX ON run_artist (uuid)"),
     ("analyze_run_artist", "ANALYZE run_artist"),
+    ("changed_album", "CREATE TEMP TABLE changed_album (uuid uuid)"),
     (
         "update_albums",
-        """UPDATE grow_album a SET
-        name = i.title, year = i.year, primary_type = i.primary_type, secondary_types = i.secondary_types,
-        updated_on = now()
-    FROM release_group_import i WHERE a.musicbrainz_release_group_id = i.mbid
-        AND (a.name, a.year, a.primary_type, a.secondary_types) IS DISTINCT FROM
-        (i.title, i.year, i.primary_type, i.secondary_types)""",
+        """WITH updated AS (
+        UPDATE grow_album a SET
+            name = i.title, year = i.year, primary_type = i.primary_type, secondary_types = i.secondary_types,
+            updated_on = now()
+        FROM release_group_import i WHERE a.musicbrainz_release_group_id = i.mbid
+            AND (a.name, a.year, a.primary_type, a.secondary_types) IS DISTINCT FROM
+            (i.title, i.year, i.primary_type, i.secondary_types)
+        RETURNING a.uuid, a.year IS DISTINCT FROM i.year AS year_changed
+    )
+    INSERT INTO changed_album SELECT uuid FROM updated""",
+    ),
+    # The song list's year sort key follows the album's year (the song's own first-release year wins when set).
+    (
+        "upsert_artist_song_albums",
+        artist_song_projection.upsert(artist_song_projection.songs_of_albums("SELECT uuid FROM changed_album")),
     ),
     (
         "insert_albums",
@@ -333,7 +346,16 @@ def _stale_steps(user_id: int | None, delta: bool) -> list[tuple[str, str]]:
 
 
 # Every table the steps write, in the order they are analyzed.
-WRITTEN_MODELS = (Artist, ArtistAlias, ArtistLink, ArtistMembership, Album, Album.album_artists.through, SongSearch)
+WRITTEN_MODELS = (
+    Artist,
+    ArtistAlias,
+    ArtistLink,
+    ArtistMembership,
+    Album,
+    Album.album_artists.through,
+    SongSearch,
+    ArtistSong,
+)
 
 
 def merge_artist_import_run(
@@ -356,6 +378,7 @@ def merge_artist_import_run(
         invalidate_search_cache()
         if not live:
             queue_song_search_build()
+        queue_artist_song_build_if_needed()
 
     return execute_merge(run_id, attempt_id, ArtistImportStaging, merge, after_commit)
 
@@ -372,6 +395,7 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
                 raise ValueError(f"import run {run_id} has no staged artists")
         with report_step("lock_search_projection"):
             live = projection.lock_if_live(cursor)
+            artist_song_live = artist_song_projection.lock_if_live(cursor)
         steps = [
             *EXPANDED_STEPS,
             *RESOLVE_STEPS,
@@ -381,6 +405,8 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         ]
         if not live:
             steps = [step for step in steps if step[0] != "upsert_song_search"]
+        if not artist_song_live:
+            steps = [step for step in steps if step[0] != "upsert_artist_song_albums"]
         timings = run_steps(cursor, steps, params)
         with report_step("final_count_and_tables"):
             cursor.execute("SELECT count(*) FROM run_artist")

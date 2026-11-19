@@ -73,10 +73,6 @@ class TestCase(AppTestCase):
         self._install_graph()
         assert self._list_uuids(title="nonexistent") == set()
 
-    def test_filter_by_artist_uuid(self):
-        self._install_graph()
-        assert self._list_uuids(artist=str(self.pink_floyd.uuid)) == {str(self.matching_track.uuid)}
-
     def _titles(self, **params):
         response = self.api_client.get(path=reverse(self.list_endpoint), data=params)
         assert response.status_code == status.HTTP_200_OK, response.data
