@@ -85,3 +85,24 @@ class TestCase(AppTestCase):
                 raise AssertionError("expected CommandError")
 
         assert CurationEntry.objects.count() == total
+
+    def test_b13_missing_list_file_then_error_without_substitution(self):
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            for path in SEED_DIR.glob("*.csv"):
+                shutil.copy(path, directory)
+            (directory / "regional_memberships.csv").unlink()
+
+            try:
+                call_command("import_curation_csvs", str(directory), stdout=StringIO())
+            except CommandError as e:
+                assert "regional_memberships" in str(e)
+            else:
+                raise AssertionError("expected CommandError")
+
+    def test_header_only_graph_lists_then_import_ok(self):
+        out = StringIO()
+
+        call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
+
+        assert "0 created" in out.getvalue()

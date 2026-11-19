@@ -14,11 +14,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Structured regional graph decisions (#520): new curation lists `local_identities`, `canonical_boundaries`, `regional_memberships`, `expression_styles` and `regional_anchorings` (header-only seeds), each carrying `decision_id`, `decision_source` and `reason`. Writes and the export (409) reject a reused `decision_id`, an undeclared or wrongly-kinded `LOCAL:` item and a cycle of `add` memberships; a membership contradicting the stored `add`/`prohibit` of the same pair is rejected. Deleting or renaming a local identity still referenced by graph entries is rejected. Tests cover each violation, the b13/r21/m15 witnesses, the seeds and migration `0148`.
 - `library/songs/?artist=<uuid>&ordering=title|-albumYear` reads a keyset page from the new denormalized table `grow_artist_song` (migration `0146`), so its cost no longer grows with the artist's song count. Pages are chained by an opaque `cursor` in `next`; `count`, `page` and `totalPages` are null. The songs and artists merges and the song, album and credit ORM writes keep the table current. `manage.py rebuild_artist_song` builds it (`--check` reports drift). The endpoint answers 503 until it has been built; there is no fallback to the old query. Tests cover the endpoint, the keyset, the projection and the merges (Postgres-marked tests included), and `perf` gains two scenarios.
 - `POST library/songs/assign-genre/undo/` `{undoToken}` restores what an assign-genre call overwrote (#505): each song's previous attributions with their provenance, and the previous `song_genre` curation rule or its absence. It answers 409 for the whole batch when any song's assignment changed since, and a token is single-use and only its creator can spend it. New table `grow_song_genre_undo` (migration `0145`); tests cover provenance restoration, rule restoration, the batch 409, token reuse and the legacy (no dataset) path.
 
 ### Changed
 
+- `overview_status_overrides` is renamed `regional_overview_types` (column `status` -> `overview_type`, plus decision provenance). Migration `0148` renames the stored entries and review items with legacy provenance, and declares a `local_identities` overview for each legacy `LOCAL:` entry so it stays exportable; it leaves history snapshots untouched, as `0065` and `0102` did.
 - Recalibrated the four provisional `Perf` SLOs from five sequential `workflow_dispatch` runs on develop (3x the slowest side's pooled p50, rounded up to 10 ms): `artist-songs` `-albumYear` 60 -> 110 ms and `title` 60 -> 130 ms, `genre-playlist-tracks` viewer FR coverage+subgenres 870 -> 340 ms and genre_only 70 -> 30 ms (README "Performance" lists the runs).
 - Adopt the-music-tree-genre-kit v0.67.0, whose `graph_read_transaction` defers `GenreGraphDataset.payload` unless `with_payload=True`: `SongViewSet.list` uses it again (no payload decode per read, restoring the artist-songs list latency) and `ReferenceGraphView.get` opts in. Song genre selection follows the kit's `select_tracks(tracks, *, node=...)` signature.
 - `Perf` on a PR no longer fails on an absolute SLO breach the base shares (`over SLO (base too)`): the same-runner A/B judges the PR and the SLO judges `develop`. Slowdowns, query increases, instability, a breach only the head has, and any breach on pushes or without a base still fail. The job timeout is 35 minutes, enough for the 8 rounds of a suspected regression. Tests in `tests/unit/perf/test_compare.py`.
@@ -41,6 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Legacy (non reviewed) songs import runs.
 - Drop the tracked `.agent-plans/.gitignore`: plans now live in the common git directory.
+
+### Deprecated
+
+- The export key `overview_status_overrides` (`item_id`, `status`, `reason`) is a projection of `regional_overview_types` kept until the pipelines read the new list (pipelines#436); a later PR removes it.
 
 ## [18.0.0] - 2026-11-18
 

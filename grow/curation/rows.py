@@ -16,6 +16,9 @@ from grow.curation.lists import (
     ENTITY_ID_COLUMNS,
     ENTITY_ID_PATTERN,
     EXCLUSIVE_LISTS,
+    GRAPH_ITEM_ID_PATTERN,
+    GRAPH_LISTS,
+    GRAPH_PAIR_LISTS,
     INT_COLUMNS,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
@@ -102,7 +105,14 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in curation_list.key and KEY_SEPARATOR in value:
             errors[column] = "Must not contain a tab"
             continue
-        if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
+        if column in ITEM_ID_COLUMNS and list_name in GRAPH_LISTS:
+            if not re.fullmatch(GRAPH_ITEM_ID_PATTERN, value):
+                errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<lowercase-slug> id"
+                continue
+            if list_name == "local_identities" and not value.startswith("LOCAL:"):
+                errors[column] = "Must be a LOCAL:<slug> id: Wikidata items need no declared identity"
+                continue
+        elif column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
         if column in TRADITION_ID_COLUMNS and not re.fullmatch(r"Q[0-9]+", value):
@@ -122,7 +132,11 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             errors[column] = "Must be an integer year"
             continue
         parsed[column] = value
-    if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
+    if (
+        not errors
+        and list_name in ITEM_PAIR_LISTS | GRAPH_PAIR_LISTS
+        and len({parsed[c] for c in curation_list.key}) == 1
+    ):
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if (
         not errors
@@ -297,6 +311,53 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
     return violations[0].message if violations else None
 
 
+def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
+    """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
+    and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
+    if list_name not in GRAPH_LISTS:
+        return None
+    from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
+
+    graph_entries = entries.filter(list_name__in=GRAPH_LISTS)
+    others = graph_entries.exclude(pk=exclude_pk).exclude(list_name=list_name, key=parsed.key)
+    rows = [(e.list_name, e.key, e.values) for e in others]
+    rows.append((list_name, parsed.key, parsed.values))
+    items = set(graph_row_items(list_name, parsed.key, parsed.values).values())
+    replaced = graph_entries.filter(pk=exclude_pk).first() if exclude_pk is not None else None
+    if replaced is not None:
+        items |= set(graph_row_items(replaced.list_name, replaced.key, replaced.values).values())
+    violations = involving(find_graph_violations(rows), items)
+    return violations[0].message if violations else None
+
+
+def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
+    if entry.list_name not in GRAPH_LISTS:
+        return None
+    from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
+
+    others = entries.filter(list_name__in=GRAPH_LISTS).exclude(pk=entry.pk)
+    violations = involving(
+        find_graph_violations([(e.list_name, e.key, e.values) for e in others]),
+        graph_row_items(entry.list_name, entry.key, entry.values).values(),
+    )
+    return violations[0].message if violations else None
+
+
+def find_membership_contradiction(entries: models.QuerySet, list_name: str, parsed: ParsedRow) -> str | None:
+    """Why a membership `parsed` contradicts the stored one on the same pair, if it does."""
+    if list_name != "regional_memberships":
+        return None
+    stored = entries.filter(list_name=list_name, key=parsed.key).first()
+    if stored is None or stored.values.get("action") == parsed.values["action"]:
+        return None
+    child, parent = parsed.key.split(KEY_SEPARATOR)
+    return (
+        f"{child} -> {parent} is already `{stored.values.get('action')}`; "
+        f"`{parsed.values['action']}` would contradict it"
+    )
+
+
 def check_upsert(
     entries: models.QuerySet, list_name: str, row: dict[str, Any], check_edges: bool = True
 ) -> tuple[ParsedRow, Any]:
@@ -326,6 +387,9 @@ def check_upsert(
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    graph_error = find_graph_error(entries, list_name, parsed)
+    if graph_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: graph_error})
     excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key) if check_edges else None
     if excluded_edge_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: excluded_edge_error})
@@ -338,6 +402,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     Raises `InvalidRow` or `RowConflict`."""
     parsed = parse_row(list_name, row)
     lock_writes(entries)
+    contradiction = find_membership_contradiction(entries.exclude(pk=exclude_pk), list_name, parsed)
+    if contradiction:
+        raise RowConflict(contradiction)
     if entries.filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
         raise RowConflict(f"An entry with this key already exists in {list_name}")
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key, exclude_pk)
@@ -355,6 +422,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    graph_error = find_graph_error(entries, list_name, parsed, exclude_pk)
+    if graph_error:
+        raise RowConflict(graph_error)
     excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key)
     if excluded_edge_error:
         raise RowConflict(excluded_edge_error)

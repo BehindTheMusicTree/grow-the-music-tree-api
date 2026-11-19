@@ -47,6 +47,7 @@ from grow.curation.rows import (
     ParsedRow,
     RowConflict,
     check_edit,
+    find_graph_removal_error,
     find_item_rules,
     lock_writes,
 )
@@ -219,6 +220,9 @@ class CurationEntryView(CurationView):
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
         entry = self._get(list_name, uuid)
         item_id = entry.row.get("item_id")
+        graph_error = find_graph_removal_error(_entries(), entry)
+        if graph_error:
+            raise ValidationError({"row": graph_error})
         CurationEntry.objects.delete_instance(entry, actor=request.user)
         _apply_essential_songs(list_name, item_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -430,6 +434,12 @@ class CurationExportView(CurationView):
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
+        # Deprecated projection for pipelines that still read `overview_status_overrides`: dropped once they read
+        # `regional_overview_types`.
+        export["overview_status_overrides"] = [
+            {"item_id": row["item_id"], "status": row["overview_type"], "reason": row["reason"]}
+            for row in export["regional_overview_types"]
+        ]
         export["edges"] = [
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]

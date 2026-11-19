@@ -18,8 +18,13 @@ ITEM_ID_COLUMNS = frozenset(
         "root_item_id",
         "pop_child_item_id",
         "replacement_item_id",
+        "child_item_id",
+        "expression_item_id",
+        "style_item_id",
     }
 )
+GRAPH_ITEM_ID_PATTERN = r"Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*"
+"""The regional graph contract's item id (genre-kit `genre_graph.schema.json`): stricter than `ITEM_ID_PATTERN`."""
 ENTITY_ID_PATTERN = r"[a-z]{4}[0-9]{4}|Q[0-9]+"
 """A Glottocode, or the QID of a Wikidata-only cultural entity."""
 
@@ -35,7 +40,10 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "synthetic_overview_resolutions": {"action": ("replace", "remove")},
-    "overview_status_overrides": {"status": ("current", "historical")},
+    "regional_overview_types": {"overview_type": ("current", "historical")},
+    "canonical_boundaries": {"boundary": ("entry", "exit")},
+    "regional_memberships": {"action": ("add", "prohibit")},
+    "local_identities": {"kind": ("genre", "expression", "overview")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
         "entity_kind": ("cultural_region", "macro_region", "city", "admin_unit", "historical_country")
@@ -57,6 +65,10 @@ OPTIONAL_COLUMNS = frozenset(
     }
 )
 REASON_COLUMN = "reason"
+DECISION_ID_COLUMN = "decision_id"
+PROVENANCE_COLUMNS = (DECISION_ID_COLUMN, "decision_source", REASON_COLUMN)
+"""Provenance of a regional graph decision: the contract's `{decisionId, source, rationale}`, `reason` being the
+rationale."""
 KEY_MAX_LENGTH = 512
 """`CurationEntry.key` column length: a longer (joined) key is a validation error, not a database one."""
 
@@ -111,6 +123,10 @@ def _addition_list(description: str) -> CurationList:
     return CurationList("wikidata", ("item_id",), ("item_id", ADDITION_LABEL_COLUMN, "reason"), description)
 
 
+def _graph_list(key: tuple[str, ...], values: tuple[str, ...], description: str) -> CurationList:
+    return CurationList("gold", key, (*key, *values, *PROVENANCE_COLUMNS), description)
+
+
 CURATION_LISTS: dict[str, CurationList] = {
     "canonical_parent_additions": _addition_list("Synthetic canonical parent items the pipeline adds to the tree."),
     "capitalized_words": CurationList(
@@ -132,12 +148,37 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
-    "overview_status_overrides": CurationList(
-        "gold",
+    "local_identities": _graph_list(
         ("item_id",),
-        ("item_id", "status", "reason"),
+        ("kind", "label"),
+        "Identity of a `LOCAL:` item of the regional graph, which Wikidata lacks: a `genre`, an `expression` (a "
+        "regional rendering of a genre, e.g. a language-specific one) or an `overview`.",
+    ),
+    "canonical_boundaries": _graph_list(
+        ("item_id",),
+        ("boundary",),
+        "Whether a genre is an `entry` or an `exit` of the canonical tree towards the regional graph.",
+    ),
+    "regional_memberships": _graph_list(
+        ("child_item_id", "parent_item_id"),
+        ("action",),
+        "Regional membership of an item in a parent: `add` creates it, `prohibit` forbids it.",
+    ),
+    "expression_styles": _graph_list(
+        ("expression_item_id", "style_item_id"),
+        (),
+        "The style an expression item renders.",
+    ),
+    "regional_anchorings": _graph_list(
+        ("item_id", "overview_item_id"),
+        (),
+        "Regional overview an item is anchored to.",
+    ),
+    "regional_overview_types": _graph_list(
+        ("item_id",),
+        ("overview_type",),
         "Whether a regional overview (Wikidata item or generated `LOCAL:` one) is `current` or `historical`, "
-        "overriding the status Gold derives; an overview with neither a derived status nor an entry fails the export.",
+        "overriding the type Gold derives; an overview with neither a derived type nor an entry fails the export.",
     ),
     "regional_overview_additions": _addition_list("Synthetic regional overview items the pipeline adds."),
     "synthetic_overview_resolutions": CurationList(
@@ -357,6 +398,23 @@ EDGE_PROJECTION_LISTS: dict[str, CurationList] = {
 }
 """The legacy edge lists, now stored as `GenreEdgeRule` rows: no longer `CurationEntry` rows nor served by the generic
 curation CRUD, nor exported (the export carries `edges`). Kept to designate a rule by its legacy `(list, key)`."""
+
+GRAPH_LISTS = frozenset(
+    {
+        "local_identities",
+        "canonical_boundaries",
+        "regional_memberships",
+        "expression_styles",
+        "regional_anchorings",
+        "regional_overview_types",
+    }
+)
+"""Lists carrying regional graph decisions: each has provenance, strict item ids and graph-wide checks
+(`grow.curation.rule_set`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
+before any row uses it."""
+
+GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "expression_styles", "regional_anchorings"})
+"""Graph lists keyed by two item ids, which must differ."""
 
 ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
 """Lists whose rows create a node: their `label` is the item's only name until it reaches the tree."""
