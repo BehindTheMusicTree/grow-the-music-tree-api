@@ -11,6 +11,7 @@ import uuid
 from dataclasses import dataclass
 
 from django.db import connection
+from django.db.models import F
 from rest_framework.exceptions import ParseError
 
 from grow.model.artist_song.ArtistSong import ArtistSong
@@ -63,6 +64,8 @@ def page(artist_id: uuid.UUID, ordering: str, cursor: Cursor | None, size: int) 
         return [(song_id, Cursor(title, song_id)) for song_id, title in found]
     # Descending year, years-less songs last, song id descending inside a year: a row comparison can't express the NULLS
     # LAST boundary, so the dated rows and the undated tail are two ordered scans, the second only if the first runs short.
+    # The dated scan spells out NULLS LAST: a bare DESC means NULLS FIRST on Postgres, which the index doesn't carry, so
+    # the planner would read all the artist's dated rows and sort them instead of walking the index.
     found: list[tuple[uuid.UUID, Cursor]] = []
     if cursor is None or cursor.key is not None:
         dated = rows.filter(album_year__isnull=False)
@@ -73,7 +76,9 @@ def page(artist_id: uuid.UUID, ordering: str, cursor: Cursor | None, size: int) 
             )
         found = [
             (song_id, Cursor(year, song_id))
-            for song_id, year in dated.order_by("-album_year", "-song_id").values_list("song_id", "album_year")[:size]
+            for song_id, year in dated.order_by(F("album_year").desc(nulls_last=True), "-song_id").values_list(
+                "song_id", "album_year"
+            )[:size]
         ]
     if len(found) < size:
         undated = rows.filter(album_year__isnull=True)
