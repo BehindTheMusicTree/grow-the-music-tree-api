@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Recalibrated the four provisional `Perf` SLOs from five sequential `workflow_dispatch` runs on develop (3x the slowest side's pooled p50, rounded up to 10 ms): `artist-songs` `-albumYear` 60 -> 110 ms and `title` 60 -> 130 ms, `genre-playlist-tracks` viewer FR coverage+subgenres 870 -> 340 ms and genre_only 70 -> 30 ms (README "Performance" lists the runs).
 - Adopt the-music-tree-genre-kit v0.67.0, whose `graph_read_transaction` defers `GenreGraphDataset.payload` unless `with_payload=True`: `SongViewSet.list` uses it again (no payload decode per read, restoring the artist-songs list latency) and `ReferenceGraphView.get` opts in. Song genre selection follows the kit's `select_tracks(tracks, *, node=...)` signature.
 - `Perf` on a PR no longer fails on an absolute SLO breach the base shares (`over SLO (base too)`): the same-runner A/B judges the PR and the SLO judges `develop`. Slowdowns, query increases, instability, a breach only the head has, and any breach on pushes or without a base still fail. The job timeout is 35 minutes, enough for the 8 rounds of a suspected regression. Tests in `tests/unit/perf/test_compare.py`.
 - **Breaking:** `?artist` accepts only `artist`, `ordering` (`title` or `-albumYear`), `cursor`, `page_size` and `with_total`; combining it with other filters now returns 400, and `?page=` is replaced by `cursor`.
