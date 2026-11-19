@@ -42,10 +42,10 @@ class Cursor:
         try:
             key, song_id = json.loads(base64.urlsafe_b64decode(value.encode()))
             cursor = cls(key, uuid.UUID(song_id))
-        except (ValueError, TypeError, binascii.Error, UnicodeDecodeError) as error:
+        except (ValueError, TypeError, AttributeError, binascii.Error, UnicodeDecodeError) as error:
             raise ParseError("Invalid cursor.") from error
         valid_key = isinstance(key, str) if ordering == TITLE else key is None or type(key) is int
-        if not valid_key:
+        if not valid_key or (isinstance(key, str) and "\x00" in key):
             raise ParseError("Invalid cursor.")
         return cursor
 

@@ -1,3 +1,5 @@
+import base64
+import json
 from uuid import uuid4
 
 from django.urls import reverse
@@ -85,3 +87,14 @@ class TestCase(AppTestCase):
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_forged_cursors_are_rejected(self):
+        ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
+        for payload in (["x", 5], ["x", [1]], ["\x00", str(uuid4())]):
+            cursor = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+            response = self.api_client.get(
+                path=reverse(self.list_endpoint), data={"artist": str(uuid4()), "cursor": cursor}
+            )
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, payload
