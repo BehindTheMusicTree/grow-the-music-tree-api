@@ -36,8 +36,7 @@ def select_songs(songs: QuerySet, *, genre_id, coverage: CriteriaCoverage, subge
     scope = parse_subgenres(subgenres, coverage, tree)
     return select_tracks(
         songs,
-        key=DATASET_KEY,
-        identity=node.identity,
+        node=node,
         scope=scope.value if scope is not None else "all",
         include_descendants=coverage != CriteriaCoverage.ONLY,
     )

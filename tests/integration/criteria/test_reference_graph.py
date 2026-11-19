@@ -98,8 +98,8 @@ def test_e03_preserves_bindings_songs_duplicate_labels_and_retry(payload):
     assert GenreGraphAssignmentBackup.objects.count() == 2
     assert import_graph(payload, mapping, dataset.revision).revision == dataset.revision
     assert GenreGraphImport.objects.count() == 1
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
-    assert not select_tracks(Song.objects.all(), key="grow", identity="LOCAL:jamaica").exists()
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
+    assert not select_tracks(Song.objects.all(), node=_node("LOCAL:jamaica")).exists()
 
 
 def test_e02_missing_mapping_and_revision_rejected_atomically(payload):
@@ -169,7 +169,7 @@ def test_e03_restore_updates_projection_and_keeps_songs(payload):
     assert dub.name == "Dub"
     assert dub.parent_id is None
     assert dub.root_id == dub.pk
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
     with pytest.raises(GraphRevisionConflict):
         restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
 
@@ -209,7 +209,7 @@ def test_e04_membership_tokens_prevent_lost_attribution_edits(payload):
             expected_membership_revision=dataset.membership_revision,
             expected_assignment_revision=assignment_revision(song.pk),
         )
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
     with pytest.raises(GraphValidationError, match="Evidence"):
         write_song_attributions(
             song_id=song.pk,
@@ -479,7 +479,11 @@ def test_graph_import_preserves_existing_pop_child(payload):
     assert child.side == "pop"
     assert child.parent_id == parent.pk
     assert child.root_id == parent.pk
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
+
+
+def _node(identity):
+    return GenreGraphNode.objects.get(dataset_id="grow", identity=identity)
 
 
 def _without_identity(payload, identity):
