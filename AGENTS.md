@@ -23,7 +23,7 @@ Local (uv + external Postgres) alternative:
 
 ```bash
 uv sync
-# set SECRET_KEY, PIPELINE_API_KEY, CURATION_API_KEY, GOOGLE_OAUTH_CLIENT_ID, ADMIN_GOOGLE_SUB, DATABASE_URL (see README.md)
+# set SECRET_KEY, PIPELINE_API_KEY, CURATION_API_KEY, GOOGLE_OAUTH_CLIENT_ID, ADMIN_GOOGLE_SUB, TRUSTED_PROXY_COUNT, DATABASE_URL (see README.md)
 uv run manage.py migrate
 uv run manage.py runserver
 ```
@@ -32,9 +32,9 @@ uv run manage.py runserver
 
 - **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
-- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `CURATION_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB`, `YOUTUBE_API_KEY` all dummy values are fine, e.g.:
+- **Types:** `uv run mypy grow` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `CURATION_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB`, `YOUTUBE_API_KEY`, `TRUSTED_PROXY_COUNT` all dummy values are fine, e.g.:
   ```bash
-  SECRET_KEY=x PIPELINE_API_KEY=x CURATION_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x YOUTUBE_API_KEY=x uv run mypy grow
+  SECRET_KEY=x PIPELINE_API_KEY=x CURATION_API_KEY=x DATABASE_URL=sqlite:///:memory: REDIS_URL=redis://localhost:6379/0 GOOGLE_OAUTH_CLIENT_ID=x ADMIN_GOOGLE_SUB=x YOUTUBE_API_KEY=x TRUSTED_PROXY_COUNT=0 uv run mypy grow
   ```
 - **Migration check:** `DJANGO_SETTINGS_MODULE=tests.settings PYTHONPATH=. uv run django-admin makemigrations grow --check --dry-run` — must produce zero output; this is what CI's `Migration check` job runs.
 - **Gold contract:** runs in plain `pytest` (`tests/contract/`), no env var, network or token. The repo that implements an import owns its schema: the genre kit owns `genre_tree` (read from the installed package, pinned by tag), grow owns `artist`, `genealogy`, `region_map`, `hidden_regions` and `synthesized_overview_alerts` in `grow/schemas/` (`load_gold_schema(name)`; a region map run carries exactly those three files, each validated at import, the merge code keeps only the cross-reference checks). The pipelines repo vendors byte copies, so a schema change ships in a grow release before the pipelines bump their pin. Genealogy and the region map files are validated against their schema at import; artists keep the fast hand-written row checks in `part_loader.py`, and `tests/contract/test_gold_artist_contract.py` fails when the schema and those checks drift.

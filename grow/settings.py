@@ -23,6 +23,10 @@ ADMIN_GOOGLE_SUB = os.environ["ADMIN_GOOGLE_SUB"]
 
 YOUTUBE_API_KEY = os.environ["YOUTUBE_API_KEY"]
 
+# Trusted proxy hops in front of the app (prod and staging: Cloudflare + Traefik = 2, none locally). DRF's throttles
+# key on the client IP that many hops from the end of X-Forwarded-For, so a client can't dodge a limit by forging it.
+REST_FRAMEWORK = {**REST_FRAMEWORK, "NUM_PROXIES": int(os.environ["TRUSTED_PROXY_COUNT"])}
+
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
