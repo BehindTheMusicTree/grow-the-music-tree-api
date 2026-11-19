@@ -1,0 +1,60 @@
+name: Catalogue capacity probe
+
+# Throwaway probe for #511 step 0: can a hosted runner hold and restore a prod-scale (about 31M songs) synthetic
+# catalogue? Not meant to merge. No prod data is involved.
+on:
+  pull_request:
+    paths:
+      - benchmarks/catalogue/capacity_probe/**
+      - .github/workflows/catalogue-capacity-probe.yml
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Catalogue capacity probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v5.0.1
+
+      - name: Runner resources
+        run: |
+          nproc
+          free -g
+          df -h
+          lsblk
+
+      - name: Free disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Pick the work directory
+        run: |
+          root_free=$(df --output=avail -B1G / | tail -1 | tr -d ' ')
+          mnt_free=$(df --output=avail -B1G /mnt | tail -1 | tr -d ' ')
+          echo "free GB: / = $root_free, /mnt = $mnt_free"
+          if [[ $mnt_free -gt $root_free ]]; then base=/mnt; else base=/home/runner; fi
+          sudo mkdir -p "$base/probe" && sudo chown "$USER" "$base/probe"
+          echo "PROBE_DIR=$base/probe" >>"$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - run: uv sync --all-extras
+
+      - name: Probe
+        run: benchmarks/catalogue/capacity_probe/probe.sh "$PROBE_DIR" "$RUNNER_TEMP/summary.md"
+
+      - name: Job summary
+        if: always()
+        run: if [[ -f "$RUNNER_TEMP/summary.md" ]]; then cat "$RUNNER_TEMP/summary.md" >>"$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capacity-probe-summary
+          path: ${{ runner.temp }}/summary.md
+          if-no-files-found: ignore
