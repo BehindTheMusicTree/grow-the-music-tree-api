@@ -1,3 +1,5 @@
+from io import StringIO
+
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -94,3 +96,44 @@ class TestArtistSongProjection(AppTestCase):
             cursor.execute("UPDATE grow_artist_song SET title = 'x' WHERE song_id = %s", [song.pk])
         with pytest.raises(CommandError):
             call_command("rebuild_artist_song", "--check")
+
+    def test_fingerprint_is_stamped_by_rebuild_and_clean_check_only(self):
+        handel = self.factory.create_artist("Handel")
+        self.song("Messiah", handel)
+        assert ArtistSongState.load().fingerprint is None
+
+        rebuild_artist_song()
+        stamped = ArtistSongState.load().fingerprint
+        assert stamped and len(stamped) == 64
+
+        ArtistSongState.objects.update(fingerprint=None)
+        call_command("rebuild_artist_song", "--check")
+        assert ArtistSongState.load().fingerprint == stamped
+
+        ArtistSongState.objects.update(fingerprint=None)
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE grow_artist_song SET title = 'x'")
+        with pytest.raises(CommandError):
+            call_command("rebuild_artist_song", "--check")
+        assert ArtistSongState.load().fingerprint is None
+
+    def test_if_stale_skips_a_current_projection_and_rebuilds_a_stale_one(self):
+        handel = self.factory.create_artist("Handel")
+        self.song("Messiah", handel)
+        out = StringIO()
+        call_command("rebuild_artist_song", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+
+        out = StringIO()
+        call_command("rebuild_artist_song", "--if-stale", stdout=out)
+        assert "current" in out.getvalue()
+
+        ArtistSongState.objects.update(fingerprint="0" * 64)
+        out = StringIO()
+        call_command("rebuild_artist_song", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+        assert ArtistSongState.load().fingerprint != "0" * 64
+
+    def test_check_and_if_stale_are_mutually_exclusive(self):
+        with pytest.raises(CommandError):
+            call_command("rebuild_artist_song", "--check", "--if-stale")

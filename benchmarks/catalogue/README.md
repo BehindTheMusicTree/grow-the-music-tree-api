@@ -43,12 +43,24 @@ candidates receive access. No production schema policy or backup is approved.
 `develop` schema (same query as `inventory_sql()`). The Postgres test
 `tests/integration/benchmarks/test_catalogue_schema_contract.py` runs in the
 required `Pytest` job and fails with a diff when a migration changes it:
-apply the diff, then classify any new table as RETAIN, EMPTY or REBUILD.
+apply the diff, then classify any new table as RETAIN, EMPTY, REBUILD or DERIVED.
 Staging tables are UNLOGGED and `pg_dump` skips their data, so
 `relation_inventory_sql()` tolerates UNLOGGED only for EMPTY tables. The
 restore does not re-implement the derivation of `grow_song.genre_id` (from
 `Track.genre_id` or the graph attribution); the executor verifies it after
 restore with `grow/genre_music/catalogue_verification.py`.
+
+DERIVED tables (`grow_song_search`, `grow_artist_song` and their state rows) are
+projections that are slow to rebuild (song search takes hours at catalogue
+scale). The restore keeps their data, pruned to the retained songs and artists
+(their rows carry titles and names), instead of requiring them empty. Each state
+row stores the fingerprint of the definition that built the table, so
+preparation runs `migrate`, then `rebuild_song_search --if-stale` and
+`rebuild_artist_song --if-stale`: a side whose code did not change a projection
+keeps the data, and a side that did rebuilds it. A rebuilt table and a restored
+one are both freshly written (data reloaded, indexes rebuilt), so their physical
+state matches and the A/B comparison stays fair. REBUILD tables (the count and
+tree-version tables) stay empty in the dump and are rebuilt by preparation.
 
 ## Runtime-independent benchmark core
 

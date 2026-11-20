@@ -7,6 +7,8 @@ from grow.song_search.rank import HAS_GENRE_SQL, PLAYABLE_SQL, RANK_SCORE_SQL
 
 TABLE = "grow_song_search"
 COLUMNS = "track_id, document, title_key, has_genre, playable, rank_score"
+# SQL routines the projection calls: their definitions are part of its fingerprint.
+FUNCTIONS = ("public.grow_search_norm(text)",)
 TITLE_KEY_LEN_MAX = 200
 QUERY_TOKENS_MAX = 8
 
