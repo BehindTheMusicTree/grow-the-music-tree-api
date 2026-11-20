@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -10,7 +11,13 @@ from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
 from grow.curation.admin_rules import upsert_admin_rule
 from grow.genre_graph.models import GenreGraphImport
-from grow.genre_graph.service import DATASET_KEY, import_reference_graph, restore_reference_graph, song_genre
+from grow.genre_graph.service import (
+    DATASET_KEY,
+    _validate_no_merged_source,
+    import_reference_graph,
+    restore_reference_graph,
+    song_genre,
+)
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
@@ -196,7 +203,54 @@ class TestCase(AppTestCase):
             curation_exported_on=payload["curationExportedOn"],
         )
 
-        assert revision is not None
+        applied = GenreGraphDataset.objects.get(pk=DATASET_KEY)
+        assert revision.revision == applied.revision
+        assert source_identity not in {node["id"] for node in applied.payload["nodes"]}
+        assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is False
+
+    def _merge_rule(self, source, target):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="genre_merges",
+            key=f"{source}\t{target}",
+            values={
+                "source_item_id": source,
+                "target_item_id": target,
+                "decision_id": f"{source}-{target}",
+                "decision_source": "test",
+                "reason": "test",
+            },
+        )
+
+    def test_import_unchanged_graph_naming_merged_source_then_refused(self):
+        before = self._install()
+        mapping = {
+            genre.semantic_identity: str(genre.pk)
+            for genre in Genre.objects.filter(pk__in=[self.root.pk, self.target.pk, self.source.pk, self.child.pk])
+        }
+        source_identity = f"LOCAL:{self.source.pk}"
+        self._merge_rule(source_identity, f"LOCAL:{self.target.pk}")
+
+        # The payload equals the current one, so the check must come before the unchanged-graph short-circuit.
+        with self.assertRaises(GraphValidationError) as raised:
+            import_reference_graph(
+                payload=before.payload,
+                mapping=mapping,
+                expected_revision=before.revision,
+                curation_exported_on=before.payload["curationExportedOn"],
+            )
+
+        assert source_identity in str(raised.exception)
+
+    def test_merge_chain_then_every_merged_source_refused(self):
+        a, b, c = "LOCAL:a", "LOCAL:b", "LOCAL:c"
+        self._merge_rule(a, b)
+        self._merge_rule(b, c)
+
+        for named in ({a, c}, {b, c}, {a, b, c}):
+            with self.assertRaises(GraphValidationError):
+                _validate_no_merged_source(SimpleNamespace(node_ids=named))
+        _validate_no_merged_source(SimpleNamespace(node_ids={c}))
 
     def test_alias_of_target_without_identity_then_400(self):
         self._install()
