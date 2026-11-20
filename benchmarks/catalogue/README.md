@@ -39,6 +39,17 @@ column of each table to be classified. The caller must supply a complete
 database table inventory, including denied tables, and run these checks before
 candidates receive access. No production schema policy or backup is approved.
 
+`catalogue-schema.tsv` is the `information_schema` inventory of the migrated
+`develop` schema (same query as `inventory_sql()`). The Postgres test
+`tests/integration/benchmarks/test_catalogue_schema_contract.py` runs in the
+required `Pytest` job and fails with a diff when a migration changes it:
+apply the diff, then classify any new table as RETAIN, EMPTY or REBUILD.
+Staging tables are UNLOGGED and `pg_dump` skips their data, so
+`relation_inventory_sql()` tolerates UNLOGGED only for EMPTY tables. The
+restore does not re-implement the derivation of `grow_song.genre_id` (from
+`Track.genre_id` or the graph attribution); the executor verifies it after
+restore with `grow/genre_music/catalogue_verification.py`.
+
 ## Runtime-independent benchmark core
 
 These modules do not depend on how the application and PostgreSQL are hosted:
