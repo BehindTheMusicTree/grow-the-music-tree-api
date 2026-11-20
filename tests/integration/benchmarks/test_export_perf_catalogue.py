@@ -6,6 +6,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 
 from benchmarks.catalogue import catalogue_restore as catalogue
 from grow.artist_song.rebuild import stamp_current as stamp_artist_song
@@ -37,8 +38,18 @@ def test_plan_of_a_stamped_database():
     assert plan["projections"]["grow_artist_song"]["fingerprint"] == ArtistSongState.load().fingerprint
 
 
-def test_plan_fails_when_the_database_is_not_stamped():
+def test_plan_fails_when_the_database_is_not_stamped_without_writing_state():
     with pytest.raises(CommandError, match="rebuild_song_search --check"):
+        _plan()
+    assert not SongSearchState.objects.exists()
+    assert not ArtistSongState.objects.exists()
+
+
+def test_plan_fails_when_the_live_schema_drifted():
+    _ready()
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE TABLE grow_unclassified_probe (id integer)")
+    with pytest.raises(CommandError, match="schema drift"):
         _plan()
 
 

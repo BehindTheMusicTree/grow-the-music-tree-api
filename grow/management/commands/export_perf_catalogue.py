@@ -33,9 +33,11 @@ class Command(BaseCommand):
             ("grow_song_search", song_search, SongSearchState, "rebuild_song_search"),
             ("grow_artist_song", artist_song, ArtistSongState, "rebuild_artist_song"),
         ):
-            if not module.is_current():
+            # Checked first because is_current() loads the state with get_or_create: the plan must never write.
+            stamped = state.objects.filter(pk=1).first()
+            if stamped is None or not module.is_current():
                 raise CommandError(f"{table} is not stamped with the deployed definition; run {rebuild} --check")
-            fingerprints[table] = state.load().fingerprint
+            fingerprints[table] = stamped.fingerprint
         try:
             export_plan = build_plan(inventory, fingerprints)
         except ValueError as error:

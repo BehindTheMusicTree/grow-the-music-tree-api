@@ -26,7 +26,7 @@ def test_plan_reads_the_classification_not_a_copy():
 def test_plan_is_deterministic_and_binds_the_schema():
     tsv = catalogue.SCHEMA.read_text()
     assert build_plan(tsv, FINGERPRINTS) == build_plan(tsv, FINGERPRINTS)
-    assert len(build_plan(tsv, FINGERPRINTS)["schema_sha256"]) == 64
+    assert len(build_plan(tsv, FINGERPRINTS)["inventory_sha256"]) == 64
 
 
 def test_plan_refuses_schema_drift():

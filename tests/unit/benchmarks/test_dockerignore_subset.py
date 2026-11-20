@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 CATALOGUE = ROOT / "benchmarks" / "catalogue"
+PACKAGE = "benchmarks.catalogue."
 
 
 def shipped_files() -> set[str]:
@@ -11,19 +12,37 @@ def shipped_files() -> set[str]:
     return {line.removeprefix(prefix) for line in lines if line.startswith(prefix)}
 
 
+def sibling_imports(name: str) -> list[str]:
+    """Modules of benchmarks/catalogue imported by `name`, relatively or absolutely."""
+    siblings = []
+    for node in ast.walk(ast.parse((CATALOGUE / name).read_text())):
+        if isinstance(node, ast.ImportFrom) and node.level == 1:
+            assert node.module, f"{name}: `from . import` is not resolved by this guard"
+            siblings.append(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.level > 1:
+            raise AssertionError(f"{name}: imports outside benchmarks/catalogue are not shipped")
+        elif isinstance(node, ast.ImportFrom) and node.module == "benchmarks.catalogue":
+            siblings += [alias.name for alias in node.names]
+        else:
+            absolute = [node.module] if isinstance(node, ast.ImportFrom) else []
+            absolute += [alias.name for alias in node.names] if isinstance(node, ast.Import) else []
+            for module in absolute:
+                assert module == "benchmarks.catalogue" or not module.startswith("benchmarks"), (name, module)
+                if module and module.startswith(PACKAGE):
+                    siblings.append(module.removeprefix(PACKAGE))
+    for sibling in siblings:
+        assert "." not in sibling, f"{name}: subpackage {sibling} is not resolved by this guard"
+    return siblings
+
+
 def import_closure(entry: str) -> set[str]:
     seen: set[str] = set()
     pending = [entry]
     while pending:
         name = pending.pop()
-        if name in seen:
-            continue
-        seen.add(name)
-        tree = ast.parse((CATALOGUE / name).read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.level == 1:
-                assert node.module, f"{name}: bare relative imports are not resolved by this guard"
-                pending.append(f"{node.module}.py")
+        if name not in seen:
+            seen.add(name)
+            pending += [f"{module}.py" for module in sibling_imports(name)]
     return seen
 
 

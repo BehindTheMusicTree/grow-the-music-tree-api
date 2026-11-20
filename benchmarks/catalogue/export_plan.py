@@ -24,7 +24,7 @@ def build_plan(inventory_tsv: str, fingerprints: dict[str, str]) -> dict:
         raise ValueError("a stamped fingerprint is required for every projection")
     return {
         "version": VERSION,
-        "schema_sha256": hashlib.sha256(inventory_tsv.encode()).hexdigest(),
+        "inventory_sha256": hashlib.sha256(inventory_tsv.encode()).hexdigest(),
         "data_tables": sorted(RETAIN | DERIVED),
         "schema_only_tables": sorted(EMPTY | REBUILD),
         "projections": {

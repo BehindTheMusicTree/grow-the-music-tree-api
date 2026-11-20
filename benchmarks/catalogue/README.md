@@ -72,8 +72,9 @@ canonical songs only credit canonical artists, so no private name reaches it.
 
 `manage.py export_perf_catalogue --plan` (read-only, runs no `pg_dump`) prints
 the JSON plan the infrastructure export follows, so the table classification
-lives only here. `export_plan.build_plan` returns `version`, `schema_sha256`
-(of the live inventory), `data_tables` (RETAIN and DERIVED, dumped with data),
+lives only here. `export_plan.build_plan` returns `version`, `inventory_sha256`
+(of the live `information_schema` inventory, not the schema SQL digest of the
+sanitization policy), `data_tables` (RETAIN and DERIVED, dumped with data),
 `schema_only_tables` (EMPTY and REBUILD) and `projections` (each DERIVED
 projection's state table and stamped fingerprint). The command fails when the
 live schema drifted from `catalogue-schema.tsv` or a projection is not stamped
