@@ -10,6 +10,7 @@ from django.db import connections, models
 from django.utils import timezone
 
 from grow.curation.lists import (
+    ADDITION_LISTS,
     BOOL_COLUMNS,
     COLUMN_CHOICES,
     CURATION_LISTS,
@@ -314,6 +315,9 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
 def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
     """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
     and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
+    if list_name in ADDITION_LISTS and exclude_pk is not None:
+        renamed = entries.filter(pk=exclude_pk).exclude(key=parsed.key).first()
+        return _addition_removal_error(entries, renamed) if renamed is not None else None
     if list_name not in GRAPH_LISTS:
         return None
     from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
@@ -332,6 +336,8 @@ def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow
 
 def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
     """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
+    if entry.list_name in ADDITION_LISTS:
+        return _addition_removal_error(entries, entry)
     if entry.list_name not in GRAPH_LISTS:
         return None
     from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
@@ -341,6 +347,18 @@ def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None
         find_graph_violations([(e.list_name, e.key, e.values) for e in others], declared_additions(entries)),
         graph_row_items(entry.list_name, entry.key, entry.values).values(),
     )
+    return violations[0].message if violations else None
+
+
+def _addition_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why dropping the addition `entry` would leave its `LOCAL:` item undeclared in a merge or an edge, if it would."""
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import declared_additions, find_graph_violations, find_undeclared_local_edges, involving
+
+    declared = declared_additions(entries.exclude(pk=entry.pk))
+    rows = [(e.list_name, e.key, e.values) for e in entries.filter(list_name__in=GRAPH_LISTS)]
+    violations = find_graph_violations(rows, declared) + find_undeclared_local_edges(declared, edge_rules())
+    violations = involving(violations, {entry.key})
     return violations[0].message if violations else None
 
 

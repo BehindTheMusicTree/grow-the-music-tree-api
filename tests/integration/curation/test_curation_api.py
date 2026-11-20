@@ -542,6 +542,76 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert CurationEntry.objects.get(uuid=uuid).key == "LOCAL:x"
 
+    def _addition(self, list_name: str = "canonical_parent_additions") -> CurationEntry:
+        return CurationEntry.objects.create(
+            user=None,
+            list_name=list_name,
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "X", "reason": "r"},
+            reason="r",
+        )
+
+    def _merge_from_local(self) -> None:
+        CurationEntry.objects.create(
+            user=None,
+            list_name="genre_merges",
+            key="LOCAL:x\tQ1",
+            values={"decision_id": "d-1", "decision_source": "gold"},
+            reason="r",
+        )
+
+    def test_delete_addition_named_by_merge_then_rejected_and_kept(self):
+        for list_name in ("canonical_parent_additions", "regional_overview_additions"):
+            with self.subTest(list_name=list_name):
+                CurationEntry.objects.filter(user=None).delete()
+                addition = self._addition(list_name)
+                self._merge_from_local()
+
+                response = self.api_client.delete(path=self._entry_url(addition.uuid, list_name))
+
+                assert response.status_code == status.HTTP_400_BAD_REQUEST
+                assert "genre merge" in str(response.json())
+                assert CurationEntry.objects.filter(uuid=addition.uuid).exists()
+
+    def test_rename_addition_named_by_merge_then_rejected(self):
+        addition = self._addition()
+        self._merge_from_local()
+
+        response = self.api_client.patch(
+            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            data={"row": {"item_id": "LOCAL:y"}},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.get(uuid=addition.uuid).key == "LOCAL:x"
+
+    def test_delete_addition_named_by_edge_then_rejected(self):
+        addition = self._addition()
+        GenreEdgeRule.objects.create(
+            user=None, relation="canonical_parent", item_id="Q1", parent_item_id="LOCAL:x", exclude_other_parents=False
+        )
+
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.filter(uuid=addition.uuid).exists()
+
+    def test_delete_or_relabel_unreferenced_addition_then_accepted(self):
+        addition = self._addition()
+        relabel = self.api_client.patch(
+            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            data={"row": {"label": "Y"}},
+            format="json",
+        )
+        assert relabel.status_code == status.HTTP_200_OK
+
+        self._merge_from_local()
+        CurationEntry.objects.filter(list_name="genre_merges").delete()
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
     def test_graph_lists_round_trip_and_validation(self):
         rows = {
             "local_identities": {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE},
