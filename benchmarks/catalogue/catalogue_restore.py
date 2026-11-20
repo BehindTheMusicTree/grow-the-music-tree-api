@@ -189,6 +189,14 @@ REFERENCES = (
 )
 
 
+def inventory_sql() -> str:
+    return (
+        "SELECT table_name || '|' || column_name || '|' || data_type || '|' || is_nullable "
+        "FROM information_schema.columns WHERE table_schema='public' "
+        'ORDER BY table_name COLLATE "C", ordinal_position;'
+    )
+
+
 def inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
     tables: dict[str, list[tuple[str, str, str]]] = {}
     for line in tsv.splitlines():
