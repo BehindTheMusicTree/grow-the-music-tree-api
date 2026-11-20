@@ -4,8 +4,9 @@ from django.db import connection, transaction
 from django.utils import timezone
 from django_q.tasks import async_task
 
-from grow.artist_song.projection import COLUMNS, PROJECTION, TABLE
+from grow.artist_song.projection import COLUMNS, FUNCTIONS, PROJECTION, TABLE
 from grow.model.artist_song.ArtistSongState import ArtistSongState
+from grow.projection.fingerprint import fingerprint
 from grow.workload.admission import admitted
 
 NEW_TABLE = f"{TABLE}_new"
@@ -61,10 +62,36 @@ def rebuild_artist_song(*, only_if_not_ready: bool = False) -> int | None:
         for name, _ in indexes:
             cursor.execute(f"ALTER INDEX {name}{NEW_SUFFIX} RENAME TO {name}")
 
-        ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True, "rebuilt_on": timezone.now()})
+        ArtistSongState.objects.update_or_create(
+            pk=1,
+            defaults={
+                "ready": True,
+                "rebuilt_on": timezone.now(),
+                "fingerprint": current_fingerprint(cursor),
+            },
+        )
     with connection.cursor() as cursor:
         cursor.execute(f"ANALYZE {TABLE}")
     return rows
+
+
+def current_fingerprint(cursor) -> str:
+    return fingerprint(cursor, columns=COLUMNS, projection=PROJECTION, functions=FUNCTIONS)
+
+
+def is_current() -> bool:
+    """Whether the projection is built and its stored fingerprint matches the deployed definition."""
+    state = ArtistSongState.load()
+    with connection.cursor() as cursor:
+        return state.ready and state.fingerprint == current_fingerprint(cursor)
+
+
+def stamp_current() -> str:
+    """Records the deployed definition's fingerprint, for a projection a clean drift check just proved equal to it."""
+    with connection.cursor() as cursor:
+        value = current_fingerprint(cursor)
+    ArtistSongState.objects.update_or_create(pk=1, defaults={"fingerprint": value})
+    return value
 
 
 def _retarget(definition: str, name: str) -> str:

@@ -127,6 +127,7 @@ grow_artist_song|song_id|uuid|NO
 grow_artist_song_state|id|bigint|NO
 grow_artist_song_state|ready|boolean|NO
 grow_artist_song_state|rebuilt_on|timestamp with time zone|YES
+grow_artist_song_state|fingerprint|character varying|YES
 grow_bulk_import_deletion|id|bigint|NO
 grow_bulk_import_deletion|run_id|bigint|NO
 grow_bulk_import_deletion|part|integer|NO
@@ -378,6 +379,7 @@ grow_song_search|rank_score|integer|NO
 grow_song_search_state|id|bigint|NO
 grow_song_search_state|ready|boolean|NO
 grow_song_search_state|rebuilt_on|timestamp with time zone|YES
+grow_song_search_state|fingerprint|character varying|YES
 grow_user_profile|id|bigint|NO
 grow_user_profile|pseudo|character varying|NO
 grow_user_profile|user_id|integer|NO

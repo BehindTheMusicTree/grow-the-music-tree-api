@@ -65,11 +65,18 @@ EMPTY = frozenset(
 )
 REBUILD = frozenset(
     [
-        "grow_artist_song",
-        "grow_artist_song_state",
         "grow_genre_catalogue_count",
         "grow_genre_membership_count",
         "grow_genre_tree_version",
+    ]
+)
+# Projections whose data is retained: expensive to rebuild (song search takes hours at catalogue scale), pruned to the
+# retained songs and artists, and revalidated by preparation (`rebuild_* --if-stale`, which compares the fingerprint
+# of the definition that built them).
+DERIVED = frozenset(
+    [
+        "grow_artist_song",
+        "grow_artist_song_state",
         "grow_song_search",
         "grow_song_search_state",
     ]
@@ -138,6 +145,13 @@ DEPENDENTS = {
         missing_reference("track_id", TRACK),
         missing_reference("playlist_id", PLAYLIST),
     ),
+    # Derived rows carry titles and names: pruning them with their sources is a privacy requirement too. The state
+    # tables are singletons without references.
+    "grow_song_search": (missing_reference("track_id", "grow_song", "track_id"),),
+    "grow_artist_song": (
+        missing_reference("song_id", "grow_song", "track_id"),
+        missing_reference("artist_id", "grow_artist"),
+    ),
 }
 
 
@@ -151,7 +165,7 @@ GRAPH_TABLES = (
 )
 RETAIN = (
     frozenset(ROOTS)
-    | frozenset(DEPENDENTS)
+    | (frozenset(DEPENDENTS) - DERIVED)
     | {TYPES, "grow_wikidata_item"}
     | {f"{GRAPH}{name}" for name in GRAPH_TABLES}
 )
@@ -195,7 +209,9 @@ def inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
 
 def verify_inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
     expected = inventory(SCHEMA.read_text())
-    if (RETAIN & EMPTY) or (RETAIN & REBUILD) or (EMPTY & REBUILD) or expected.keys() != RETAIN | EMPTY | REBUILD:
+    groups = (RETAIN, DERIVED, EMPTY, REBUILD)
+    disjoint = sum(len(group) for group in groups) == len(RETAIN | DERIVED | EMPTY | REBUILD)
+    if not disjoint or expected.keys() != RETAIN | DERIVED | EMPTY | REBUILD:
         raise ValueError("catalogue dispositions do not cover the exact reviewed schema")
     observed = inventory(tsv)
     if observed != expected:
@@ -217,9 +233,12 @@ def data_policy(tsv: str, schema_sql: bytes) -> Policy:
                 name: {
                     "columns": [entry[0] for entry in tables[name]],
                     "null_columns": [entry[0] for entry in tables[name] if entry[0] in {"user_id", "last_seen_run_id"}],
-                    "minimum_rows": 30_000_000 if name in {TRACK, "grow_song"} else (1 if name == TYPES else 0),
+                    # An emptied projection must not pass: `--if-stale` would trust its state row and skip the rebuild.
+                    "minimum_rows": 30_000_000
+                    if name in {TRACK, "grow_song", "grow_song_search"}
+                    else (1 if name in {TYPES, "grow_artist_song"} else 0),
                 }
-                for name in sorted(RETAIN)
+                for name in sorted(RETAIN | DERIVED)
             },
         }
     )
@@ -240,7 +259,7 @@ def relation_inventory_sql() -> str:
     """Refuse missing, additional or non-table catalogue relations."""
     # information_schema.columns omits zero-column tables and materialized
     # views, and does not distinguish an updatable view from a base table.
-    expected_tables = ",".join(sorted(RETAIN | EMPTY | REBUILD))
+    expected_tables = ",".join(sorted(RETAIN | DERIVED | EMPTY | REBUILD))
     # Staging tables are UNLOGGED; pg_dump skips their data, so only EMPTY ones
     # may be. An UNLOGGED retained table would silently lose its rows.
     unlogged_ok = ",".join(f"'{name}'" for name in sorted(EMPTY))

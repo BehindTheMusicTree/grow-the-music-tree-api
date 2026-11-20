@@ -1,3 +1,4 @@
+from io import StringIO
 from unittest.mock import patch
 
 import pytest
@@ -17,7 +18,7 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.serializer.model.song.search import SEARCH_LIMIT_MAX
-from grow.song_search.rebuild import queue_song_search_build, rebuild_song_search
+from grow.song_search.rebuild import is_current, queue_song_search_build, rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.song_graph import install_song_graph
 
@@ -332,3 +333,54 @@ class TestQueueSongSearchBuild(AppTestCase):
             self.assertLogs("grow.bulk_import", level="ERROR"),
         ):
             queue_song_search_build()
+
+
+@pytest.mark.postgres
+class TestSongSearchFingerprint(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self.factory = self.model_fixture_factory
+        self.factory.create_song("Comfortably Numb", self.factory.create_genre("Rock"))
+
+    def test_fingerprint_is_stamped_by_rebuild_and_clean_check_only(self):
+        assert SongSearchState.load().fingerprint is None
+        rebuild_song_search()
+        stamped = SongSearchState.load().fingerprint
+        assert stamped and len(stamped) == 64
+
+        SongSearchState.objects.update(fingerprint=None)
+        call_command("rebuild_song_search", "--check")
+        assert SongSearchState.load().fingerprint == stamped
+
+        SongSearchState.objects.update(fingerprint=None)
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE grow_song_search SET rank_score = -1")
+        with pytest.raises(CommandError):
+            call_command("rebuild_song_search", "--check")
+        assert SongSearchState.load().fingerprint is None
+
+    def test_if_stale_skips_a_current_projection_and_rebuilds_a_stale_one(self):
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "current" in out.getvalue()
+
+        SongSearchState.objects.update(fingerprint="0" * 64)
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+
+    def test_redefining_the_routine_changes_the_fingerprint(self):
+        rebuild_song_search()
+        assert is_current()
+        with connection.cursor() as cursor:
+            # The cost shows in the stored definition, so changing it stands for a migration redefining the routine.
+            cursor.execute("ALTER FUNCTION public.grow_search_norm(text) COST 12345")
+        assert not is_current()
+
+    def test_check_and_if_stale_are_mutually_exclusive(self):
+        with pytest.raises(CommandError):
+            call_command("rebuild_song_search", "--check", "--if-stale")

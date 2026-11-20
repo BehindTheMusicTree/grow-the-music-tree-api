@@ -7,6 +7,8 @@ ORM refresh, the rebuild command and the drift check all go through it, so the p
 TABLE = "grow_artist_song"
 STATE_TABLE = "grow_artist_song_state"
 COLUMNS = "artist_id, song_id, title, album_year"
+# SQL routines the projection calls: their definitions are part of its fingerprint.
+FUNCTIONS: tuple[str, ...] = ()
 
 # Mirrors `ORDERINGS["albumYear"]` in grow/filtering/set/song/SongFilterSet.py: the song's first-release year, else its
 # album's (a free-text column, so only four-digit years cast).

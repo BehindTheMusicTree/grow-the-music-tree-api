@@ -125,7 +125,7 @@ class CatalogueExecutionTest(CataloguePostgresFixture):
         evidence = self.restore()
         self.assertEqual(evidence["status"], "projected")
         self.assertEqual(evidence["row_counts"]["auth_user"], 0)
-        self.assertEqual(evidence["row_counts"]["grow_song_search"], 0)
+        self.assertEqual(evidence["row_counts"]["grow_song_search"], 2)
         self.assertEqual(evidence["row_counts"]["grow_song"], 2)
         self.assertEqual(self.query("SELECT nextval('public.fixture_alias_seq');"), "2")
         self.assertEqual(
@@ -139,7 +139,7 @@ class CatalogueExecutionTest(CataloguePostgresFixture):
             stdin for program, args, stdin in self.transport.calls if program == "pg_restore" and "--data-only" in args
         )
         self.assertNotIn("auth_user", selected)
-        self.assertNotIn("grow_song_search", selected)
+        self.assertIn("grow_song_search", selected)
         self.assertNotIn("SEQUENCE SET", selected)
 
     def test_production_minimum_rejects_tiny_catalogue(self):
