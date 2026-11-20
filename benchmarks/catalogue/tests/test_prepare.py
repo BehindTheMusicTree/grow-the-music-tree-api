@@ -8,9 +8,11 @@ from benchmarks.catalogue import prepare
 
 def run_main(failing=None):
     calls = []
+    arguments_seen = {}
 
     def call_command(command, *arguments):
         calls.append(command)
+        arguments_seen[command] = arguments
         if command == failing:
             raise RuntimeError(f"{command} failed")
 
@@ -27,12 +29,12 @@ def run_main(failing=None):
             error = None
         except RuntimeError as exc:
             error = exc
-    return calls, error
+    return calls, error, arguments_seen
 
 
 class PrepareTests(unittest.TestCase):
     def test_derivation_check_runs_before_rebuilds_and_repairs_after(self):
-        calls, error = run_main()
+        calls, error, arguments_seen = run_main()
         self.assertIsNone(error)
         self.assertEqual(
             calls,
@@ -47,8 +49,16 @@ class PrepareTests(unittest.TestCase):
             ],
         )
 
+    def test_flags_are_passed_so_an_old_image_fails_fast(self):
+        _, _, arguments_seen = run_main()
+        self.assertEqual(arguments_seen["migrate"], ("--no-input",))
+        self.assertEqual(arguments_seen["rebuild_song_search"], ("--if-stale",))
+        self.assertEqual(arguments_seen["rebuild_artist_song"], ("--if-stale",))
+        self.assertEqual(arguments_seen["verify_genre_membership_counts"], ("--repair",))
+        self.assertEqual(arguments_seen["verify_genre_catalogue_counts"], ("--repair",))
+
     def test_drifted_membership_stops_before_any_rebuild(self):
-        calls, error = run_main(failing="verify_song_membership")
+        calls, error, _ = run_main(failing="verify_song_membership")
         self.assertIsNotNone(error)
         self.assertEqual(calls, ["migrate", "verify_song_membership"])
 
@@ -64,6 +74,12 @@ class PrepareTests(unittest.TestCase):
         ):
             prepare.vacuum_analyze()
         self.assertIn("grow_song", str(raised.exception))
+
+    def test_postgres_16_is_accepted(self):
+        connection = MagicMock(vendor="postgresql")
+        connection.cursor.return_value.connection.info.server_version = 160004
+        with patch.dict(prepare.__dict__, {"connection": connection}):
+            prepare.require_postgres()
 
     def test_other_postgres_major_is_refused(self):
         connection = MagicMock(vendor="postgresql")
