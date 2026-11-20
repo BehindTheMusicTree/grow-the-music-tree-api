@@ -4,11 +4,13 @@ from uuid import uuid4
 
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution, GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
+from grow.curation.admin_rules import upsert_admin_rule
 from grow.genre_graph.models import GenreGraphImport
-from grow.genre_graph.service import DATASET_KEY, restore_reference_graph, song_genre
+from grow.genre_graph.service import DATASET_KEY, import_reference_graph, restore_reference_graph, song_genre
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
@@ -34,7 +36,19 @@ class TestCase(AppTestCase):
         self.song = factory.create_song("Song", None, musicbrainz_recording_id=MB_ID)
         add_essential_song(self.source, self.song)
 
+    def _declare_local(self, genre):
+        # A merge naming a `LOCAL:` node needs it declared by an addition list, as the pipeline drops it otherwise.
+        item_id = f"LOCAL:{genre.pk}"
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key=item_id,
+            values={"item_id": item_id, "label": genre.name, "reason": "test"},
+        )
+
     def _install(self):
+        self._declare_local(self.source)
+        self._declare_local(self.target)
         return install_song_graph(
             {self.root: [], self.target: [], self.source: [self.song], self.child: []},
             classifications=[(self.target, self.root), (self.source, self.root), (self.child, self.source)],
@@ -123,7 +137,7 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_409_CONFLICT
 
-    def test_restore_previous_revision_then_source_active_again(self):
+    def _alias_then_receipt(self):
         before = self._install()
         mapping = {
             genre.semantic_identity: str(genre.pk)
@@ -134,8 +148,93 @@ class TestCase(AppTestCase):
             revision=before.revision, mapping=mapping, curation_exported_on=before.payload["curationExportedOn"]
         )
         assert self._alias().status_code == status.HTTP_200_OK
-        current = GenreGraphDataset.objects.get(pk=DATASET_KEY).revision
+        return before, GenreGraphDataset.objects.get(pk=DATASET_KEY).revision
+
+    def test_restore_before_merge_while_rule_lives_then_refused(self):
+        before, current = self._alias_then_receipt()
+
+        with self.assertRaises(GraphValidationError) as raised:
+            restore_reference_graph(revision=before.revision, expected_revision=current)
+
+        assert f"LOCAL:{self.source.pk}" in str(raised.exception)
+        assert GenreGraphDataset.objects.get(pk=DATASET_KEY).revision == current
+        assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is False
+
+    def test_restore_before_merge_after_rule_deleted_then_source_active_again(self):
+        before, current = self._alias_then_receipt()
+        CurationEntry.objects.filter(list_name="genre_merges", user=None).delete()
 
         restore_reference_graph(revision=before.revision, expected_revision=current)
 
         assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is True
+
+    def test_import_graph_naming_merged_source_then_refused(self):
+        before, current = self._alias_then_receipt()
+        receipt = GenreGraphImport.objects.get(pk=before.revision)
+
+        with self.assertRaises(GraphValidationError):
+            import_reference_graph(
+                payload=before.payload,
+                mapping=receipt.mapping,
+                expected_revision=current,
+                curation_exported_on=before.payload["curationExportedOn"],
+            )
+
+    def test_import_graph_without_merged_source_then_accepted(self):
+        _, current = self._alias_then_receipt()
+        dataset = GenreGraphDataset.objects.get(pk=DATASET_KEY)
+        payload = dataset.payload
+        source_identity = f"LOCAL:{self.source.pk}"
+        mapping = {
+            k: v for k, v in GenreGraphImport.objects.latest("created_on").mapping.items() if k != source_identity
+        }
+
+        revision = import_reference_graph(
+            payload=payload,
+            mapping=mapping,
+            expected_revision=current,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+        assert revision is not None
+
+    def test_alias_of_target_without_identity_then_400(self):
+        self._install()
+        bare = self.model_fixture_factory.create_genre("Bare", parent=self.root)
+
+        response = self._alias(target=bare)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is True
+        assert not CurationEntry.objects.filter(list_name="genre_merges", user=None).exists()
+
+    def test_alias_of_without_dataset_then_everything_moved_and_source_deleted(self):
+        Song.objects.filter(pk=self.song.pk).update(membership_genre=self.source)
+
+        response = self._alias()
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert not Genre.objects.filter(pk=self.source.pk).exists()
+        self.child.refresh_from_db()
+        assert self.child.parent.pk == self.target.pk
+        assert Song.objects.get(pk=self.song.pk).genre.pk == self.target.pk
+        assert [s.pk for s in self.target.essential_songs.all()] == [self.song.pk]
+
+    def test_alias_of_merge_rule_write_fails_then_graph_rolled_back(self):
+        before = self._install()
+        real = upsert_admin_rule
+
+        def failing(list_name, *args, **kwargs):
+            if list_name == "genre_merges":
+                raise RuntimeError("boom")
+            return real(list_name, *args, **kwargs)
+
+        with patch("grow.model.criteria.children.genre.GenreManager.upsert_admin_rule", side_effect=failing):
+            response = self._alias()
+
+        # The API's exception handler turns the error into a 500 and the request transaction rolls back.
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+
+        assert GenreGraphDataset.objects.get(pk=DATASET_KEY).revision == before.revision
+        assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is True
+        assert not CurationEntry.objects.filter(user=None, list_name__in=["genre_alias", "genre_merges"]).exists()

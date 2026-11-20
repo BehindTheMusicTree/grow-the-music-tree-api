@@ -27,6 +27,7 @@ from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.genre_tree.bulk_import.merge import parse_curation_exported_on
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
+from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
@@ -202,6 +203,18 @@ def _publish_revision(
     GenreTreeVersion.objects.filter(pk=1).update(token=uuid4())
 
 
+def _validate_no_merged_source(graph) -> None:
+    """`replace_graph` reactivates any inactive node the payload names, which would silently undo a merge."""
+    keys = CurationEntry.objects.filter(user=None, list_name="genre_merges").values_list("key", flat=True)
+    revived = sorted(tuple(key.split("\t")) for key in keys if key.split("\t")[0] in graph.node_ids)
+    if revived:
+        pairs = ", ".join(f"{source} -> {target}" for source, target in revived)
+        raise GraphValidationError(
+            f"The graph contains merged source nodes: {pairs}. Delete the genre_merges rule to undo a merge "
+            "(attributions do not move back), or have the upstream graph emit the merge."
+        )
+
+
 @transaction.atomic
 def import_reference_graph(
     *,
@@ -219,6 +232,7 @@ def import_reference_graph(
         current is not None and current.revision != expected_revision
     ):
         raise GraphRevisionConflict("Reference graph revision changed; reload before importing")
+    _validate_no_merged_source(graph)
     state = _curation_state()
     exported_on = parse_curation_exported_on(curation_exported_on, state)
     if parse_curation_exported_on(payload.get("curationExportedOn"), state) != exported_on:

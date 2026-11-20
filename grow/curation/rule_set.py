@@ -93,6 +93,7 @@ GraphRow = tuple[str, str, dict[str, Any]]
 
 LOCAL_PREFIX = "LOCAL:"
 MEMBERSHIP_LIST = "regional_memberships"
+MERGE_LIST = "genre_merges"
 LOCAL_KIND_ROLES: tuple[tuple[str, str, str], ...] = (
     ("regional_anchorings", "overview_item_id", "overview"),
     ("regional_overview_types", "item_id", "overview"),
@@ -123,20 +124,39 @@ def _find_duplicate_decisions(rows: list[GraphRow]) -> list[Violation]:
     ]
 
 
-def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str]) -> list[Violation]:
+def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], additions: set[str]) -> list[Violation]:
+    def local_items(list_name: str) -> set[str]:
+        return {
+            i
+            for n, k, v in rows
+            if n == list_name
+            for i in graph_row_items(n, k, v).values()
+            if i.startswith(LOCAL_PREFIX)
+        }
+
     used = {
         i
         for n, k, v in rows
-        if n not in ("local_identities", "genre_merges")  # merges name canonical nodes, declared by addition lists
+        if n not in ("local_identities", MERGE_LIST)
         for i in graph_row_items(n, k, v).values()
         if i.startswith(LOCAL_PREFIX)
     }
-    return [
+    violations = [
         Violation(
             "undeclared_local", f"{item} is used in a regional graph entry but declared in no local identity", {item}
         )
         for item in sorted(used - kinds.keys())
     ]
+    # A merge names canonical nodes, which an addition list declares as often as a local identity does.
+    violations += [
+        Violation(
+            "undeclared_local",
+            f"{item} is used in a genre merge but declared in no local identity nor addition list",
+            {item},
+        )
+        for item in sorted(local_items(MERGE_LIST) - kinds.keys() - additions)
+    ]
+    return violations
 
 
 def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> list[Violation]:
@@ -192,14 +212,14 @@ def _find_membership_cycles(rows: list[GraphRow]) -> list[Violation]:
     return violations
 
 
-def find_graph_violations(rows: list[GraphRow]) -> list[Violation]:
+def find_graph_violations(rows: list[GraphRow], additions: set[str]) -> list[Violation]:
     """Invariants of the regional graph decisions together. Grow can't check that a QID exists nor the canonical
     state, which the pipeline computes: the pipeline and the genre kit's `GenreGraph` reject unknown QIDs and
-    classification cycles."""
+    classification cycles. `additions` are the items the addition lists declare."""
     kinds = {k: v.get("kind", "") for n, k, v in rows if n == "local_identities"}
     return [
         *_find_duplicate_decisions(rows),
-        *_find_undeclared_graph_locals(rows, kinds),
+        *_find_undeclared_graph_locals(rows, kinds, additions),
         *_find_local_kind_violations(rows, kinds),
         *_find_membership_cycles(rows),
     ]
@@ -251,7 +271,9 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
     violations += find_undeclared_local_edges(declared_additions(entries), edges)
     graph_rows = entries.filter(list_name__in=GRAPH_LISTS).order_by("list_name", "key")
-    violations += find_graph_violations([(e.list_name, e.key, e.values) for e in graph_rows])
+    violations += find_graph_violations(
+        [(e.list_name, e.key, e.values) for e in graph_rows], declared_additions(entries)
+    )
     return [Violation(v.kind, v.message, frozenset(v.items)) for v in violations]
 
 
