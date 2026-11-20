@@ -59,7 +59,8 @@ class TestCase(AppTestCase):
         fine = self.model_fixture_factory.create_song("Fine", detroit)
         install_song_graph(
             {techno: [coarse], detroit: [fine]},
-            node_overrides={techno: {"kind": "overview"}, detroit: {"canonicalState": "before_entry"}},
+            node_overrides={techno: {"kind": "overview"}},
+            regional=[detroit],
             relations=[(detroit, techno, "regional_membership")],
         )
 

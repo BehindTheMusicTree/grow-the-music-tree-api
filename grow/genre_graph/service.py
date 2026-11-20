@@ -44,7 +44,7 @@ def _normalized_graph(payload: dict) -> GenreGraph:
     graph = GenreGraph(payload)
     normalized = graph.to_payload()
     # These arrays are sets of decisions; producer iteration order is not a new revision.
-    for field in ("nodes", "relations", "boundaries"):
+    for field in ("nodes", "relations", "canonicalRoots"):
         normalized[field].sort(key=lambda row: json.dumps(row, sort_keys=True))
     return GenreGraph(normalized)
 
@@ -186,7 +186,7 @@ def import_reference_graph(
     for identity, pk in bindings.items():
         data = graph.node(identity)
         genre = genres.get(pk)
-        tree_name = "canonical" if data.get("canonicalState") == "canonical" else "regional"
+        tree_name = "canonical" if graph.canonical_state(identity) == "canonical" else "regional"
         if genre is None:
             genre = Genre(
                 uuid=pk,

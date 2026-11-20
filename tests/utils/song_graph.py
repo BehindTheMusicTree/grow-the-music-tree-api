@@ -7,11 +7,12 @@ from grow.genre_graph.service import DATASET_KEY
 from grow.model.criteria.children.genre.Genre import Genre
 
 
-def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), boundaries=()):
+def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), regional=()):
     """Install explicit test semantics independently of Song.genre and display parents.
 
     assignments maps each graph genre to its directly attributed songs, including
     an empty list for nodes with no direct songs. Repeated songs model polygenre.
+    Every genre without a classification parent is a canonical root unless listed in ``regional``.
     """
     node_overrides = node_overrides or {}
 
@@ -27,11 +28,8 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
             "id": identity(genre),
             "name": genre.name,
             "kind": "genre",
-            "canonicalState": "canonical",
             **node_overrides.get(genre, {}),
         }
-        if node["kind"] != "genre":
-            node.pop("canonicalState", None)
         if node["kind"] == "overview":
             node.update(
                 overviewType="current",
@@ -40,10 +38,10 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
             )
         nodes.append(node)
     children = {child for child, _ in classifications}
-    entries = [
-        (genre, "entry")
+    roots = [
+        genre
         for genre, node in zip(assignments, nodes, strict=True)
-        if genre not in children and node.get("canonicalState") == "canonical"
+        if genre not in children and genre not in regional and node["kind"] == "genre"
     ]
     payload = {
         "contractVersion": 2,
@@ -61,9 +59,8 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
                 *relations,
             ]
         ],
-        "boundaries": [
-            {"nodeId": identity(genre), "type": boundary_type, "provenance": provenance(f"{boundary_type}-{genre.pk}")}
-            for genre, boundary_type in [*entries, *boundaries]
+        "canonicalRoots": [
+            {"nodeId": identity(genre), "provenance": provenance(f"canonical-root-{genre.pk}")} for genre in roots
         ],
     }
     current = GenreGraphDataset.objects.filter(pk=DATASET_KEY).first()

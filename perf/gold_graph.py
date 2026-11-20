@@ -90,16 +90,14 @@ def build_graph(trees: list[dict]) -> dict:
                 "id": node["id"],
                 "name": node["name"],
                 "kind": "genre",
-                # The importer derives Genre.tree_name from this state: regional nodes must not be canonical.
-                "canonicalState": "canonical" if tree == "canonical" else "before_entry",
                 **({"displayParentId": display[node["id"]]} if node["id"] in display else {}),
             }
             for tree, node, _ in flat
         ],
         "relations": relations,
-        "boundaries": [
-            {"nodeId": root, "type": "entry", "provenance": _provenance(f"entry-{root}", "Gold tree root.")}
-            for root in roots
+        # The importer derives Genre.tree_name from canonicity: only roots listed here (and their descendants) are canonical.
+        "canonicalRoots": [
+            {"nodeId": root, "provenance": _provenance(f"canonical-root-{root}", "Gold tree root.")} for root in roots
         ],
     }
 
