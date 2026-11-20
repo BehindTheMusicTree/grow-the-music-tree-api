@@ -10,6 +10,12 @@ ROOTS = "canonical_roots"
 DECISION_PREFIX = "legacy-root:"
 
 
+def fire_deferred_constraints(schema_editor):
+    """Postgres refuses an ALTER TABLE on a table with pending deferred-constraint events (rows just written)."""
+    if schema_editor.connection.vendor == "postgresql":
+        schema_editor.execute("SET CONSTRAINTS ALL IMMEDIATE")
+
+
 def roots_to_list(apps, schema_editor):
     """Accepted roots were `canonical_parent` edge rules with no parent; they are now the `canonical_roots` list."""
     Rule = apps.get_model("grow", "GenreEdgeRule")
@@ -28,6 +34,7 @@ def roots_to_list(apps, schema_editor):
     # Never populated on staging or prod (checked), so nothing is dropped.
     Entry.objects.filter(list_name="canonical_boundaries").delete()
     apps.get_model("grow", "CurationReviewItem").objects.filter(list_name="canonical_boundaries").delete()
+    fire_deferred_constraints(schema_editor)
 
 
 def list_to_roots(apps, schema_editor):
@@ -44,6 +51,7 @@ def list_to_roots(apps, schema_editor):
         )
     Entry.objects.filter(list_name=ROOTS).delete()
     apps.get_model("grow", "CurationReviewItem").objects.filter(list_name=ROOTS).delete()
+    fire_deferred_constraints(schema_editor)
 
 
 def keep_last_export(apps, schema_editor):
