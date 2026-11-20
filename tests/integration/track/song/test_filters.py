@@ -193,11 +193,11 @@ class TestCase(AppTestCase):
         self._install_graph()
         regional = self.model_fixture_factory.create_genre("Regional rock", tree_name="regional")
         regional_song = self.model_fixture_factory.create_song("Regional song", genre=regional)
+        region = self.model_fixture_factory.create_genre("Region")
         self._install_graph(
-            {regional: [regional_song]},
-            classifications=[(regional, self.rock)],
-            node_overrides={regional: {"canonicalState": "after_exit"}},
-            boundaries=[(regional, "exit")],
+            {regional: [regional_song], region: []},
+            relations=[(regional, self.rock, "expression_style"), (regional, region, "regional_membership")],
+            node_overrides={regional: {"kind": "expression"}, region: {"kind": "overview"}},
         )
         genre = str(self.rock.uuid)
         direct = str(self.matching_track.uuid)

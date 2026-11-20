@@ -15,6 +15,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 TREES = ["1_canonical_genre_tree.json.gz", "1_regional_genre_tree.json.gz"]
 SONGS = "2_songs.json.gz"
 SOURCE = "fixture:perf-gold-trees"
+OVERVIEW_ID = "LOCAL:perf-regions"
 
 # Gold song exports naming a genre that no Gold tree contains. Pinned exactly: a new anomaly, or one that
 # disappears after a re-pin, fails the seed instead of silently changing the measured data.
@@ -82,6 +83,17 @@ def build_graph(trees: list[dict]) -> dict:
         for parent in accepted
     ]
     roots = [child for child, accepted in parents.items() if not accepted and tree_of[child] == "canonical"]
+    # Non-canonical nodes must reach an overview: one synthetic overview holds every regional root.
+    relations += [
+        {
+            "childId": child,
+            "parentId": OVERVIEW_ID,
+            "type": "regional_membership",
+            "provenance": _provenance(f"regional-membership-{child}", "Regional tree root, approximate conversion."),
+        }
+        for child, accepted in parents.items()
+        if not accepted and tree_of[child] != "canonical"
+    ]
     return {
         "contractVersion": 2,
         "curationExportedOn": trees[0]["curationExportedOn"],
@@ -90,16 +102,24 @@ def build_graph(trees: list[dict]) -> dict:
                 "id": node["id"],
                 "name": node["name"],
                 "kind": "genre",
-                # The importer derives Genre.tree_name from this state: regional nodes must not be canonical.
-                "canonicalState": "canonical" if tree == "canonical" else "before_entry",
                 **({"displayParentId": display[node["id"]]} if node["id"] in display else {}),
             }
             for tree, node, _ in flat
+        ]
+        + [
+            {
+                "id": OVERVIEW_ID,
+                "name": "Perf regions",
+                "kind": "overview",
+                "overviewType": "current",
+                "overviewProvenance": _provenance("overview-perf-regions", "Synthetic overview for the perf seed."),
+                "isUmbrella": True,
+            }
         ],
         "relations": relations,
-        "boundaries": [
-            {"nodeId": root, "type": "entry", "provenance": _provenance(f"entry-{root}", "Gold tree root.")}
-            for root in roots
+        # The importer derives Genre.tree_name from canonicity: only roots listed here (and their descendants) are canonical.
+        "canonicalRoots": [
+            {"nodeId": root, "provenance": _provenance(f"canonical-root-{root}", "Gold tree root.")} for root in roots
         ],
     }
 
@@ -108,7 +128,8 @@ def identity_mapping(graph: dict, genres: list[dict]) -> dict[str, str | None]:
     """Gold id → genre UUID through Genre.wikidata_id (which stores the Gold id), never by label."""
     by_gold_id = {genre["wikidata_id"]: genre["uuid"] for genre in genres if genre.get("wikidata_id")}
     mapping = {node["id"]: by_gold_id.get(node["id"]) for node in graph["nodes"]}
-    missing = [identity for identity, pk in mapping.items() if pk is None]
+    # An overview has no genre row: it maps to null, like any new node.
+    missing = [identity for identity, pk in mapping.items() if pk is None and identity != OVERVIEW_ID]
     if missing:
         raise ValueError(f"{len(missing)} Gold nodes have no imported genre, e.g. {missing[:5]}")
     return mapping
