@@ -279,6 +279,7 @@ class HostedRuntime:
         """Poll so the run deadline is checked while a job executes."""
         deadline = time.monotonic() + timeout
         while self.docker("inspect", "--format={{.State.Running}}", identity) == "true":
+            self.check()
             if time.monotonic() >= deadline:
                 raise RuntimeError("container job timed out")
             time.sleep(0.5)
@@ -410,7 +411,8 @@ class HostedRuntime:
         ]
         arguments = [*self.environment("grow_perf_owner"), "python3", "/approved/prepare.py"]
         with self.container(self.images[candidate], arguments, mounts) as identity:
-            if self.finish(identity, 2 * 60 * 60) != 0:
+            # A stale projection is rebuilt for hours: only the manifest deadline bounds the job (cause "deadline").
+            if self.finish(identity, max(self.session.deadline_timestamp - time.time(), 0)) != 0:
                 raise RuntimeError("approved migration/rebuild preparation failed")
 
     def approve_routines(self, identity: str) -> None:

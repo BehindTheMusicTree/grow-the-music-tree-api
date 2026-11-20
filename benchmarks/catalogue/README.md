@@ -59,11 +59,36 @@ preparation runs `migrate`, then `rebuild_song_search --if-stale` and
 `rebuild_artist_song --if-stale`: a side whose code did not change a projection
 keeps the data, and a side that did rebuilds it. A rebuilt table and a restored
 one are both freshly written (data reloaded, indexes rebuilt), so their physical
-state matches and the A/B comparison stays fair. REBUILD tables (the count and
-tree-version tables) stay empty in the dump and are rebuilt by preparation.
+state matches and the A/B comparison stays fair. REBUILD tables (the two
+count tables) stay empty in the dump and are rebuilt by preparation. The
+tree-version singleton is RETAIN: it holds one token row, and neither `migrate`
+nor the count verifications recreate it.
 Limitation: pruning drops derived rows of missing songs and artists but does not
 recompute a retained song's search document, which aggregates its artists' names;
 canonical songs only credit canonical artists, so no private name reaches it.
+
+## Preparation
+
+`prepare.py` runs once per side, as `grow_perf_owner` inside the side's own image, with
+`DJANGO_SETTINGS_MODULE=grow_perf_settings` (inert secrets, `LocMemCache`, no `statement_timeout`, no network).
+The same two files prepare the base and the head, so they only call commands both versions ship (a base older than `verify_song_membership` fails fast with `Unknown command`). It stops at the
+first failure, logging a timestamped line per step:
+
+1. check PostgreSQL 16, then `migrate`;
+2. `verify_song_membership`: one set-based query, so a drifted dump fails before hours of rebuilds;
+3. `rebuild_song_search --if-stale`, `rebuild_artist_song --if-stale`: a stale fingerprint rebuilds, there is no
+   fallback for an image without `--if-stale`;
+4. `verify_genre_membership_counts --repair`, then `verify_genre_catalogue_counts --repair`;
+5. `VACUUM (ANALYZE)` of every `public` table, then a check that none lacks `last_analyze`. PostgreSQL 16 restores
+   neither planner statistics nor the visibility map, and without them plans and index-only scans differ from prod.
+
+The job timeout is the time left before the manifest deadline, so a long rebuild ends as an
+`infrastructure_failure` with cause `deadline`; a failing script is cause `preparation`. Two restores plus a song
+search rebuild may not fit a 6 h hosted runner: calibration decides.
+`Preparation.script_sha256` and `settings_sha256` are the sha256 of these files at the harness SHA.
+`tests/integration/benchmarks/test_catalogue_prepare.py` runs the script on PostgreSQL 16 in the `Pytest` job,
+and `tests/unit/test_catalogue_prepare_script.py` covers its step order and gates there too: `prepare.py` imports
+Django, which the stdlib-only harness suite below does not install.
 
 ## Runtime-independent benchmark core
 
