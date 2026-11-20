@@ -586,6 +586,27 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert CurationEntry.objects.get(uuid=addition.uuid).key == "LOCAL:x"
 
+    def test_relabel_addition_named_by_merge_then_accepted(self):
+        addition = self._addition()
+        self._merge_from_local()
+
+        response = self.api_client.patch(
+            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            data={"row": {"label": "Y"}},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_delete_one_of_two_declarations_named_by_merge_then_accepted(self):
+        first = self._addition("canonical_parent_additions")
+        self._addition("regional_overview_additions")
+        self._merge_from_local()
+
+        response = self.api_client.delete(path=self._entry_url(first.uuid, "canonical_parent_additions"))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
     def test_delete_addition_named_by_edge_then_rejected(self):
         addition = self._addition()
         GenreEdgeRule.objects.create(
