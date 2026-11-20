@@ -20,10 +20,10 @@ from grow.genre_graph.service import (
 )
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
-from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.curation_export import record_export
 from tests.utils.essential_songs import add_essential_song
 from tests.utils.song_graph import install_song_graph
 
@@ -33,10 +33,10 @@ MB_ID = "11111111-1111-4111-8111-111111111111"
 class TestCase(AppTestCase):
     def setUp(self):
         super().setUp()
-        CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": datetime(2026, 11, 14, tzinfo=UTC)})
         GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
         factory = self.model_fixture_factory
         self.root = factory.create_genre("Music", wikidata_id="Q638")
+        record_export(datetime(2026, 11, 14, tzinfo=UTC), [f"LOCAL:{self.root.pk}"])
         self.target = factory.create_genre("Alternative rock", wikidata_id="Q11366", parent=self.root)
         self.source = factory.create_genre("alt rock", parent=self.root)
         self.child = factory.create_genre("Child", parent=self.source)

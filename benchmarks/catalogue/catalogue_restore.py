@@ -38,6 +38,7 @@ EMPTY = frozenset(
         "grow_bulk_import_deletion",
         "grow_bulk_import_run",
         "grow_curation_entry",
+        "grow_curation_export",
         "grow_curation_review_item",
         "grow_curation_sync_state",
         "grow_genealogy_snapshot",

@@ -8,9 +8,8 @@ from grow.model.history.HistoryEntry import HistoryEntry
 
 
 class CurationSyncState(models.Model):
-    """Singleton: when the pipeline last exported curation, and which export the canonical tree was last built from."""
+    """Singleton: which curation export the canonical tree was last built from (exports themselves: `CurationExport`)."""
 
-    exported_on = models.DateTimeField(null=True)
     applied_export_on = models.DateTimeField(null=True)
 
     class Meta:

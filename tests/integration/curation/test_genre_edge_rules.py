@@ -37,11 +37,8 @@ class TestConstraints(AppTestCase):
     def test_self_edge_then_rejected(self):
         self._violates(parent_item_id=A)
 
-    def test_root_on_non_canonical_relation_then_rejected(self):
-        self._violates(relation="regional_overview", parent_item_id=None, exclude_other_parents=True)
-
-    def test_root_without_exclusion_then_rejected(self):
-        self._violates(parent_item_id=None, exclude_other_parents=False)
+    def test_edge_without_parent_then_rejected(self):
+        self._violates(parent_item_id=None, exclude_other_parents=True)
 
     def test_action_only_on_secondary_then_rejected(self):
         self._violates(action="add")
@@ -82,14 +79,9 @@ class TestManager(AppTestCase):
 
         assert list(GenreEdgeRule.objects.filter(item_id=A).values_list("parent_item_id", flat=True)) == [C]
 
-    def test_root_then_replaces_parent_and_back(self):
-        GenreEdgeRule.objects.upsert("canonical_parent", A, B, exclude_other_parents=True)
-
-        GenreEdgeRule.objects.upsert("canonical_parent", A, None, exclude_other_parents=True)
-        assert list(GenreEdgeRule.objects.filter(item_id=A).values_list("parent_item_id", flat=True)) == [None]
-
-        GenreEdgeRule.objects.upsert("canonical_parent", A, B, exclude_other_parents=True)
-        assert list(GenreEdgeRule.objects.filter(item_id=A).values_list("parent_item_id", flat=True)) == [B]
+    def test_edge_without_parent_then_validation_error(self):
+        with self.assertRaises(ValidationError):
+            GenreEdgeRule.objects.upsert("canonical_parent", A, None, exclude_other_parents=True)
 
     def test_secondary_on_the_main_parent_then_replaces_it(self):
         GenreEdgeRule.objects.upsert("canonical_parent", A, B, exclude_other_parents=True)

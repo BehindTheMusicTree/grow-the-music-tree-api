@@ -54,6 +54,7 @@ from grow.curation.rows import (
 from grow.curation.rule_set import Violation, find_stored_violations
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -429,8 +430,6 @@ class CurationExportView(CurationView):
                 status=status.HTTP_409_CONFLICT,
             )
         exported_on = timezone.now()
-        if request.auth.role == "pipeline":
-            CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": exported_on})
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
             export[entry.list_name].append(entry.csv_row)
@@ -444,6 +443,9 @@ class CurationExportView(CurationView):
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]
         export["exported_on"] = exported_on.isoformat()
+        if request.auth.role == "pipeline":
+            # The pipeline's copy, kept whole: a later import checks what it was built from against it.
+            CurationExport.record(exported_on, export, CurationSyncState.load().applied_export_on)
         return Response(export)
 
 

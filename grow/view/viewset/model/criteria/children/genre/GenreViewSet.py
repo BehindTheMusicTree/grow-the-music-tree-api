@@ -79,8 +79,8 @@ def _pop_curation_exported_on(tree_file: Any) -> Any:
     return tree_file.pop(CURATION_EXPORTED_ON, None) if _is_json_object(tree_file) else None
 
 
-def _curation_exported_on(request: Request, state: CurationSyncState) -> datetime:
-    return parse_curation_exported_on(_pop_curation_exported_on(request.data), state)
+def _curation_exported_on(request: Request) -> datetime:
+    return parse_curation_exported_on(_pop_curation_exported_on(request.data))
 
 
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
@@ -135,7 +135,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         with transaction.atomic():
             if is_pipeline:
                 state = CurationSyncState.load()
-                state.applied_export_on = _curation_exported_on(request, state)
+                state.applied_export_on = _curation_exported_on(request)
             response = super().import_tree(request)
             Genre.objects.assert_required_roots_present(get_request_owner(request))
             analyze(TREE_IMPORT_MODELS)
@@ -166,9 +166,8 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         entries = body.get("trees")
         exports = []
         if record and isinstance(entries, list):
-            state = CurationSyncState.load()
             exports = [_pop_curation_exported_on(entry) for entry in entries]
-            parsed = {parse_curation_exported_on(value, state) for value in exports}
+            parsed = {parse_curation_exported_on(value) for value in exports}
             if len(parsed) > 1:
                 raise ValidationError({"trees": "Mixed curation exports: every tree needs the same curationExportedOn"})
         serializer = CriteriaTreeImportSerializer(data=entries, many=True)

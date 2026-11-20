@@ -19,7 +19,7 @@ from the_music_tree_genre_kit.criteria.Fields import Fields
 
 from grow.curation.admin_rules import invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
-from grow.curation.lists import ADDITION_LISTS, EXCLUDED_GENRE_LISTS
+from grow.curation.lists import ADDITION_LISTS, CANONICAL_ROOTS_LIST, EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
@@ -104,9 +104,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         genre.wikidata_id = item_id
         genre.save(update_fields=["wikidata_id"])
         self._lock(genre)
-        self._upsert_edge(
-            genre, GenreEdgeRule.Relation.CANONICAL_PARENT, parent_item_id, actor, exclude_other_parents=True
-        )
+        self._place_canonical(genre, parent_item_id, actor)
         HistoryEntry.objects.record(
             genre, action=HistoryAction.UPDATED, actor=actor, new_value=f"adopted into curation as {item_id}"
         )
@@ -160,6 +158,44 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         except ValidationError as e:
             raise invalid("parent", f"Can't record this edit as a {relation} edge: {'; '.join(e.messages)}") from e
 
+    def _place_canonical(self, instance: Genre, parent_item_id: str | None, actor: Any) -> None:
+        """Mirrors an admin canonical placement of a pipeline item: under a parent (an edge) or as an accepted root
+        (the `canonical_roots` list). One canonical assertion per item, so each replaces the other."""
+        if not self._is_pipeline_item(instance):
+            return
+        self._place_canonical_by_id(instance.wikidata_id, parent_item_id, actor)
+
+    @staticmethod
+    def _place_canonical_by_id(item_id: str, parent_item_id: str | None, actor: Any) -> None:
+        roots = CurationEntry.objects.filter(user=None, list_name=CANONICAL_ROOTS_LIST, key=item_id)
+        try:
+            if parent_item_id is None:
+                for rule in GenreEdgeRule.objects.filter(
+                    user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id=item_id
+                ):
+                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+                upsert_admin_rule(
+                    CANONICAL_ROOTS_LIST,
+                    {"item_id": item_id, "decision_id": f"grow-admin:root:{item_id}", "decision_source": "grow-admin"},
+                    actor,
+                )
+                return
+            for root in roots:
+                CurationEntry.objects.delete_instance(root, actor=actor)
+            GenreEdgeRule.objects.upsert(
+                GenreEdgeRule.Relation.CANONICAL_PARENT,
+                item_id,
+                parent_item_id,
+                exclude_other_parents=True,
+                reason=f"grow admin edit by {actor.profile.pseudo}",
+                actor=actor,
+            )
+        except InvalidRow as e:
+            message = next(iter(e.errors.values()))
+            raise invalid("parent", f"Can't record this placement of {item_id}: {message}") from e
+        except ValidationError as e:
+            raise invalid("parent", f"Can't record this placement of {item_id}: {'; '.join(e.messages)}") from e
+
     def _reparent_target(self, instance: Genre, actor: Any) -> str | None:
         """The parent item id of an admin reparent (None for a root), or a 400 when no edge can express it."""
         parent_excluded = self.filter(pk=instance.parent_id).values_list("is_excluded", flat=True).first() or False
@@ -196,13 +232,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if self._is_pipeline_item(instance):
                 # One canonical assertion per item: the edge replaces a root or an earlier parent, and an edge of
                 # the same pair in another relation (such as a secondary `add`).
-                self._upsert_edge(
-                    instance,
-                    GenreEdgeRule.Relation.CANONICAL_PARENT,
-                    self._reparent_target(instance, actor),
-                    actor,
-                    exclude_other_parents=True,
-                )
+                self._place_canonical(instance, self._reparent_target(instance, actor), actor)
             instance.is_unaccepted_root = False
             instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
@@ -291,27 +321,17 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 if rule.relation == GenreEdgeRule.Relation.CANONICAL_PARENT:
                     GenreEdgeRule.objects.delete_instance(rule, actor=actor)
                     if rule.item_id not in gone:
-                        self._upsert_edge_by_id(rule.item_id, new_parent, actor)
+                        self._place_canonical_by_id(rule.item_id, new_parent, actor)
                 else:
                     GenreEdgeRule.objects.delete_instance(rule, actor=actor)
             for rule in list(GenreEdgeRule.objects.filter(user=None, item_id=item_id)):
                 GenreEdgeRule.objects.delete_instance(rule, actor=actor)
-            for entry in list(CurationEntry.objects.filter(user=None, key=item_id, list_name__in=ADDITION_LISTS)):
+            for entry in list(
+                CurationEntry.objects.filter(
+                    user=None, key=item_id, list_name__in=[*ADDITION_LISTS, CANONICAL_ROOTS_LIST]
+                )
+            ):
                 CurationEntry.objects.delete_instance(entry, actor=actor)
-
-    @staticmethod
-    def _upsert_edge_by_id(item_id: str, parent_item_id: str | None, actor: Any) -> None:
-        try:
-            GenreEdgeRule.objects.upsert(
-                GenreEdgeRule.Relation.CANONICAL_PARENT,
-                item_id,
-                parent_item_id,
-                exclude_other_parents=True,
-                reason=f"grow admin edit by {actor.profile.pseudo}",
-                actor=actor,
-            )
-        except (InvalidRow, ValidationError) as e:
-            raise invalid("parent", f"Can't repoint the edge of {item_id}: {e}") from e
 
     def _on_side_changed(self, instance: Genre, *, old_side: str, actor: Any = None) -> None:
         if actor is not None:
@@ -522,9 +542,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             genre.save(update_fields=["is_unaccepted_root"])
             self._lock(genre)
             if actor is not None:
-                self._upsert_edge(
-                    genre, GenreEdgeRule.Relation.CANONICAL_PARENT, None, actor, exclude_other_parents=True
-                )
+                self._place_canonical(genre, None, actor)
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
 
     @transaction.atomic
