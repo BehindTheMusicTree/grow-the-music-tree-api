@@ -136,12 +136,11 @@ LISTED_IN_DELTA_RUN = """y.musicbrainz_recording_id IN (
 # the capture steps below don't look the same two tables up again.
 CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
     SELECT s.*, s.artist_mbid IS NULL OR c.artist_mbid IS DISTINCT FROM s.artist_mbid::text AS artist_changed,
-        t.uuid IS NOT NULL AND y.track_id IS NOT NULL AS is_stored, {{stored_genre}} AS stored_genre_id,
+        t.uuid IS NOT NULL AND y.track_id IS NOT NULL AS is_stored, y.genre_id AS stored_genre_id,
         {PLAYABLE.format("y")} AS stored_playable, y.youtube_view_count AS stored_view_count
     FROM song_import s
     LEFT JOIN the_music_tree_genre_kit_track t ON t.uuid = s.track_id
     LEFT JOIN grow_song y ON y.track_id = s.track_id
-    {{stored_genre_join}}
     LEFT JOIN (
         SELECT ta.track_id, min(a.musicbrainz_artist_id::text) AS artist_mbid
         FROM the_music_tree_genre_kit_track_artists ta JOIN grow_artist a ON a.uuid = ta.artist_id
@@ -150,7 +149,7 @@ CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
     ) c ON c.track_id = s.track_id
     WHERE s.is_new OR s.is_adopted OR t.uuid IS NULL OR y.track_id IS NULL
         OR t.title IS DISTINCT FROM s.title
-        OR (NOT s.is_locked AND {{stored_genre}} IS DISTINCT FROM s.genre_id)
+        OR (NOT s.is_locked AND y.genre_id IS DISTINCT FROM s.genre_id)
         OR y.youtube_video_id IS DISTINCT FROM s.youtube_video_id
         OR y.youtube_unplayable_reason IS DISTINCT FROM s.youtube_unplayable_reason
         OR y.youtube_region_restriction IS DISTINCT FROM s.youtube_region_restriction
@@ -161,8 +160,6 @@ CHANGED_SONG = f"""CREATE TEMP TABLE changed_song AS
 # A delta run groups only its own tracks' artists (minutes saved on every daily run). A full run holds every track, and
 # the same filter there turns the sorted aggregate into a hash aggregate that spills to disk: 580 s became 720 s on 32M.
 DELTA_RUN_TRACKS = "WHERE ta.track_id IN (SELECT track_id FROM song_import)"
-# The song's stored effective genre is the materialised column.
-SEMANTIC_STORED_GENRE = {"stored_genre": "y.genre_id", "stored_genre_join": ""}
 
 STEPS = [
     ("analyze_changed_song", "ANALYZE changed_song"),
@@ -186,10 +183,8 @@ STEPS = [
     ),
     (
         "update_tracks",
-        """UPDATE the_music_tree_genre_kit_track t SET
-        title = s.title, genre_id = CASE WHEN s.is_locked THEN t.genre_id ELSE s.genre_id END, updated_on = now()
-    FROM changed_song s WHERE t.uuid = s.track_id AND NOT s.is_new
-        AND (t.title IS DISTINCT FROM s.title OR (NOT s.is_locked AND t.genre_id IS DISTINCT FROM s.genre_id))""",
+        """UPDATE the_music_tree_genre_kit_track t SET title = s.title, updated_on = now()
+    FROM changed_song s WHERE t.uuid = s.track_id AND NOT s.is_new AND t.title IS DISTINCT FROM s.title""",
     ),
     # The grow_song statement trigger is skipped for the whole merge (see `_merge`): its unindexed transition tables
     # made it cost minutes per 100k rows. The same per-playlist delta is taken here from the old values and applied
@@ -227,7 +222,7 @@ STEPS = [
     (
         "insert_tracks",
         """INSERT INTO the_music_tree_genre_kit_track (uuid, created_on, play_count, title, genre_id, user_id)
-    SELECT track_id, now(), 0, title, genre_id, %(user)s FROM changed_song WHERE is_new
+    SELECT track_id, now(), 0, title, NULL, %(user)s FROM changed_song WHERE is_new
     ORDER BY track_id""",
     ),
     (
@@ -324,14 +319,6 @@ STEPS = [
     ("upsert_artist_song", artist_song_projection.upsert("SELECT track_id FROM changed_song")),
 ]
 
-# A reviewed run leaves the legacy genre column alone: its attributions are the only genre authority.
-SEMANTIC_STEPS = {
-    "update_tracks": """UPDATE the_music_tree_genre_kit_track t SET title = s.title, updated_on = now()
-    FROM changed_song s WHERE t.uuid = s.track_id AND NOT s.is_new AND t.title IS DISTINCT FROM s.title""",
-    "insert_tracks": """INSERT INTO the_music_tree_genre_kit_track (uuid, created_on, play_count, title, genre_id, user_id)
-    SELECT track_id, now(), 0, title, NULL, %(user)s FROM changed_song WHERE is_new
-    ORDER BY track_id""",
-}
 MATERIALIZE_SONG_GENRES = f"""UPDATE grow_song y SET genre_id = sg.uuid
     FROM changed_song s
     LEFT JOIN (the_music_tree_genre_kit_genregraphattribution ga
@@ -565,9 +552,8 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         dataset = stack.enter_context(
             assignment_write_transaction(expected_graph=run.graph_revision, expected_membership=run.membership_revision)
         )
-        genre, stored = SEMANTIC_GENRE, SEMANTIC_STORED_GENRE
-        changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "", **stored)
-        song_import = SONG_IMPORT.format(**genre)
+        changed_song = CHANGED_SONG.format(run_tracks=DELTA_RUN_TRACKS if delta else "")
+        song_import = SONG_IMPORT.format(**SEMANTIC_GENRE)
         stale_tracks = STALE_TRACKS.format(missing=LISTED_IN_DELTA_RUN if delta else MISSING_FROM_FULL_RUN)
         cursor = stack.enter_context(connection.cursor())
         with report_step("prepare_tables"):
@@ -582,8 +568,7 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
             if not delta and not cursor.fetchone()[0]:
                 # Every unlocked track missing from the run is deleted, so an empty run would wipe the library.
                 raise ValueError(f"import run {run_id} has no staged songs")
-        body = [(label, SEMANTIC_STEPS.get(label, sql)) for label, sql in STEPS]
-        steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *body]
+        steps = [("analyze_song_import", "ANALYZE song_import"), ("changed_song", changed_song), *STEPS]
         steps = [*steps, ("stale_tracks", stale_tracks), *AFTER_STALE_STEPS, *analyze_steps(WRITTEN_MODELS)]
         if not live:
             steps = [step for step in steps if step[0] not in {"upsert_song_search", "delete_song_search"}]

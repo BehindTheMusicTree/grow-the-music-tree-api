@@ -15,6 +15,7 @@ from the_music_tree_genre_kit.track.Track import Track
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportPart import ImportPart
+from grow.genre_graph.closure import clear_closure_cache
 from grow.genre_music.catalogue_verification import (
     catalogue_bucket_counts,
     stored_catalogue_bucket_counts,
@@ -22,7 +23,7 @@ from grow.genre_music.catalogue_verification import (
 )
 from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.genre_music.summary import genre_playlist_summaries
-from grow.genre_music.summary_inputs import clear_summary_inputs_cache
+from grow.genre_music.summary_inputs import summary_inputs
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.history.HistoryAction import HistoryAction
@@ -367,14 +368,14 @@ def test_summary_is_coherent_when_writer_commits_before_materialization(catalogu
     _, a, b, _, song = catalogue
     install_song_graph({a: [song], b: []})
     playlist = GenrePlaylist.objects.get(criteria=a)
-    clear_summary_inputs_cache()
+    clear_closure_cache()
     if warm:
         genre_playlist_summaries([playlist.pk])
     committed = []
 
     def commit_after_statement(execute, sql, params, many, context):
         result = execute(sql, params, many, context)
-        if "UNION ALL" in sql and not committed:
+        if "grow_genre_catalogue_count" in sql and sql.lstrip().upper().startswith("SELECT") and not committed:
             with ThreadPoolExecutor(max_workers=1) as pool:
                 pool.submit(in_connection, lambda: install_song_graph({a: [], b: [song]})).result(timeout=10)
             committed.append(True)
@@ -395,7 +396,7 @@ def test_summary_cache_discards_rolled_back_inputs(catalogue, warm):
     _, a, b, _, song = catalogue
     install_song_graph({a: [song], b: []})
     playlist = GenrePlaylist.objects.get(criteria=a)
-    clear_summary_inputs_cache()
+    clear_closure_cache()
     if warm:
         genre_playlist_summaries([playlist.pk])
     with transaction.atomic():
@@ -409,15 +410,12 @@ def test_summary_cache_discards_rolled_back_inputs(catalogue, warm):
     assert restored["tracks_count"] == 1
 
 
-@pytest.mark.parametrize("warm", [False, True])
-def test_summary_inputs_use_one_query(catalogue, warm, django_assert_num_queries):
-    _, a, _, _, _ = catalogue
-    playlist = GenrePlaylist.objects.get(criteria=a)
-    clear_summary_inputs_cache()
-    if warm:
-        genre_playlist_summaries([playlist.pk])
+def test_summary_inputs_use_one_statement(catalogue, django_assert_num_queries):
+    """Token, graph rows, buckets, owners and memberships share one statement (one snapshot), whatever the selection."""
+    _, a, b, _, _ = catalogue
+    playlists = [GenrePlaylist.objects.get(criteria=genre).pk for genre in (a, b)]
     with django_assert_num_queries(1):
-        genre_playlist_summaries([playlist.pk])
+        summary_inputs(playlists)
 
 
 @pytest.fixture

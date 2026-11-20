@@ -25,16 +25,18 @@ from the_music_tree_genre_kit.criteria.selection.coverage import (
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.filtering.set.criteria_playlist.CriteriaPlaylistFilterSet import CriteriaPlaylistFilterSet
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.track.Track import Track
 from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import FROM_QUERY_PARAM
 
+from grow.genre_graph.closure import graph_closure, parse_subgenres
+from grow.genre_graph.selection import selected_genre_ids
+from grow.genre_graph.service import DATASET_KEY, tree_version
 from grow.genre_graph.snapshot import graph_snapshot
-from grow.genre_music.artist import artist_catalogue_counts, playlist_counts
+from grow.genre_music.artist import artist_catalogue_counts, playlist_counts, playlist_counts_from_rows
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
-from grow.genre_music.selection import genre_tree_snapshot, parse_subgenres
-from grow.genre_music.selection_query import selected_genres_query
-from grow.genre_music.summary_inputs import catalogue_count_annotation
+from grow.genre_music.summary_inputs import summary_inputs
 from grow.model.artist.Artist import Artist
 from grow.model.criteria.Criteria import Criteria
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -65,7 +67,7 @@ def _parents_by_child(m2m) -> tuple[dict, list]:
 
 def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
     """CriteriaPlaylistSimpleSerializer's output from plain .values() rows: hydrating ~1.7k model graphs cost ~2s."""
-    additional, extra_edges = _parents_by_child(Criteria.additional_primary_parents)
+    additional, _ = _parents_by_child(Criteria.additional_primary_parents)
     secondary, _ = _parents_by_child(Criteria.secondary_parents)
     playlists = list(
         queryset.annotate(tracks_count=tracks_count_annotation()).values(
@@ -93,21 +95,14 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         )
     )
     if artist_id is not None:
-        snapshot = genre_tree_snapshot()
-        songs_counts = artist_catalogue_counts(artist_id, snapshot)
-        graph: tuple = snapshot.tree_names, snapshot.primary_edges
+        closure = graph_closure()
+        songs_counts = artist_catalogue_counts(artist_id, closure)
+        membership_counts = playlist_counts(artist_id, closure)
     else:
-        all_genres = list(
-            GenrePlaylist.objects.filter(user__isnull=True)
-            .annotate(catalogue_count=catalogue_count_annotation())
-            .values_list("criteria_id", "catalogue_count", "criteria__tree_name", "criteria__parent_id")
-        )
-        trees = {genre: tree for genre, _, tree, _ in all_genres if genre is not None}
-        edges = [(parent, genre) for genre, _, _, parent in all_genres if genre is not None and parent in trees]
-        edges.extend((parent, child) for parent, child in extra_edges if parent in trees and child in trees)
-        graph = trees, edges
-        songs_counts = catalogue_counts({genre: count for genre, count, _, _ in all_genres}, graph)
-    membership_counts = playlist_counts(artist_id, graph)
+        inputs = summary_inputs([r["uuid"] for r in playlists])
+        closure = inputs.closure
+        songs_counts = catalogue_counts(inputs.exact, closure)
+        membership_counts = playlist_counts_from_rows(inputs.memberships, closure)
     rows = []
     for r in playlists:
         criteria_id = r["criteria_id"]
@@ -190,7 +185,9 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             return super().get_object()
         # Scope validation needs the tree identity, loaded with the playlist rather than in
         # a separate graph query. Keep coverage parameters out of playlist identity lookup.
-        playlist = get_object_or_404(self.get_queryset().select_related("criteria"), pk=self.kwargs["pk"])
+        playlist = get_object_or_404(
+            self.get_queryset().select_related("criteria", "criteria__graph_node"), pk=self.kwargs["pk"]
+        )
         self.check_object_permissions(self.request, playlist)
         return playlist
 
@@ -204,14 +201,13 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             if self.request.query_params.get("subgenres") is not None:
                 raise ValidationError({"subgenres": "Genreless has no subgenres."})
             return Q(**{f"{field}__isnull": True})
+        node = playlist.criteria.graph_node
+        if node is None or node.dataset_id != DATASET_KEY:
+            raise ValidationError({"genre": "Genre has no reference graph identity mapping."})
+        scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, node.canonical_state)
         if coverage == CriteriaCoverage.ONLY:
-            parse_subgenres(self.request.query_params.get("subgenres"), coverage, "canonical")
             return Q(**{field: playlist.criteria_id})
-        scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, playlist.criteria.tree_name)
-        selected = selected_genres_query(
-            playlist.criteria_id, playlist.criteria.tree_name, scope, using=TrackPlaylistRel.objects.db
-        )
-        return InSubquery(F(field), selected)
+        return InSubquery(F(field), selected_genre_ids(node, scope))
 
     def get_track_playlist_rel_queryset(self, playlist):
         # The membership row carries the track's genre (`TrackPlaylistRel.genre`), so the selection filters the
@@ -282,8 +278,9 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             body = self.get_renderers()[0].render(_tree_rows(queryset, artist_id))
             return HttpResponse(body, content_type="application/json", headers={"Cache-Control": "no-store"})
 
-        token = GenreTreeVersion.current_token()
-        version = f"scoped-v3-{tree_name}-{settings.GIT_COMMIT}-{token}"
+        # The version token covers display fields and the exact buckets; the graph tokens cover the closure.
+        token, revision, membership_revision = tree_version()
+        version = f"scoped-v4-{tree_name}-{settings.GIT_COMMIT}-{token}-{revision}-{membership_revision}"
         etag = f'"{version}"'
         headers = {"ETag": etag, "Cache-Control": "no-cache"}
         if etag in (e.removeprefix("W/") for e in parse_etags(request.headers.get("If-None-Match", ""))):

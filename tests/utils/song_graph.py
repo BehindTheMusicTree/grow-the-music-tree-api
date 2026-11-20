@@ -5,6 +5,7 @@ from the_music_tree_genre_kit.genre_graph.storage import replace_graph, replace_
 
 from grow.genre_graph.service import DATASET_KEY
 from grow.model.criteria.children.genre.Genre import Genre
+from grow.model.song.Song import Song
 
 
 def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), boundaries=()):
@@ -85,3 +86,36 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
             .first(),
         )
     return dataset
+
+
+def install_graph_from_rows():
+    """Install the graph the canonical Genre rows describe: parent links as classifications, Song.genre as attributions."""
+    genres = list(Genre.objects.filter(user__isnull=True).order_by("created_on"))
+    by_pk = {genre.pk: genre for genre in genres}
+    songs = defaultdict(list)
+    for song in Song.objects.filter(genre__in=genres):
+        songs[song.genre_id].append(song)
+    # A regional genre with extra primary parents is an expression of each of them; its regional
+    # descendants are expressions of the same parents (an expression cannot have classified children).
+    expressions = {}
+    for genre in genres:
+        if genre.tree_name == "canonical":
+            continue
+        node = genre
+        while node is not None:
+            targets = [by_pk[pk] for pk in node.additional_primary_parents.values_list("pk", flat=True) if pk in by_pk]
+            if targets:
+                expressions[genre] = targets
+                break
+            node = by_pk.get(node.parent_id)
+    overrides = {genre: {"canonicalState": "before_entry"} for genre in genres if genre.tree_name != "canonical"}
+    for genre in expressions:
+        overrides[genre] = {"kind": "expression"}
+    return install_song_graph(
+        {genre: songs[genre.pk] for genre in genres},
+        classifications=[
+            (genre, by_pk[genre.parent_id]) for genre in genres if genre.parent_id in by_pk and genre not in expressions
+        ],
+        relations=[(genre, parent, "expression_style") for genre, parents in expressions.items() for parent in parents],
+        node_overrides=overrides,
+    )

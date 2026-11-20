@@ -3,6 +3,7 @@ from io import StringIO
 from unittest.mock import patch
 from uuid import uuid4
 
+import pytest
 from django.apps import apps
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -24,6 +25,7 @@ from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlayl
 from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCatalogueProjection(AppTestCase):
@@ -223,10 +225,13 @@ class TestCatalogueProjection(AppTestCase):
         parent = self.model_fixture_factory.create_genre("Parent", wikidata_id="Q1")
         child = self.model_fixture_factory.create_genre("Child", parent=parent)
         self.model_fixture_factory.create_song("One", genre=child)
+        install_song_graph({parent: []})  # the alias source is MusicBrainz-only: it has no graph node
+        parent.refresh_from_db()
         Genre.objects.alias_instance(child, parent, actor=self.admin)
         self.assert_projection()
         assert all(report.valid for report in verify_catalogue_counts().values())
-        Genre.objects.delete_instance(parent)
+        with pytest.raises(IntegrityError, match="Permanent graph genre"), transaction.atomic():
+            Genre.objects.delete_instance(parent)
         self.assert_projection()
         assert all(report.valid for report in verify_catalogue_counts().values())
 

@@ -12,6 +12,7 @@ from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.song_graph import install_graph_from_rows
 
 
 @pytest.fixture(params=[2, 12], ids=["few-regions", "many-regions"])
@@ -22,6 +23,7 @@ def region_snapshot(request):
         item_id = f"Q{index + 1}"
         factory.create_genre(f"Region genre {index}", wikidata_id=item_id)
         regions.append({"itemId": f"Q{index + 100}", "genres": [{"itemId": item_id}]})
+    install_graph_from_rows()
     body = json.dumps({"regions": regions, "tileset": "a" * 64}, sort_keys=True).encode()
     checksum = hashlib.sha256(body).hexdigest()
     compressed = gzip.compress(body, mtime=0)

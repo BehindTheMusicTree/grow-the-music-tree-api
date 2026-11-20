@@ -14,6 +14,7 @@ from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.play.Play import Play
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 TRACKED_TABLES = set(import_module("grow.migrations.0133_graph_node_tree_version").TRACKED_TABLES)
 TREE_PATH = reverse("genre-playlist-list") + "tree/"
@@ -22,6 +23,8 @@ UNTRACKED_READS = {
     "grow_genre_membership_count": "derived from tracked membership sources in migration 0108",
     "grow_genre_catalogue_count": "derived from the song/track sources whose triggers bump the token (migration 0115)",
     "grow_genre_tree_version": "holds the token the triggers bump",
+    "the_music_tree_genre_kit_genregraphdataset": "its revisions are part of the tree ETag and cache key",
+    "the_music_tree_genre_kit_genregraphaccess": "derived from the graph, versioned by the dataset revisions",
     "grow_criteria_lineage_rel": "derived from the parent links of grow_criteria, which is tracked",
 }
 
@@ -30,8 +33,23 @@ class TestCase(AppTestCase):
     def setUp(self):
         super().setUp()
         self.rock = self.model_fixture_factory.create_genre("Rock")
-        self.model_fixture_factory.create_genre("Punk", parent=self.rock)
-        self.model_fixture_factory.create_genre("Italian progressive rock", tree_name="regional")
+        self.punk = self.model_fixture_factory.create_genre("Punk", parent=self.rock)
+        self.regional = self.model_fixture_factory.create_genre("Italian progressive rock", tree_name="regional")
+        self._install_graph()
+
+    def _install_graph(self, *canonical, regional=(), classifications=()):
+        """Reinstall the graph for the setUp genres plus the genres a test created: the tree serves graph nodes."""
+        install_song_graph(
+            {
+                self.rock: [],
+                self.punk: [],
+                self.regional: [],
+                **{g: [] for g in canonical},
+                **{g: [] for g in regional},
+            },
+            classifications=[(self.punk, self.rock), *classifications],
+            node_overrides={g: {"canonicalState": "before_entry"} for g in (self.regional, *regional)},
+        )
 
     def _assert_bumps(self, write):
         before = GenreTreeVersion.current_token()
@@ -79,7 +97,8 @@ class TestCase(AppTestCase):
         punk.secondary_parents.add(metal, self.rock)
         regional = Genre.objects.get(name="Italian progressive rock")
         regional.additional_primary_parents.add(self.rock, metal)
-        self.model_fixture_factory.create_genre("Zeuhl", parent=regional, tree_name="regional")
+        zeuhl = self.model_fixture_factory.create_genre("Zeuhl", parent=regional, tree_name="regional")
+        self._install_graph(metal, regional=[zeuhl])
         self.model_fixture_factory.create_song(title="Song", genre=punk)
         self.model_fixture_factory.create_tag("Live")
 
@@ -99,7 +118,7 @@ class TestCase(AppTestCase):
 
     def test_tree_flags_unaccepted_roots(self):
         Genre.objects.filter(pk=self.rock.pk).update(is_unaccepted_root=True)
-        self.model_fixture_factory.create_genre("Jazz")
+        self._install_graph(self.model_fixture_factory.create_genre("Jazz"))
 
         rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
         flags = {row["criteria"]["name"] if row["criteria"] else None: row["isUnacceptedRoot"] for row in rows}
@@ -133,7 +152,7 @@ class TestCase(AppTestCase):
 
     def test_tree_reflects_writes_after_cache_fill(self):
         first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
-        self.model_fixture_factory.create_genre("Jazz")
+        self._install_graph(self.model_fixture_factory.create_genre("Jazz"))
         second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
 
         assert second.status_code == status.HTTP_200_OK
@@ -143,6 +162,7 @@ class TestCase(AppTestCase):
         jazz = self.model_fixture_factory.create_genre("Jazz")
         punk = Genre.objects.get(name="Punk")
         Genre.objects.filter(pk=punk.pk).update(parent=jazz, root=jazz)
+        self._install_graph(jazz, classifications=[(punk, jazz)])
 
         rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
         punk_row = next(row for row in rows if row["criteria"] and row["criteria"]["name"] == "Punk")

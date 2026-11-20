@@ -13,7 +13,6 @@ from grow.curation.rows import InvalidRow, lock_writes
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.criteria.children.genre.Genre import Genre
-from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
@@ -88,15 +87,13 @@ class SongCurationManager:
                 "source": "admin curation",
                 "rationale": f"Assigned by {getattr(actor, 'pk', None)}",
             }
-            if set_song_genre(song, genre, provenance=provenance):
-                Song.objects.record_semantic_genre_change(song, old_genre=old, actor=actor)
-                after = song_attribution_state(song)
-                if before is None or after is None:
-                    raise RuntimeError("The reference dataset disappeared during an assignment")
-                entry["attributions"] = before[0]
-                entry["assignment_revision"] = str(after[1])
-            else:
-                Song.objects.update_instance(song, actor=actor, genre=genre)
+            set_song_genre(song, genre, provenance=provenance)
+            Song.objects.record_semantic_genre_change(song, old_genre=old, actor=actor)
+            after = song_attribution_state(song)
+            if before is None or after is None:
+                raise RuntimeError("The reference dataset disappeared during an assignment")
+            entry["attributions"] = before[0]
+            entry["assignment_revision"] = str(after[1])
             entries.append(entry)
         return previous, SongGenreUndo.objects.create(actor=actor, entries=entries).token
 
@@ -200,8 +197,10 @@ class SongCurationManager:
     @staticmethod
     def link_suggestions(genre: Genre) -> QuerySet[Song]:
         """Genreless songs by artists who already have songs in the genre's subtree, most shared first."""
-        descendants = CriteriaLineageRel.objects.filter(ascendant=genre).values_list("descendant", flat=True)
-        in_subtree = Song.objects.filter(membership_genre__in=[genre, *descendants]).values("pk")
+        from grow.genre_graph.closure import SubgenreScope, graph_closure
+
+        subtree = graph_closure().selections[genre.uuid][SubgenreScope.ALL]
+        in_subtree = Song.objects.filter(membership_genre__in=subtree).values("pk")
         assigned = Song.objects.filter(membership_genre__isnull=False).values("pk")
         artist_ids = list(
             Song.objects.filter(pk__in=in_subtree, artists__isnull=False).values_list("artists", flat=True).distinct()

@@ -5,14 +5,8 @@ from django.db.models import Count
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 
+from grow.genre_graph.closure import GraphClosure, graph_closure
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
-from grow.genre_music.selection import (
-    GenreTreeSnapshot,
-    all_genre_selections,
-    genre_graph,
-    genre_tree_snapshot,
-    primary_ancestors,
-)
 from grow.model.song.Song import Song
 
 
@@ -26,26 +20,25 @@ def artist_exact_counts(artist_id: UUID) -> dict:
     )
 
 
-def artist_nonzero_catalogue_counts(exact: dict, snapshot: GenreTreeSnapshot) -> dict:
-    """Scoped counts for the only genres that can be nonzero: assigned genres and their primary ancestors."""
-    affected = primary_ancestors(snapshot, (genre for genre in exact if genre is not None))
-    selections = all_genre_selections(snapshot.tree_names, snapshot.primary_edges, genres=affected)
-    return catalogue_counts(exact, (snapshot.tree_names, snapshot.primary_edges), selections=selections)
+def artist_nonzero_catalogue_counts(exact: dict, closure: GraphClosure) -> dict:
+    """Scoped counts for the only genres that can be nonzero: assigned genres and their ancestors."""
+    affected = closure.ancestors_of(genre for genre in exact if genre is not None)
+    return catalogue_counts(exact, closure, genres=affected)
 
 
-def artist_catalogue_counts(artist_id: UUID, snapshot: GenreTreeSnapshot | None = None) -> dict:
+def artist_catalogue_counts(artist_id: UUID, closure: GraphClosure | None = None) -> dict:
     """Scoped counts for every genre, zero-filled."""
-    snapshot = snapshot if snapshot is not None else genre_tree_snapshot()
+    closure = closure if closure is not None else graph_closure()
     counts = {
         genre: GenreScopedCounts(0, {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0})
-        for genre, tree in snapshot.tree_names.items()
+        for genre, tree in closure.tree_names.items()
     }
-    counts.update(artist_nonzero_catalogue_counts(artist_exact_counts(artist_id), snapshot))
+    counts.update(artist_nonzero_catalogue_counts(artist_exact_counts(artist_id), closure))
     return counts
 
 
 def playlist_counts(
-    artist_id: UUID | None, graph=None, playlist_id: UUID | None = None, *, playlist_ids=None, selections=None
+    artist_id: UUID | None, closure: GraphClosure | None = None, playlist_id: UUID | None = None, *, playlist_ids=None
 ) -> dict:
     queryset = TrackPlaylistRel.objects.filter(
         user__isnull=True,
@@ -76,22 +69,16 @@ def playlist_counts(
             )
             .annotate(count=Count("pk", distinct=True))
         )
-    trees, edges = graph if graph is not None else genre_graph()
-    return playlist_counts_from_rows(rows, (trees, edges), selections=selections)
+    return playlist_counts_from_rows(rows, closure if closure is not None else graph_closure())
 
 
-def playlist_counts_from_rows(rows, graph, *, selections=None) -> dict:
+def playlist_counts_from_rows(rows, closure: GraphClosure) -> dict:
     """Project already-loaded exact membership buckets without another database read."""
     grouped = defaultdict(dict)
     owners = {}
     for playlist, genre, track_genre, count in rows:
         grouped[playlist][track_genre] = count
         owners[playlist] = genre
-    trees, edges = graph
-    if selections is None:
-        selections = all_genre_selections(
-            trees, edges, genres={genre for genre in owners.values() if genre is not None}
-        )
     result = {}
     for playlist, counts in grouped.items():
         genre = owners[playlist]
@@ -101,7 +88,7 @@ def playlist_counts_from_rows(rows, graph, *, selections=None) -> dict:
         else:
             values = {
                 scope.value: sum(counts[node] for node in counts.keys() & nodes)
-                for scope, nodes in selections[genre].items()
+                for scope, nodes in closure.selections[genre].items()
             }
         result[playlist] = GenreScopedCounts(direct, values)
     return result
