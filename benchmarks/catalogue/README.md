@@ -86,7 +86,9 @@ The job timeout is the time left before the manifest deadline, so a long rebuild
 `infrastructure_failure` with cause `deadline`; a failing script is cause `preparation`. Two restores plus a song
 search rebuild may not fit a 6 h hosted runner: calibration decides.
 `Preparation.script_sha256` and `settings_sha256` are the sha256 of these files at the harness SHA.
-`tests/integration/benchmarks/test_catalogue_prepare.py` runs the script on PostgreSQL 16 in the `Pytest` job.
+`tests/integration/benchmarks/test_catalogue_prepare.py` runs the script on PostgreSQL 16 in the `Pytest` job,
+and `tests/unit/test_catalogue_prepare_script.py` covers its step order and gates there too: `prepare.py` imports
+Django, which the stdlib-only harness suite below does not install.
 
 ## Runtime-independent benchmark core
 
