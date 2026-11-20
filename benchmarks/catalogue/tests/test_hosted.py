@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,15 @@ from benchmarks.catalogue.scenario_plan import canonical_bytes
 
 REPOSITORY = "BehindTheMusicTree/grow-the-music-tree-api"
 INVOCATION = "e" * 32
+
+
+def copy_clone(source, parent, name):
+    """Stand-in for the reflink clone: CI runners and laptops lack a reflink filesystem."""
+    destination = parent / (name + "-copy")
+    shutil.copytree(source, destination, symlinks=True)
+    return destination
+
+
 PREPARE = b"print('prepare')\n"
 SETTINGS = b"SETTINGS = 1\n"
 POSTGRES = "docker.io/library/postgres@sha256:" + "a" * 64
@@ -287,6 +297,8 @@ class RuntimeTest(unittest.TestCase):
             options.pop("check", self.check),
             docker=self.docker,
             namespace=lambda pid: 1 if pid == 1 else 2,
+            probe=lambda _directory: None,
+            clone=copy_clone,
         )
 
     def test_round_serves_after_a_verified_handoff_and_reuses_the_prepared_side(self):
@@ -325,6 +337,24 @@ class RuntimeTest(unittest.TestCase):
             self.assertFalse(self.docker.containers)
             runtime.sides.clear()
 
+    def test_each_round_runs_on_its_own_clone_of_the_untouched_restore(self):
+        runtime = self.runtime()
+        clones = []
+
+        def recording(source, parent, name):
+            clones.append(copy_clone(source, parent, name))
+            return clones[-1]
+
+        runtime.clone = recording
+        with runtime.prepare(self.session.base, 1):
+            self.assertTrue(clones[0].exists())
+        pristine, _scripts = runtime.sides[self.session.base]
+        with runtime.prepare(self.session.base, 2):
+            pass
+        self.assertEqual(2, len(clones))
+        self.assertTrue(pristine.exists())
+        self.assertFalse(any(clone.exists() for clone in clones))
+
     def test_host_network_namespace_is_rejected_after_start(self):
         runtime = hosted_runtime.HostedRuntime(
             self.session,
@@ -334,6 +364,8 @@ class RuntimeTest(unittest.TestCase):
             self.check,
             docker=self.docker,
             namespace=lambda pid: 1,
+            probe=lambda _directory: None,
+            clone=copy_clone,
         )
         with self.assertRaisesRegex(RuntimeError, "host network"), runtime.prepare(self.session.base, 1):
             pass

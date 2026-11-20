@@ -88,6 +88,12 @@ and the round count.
 - Each side is restored and prepared once: restore as `postgres`, move ownership
   to the NOSUPERUSER `grow_perf_owner`, run the side's own `prepare.py` as that
   role, then lock the owner and hand off to the read-only `grow_perf_app` role.
+- Every round serves a `cp -a --reflink=always` clone of that prepared data
+  directory (`reflink.py`), so no round sees an earlier round's writes or cache
+  state and the restore is never repeated. The workspace must be on a filesystem
+  with reflink support (XFS with `reflink=1`, btrfs); `prepare_side` probes it
+  before the restore and fails fast, with no fallback to a byte copy. CI mounts a
+  btrfs loop image (`GROW_PERF_REFLINK_DIR`) to exercise the real clone.
   Every round restarts PostgreSQL and the application and re-verifies the handoff.
 - `verdict.json` is `passed`, `failed`, `inconclusive` or `infrastructure_failure`
   (cause `input`, `preparation`, `measurement`, `cleanup` or `deadline`). A cleanup

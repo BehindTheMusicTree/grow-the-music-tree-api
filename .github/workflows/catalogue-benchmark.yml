@@ -46,6 +46,18 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-16
 
+      # Hosted rounds clone the restored data directory with `cp --reflink=always`; the runner's ext4 cannot, so the
+      # clone tests get a btrfs loop mount and fail (instead of skipping) when it does not work.
+      - name: Mount a reflink filesystem
+        run: |
+          sudo apt-get install -y btrfs-progs
+          truncate -s 512M "$RUNNER_TEMP/reflink.img"
+          mkfs.btrfs -q "$RUNNER_TEMP/reflink.img"
+          sudo mkdir -p /mnt/reflink
+          sudo mount -o loop "$RUNNER_TEMP/reflink.img" /mnt/reflink
+          sudo chown "$(id -u):$(id -g)" /mnt/reflink
+          echo "GROW_PERF_REFLINK_DIR=/mnt/reflink" >> "$GITHUB_ENV"
+
       - name: Test harness and qualify catalogue projection against PostgreSQL 16
         run: '"$PYTHON" -m unittest discover -s benchmarks/catalogue/tests -t . -v'
 

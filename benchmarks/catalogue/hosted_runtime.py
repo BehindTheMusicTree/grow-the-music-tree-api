@@ -36,6 +36,7 @@ from .database_handoff import (
     ROLE_PROOF_SQL,
 )
 from .manifest import RUNNER_PROFILES, Candidate, HostedSession, exact_keys, matching, positive_integer, trusted_json
+from .reflink import clone_directory, require_reflink
 from .restore_bundle import restore_approved, schema_bytes
 from .scenario_execution import UnixHTTPConnection
 
@@ -79,12 +80,15 @@ class HostedRuntime:
         *,
         docker: Docker = system_docker,
         namespace: Callable[[int], int] = process_namespace,
+        probe: Callable[[Path], None] = require_reflink,
+        clone: Callable[[Path, Path, str], Path] = clone_directory,
     ):
         if not isinstance(session, HostedSession):
             raise ValueError("hosted runtime requires a hosted session")
         self.session, self.bundle, self.workspace, self.check = session, bundle, workspace, check
         self.invocation = matching(invocation, r"[0-9a-f]{32}", "controller invocation")
         self.docker_binary, self.namespace = docker, namespace
+        self.probe, self.clone = probe, clone
         for path in (bundle, workspace):
             if any(character in str(path) for character in (",", "\n", "\r")):
                 raise ValueError("Docker-safe paths required")
@@ -419,6 +423,7 @@ class HostedRuntime:
             )
 
     def prepare_side(self, candidate: Candidate) -> tuple[Path, Path]:
+        self.probe(self.workspace)
         root = self.workspace / ("s-" + uuid.uuid4().hex[:8])
         root.mkdir(mode=0o700)
         data = self.restore(candidate, root)
@@ -446,11 +451,16 @@ class HostedRuntime:
         try:
             if candidate not in self.sides:
                 self.sides[candidate] = self.prepare_side(candidate)
-            data, scripts = self.sides[candidate]
-            # A fresh server parses the restrictive HBA before the API gets its socket.
-            with self.database(data, CANDIDATE_HBA, "grow_perf_app") as (socket, identity):
-                self.verify_handoff(identity)
-                yield from self.serve(candidate, socket, scripts)
+            pristine, scripts = self.sides[candidate]
+            # Every round runs on its own clone, so earlier rounds' writes and caches never leak into this one.
+            data = self.clone(pristine, scripts.parent, "round")
+            try:
+                # A fresh server parses the restrictive HBA before the API gets its socket.
+                with self.database(data, CANDIDATE_HBA, "grow_perf_app") as (socket, identity):
+                    self.verify_handoff(identity)
+                    yield from self.serve(candidate, socket, scripts)
+            finally:
+                shutil.rmtree(data, ignore_errors=True)
         finally:
             self.active = False
 

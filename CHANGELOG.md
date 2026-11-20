@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Catalogue benchmark harness (#511): each hosted round now serves a `cp --reflink=always` clone of the side's once-restored, prepared data directory instead of reusing it, and the runtime probes reflink support before the restore and fails fast without it. Tests cover the clone helper (unsupported filesystem, running server, partial clone) and per-round clones; the `Catalogue benchmark harness` CI job runs the real clone on a btrfs loop mount.
 - The API image installs `postgresql-client-16` from the PGDG apt repository instead of Debian's unversioned `postgresql-client` (15), whose `pg_dump` refuses the 16.x prod and staging servers (#511). The build fails unless `pg_dump` reports the `PG_MAJOR` build arg (16), so a server major bump must bump the client in the same change.
 - Catalogue benchmark schema contract (#511): resynchronised with `develop` (graph attribution tables, `grow_artist_song*`, import/undo staging) and guarded by a Postgres test in the required `Pytest` job that prints the tsv diff on drift; UNLOGGED is tolerated for EMPTY tables only.
 - `overview_status_overrides` is renamed `regional_overview_types` (column `status` -> `overview_type`, plus decision provenance). Migration `0148` renames the stored entries and review items with legacy provenance, and declares a `local_identities` overview for each legacy `LOCAL:` entry so it stays exportable; it leaves history snapshots untouched, as `0065` and `0102` did.
