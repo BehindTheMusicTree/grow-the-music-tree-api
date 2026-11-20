@@ -316,7 +316,7 @@ def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow
     and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
     if list_name not in GRAPH_LISTS:
         return None
-    from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
+    from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
 
     graph_entries = entries.filter(list_name__in=GRAPH_LISTS)
     others = graph_entries.exclude(pk=exclude_pk).exclude(list_name=list_name, key=parsed.key)
@@ -326,7 +326,7 @@ def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow
     replaced = graph_entries.filter(pk=exclude_pk).first() if exclude_pk is not None else None
     if replaced is not None:
         items |= set(graph_row_items(replaced.list_name, replaced.key, replaced.values).values())
-    violations = involving(find_graph_violations(rows), items)
+    violations = involving(find_graph_violations(rows, declared_additions(entries)), items)
     return violations[0].message if violations else None
 
 
@@ -334,11 +334,11 @@ def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None
     """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
     if entry.list_name not in GRAPH_LISTS:
         return None
-    from grow.curation.rule_set import find_graph_violations, graph_row_items, involving
+    from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
 
     others = entries.filter(list_name__in=GRAPH_LISTS).exclude(pk=entry.pk)
     violations = involving(
-        find_graph_violations([(e.list_name, e.key, e.values) for e in others]),
+        find_graph_violations([(e.list_name, e.key, e.values) for e in others], declared_additions(entries)),
         graph_row_items(entry.list_name, entry.key, entry.values).values(),
     )
     return violations[0].message if violations else None
