@@ -625,6 +625,12 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
         return Song.objects.filter(membership_genre=genre)
 
+    def _attributed_songs_count(self, source: Genre) -> int:
+        """The songs a merge moves: the source node's attributions once the genre is bound to the graph."""
+        if source.graph_node_id is None:
+            return self._songs_of(source).count()
+        return source.graph_node.attributions.count()
+
     def alias_counts(self, source: Genre, target: Genre) -> dict[str, int]:
         """What aliasing `source` onto `target` moves; a 400 when the pair isn't an allowed alias."""
         if source.wikidata_id is not None:
@@ -634,7 +640,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         if source.descendants_rels.filter(descendant=target).exists():
             raise self._invalid("target", "The alias target can't be a descendant of the alias; it would loop the tree")
         return {
-            "songs": self._songs_of(source).count(),
+            "songs": self._attributed_songs_count(source),
             "essential_songs": source.essential_songs.count(),
             "children": self.filter(parent=source).count(),
         }
@@ -653,21 +659,40 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         from uuid import uuid4
 
-        from grow.genre_graph.service import set_song_genre
+        from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 
-        for song in list(self._songs_of(source)):
-            provenance = {"decisionId": f"alias-{uuid4()}", "source": "admin curation", "rationale": "Genre alias"}
-            if set_song_genre(song, target, provenance=provenance):
-                type(song).objects.record_semantic_genre_change(song, old_genre=source, actor=actor)
-            else:
-                type(song).objects.update_instance(song, actor=actor, genre=target)
+        from grow.genre_graph.service import DATASET_KEY, merge_reference_genres, set_song_genre
+
+        provenance = {"decisionId": f"alias-{uuid4()}", "source": "admin curation", "rationale": "Genre alias"}
+        if GenreGraphDataset.objects.filter(pk=DATASET_KEY).exists() and source.semantic_identity is not None:
+            # The identity belongs to the graph: one revision moves relations and attributions, and the source's
+            # row stays bound to its now inactive node.
+            merge_reference_genres(source=source, target=target, provenance=provenance)
+            upsert_admin_rule(
+                "genre_merges",
+                {
+                    "source_item_id": source.semantic_identity,
+                    "target_item_id": target.semantic_identity,
+                    "decision_id": provenance["decisionId"],
+                    "decision_source": provenance["source"],
+                },
+                actor,
+            )
+        else:
+            for song in list(self._songs_of(source)):
+                if set_song_genre(song, target, provenance=provenance):
+                    type(song).objects.record_semantic_genre_change(song, old_genre=source, actor=actor)
+                else:
+                    type(song).objects.update_instance(song, actor=actor, genre=target)
+            for child in list(self.filter(parent=source)):
+                self.update_instance(child, actor=actor, parent=target)
+        target.refresh_from_db()
         pks = self._essential_track_pks(target)
         pks += [pk for pk in self._essential_track_pks(source) if pk not in pks]
         songs = self.model.essential_songs.field.related_model.objects.in_bulk(pks)
         self.update_instance(target, actor=actor, essential_songs=[songs[pk] for pk in pks])
-        for child in list(self.filter(parent=source)):
-            self.update_instance(child, actor=actor, parent=target)
-        self.delete_instance(source, actor=actor)
+        if source.semantic_identity is None:
+            self.delete_instance(source, actor=actor)
         self._lock(target)
         return target
 

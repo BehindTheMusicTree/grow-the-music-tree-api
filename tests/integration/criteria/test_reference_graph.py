@@ -136,7 +136,7 @@ def test_e02_invalid_graph_keeps_original(payload):
 def test_e03_input_order_does_not_create_revision(payload):
     dataset = import_graph(payload)
     shuffled = deepcopy(payload)
-    for field in ("nodes", "relations", "boundaries"):
+    for field in ("nodes", "relations", "canonicalRoots"):
         shuffled[field].reverse()
     mapping = GenreGraphImport.objects.get(pk=dataset.revision).mapping
     replay = import_graph(shuffled, mapping, dataset.revision)
@@ -382,7 +382,7 @@ def test_song_assignment_rejects_multiple_direct_genres_without_mutation(payload
 @pytest.mark.parametrize(
     "scope,expected",
     [
-        ("canonical", {"style", "scoped", "overlap"}),
+        ("canonical", {"style"}),
         ("regional", {"scoped", "overlap", "exited"}),
         ("all", {"style", "scoped", "overlap", "exited"}),
     ],
@@ -486,11 +486,18 @@ def _node(identity):
     return GenreGraphNode.objects.get(dataset_id="grow", identity=identity)
 
 
+def _canonical_root(identity):
+    return {
+        "nodeId": identity,
+        "provenance": {"decisionId": f"root-{identity}", "source": "test", "rationale": "Synthetic canonical root."},
+    }
+
+
 def _without_identity(payload, identity):
     changed = deepcopy(payload)
     changed["nodes"] = [node for node in changed["nodes"] if node["id"] != identity]
     changed["relations"] = [row for row in changed["relations"] if identity not in (row["childId"], row["parentId"])]
-    changed["boundaries"] = [row for row in changed["boundaries"] if row["nodeId"] != identity]
+    changed["canonicalRoots"] = [row for row in changed["canonicalRoots"] if row["nodeId"] != identity]
     return changed
 
 
@@ -580,7 +587,8 @@ def test_retirement_requires_complete_valid_decisions_atomically(payload, decisi
 def test_restore_older_graph_requires_decision_for_added_concept(payload):
     original = import_graph(payload)
     changed = deepcopy(payload)
-    changed["nodes"].append({"id": "LOCAL:added", "name": "Dub", "kind": "genre", "canonicalState": "before_entry"})
+    changed["nodes"].append({"id": "LOCAL:added", "name": "Dub", "kind": "genre"})
+    changed["canonicalRoots"].append(_canonical_root("LOCAL:added"))
     mapping = {**GenreGraphImport.objects.get(pk=original.revision).mapping, "LOCAL:added": None}
     updated = import_graph(changed, mapping, original.revision)
     added = Genre.objects.get(semantic_identity="LOCAL:added")
@@ -684,8 +692,11 @@ def test_retirement_failure_rolls_back_attributions_history_and_bindings(payload
 def test_reference_graph_identity_binding_at_canonical_tree_scale(payload):
     large = deepcopy(payload)
     large["nodes"].extend(
-        {"id": f"LOCAL:scale-{index}", "name": f"Scale {index}", "kind": "genre", "canonicalState": "before_entry"}
+        {"id": f"LOCAL:scale-{index}", "name": f"Scale {index}", "kind": "genre"}
         for index in range(1710 - len(large["nodes"]))
+    )
+    large["canonicalRoots"].extend(
+        _canonical_root(f"LOCAL:scale-{index}") for index in range(1710 - len(payload["nodes"]))
     )
     original = import_graph(large)
     assert Genre.objects.filter(graph_node__dataset_id="grow").count() == 1710

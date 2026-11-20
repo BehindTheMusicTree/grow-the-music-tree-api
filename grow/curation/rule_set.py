@@ -127,7 +127,7 @@ def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str]) -
     used = {
         i
         for n, k, v in rows
-        if n != "local_identities"
+        if n not in ("local_identities", "genre_merges")  # merges name canonical nodes, declared by addition lists
         for i in graph_row_items(n, k, v).values()
         if i.startswith(LOCAL_PREFIX)
     }
