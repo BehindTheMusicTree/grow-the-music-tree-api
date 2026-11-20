@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Catalogue benchmark schema contract (#511): resynchronised with `develop` (graph attribution tables, `grow_artist_song*`, import/undo staging) and guarded by a Postgres test in the required `Pytest` job that prints the tsv diff on drift; UNLOGGED is tolerated for EMPTY tables only.
 - `overview_status_overrides` is renamed `regional_overview_types` (column `status` -> `overview_type`, plus decision provenance). Migration `0148` renames the stored entries and review items with legacy provenance, and declares a `local_identities` overview for each legacy `LOCAL:` entry so it stays exportable; it leaves history snapshots untouched, as `0065` and `0102` did.
 - Recalibrated the four provisional `Perf` SLOs from five sequential `workflow_dispatch` runs on develop (3x the slowest side's pooled p50, rounded up to 10 ms): `artist-songs` `-albumYear` 60 -> 110 ms and `title` 60 -> 130 ms, `genre-playlist-tracks` viewer FR coverage+subgenres 870 -> 340 ms and genre_only 70 -> 30 ms (README "Performance" lists the runs).
 - Adopt the-music-tree-genre-kit v0.67.0, whose `graph_read_transaction` defers `GenreGraphDataset.payload` unless `with_payload=True`: `SongViewSet.list` uses it again (no payload decode per read, restoring the artist-songs list latency) and `ReferenceGraphView.get` opts in. Song genre selection follows the kit's `select_tracks(tracks, *, node=...)` signature.

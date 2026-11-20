@@ -15,6 +15,7 @@ from .sanitization import IDENTIFIER, Policy
 
 TRACK = "the_music_tree_genre_kit_track"
 PLAYLIST = "the_music_tree_genre_kit_playlist"
+GRAPH = "the_music_tree_genre_kit_genregraph"
 TYPES = "the_music_tree_genre_kit_criteriatype"
 SCHEMA = Path(__file__).with_name("catalogue-schema.tsv")
 
@@ -42,8 +43,11 @@ EMPTY = frozenset(
         "grow_genealogy_snapshot",
         "grow_genre_edge_rule",
         "grow_genre_tree_import_payload",
+        "grow_genregraphassignmentbackup",
+        "grow_genregraphimport",
         "grow_history_entry",
         "grow_import_attempt",
+        "grow_import_part",
         "grow_import_receipt",
         "grow_import_run",
         "grow_manual_playlist",
@@ -52,6 +56,8 @@ EMPTY = frozenset(
         "grow_region_map_file",
         "grow_region_map_file_staging",
         "grow_region_map_snapshot",
+        "grow_song_assignment_staging",
+        "grow_song_genre_undo",
         "grow_song_import_staging",
         "grow_user_profile",
         "the_music_tree_genre_kit_importrun",
@@ -59,6 +65,8 @@ EMPTY = frozenset(
 )
 REBUILD = frozenset(
     [
+        "grow_artist_song",
+        "grow_artist_song_state",
         "grow_genre_catalogue_count",
         "grow_genre_membership_count",
         "grow_genre_tree_version",
@@ -120,6 +128,10 @@ DEPENDENTS = {
         missing_reference("genre_id", "grow_genre", "criteria_ptr_id"),
         missing_reference("song_id", "grow_song", "track_id"),
     ),
+    f"{GRAPH}attribution": (missing_reference("track_id", TRACK),),
+    f"{GRAPH}attributionevidence": (missing_reference("attribution_id", f"{GRAPH}attribution", "id"),),
+    f"{GRAPH}assignmentstate": (missing_reference("track_id", TRACK),),
+    f"{GRAPH}attributionrevision": (missing_reference("track_id", TRACK),),
     f"{TRACK}_artists": (missing_reference("track_id", TRACK), missing_reference("artist_id", "grow_artist")),
     f"{TRACK}_playlist_rel": (
         '"user_id" IS NOT NULL',
@@ -129,7 +141,20 @@ DEPENDENTS = {
 }
 
 
-RETAIN = frozenset(ROOTS) | frozenset(DEPENDENTS) | {TYPES, "grow_wikidata_item"}
+# Canonical graph tables hold no user_id: only the track-keyed ones are pruned.
+GRAPH_TABLES = (
+    "access",
+    "dataset",
+    "evidence",
+    "node",
+    "revision",
+)
+RETAIN = (
+    frozenset(ROOTS)
+    | frozenset(DEPENDENTS)
+    | {TYPES, "grow_wikidata_item"}
+    | {f"{GRAPH}{name}" for name in GRAPH_TABLES}
+)
 
 # Missing public references must fail instead of silently changing catalogue
 # semantics by dropping additional public songs or tree branches.
@@ -140,6 +165,10 @@ REFERENCES = (
     ("grow_criteria_playlist", "type_id", TYPES, "id"),
     (TRACK, "album_id", "grow_album", "uuid"),
     (TRACK, "genre_id", "grow_criteria", "uuid"),
+    # Derived from Track.genre_id or the graph attribution (migration 0140). Its
+    # derivation is verified after restore, not re-implemented here.
+    ("grow_song", "genre_id", "grow_genre", "criteria_ptr_id"),
+    ("grow_criteria", "graph_node_id", f"{GRAPH}node", "id"),
     (f"{TRACK}_playlist_rel", "genre_id", "grow_criteria", "uuid"),
 )
 
@@ -212,14 +241,19 @@ def relation_inventory_sql() -> str:
     # information_schema.columns omits zero-column tables and materialized
     # views, and does not distinguish an updatable view from a base table.
     expected_tables = ",".join(sorted(RETAIN | EMPTY | REBUILD))
+    # Staging tables are UNLOGGED; pg_dump skips their data, so only EMPTY ones
+    # may be. An UNLOGGED retained table would silently lose its rows.
+    unlogged_ok = ",".join(f"'{name}'" for name in sorted(EMPTY))
     return (
         "DO $$ DECLARE observed text; BEGIN SELECT string_agg(c.relname, ',' ORDER BY c.relname COLLATE \"C\") "
         "INTO observed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
-        "WHERE n.nspname='public' AND c.relkind='r' AND c.relpersistence='p'; "
+        "WHERE n.nspname='public' AND c.relkind='r' AND (c.relpersistence='p' "
+        f"OR (c.relpersistence='u' AND c.relname IN ({unlogged_ok}))); "
         f"IF observed IS DISTINCT FROM '{expected_tables}' OR EXISTS "
         "(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
         "WHERE n.nspname='public' AND (c.relkind NOT IN ('r', 'i', 'S') "
-        "OR (c.relkind='r' AND c.relpersistence<>'p'))) THEN "
+        "OR (c.relkind='r' AND (c.relpersistence='t' "
+        f"OR (c.relpersistence='u' AND c.relname NOT IN ({unlogged_ok}))))) THEN "
         "RAISE EXCEPTION 'catalogue relation inventory drift'; END IF; END $$;"
     )
 

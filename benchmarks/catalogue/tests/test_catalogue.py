@@ -16,6 +16,7 @@ SQL = catalogue.projection_sql(TSV)
 TRACK = catalogue.TRACK
 PLAYLIST = catalogue.PLAYLIST
 REL = f"{TRACK}_playlist_rel"
+GRAPH = catalogue.GRAPH
 
 
 def uid(number):
@@ -55,8 +56,8 @@ def insert(table, **values):
 
 class CataloguePolicyTest(unittest.TestCase):
     def test_inventory_and_dispositions_are_exhaustive(self):
-        self.assertEqual(len(TABLES), 58)
-        self.assertEqual(sum(map(len, TABLES.values())), 385)
+        self.assertEqual(len(TABLES), 74)
+        self.assertEqual(sum(map(len, TABLES.values())), 464)
         self.assertEqual(TABLES.keys(), catalogue.RETAIN | catalogue.EMPTY | catalogue.REBUILD)
 
     def test_verifications_aggregate_instead_of_probing_for_a_first_row(self):
@@ -249,6 +250,15 @@ class CataloguePostgresFixture(unittest.TestCase):
         for table in ("grow_artist_alias", "grow_artist_link"):
             for number in (1, 3):
                 statements.append(insert(table, id=number, artist_id=uid(number)))
+        for number in (1, 3):
+            statements.extend(
+                [
+                    insert(f"{GRAPH}attribution", id=number, track_id=uid(number)),
+                    insert(f"{GRAPH}attributionevidence", id=number, attribution_id=number),
+                    insert(f"{GRAPH}assignmentstate", id=number, track_id=uid(number)),
+                    insert(f"{GRAPH}attributionrevision", track_id=uid(number)),
+                ]
+            )
         self.sql("\n".join(statements))
 
     def count(self, table):
@@ -275,6 +285,10 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             "grow_criteria_additional_primary_parents": 2,
             "grow_criteria_secondary_parents": 2,
             "grow_genre_essential_songs": 1,
+            f"{GRAPH}attribution": 1,
+            f"{GRAPH}attributionevidence": 1,
+            f"{GRAPH}assignmentstate": 1,
+            f"{GRAPH}attributionrevision": 1,
         }.items():
             self.assertEqual(self.count(table), expected, table)
         self.assertEqual(self.sql("SELECT count(*) FROM public.grow_genre WHERE last_seen_run_id IS NOT NULL"), "0")
@@ -297,6 +311,7 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             f"UPDATE public.grow_criteria SET parent_id='{uid(4)}' WHERE uuid='{uid(2)}';",
             f"UPDATE public.\"{TRACK}\" SET album_id='{uid(3)}' WHERE uuid='{uid(1)}';",
             f"UPDATE public.\"{TRACK}\" SET genre_id='{uid(4)}' WHERE uuid='{uid(1)}';",
+            f"UPDATE public.grow_song SET genre_id='{uid(4)}' WHERE track_id='{uid(1)}';",
         ):
             with self.subTest(mutation=mutation):
                 self.sql(mutation)
@@ -365,6 +380,17 @@ class CataloguePostgresTest(CataloguePostgresFixture):
         ):
             with self.subTest(mutation=mutation):
                 self.sql(mutation)
+                self.sql(SQL, success=False)
+                self.assertEqual(self.count(TRACK), 4)
+                self.setUp()
+
+    def test_unlogged_only_allowed_for_empty_tables(self):
+        self.sql("ALTER TABLE public.grow_song_import_staging SET UNLOGGED;")
+        self.sql(SQL)
+        self.assertEqual(self.count(TRACK), 2)
+        for table in (f"{GRAPH}node", "grow_song"):
+            with self.subTest(table=table):
+                self.sql(f'ALTER TABLE public."{table}" SET UNLOGGED;')
                 self.sql(SQL, success=False)
                 self.assertEqual(self.count(TRACK), 4)
                 self.setUp()
