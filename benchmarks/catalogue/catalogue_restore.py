@@ -233,7 +233,10 @@ def data_policy(tsv: str, schema_sql: bytes) -> Policy:
                 name: {
                     "columns": [entry[0] for entry in tables[name]],
                     "null_columns": [entry[0] for entry in tables[name] if entry[0] in {"user_id", "last_seen_run_id"}],
-                    "minimum_rows": 30_000_000 if name in {TRACK, "grow_song"} else (1 if name == TYPES else 0),
+                    # An emptied projection must not pass: `--if-stale` would trust its state row and skip the rebuild.
+                    "minimum_rows": 30_000_000
+                    if name in {TRACK, "grow_song", "grow_song_search"}
+                    else (1 if name in {TYPES, "grow_artist_song"} else 0),
                 }
                 for name in sorted(RETAIN | DERIVED)
             },

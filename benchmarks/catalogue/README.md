@@ -61,6 +61,9 @@ keeps the data, and a side that did rebuilds it. A rebuilt table and a restored
 one are both freshly written (data reloaded, indexes rebuilt), so their physical
 state matches and the A/B comparison stays fair. REBUILD tables (the count and
 tree-version tables) stay empty in the dump and are rebuilt by preparation.
+Limitation: pruning drops derived rows of missing songs and artists but does not
+recompute a retained song's search document, which aggregates its artists' names;
+canonical songs only credit canonical artists, so no private name reaches it.
 
 ## Runtime-independent benchmark core
 
