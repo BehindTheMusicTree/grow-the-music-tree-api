@@ -388,6 +388,7 @@ class CataloguePostgresTest(CataloguePostgresFixture):
         self.sql("ALTER TABLE public.grow_song_import_staging SET UNLOGGED;")
         self.sql(SQL)
         self.assertEqual(self.count(TRACK), 2)
+        self.setUp()
         for table in (f"{GRAPH}node", "grow_song"):
             with self.subTest(table=table):
                 self.sql(f'ALTER TABLE public."{table}" SET UNLOGGED;')
