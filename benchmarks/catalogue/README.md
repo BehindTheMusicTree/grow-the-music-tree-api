@@ -3,8 +3,9 @@
 This package is the representative Grow catalogue benchmark: it restores an
 approved catalogue into a disposable PostgreSQL 16, runs two Grow commits A/B
 against it on a GitHub-hosted runner, and computes a paired-median verdict.
-Nothing in the application imports it, the Docker image excludes it, and no
-workflow runs a benchmark yet: `catalogue-benchmark.yml` only tests the harness.
+Only the `export_perf_catalogue` command imports it, the Docker image ships just
+the subset that command needs (see "Export plan"), and no workflow runs a
+benchmark yet: `catalogue-benchmark.yml` only tests the harness.
 
 It was moved here from the `infrastructure` repository (`grow-perf/`, source
 `origin/main` 2cae6769), where it had been written when the benchmark was meant
@@ -15,7 +16,7 @@ to run on the application VPS. Contract names (`btmt_grow_perf`, the
 
 | Repository | Owns |
 | --- | --- |
-| Grow (this directory) | harness, scenarios, workflow and verdict; will own the `export_perf_catalogue` command (not created yet) |
+| Grow (this directory) | harness, scenarios, workflow and verdict; the `export_perf_catalogue --plan` command |
 | infrastructure | production export, sanitization and approval, and private delivery of the bundle |
 | github-config | the required check, once the benchmark gates merges |
 
@@ -66,6 +67,23 @@ nor the count verifications recreate it.
 Limitation: pruning drops derived rows of missing songs and artists but does not
 recompute a retained song's search document, which aggregates its artists' names;
 canonical songs only credit canonical artists, so no private name reaches it.
+
+## Export plan
+
+`manage.py export_perf_catalogue --plan` (read-only, runs no `pg_dump`) prints
+the JSON plan the infrastructure export follows, so the table classification
+lives only here. `export_plan.build_plan` returns `version`, `inventory_sha256`
+(of the live `information_schema` inventory, not the schema SQL digest of the
+sanitization policy), `data_tables` (RETAIN and DERIVED, dumped with data),
+`schema_only_tables` (EMPTY and REBUILD) and `projections` (each DERIVED
+projection's state table and stamped fingerprint). The command fails when the
+live schema drifted from `catalogue-schema.tsv` or a projection is not stamped
+with the deployed definition (`rebuild_song_search --check`,
+`rebuild_artist_song --check`). The image ships `__init__.py`,
+`catalogue_restore.py`, `export_plan.py`, `manifest.py`, `sanitization.py` and
+`catalogue-schema.tsv` (`.dockerignore`);
+`tests/unit/benchmarks/test_dockerignore_subset.py` keeps that list equal to the
+command's import closure.
 
 ## Preparation
 

@@ -10,7 +10,14 @@ import json
 from dataclasses import dataclass
 from typing import Protocol
 
-from .catalogue_restore import SCHEMA, data_policy, projection_sql, relation_inventory_sql, verify_inventory
+from .catalogue_restore import (
+    SCHEMA,
+    data_policy,
+    inventory_sql,
+    projection_sql,
+    relation_inventory_sql,
+    verify_inventory,
+)
 from .manifest import exact_keys, matching
 
 
@@ -49,14 +56,6 @@ def sql(database: Postgres, query: str) -> str:
     return database.run(
         "psql", ["-X", "--no-password", "--dbname=btmt_grow_perf", "-Atq", "--set=ON_ERROR_STOP=1"], query
     ).strip()
-
-
-def inventory_sql() -> str:
-    return (
-        "SELECT table_name || '|' || column_name || '|' || data_type || '|' || is_nullable "
-        "FROM information_schema.columns WHERE table_schema='public' "
-        'ORDER BY table_name COLLATE "C", ordinal_position;'
-    )
 
 
 def observations(database: Postgres, policy) -> tuple[dict, dict]:
