@@ -238,8 +238,12 @@ def import_reference_graph(
     expected_revision: UUID | None,
     curation_exported_on,
     retirements: dict | None = None,
+    restoring: bool = False,
 ):
-    """Cut over explicitly; labels never resolve identities and no song is discarded."""
+    """Cut over explicitly; labels never resolve identities and no song is discarded.
+
+    A restore replays an archived revision whose export may be purged or predate snapshots, so it keeps that
+    revision's recorded date and skips the export lookup and roots check (both held when it was first imported)."""
     graph = _normalized_graph(payload)
     lock_catalogue_sources()
     current = GenreGraphDataset.objects.select_for_update().filter(pk=DATASET_KEY).first()
@@ -249,11 +253,14 @@ def import_reference_graph(
         raise GraphRevisionConflict("Reference graph revision changed; reload before importing")
     _validate_no_merged_source(graph)
     state = _curation_state()
-    export = load_curation_export(curation_exported_on)
-    exported_on = export.exported_on
-    if parse_curation_exported_on(payload.get("curationExportedOn")) != exported_on:
-        raise GraphValidationError("Curation provenance must match the graph's curationExportedOn")
-    _check_canonical_roots(graph, export)
+    if restoring:
+        exported_on = curation_exported_on
+    else:
+        export = load_curation_export(curation_exported_on)
+        exported_on = export.exported_on
+        if parse_curation_exported_on(payload.get("curationExportedOn")) != exported_on:
+            raise GraphValidationError("Curation provenance must match the graph's curationExportedOn")
+        _check_canonical_roots(graph, export)
     existing = dict(
         Genre.objects.filter(user__isnull=True, semantic_identity__isnull=False).values_list("semantic_identity", "pk")
     )
@@ -368,6 +375,7 @@ def restore_reference_graph(
         expected_revision=expected_revision,
         curation_exported_on=receipt.curation_exported_on,
         retirements=retirements,
+        restoring=True,
     )
 
 

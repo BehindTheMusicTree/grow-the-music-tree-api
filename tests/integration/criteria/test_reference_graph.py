@@ -961,3 +961,14 @@ def test_graph_import_rejects_an_export_without_snapshot(payload):
             expected_revision=None,
             curation_exported_on=payload["curationExportedOn"],
         )
+
+
+def test_restore_does_not_need_the_original_export_to_be_kept(payload):
+    original = import_graph(payload)
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] = "Renamed"
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    updated = import_graph(changed, mapping, original.revision)
+    CurationExport.objects.all().delete()
+    restored = restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
+    assert restored.payload == original.payload

@@ -34,6 +34,8 @@ def list_to_roots(apps, schema_editor):
     Rule = apps.get_model("grow", "GenreEdgeRule")
     Entry = apps.get_model("grow", "CurationEntry")
     for entry in Entry.objects.filter(list_name=ROOTS):
+        # A canonical_parent rule that gained a parent since is kept as is: the item has a parent, so it is no
+        # longer a root and the entry has nothing to restore.
         Rule.objects.get_or_create(
             user=entry.user,
             relation="canonical_parent",
