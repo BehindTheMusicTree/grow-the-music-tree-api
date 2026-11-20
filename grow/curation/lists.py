@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 ADDITION_LABEL_COLUMN = "label"
+CANONICAL_ROOTS_LIST = "canonical_roots"
 
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
@@ -43,7 +44,6 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "canonical_genre_scene": {"scene": ("commercial", "underground")},
     "synthetic_overview_resolutions": {"action": ("replace", "remove")},
     "regional_overview_types": {"overview_type": ("current", "historical")},
-    "canonical_boundaries": {"boundary": ("entry", "exit")},
     "regional_memberships": {"action": ("add", "prohibit")},
     "local_identities": {"kind": ("genre", "expression", "overview")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
@@ -156,10 +156,11 @@ CURATION_LISTS: dict[str, CurationList] = {
         "Identity of a `LOCAL:` item of the regional graph, which Wikidata lacks: a `genre`, an `expression` (a "
         "regional rendering of a genre, e.g. a language-specific one) or an `overview`.",
     ),
-    "canonical_boundaries": _graph_list(
+    "canonical_roots": _graph_list(
         ("item_id",),
-        ("boundary",),
-        "Whether a genre is an `entry` or an `exit` of the canonical tree towards the regional graph.",
+        (),
+        "Genres accepted as roots of the canonical tree; any other root is flagged for review. The graph's "
+        "`canonicalRoots` must equal this list.",
     ),
     "regional_memberships": _graph_list(
         ("child_item_id", "parent_item_id"),
@@ -373,12 +374,6 @@ CURATION_LISTS: dict[str, CurationList] = {
 }
 
 EDGE_PROJECTION_LISTS: dict[str, CurationList] = {
-    "accepted_canonical_roots": CurationList(
-        "wikidata",
-        ("item_id",),
-        ("item_id",),
-        "Canonical roots reviewed and accepted as roots; any other root is flagged for review.",
-    ),
     "canonical_parent": _item_list(
         "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
         "parent_item_id",
@@ -410,7 +405,7 @@ curation CRUD, nor exported (the export carries `edges`). Kept to designate a ru
 GRAPH_LISTS = frozenset(
     {
         "local_identities",
-        "canonical_boundaries",
+        "canonical_roots",
         "regional_memberships",
         "expression_styles",
         "regional_anchorings",

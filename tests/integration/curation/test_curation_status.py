@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationSyncState import CurationSyncState
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
@@ -50,7 +51,7 @@ class TestCurationStatus(AppTestCase):
 
         self._pipeline_run()
         state = CurationSyncState.load()
-        assert state.applied_export_on == state.exported_on is not None
+        assert state.applied_export_on == CurationExport.objects.get().exported_on
         assert self._status()["pendingCount"] == 0
 
         self._edit({**ITEM, "item_id": "Q999999992"})
@@ -73,12 +74,12 @@ class TestCurationStatus(AppTestCase):
     def test_admin_export_then_not_recorded(self):
         self.api_client.get(path=reverse("curation-export"))
 
-        assert CurationSyncState.load().exported_on is None
+        assert not CurationExport.objects.exists()
 
     def test_export_then_exported_on_recorded(self):
         exported_on = export_curation(self.pipeline)
 
-        assert CurationSyncState.load().exported_on == datetime.fromisoformat(exported_on)
+        assert CurationExport.objects.get().exported_on == datetime.fromisoformat(exported_on)
 
     def test_older_gold_import_then_later_edits_stay_pending(self):
         gold_exported_on = export_curation(self.pipeline)

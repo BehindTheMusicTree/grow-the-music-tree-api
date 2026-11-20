@@ -15,6 +15,7 @@ from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPa
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
@@ -44,18 +45,25 @@ def node_count(nodes: list[dict]) -> int:
     return sum(1 + node_count(node.get(Fields.CHILDREN) or []) for node in nodes)
 
 
-def parse_curation_exported_on(value: Any, state: CurationSyncState) -> datetime:
-    """The curation export a tree import was built from. A replayed older Gold carries an older export, so edits made
-    since stay pending."""
+def load_curation_export(value: Any) -> CurationExport:
+    """The curation export a tree or graph import was built from, which must be one grow served (and still keeps): a
+    replayed older Gold names an older export, so edits made since stay pending."""
     if value is None:
         raise ValidationError({CURATION_EXPORTED_ON: "Required: the curation export this tree was built from"})
     try:
         exported_on = serializers.DateTimeField().run_validation(value)
     except ValidationError as e:
         raise ValidationError({CURATION_EXPORTED_ON: e.detail}) from e
-    if state.exported_on is None or exported_on > state.exported_on:
-        raise ValidationError({CURATION_EXPORTED_ON: "Later than the last curation export"})
-    return exported_on
+    export = CurationExport.objects.filter(exported_on=exported_on).first()
+    if export is None:
+        raise ValidationError(
+            {CURATION_EXPORTED_ON: "Unknown curation export: never served by grow, or purged after 30 days"}
+        )
+    return export
+
+
+def parse_curation_exported_on(value: Any) -> datetime:
+    return load_curation_export(value).exported_on
 
 
 def merge_genre_trees_import_run(
@@ -76,7 +84,7 @@ def _merge(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     user = get_user_model().objects.get(pk=user_id) if user_id is not None else None
     state = CurationSyncState.load()
     if record:
-        state.applied_export_on = parse_curation_exported_on(payload.get(CURATION_EXPORTED_ON), state)
+        state.applied_export_on = parse_curation_exported_on(payload.get(CURATION_EXPORTED_ON))
     results = Genre.objects.import_criteria_trees(user, trees)
     Genre.objects.assert_required_roots_present(user)
     analyze(TREE_IMPORT_MODELS)

@@ -15,7 +15,7 @@ def _exclude(list_name: str, item_id: str) -> None:
 
 
 def _root(item_id: str) -> None:
-    GenreEdgeRule.objects.upsert("canonical_parent", item_id, None, exclude_other_parents=True, reason="r")
+    _graph("canonical_roots", item_id, f"root-{item_id}")
 
 
 def _violations() -> list:
@@ -34,16 +34,20 @@ class TestRootRegionalConflict(AppTestCase):
     def test_root_on_a_regional_item_then_invalid_row(self):
         GenreEdgeRule.objects.upsert("regional_genre_parent", A, B, exclude_other_parents=False, reason="r")
 
-        with self.assertRaises(InvalidRow):
-            _root(A)
+        with self.assertRaises(RowConflict):
+            check_edit(
+                CurationEntry.objects.filter(user=None),
+                "canonical_roots",
+                {"item_id": A, "decision_id": "d", "decision_source": "gold", "reason": "r"},
+            )
 
     def test_stored_conflict_then_found_and_export_409(self):
+        _root(A)
         GenreEdgeRule.objects.bulk_create(
             [
-                GenreEdgeRule(user=None, relation="canonical_parent", item_id=A, exclude_other_parents=True),
                 GenreEdgeRule(
                     user=None, relation="regional_overview", item_id=A, parent_item_id=B, exclude_other_parents=False
-                ),
+                )
             ]
         )
 
@@ -97,12 +101,12 @@ class TestExcludedEdgeConflict(AppTestCase):
 
 class TestStoredViolationsDontBlockOthers(AppTestCase):
     def test_rule_under_a_conflicted_root_then_created(self):
+        _root(A)
         GenreEdgeRule.objects.bulk_create(
             [
-                GenreEdgeRule(user=None, relation="canonical_parent", item_id=A, exclude_other_parents=True),
                 GenreEdgeRule(
                     user=None, relation="regional_overview", item_id=A, parent_item_id=B, exclude_other_parents=False
-                ),
+                )
             ]
         )
 
@@ -138,8 +142,8 @@ def _kinds() -> list[str]:
 
 class TestGraphViolations(AppTestCase):
     def test_reused_decision_then_duplicate_decision_and_export_409(self):
-        _graph("canonical_boundaries", "Q1", "d1", boundary="entry")
-        _graph("canonical_boundaries", "Q2", "d1", boundary="exit")
+        _graph("canonical_roots", "Q1", "d1")
+        _graph("canonical_roots", "Q2", "d1")
 
         assert _kinds() == ["duplicate_decision"]
         assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_409_CONFLICT

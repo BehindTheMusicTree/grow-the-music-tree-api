@@ -181,6 +181,9 @@ grow_curation_entry|key|character varying|NO
 grow_curation_entry|values|jsonb|NO
 grow_curation_entry|reason|text|NO
 grow_curation_entry|user_id|integer|YES
+grow_curation_export|id|bigint|NO
+grow_curation_export|exported_on|timestamp with time zone|NO
+grow_curation_export|snapshot|jsonb|YES
 grow_curation_review_item|id|bigint|NO
 grow_curation_review_item|list_name|character varying|YES
 grow_curation_review_item|key|character varying|YES
@@ -192,7 +195,6 @@ grow_curation_review_item|reported_on|timestamp with time zone|NO
 grow_curation_review_item|evidence|jsonb|YES
 grow_curation_review_item|rule_id|uuid|YES
 grow_curation_sync_state|id|bigint|NO
-grow_curation_sync_state|exported_on|timestamp with time zone|YES
 grow_curation_sync_state|applied_export_on|timestamp with time zone|YES
 grow_genealogy_snapshot|id|bigint|NO
 grow_genealogy_snapshot|created_at|timestamp with time zone|NO

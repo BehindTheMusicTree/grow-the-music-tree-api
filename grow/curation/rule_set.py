@@ -41,15 +41,26 @@ class Violation:
     items: frozenset[str]
 
 
-def find_root_regional_conflicts(edges: Iterable[GenreEdgeRule]) -> list[Violation]:
+def canonical_root_items(entries: models.QuerySet) -> set[str]:
+    return set(entries.filter(list_name="canonical_roots").values_list("key", flat=True))
+
+
+def find_root_regional_conflicts(roots: set[str], edges: Iterable[GenreEdgeRule]) -> list[Violation]:
     """An accepted canonical root that also has a regional parent or overview rule: the root pins it out of the
     regional axis the rule places it in."""
-    edges = list(edges)
-    roots = {e.item_id for e in edges if e.relation == Relation.CANONICAL_PARENT and e.parent_item_id is None}
     regional = sorted({e.item_id for e in edges if e.relation in REGIONAL_RELATIONS} & roots)
     return [
         Violation("root_regional", f"{item} is an accepted canonical root and also has a regional rule", {item})
         for item in regional
+    ]
+
+
+def find_root_parent_conflicts(roots: set[str], edges: Iterable[GenreEdgeRule]) -> list[Violation]:
+    """An accepted root that also has a curated canonical parent: it is a root or a child, not both."""
+    parented = sorted({e.item_id for e in edges if e.relation == Relation.CANONICAL_PARENT} & roots)
+    return [
+        Violation("root_parent", f"{item} is an accepted canonical root and also has a canonical parent", {item})
+        for item in parented
     ]
 
 
@@ -137,7 +148,7 @@ def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], a
     used = {
         i
         for n, k, v in rows
-        if n not in ("local_identities", MERGE_LIST)
+        if n not in ("local_identities", MERGE_LIST, "canonical_roots")
         for i in graph_row_items(n, k, v).values()
         if i.startswith(LOCAL_PREFIX)
     }
@@ -147,15 +158,16 @@ def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], a
         )
         for item in sorted(used - kinds.keys())
     ]
-    # A merge names canonical nodes, which an addition list declares as often as a local identity does.
-    violations += [
-        Violation(
-            "undeclared_local",
-            f"{item} is used in a genre merge but declared in no local identity nor addition list",
-            {item},
-        )
-        for item in sorted(local_items(MERGE_LIST) - kinds.keys() - additions)
-    ]
+    # A merge or a root names canonical nodes, which an addition list declares as often as a local identity does.
+    for list_name, usage in ((MERGE_LIST, "a genre merge"), ("canonical_roots", "the canonical roots")):
+        violations += [
+            Violation(
+                "undeclared_local",
+                f"{item} is used in {usage} but declared in no local identity nor addition list",
+                {item},
+            )
+            for item in sorted(local_items(list_name) - kinds.keys() - additions)
+        ]
     return violations
 
 
@@ -267,7 +279,8 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
         if message:
             violations.append(Violation("pop_child", message, set(key.split("\t"))))
     violations += find_scene_split_violations(entries, edges)
-    violations += find_root_regional_conflicts(edges)
+    violations += find_root_regional_conflicts(canonical_root_items(entries), edges)
+    violations += find_root_parent_conflicts(canonical_root_items(entries), edges)
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
     violations += find_undeclared_local_edges(declared_additions(entries), edges)
     graph_rows = entries.filter(list_name__in=GRAPH_LISTS).order_by("list_name", "key")

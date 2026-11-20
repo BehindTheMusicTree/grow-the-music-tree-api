@@ -3,12 +3,10 @@ regional_overview,LOCAL:andean-music,Q205049,,,user-requested: nest all existing
 regional_overview,LOCAL:anglo-american-music,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,LOCAL:aramaic-music,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,LOCAL:basque-country,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
-canonical_parent,LOCAL:blues-rock,,,true,
 canonical_parent,LOCAL:core-electronic,Q9778,,,user-requested new intermediate node under electronic music
 canonical_parent,LOCAL:core-funk,LOCAL:disco-funk,,,user-requested new intermediate node under LOCAL:disco-funk
 canonical_parent,LOCAL:core-hip-hop,Q11401,,,user-requested new intermediate node under hip-hop
 canonical_parent,LOCAL:core-jazz,Q8341,,,user-requested new intermediate node under jazz music
-canonical_parent,LOCAL:disco-funk,,,true,
 regional_overview,LOCAL:eastern-orthodox-chant,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,LOCAL:hispanic-world,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,LOCAL:indigenous-americas,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
@@ -21,7 +19,6 @@ canonical_parent,LOCAL:pop-electronic,Q9778,,,user-requested new intermediate no
 canonical_parent,LOCAL:pop-funk,LOCAL:disco-funk,,,user-requested new intermediate node under LOCAL:disco-funk
 canonical_parent,LOCAL:pop-hip-hop,Q11401,,,user-requested new intermediate node under hip-hop
 canonical_parent,LOCAL:pop-jazz,Q8341,,,user-requested new intermediate node under jazz music
-canonical_parent,LOCAL:reggae-dub,,,true,
 regional_overview,LOCAL:southern-cone,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,LOCAL:turkic-peoples-music,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 canonical_parent,LOCAL:underground-electronic,LOCAL:core-electronic,,,user-requested commercial/underground split of Core electronic
@@ -163,7 +160,6 @@ canonical_parent,Q1139136,LOCAL:core-hip-hop,,,user-requested regrouping under h
 regional_overview,Q11395595,Q257533,,,root item with no P279/P361 parent; Japanese rakugo entrance-music genre
 regional_overview,Q1139787,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 canonical_parent,Q11399,LOCAL:blues-rock,,,"user-requested regrouping under a synthetic canonical ""Blues/Rock (grouping)"" node alongside pop rock/blues; no longer a standalone canonical root"
-canonical_parent,Q11401,,,true,
 regional_overview,Q11410949,Q257533,,,root item with no P279/P361 parent; Japanese rakugo performance tradition
 canonical_parent,Q114133626,Q484641,,,"user-requested reparent under pop rock (Q484641), moved out from under rock music"
 regional_overview,Q114799579,Q899215,,,root item with no P279/P361 parent and no P2341/P495 value; a Brazil genre missed by the automated seed/indigenous_to classification (high confidence)
@@ -362,7 +358,6 @@ canonical_parent,Q15697534,LOCAL:core-hip-hop,,,user-requested regrouping under 
 regional_overview,Q1571388,Q964987,,,"root item with no P279/P361 parent and no P2341/P495 value, but a Spanish genre missed by the automated seed/indigenous_to/country_of_origin classification"
 regional_overview,Q15720097,Q531426,,,root item with no P279/P361 parent; Kannada (India) devotional/lyrical poetry set to music
 canonical_parent,Q15733887,LOCAL:underground-electronic,,,user-requested commercial/underground split of Core electronic
-canonical_parent,Q1583807,,,true,
 regional_overview,Q15990884,LOCAL:jewish-liturgical-music,,,root item with no P279/P361 parent; Jewish liturgical chant tradition with no single national home; user requested a Jewish-liturgical umbrella
 canonical_parent,Q16002495,LOCAL:underground-electronic,,,user-requested commercial/underground split of Core electronic
 regional_overview,Q16029081,Q3328735,,,root item with no P279/P361 parent; Wikidata P495 = Nepal
@@ -378,7 +373,6 @@ regional_overview,Q16191834,Q205049,,,user-requested: nest all existing root-lev
 regional_overview,Q16191836,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,Q1620760,Q2743758,,,root item with no P279/P361 parent; a German/Lutheran liturgical narrative genre missed by the automated seed/indigenous_to/country_of_origin classification
 regional_overview,Q16291117,Q3328583,,,"root item with no P279/P361 parent, but P495 (country of origin) = Q262 Algeria; Saharan music style missed by the automated seed/indigenous_to/country_of_origin classification (high confidence)"
-canonical_parent,Q1640319,,,true,
 canonical_parent,Q164444,LOCAL:core-funk,,,"user-requested regrouping under a synthetic canonical ""Core funk"" node alongside disco/pop funk; no longer a standalone canonical root"
 regional_overview,Q16497280,Q899215,,,"root item with no P279/P361 parent; Wikidata confirms country of origin Brazil (""Afro-Brazilian dances accompanied by percussion""), distinct from the separate Cape Verdean batuku tradition"
 regional_overview,Q16531329,Q10334892,,,"root item with no P279/P361 parent, but P495 (country of origin) = Q1009 Cameroon (high confidence)"
@@ -640,7 +634,6 @@ regional_overview,Q3656514,Q3679098,,,root item with no P279/P361 parent; song g
 regional_overview,Q3656557,Q3679098,,,"root item with no P279/P361 parent, but P495 (country of origin) = Q38 Italy; Milanese criminal-underworld song tradition (high confidence)"
 regional_overview,Q3678263,Q1139787,,,"root item with no P279/P361 parent and no P2341/P495 value, but an ancient Greek genre missed by the automated seed/indigenous_to/country_of_origin classification"
 regional_overview,Q369820,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
-canonical_parent,Q37073,,,true,
 canonical_parent,Q3709211,LOCAL:core-hip-hop,,,user-requested regrouping under hip-hop subgroup LOCAL:core-hip-hop
 regional_overview,Q373982,Q3328693,,,root item with no P279/P361 parent; Ivorian (Cote d'Ivoire) dance-music genre
 canonical_parent,Q3807537,LOCAL:core-jazz,,,"user-requested regrouping under new synthetic ""Core jazz"" node (remaining jazz subgenres not routed to Pop jazz)"
@@ -676,14 +669,12 @@ regional_overview,Q4202963,LOCAL:eastern-orthodox-chant,,,root item with no P279
 canonical_parent,Q420883,LOCAL:core-hip-hop,,,user-requested regrouping under hip-hop subgroup LOCAL:core-hip-hop
 regional_overview,Q420965,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
 regional_overview,Q4306566,Q205049,,,user-requested: nest all existing root-level regional overviews under a new top-level 'music of the world' overview node
-canonical_parent,Q43343,,,true,
 canonical_parent,Q4448560,Q2332751,,,root item with no P279/P361 parent; an early-20th-century avant-garde compositional movement with no single national/ethnic home so manual_regional_overrides.csv does not apply
 regional_overview,Q4452845,Q6941928,,,"root item with no P279/P361 parent; Khakas (Siberia, Russia) traditional vocal genre, confirmed via web search and matched to the existing music of Khakassia overview"
 regional_overview,Q4456147,Q2267955,,,"root item with no P279/P361 parent, but a United States contemporary-ragtime offshoot (coined 1995 by David Thomas Roberts) missed by the automated seed/indigenous_to/country_of_origin classification"
 regional_overview,Q4456413,Q1074080,,,"root item with no P279/P361 parent and no P2341/P495 value, but a Turkish genre missed by the automated seed/indigenous_to/country_of_origin classification"
 regional_overview,Q4469861,LOCAL:turkic-peoples-music,,,"root item with no P279/P361 parent; Turkic overtone-singing style spanning Kazakh/Bashkir/Tatar traditions, no single national home; user requested a Turkic-peoples umbrella"
 regional_overview,Q448738,Q964987,,,root item with no P279/P361 parent; Spanish Renaissance quodlibet genre missed by the automated classification
-canonical_parent,Q45981,,,true,
 regional_overview,Q4670712,Q1544863,,,root item with no P279/P361 parent; Wikidata P495 (country of origin) = Cuba
 regional_overview,Q4698401,Q672134,,,"root item with no P279/P361 parent and no P2341/P495 value, but a French genre missed by the automated seed/indigenous_to/country_of_origin classification"
 canonical_parent,Q47074428,LOCAL:core-hip-hop,,,user-requested regrouping under hip-hop subgroup LOCAL:core-hip-hop
@@ -759,7 +750,6 @@ regional_overview,Q5397405,Q2486179,,,root item with no P279/P361 parent and no 
 regional_overview,Q5401205,Q645992,,,root item with no P279/P361 parent; Argentine folk dance
 regional_overview,Q5402428,Q6942217,,,root item with no P279/P361 parent and no P2341/P495 value; a Nicaragua genre missed by the automated seed/indigenous_to classification (high confidence)
 canonical_parent,Q5421158,LOCAL:core-hip-hop,,,user-requested regrouping under hip-hop subgroup LOCAL:core-hip-hop
-canonical_parent,Q54365,,,true,
 regional_overview,Q5442427,Q531426,,,"root item with no P279/P361 parent, but a traditional Goan Catholic folk dance/music genre performed during the Goa Carnival (country India) missed by the automated seed/indigenous_to/country_of_origin classification"
 regional_overview,Q5449121,Q531426,,,root item with no P279/P361 parent; Indian (Bollywood) film-ghazal genre missed by the automated classification
 canonical_parent,Q546206,LOCAL:pop-hip-hop,,,user-requested regrouping under hip-hop subgroup LOCAL:pop-hip-hop
@@ -1014,7 +1004,6 @@ canonical_parent,Q8195422,Q316930,,,"root item with no P279/P361 parent; describ
 regional_overview,Q8210150,Q3397325,,,root item with no P279/P361 parent and no P2341/P495 value; a Mexico genre missed by the automated seed/indigenous_to classification (high confidence)
 regional_overview,Q822309,Q6942327,,,"root item with no P279/P361 parent and no P2341/P495 value, but a Welsh genre - its natural parent 'music of Wales' is a promoted overview item"
 canonical_parent,Q831354,LOCAL:pop-jazz,,,"user-requested regrouping under new synthetic ""Pop jazz"" node"
-canonical_parent,Q8341,,,true,
 canonical_parent,Q837389,LOCAL:core-jazz,,,"user-requested regrouping under new synthetic ""Core jazz"" node (remaining jazz subgenres not routed to Pop jazz)"
 regional_overview,Q84433946,Q6942006,,,"root item with no P279/P361 parent and no P2341/P495 value, but an Assamese (India) folk song tradition, missed by the automated classification"
 regional_overview,Q8457821,Q645992,,,root item with no P279/P361 parent; a traditional Argentine (and Uruguayan) folk dance/music genre
@@ -1074,7 +1063,6 @@ regional_overview,Q97365272,Q10334892,,,"root item with no P279/P361 parent and 
 regional_overview,Q97481136,Q2743758,,,"root item with no P279/P361 parent and no P2341/P495 value, but a German genre missed by the automated seed/indigenous_to/country_of_origin classification"
 canonical_parent,Q9759,LOCAL:blues-rock,,true,"user-requested regrouping under a synthetic canonical ""Blues/Rock (grouping)"" node alongside pop rock/rock; blues has a genuine P279 edge to ""music of North America"" that would otherwise keep it is_regional via the cascade regardless of this override, so its other parent edges are excluded too"
 regional_overview,Q97659647,Q2579987,,,root item with no P279/P361 parent and no P2341/P495 value; a Portugal genre missed by the automated seed/indigenous_to classification (medium confidence)
-canonical_parent,Q9778,,,true,
 canonical_parent,Q9794,LOCAL:reggae-dub,,true,"user-requested regrouping under a synthetic canonical ""Reggae/Dub (grouping)"" node alongside dub music; reggae has a genuine P279 edge to ""music of Jamaica"" that would otherwise keep it is_regional via the cascade regardless of this override, so its other parent edges are excluded too"
 regional_overview,Q9849206,Q899215,,,root item with no P279/P361 parent and no P2341/P495 value; a Brazil genre missed by the automated seed/indigenous_to classification (medium confidence)
 regional_overview,Q985135,Q531426,,,root item with no P279/P361 parent; Punjabi (India) folk dance/song

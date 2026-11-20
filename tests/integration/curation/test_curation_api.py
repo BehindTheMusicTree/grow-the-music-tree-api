@@ -636,7 +636,7 @@ class TestCase(AppTestCase):
     def test_graph_lists_round_trip_and_validation(self):
         rows = {
             "local_identities": {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE},
-            "canonical_boundaries": {"item_id": "Q1", "boundary": "entry", **PROVENANCE},
+            "canonical_roots": {"item_id": "Q1", **PROVENANCE},
             "regional_memberships": {
                 "child_item_id": "Q1",
                 "parent_item_id": "LOCAL:x",
@@ -650,12 +650,6 @@ class TestCase(AppTestCase):
             assert self._create({**row, "decision_id": f"ok-{index}"}, name).status_code == status.HTTP_201_CREATED
             assert self._create({**row, "reason": ""}, name).status_code == status.HTTP_400_BAD_REQUEST
             assert self._create({**row, "decision_source": ""}, name).status_code == status.HTTP_400_BAD_REQUEST
-        assert (
-            self._create(
-                {**rows["canonical_boundaries"], "item_id": "Q9", "boundary": "x"}, "canonical_boundaries"
-            ).status_code
-            == status.HTTP_400_BAD_REQUEST
-        )
         assert (
             self._create(
                 {**rows["local_identities"], "item_id": "Q5", "decision_id": "z"}, "local_identities"

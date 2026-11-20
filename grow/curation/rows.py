@@ -312,6 +312,18 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
     return violations[0].message if violations else None
 
 
+def find_root_edge_error(entries: models.QuerySet, list_name: str, key: str) -> str | None:
+    """Why `key` can't become an accepted canonical root, if it can't: a curated edge still gives it a parent."""
+    if list_name != "canonical_roots":
+        return None
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import find_root_parent_conflicts, find_root_regional_conflicts
+
+    edges = list(edge_rules())
+    violations = find_root_regional_conflicts({key}, edges) + find_root_parent_conflicts({key}, edges)
+    return violations[0].message if violations else None
+
+
 def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
     """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
     and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
@@ -446,6 +458,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key)
     if excluded_edge_error:
         raise RowConflict(excluded_edge_error)
+    root_edge_error = find_root_edge_error(entries, list_name, parsed.key)
+    if root_edge_error:
+        raise RowConflict(root_edge_error)
     return parsed
 
 

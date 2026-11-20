@@ -1,5 +1,6 @@
 import json
 from copy import deepcopy
+from datetime import timedelta
 from importlib import import_module
 from pathlib import Path
 from uuid import uuid4
@@ -39,10 +40,11 @@ from grow.genre_graph.service import (
     write_song_attributions,
 )
 from grow.model.criteria.children.genre.Genre import Genre
-from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
+from tests.utils.curation_export import record_export, record_graph_export
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -71,9 +73,7 @@ def payload():
 
 
 def import_graph(payload, mapping=None, revision=None):
-    CurationSyncState.objects.update_or_create(
-        pk=1, defaults={"exported_on": parse_datetime(payload["curationExportedOn"])}
-    )
+    record_graph_export(payload)
     return import_reference_graph(
         payload=payload,
         mapping=mapping if mapping is not None else {node["id"]: None for node in payload["nodes"]},
@@ -175,12 +175,13 @@ def test_e03_restore_updates_projection_and_keeps_songs(payload):
 
 
 def test_e02_requires_singletons_and_matching_provenance(payload):
-    CurationSyncState.objects.filter(pk=1).delete()
+    CurationExport.objects.all().delete()
     with pytest.raises(GraphValidationError, match="singletons"):
         import_reference_graph(
             payload=payload, mapping={}, expected_revision=None, curation_exported_on=payload["curationExportedOn"]
         )
-    CurationSyncState.objects.create(pk=1, exported_on=parse_datetime(payload["curationExportedOn"]))
+    record_graph_export(payload)
+    record_export("2026-11-13T00:00:00Z", [root["nodeId"] for root in payload["canonicalRoots"]])
     with pytest.raises(GraphValidationError, match="provenance"):
         import_reference_graph(
             payload=payload, mapping={}, expected_revision=None, curation_exported_on="2026-11-13T00:00:00Z"
@@ -228,9 +229,7 @@ def graph_client(role):
 
 
 def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
-    CurationSyncState.objects.update_or_create(
-        pk=1, defaults={"exported_on": parse_datetime(payload["curationExportedOn"])}
-    )
+    record_graph_export(payload)
     url = reverse("reference-graph")
     body = {"graph": payload, "mapping": {node["id"]: None for node in payload["nodes"]}, "expectedRevision": None}
     assert APIClient().put(url, body, format="json").status_code == 401
@@ -498,6 +497,13 @@ def _without_identity(payload, identity):
     changed["nodes"] = [node for node in changed["nodes"] if node["id"] != identity]
     changed["relations"] = [row for row in changed["relations"] if identity not in (row["childId"], row["parentId"])]
     changed["canonicalRoots"] = [row for row in changed["canonicalRoots"] if row["nodeId"] != identity]
+    return _with_own_export(changed)
+
+
+def _with_own_export(changed):
+    """A graph with other roots comes from another export; reusing the date would overwrite the original's snapshot."""
+    changed["curationExportedOn"] = (parse_datetime(changed["curationExportedOn"]) + timedelta(days=1)).isoformat()
+    record_graph_export(changed)
     return changed
 
 
@@ -589,6 +595,7 @@ def test_restore_older_graph_requires_decision_for_added_concept(payload):
     changed = deepcopy(payload)
     changed["nodes"].append({"id": "LOCAL:added", "name": "Dub", "kind": "genre"})
     changed["canonicalRoots"].append(_canonical_root("LOCAL:added"))
+    _with_own_export(changed)
     mapping = {**GenreGraphImport.objects.get(pk=original.revision).mapping, "LOCAL:added": None}
     updated = import_graph(changed, mapping, original.revision)
     added = Genre.objects.get(semantic_identity="LOCAL:added")
@@ -931,3 +938,37 @@ def test_empty_initial_assignment_archive_is_valid_and_preserves_later_songs(pay
     )
     assert restored.membership_revision == current.membership_revision
     assert assignment_snapshot(dataset=restored, track_id=song.pk) == {"LOCAL:dub": [provenance]}
+
+
+def test_graph_import_rejects_roots_differing_from_the_export(payload):
+    record_export(payload["curationExportedOn"], ["Q1"])
+    with pytest.raises(GraphValidationError, match="canonicalRoots differ"):
+        import_reference_graph(
+            payload=payload,
+            mapping={node["id"]: None for node in payload["nodes"]},
+            expected_revision=None,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+
+def test_graph_import_rejects_an_export_without_snapshot(payload):
+    record_graph_export(payload)
+    CurationExport.objects.update(snapshot=None)
+    with pytest.raises(GraphValidationError, match="predates snapshots"):
+        import_reference_graph(
+            payload=payload,
+            mapping={node["id"]: None for node in payload["nodes"]},
+            expected_revision=None,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+
+def test_restore_does_not_need_the_original_export_to_be_kept(payload):
+    original = import_graph(payload)
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] = "Renamed"
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    updated = import_graph(changed, mapping, original.revision)
+    CurationExport.objects.all().delete()
+    restored = restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
+    assert restored.payload == original.payload
