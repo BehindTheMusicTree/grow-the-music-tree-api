@@ -10,8 +10,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/home/app/.venv/bin:$PATH"
 
 # curl, wget: Coolify's own healthcheck runs curl/wget inside the container.
+# postgresql-client comes from PGDG, not Debian: bookworm ships 15 and pg_dump refuses a newer
+# server. Keep PG_MAJOR equal to the prod/staging Postgres major (a server bump bumps it here).
+ARG PG_MAJOR=16
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client curl wget && \
+    apt-get install -y --no-install-recommends curl wget ca-certificates && \
+    install -d /usr/share/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/keyrings/postgresql.asc && \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends "postgresql-client-${PG_MAJOR}" && \
+    pg_dump --version | grep -q "pg_dump (PostgreSQL) ${PG_MAJOR}\." && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
