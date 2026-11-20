@@ -11,6 +11,8 @@ class Command(BaseCommand):
         parser.add_argument("--sample", type=int, default=20)
 
     def handle(self, *args, **options):
+        if options["sample"] < 0:
+            raise CommandError("--sample must be zero or positive")
         count, sample = song_membership_drift_summary(using=options["database"], sample=options["sample"])
         if count:
             raise CommandError(f"{count} songs with a drifted membership genre, e.g. {', '.join(map(str, sample))}")
