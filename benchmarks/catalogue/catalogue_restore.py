@@ -253,7 +253,7 @@ def relation_inventory_sql() -> str:
         "(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
         "WHERE n.nspname='public' AND (c.relkind NOT IN ('r', 'i', 'S') "
         "OR (c.relkind='r' AND (c.relpersistence='t' "
-        f"OR (c.relpersistence='u' AND c.relname NOT IN ({unlogged_ok}))))) THEN "
+        f"OR (c.relpersistence='u' AND c.relname NOT IN ({unlogged_ok})))))) THEN "
         "RAISE EXCEPTION 'catalogue relation inventory drift'; END IF; END $$;"
     )
 
