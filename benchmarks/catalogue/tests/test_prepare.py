@@ -34,7 +34,7 @@ def run_main(failing=None):
 
 class PrepareTests(unittest.TestCase):
     def test_derivation_check_runs_before_rebuilds_and_repairs_after(self):
-        calls, error, arguments_seen = run_main()
+        calls, error, _ = run_main()
         self.assertIsNone(error)
         self.assertEqual(
             calls,
