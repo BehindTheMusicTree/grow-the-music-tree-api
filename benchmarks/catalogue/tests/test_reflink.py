@@ -29,6 +29,14 @@ class ReflinkTest(unittest.TestCase):
         self.assertIn("--reflink=always", run.call_args.args[0])
         self.assertEqual([], list(self.root.iterdir()))
 
+    def test_non_gnu_cp_is_reported_as_such(self):
+        error = self.failing("cp: illegal option -- -")
+        with (
+            mock.patch.object(reflink.subprocess, "run", side_effect=error),
+            self.assertRaisesRegex(RuntimeError, "GNU cp"),
+        ):
+            reflink.require_reflink(self.root)
+
     def test_missing_cp_is_reported(self):
         with (
             mock.patch.object(reflink.subprocess, "run", side_effect=FileNotFoundError),
@@ -65,8 +73,8 @@ class ReflinkTest(unittest.TestCase):
     def test_clone_is_independent_on_a_reflink_filesystem(self):
         # CI points GROW_PERF_REFLINK_DIR at a btrfs mount, where support is required and a failure is a failure.
         configured = os.environ.get("GROW_PERF_REFLINK_DIR")
-        root = Path(configured) if configured else self.root
-        if not configured:
+        root = Path(configured) if configured is not None else self.root
+        if configured is None:
             try:
                 reflink.require_reflink(root)
             except RuntimeError as error:

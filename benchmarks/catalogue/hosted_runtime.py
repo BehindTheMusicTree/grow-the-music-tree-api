@@ -363,7 +363,7 @@ class HostedRuntime:
             return False
 
     @contextmanager
-    def database(self, data: Path, authentication: str, user: str):
+    def database(self, data: Path, authentication: str, user: str, *, graceful: bool = False):
         if authentication not in {OWNER_HBA, PREPARATION_HBA, CANDIDATE_HBA}:
             raise ValueError("approved database authentication required")
         directory = self.make_directory(data.parent, "socket", self.postgres.uid, 0o755)
@@ -393,6 +393,11 @@ class HostedRuntime:
         with self.container(self.postgres, arguments, mounts) as identity:
             self.wait(identity, lambda: self.database_ready(identity, user))
             yield directory, identity
+            if graceful:
+                # `docker rm --force` kills the server mid-state; a clone needs a checkpointed, pid-free directory.
+                self.docker("stop", "--time", "60", identity, timeout=90)
+                if self.finish(identity, 60) != 0:
+                    raise RuntimeError("prepared database did not shut down cleanly")
 
     def prepare_application(self, candidate: Candidate, socket: Path, scripts: Path) -> None:
         mounts = [
@@ -434,7 +439,7 @@ class HostedRuntime:
         # Preparation code from the side's own image never sees postgres or the archive.
         with self.database(data, OWNER_HBA, "grow_perf_owner") as (socket, _identity):
             self.prepare_application(candidate, socket, scripts)
-        with self.database(data, PREPARATION_HBA, "postgres") as (_socket, identity):
+        with self.database(data, PREPARATION_HBA, "postgres", graceful=True) as (_socket, identity):
             self.sql(identity, "postgres", "btmt_grow_perf", OWNER_LOCK_SQL)
             self.sql(identity, "postgres", "btmt_grow_perf", HANDOFF_SQL)
             self.approve_routines(identity)
@@ -460,7 +465,11 @@ class HostedRuntime:
                     self.verify_handoff(identity)
                     yield from self.serve(candidate, socket, scripts)
             finally:
-                shutil.rmtree(data, ignore_errors=True)
+                try:
+                    shutil.rmtree(data)
+                except OSError:
+                    self.cleanup_uncertain = True
+                    raise
         finally:
             self.active = False
 

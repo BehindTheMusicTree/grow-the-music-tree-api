@@ -25,7 +25,11 @@ def _clone(source: Path, destination: Path) -> None:
         )
     except FileNotFoundError as error:
         raise RuntimeError("reflink clones need GNU cp on PATH") from error
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError("reflink clone timed out") from error
     except subprocess.CalledProcessError as error:
+        if "option" in (error.stderr or ""):
+            raise RuntimeError("reflink clones need GNU cp: " + error.stderr.strip()[:200]) from error
         raise RuntimeError(
             "reflink clone failed; the workspace needs a filesystem with reflink support (XFS with reflink=1, "
             "btrfs): " + (error.stderr or "").strip()[-300:]

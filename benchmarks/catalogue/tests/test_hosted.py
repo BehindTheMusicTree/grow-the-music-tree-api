@@ -342,6 +342,8 @@ class RuntimeTest(unittest.TestCase):
         clones = []
 
         def recording(source, parent, name):
+            # The prepared database must have been stopped gracefully, not killed by `docker rm --force`.
+            self.assertTrue(any(call[0] == "stop" for call in runtime.docker_binary.calls))
             clones.append(copy_clone(source, parent, name))
             return clones[-1]
 
