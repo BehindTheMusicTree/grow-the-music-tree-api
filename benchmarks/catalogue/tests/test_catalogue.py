@@ -96,7 +96,7 @@ class CataloguePolicyTest(unittest.TestCase):
             {key: value for key, value in counts.items() if key != "auth_user"},
             {**counts, "unknown": 0},
             {**counts, "auth_user": 1},
-            {**counts, "grow_genre_tree_version": 1},
+            {**counts, "grow_genre_tree_version": 0},
             {**counts, "grow_song": 29_999_999},
         ):
             with self.subTest(counts=changed), self.assertRaises(ValueError):
@@ -223,6 +223,7 @@ class CataloguePostgresFixture(unittest.TestCase):
             [
                 insert("grow_song_search_state", id=1, ready=True, fingerprint="a" * 64),
                 insert("grow_artist_song_state", id=1, ready=True, fingerprint="b" * 64),
+                insert("grow_genre_tree_version", id=1),
             ]
         )
         # Track without a Grow song and song without any track.
@@ -305,6 +306,7 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             "grow_artist_song": 1,
             "grow_song_search_state": 1,
             "grow_artist_song_state": 1,
+            "grow_genre_tree_version": 1,
         }.items():
             self.assertEqual(self.count(table), expected, table)
         self.assertEqual(self.sql("SELECT count(*) FROM public.grow_genre WHERE last_seen_run_id IS NOT NULL"), "0")

@@ -67,7 +67,6 @@ REBUILD = frozenset(
     [
         "grow_genre_catalogue_count",
         "grow_genre_membership_count",
-        "grow_genre_tree_version",
     ]
 )
 # Projections whose data is retained: expensive to rebuild (song search takes hours at catalogue scale), pruned to the
@@ -163,10 +162,13 @@ GRAPH_TABLES = (
     "node",
     "revision",
 )
+TREE_VERSION = "grow_genre_tree_version"
 RETAIN = (
     frozenset(ROOTS)
     | (frozenset(DEPENDENTS) - DERIVED)
-    | {TYPES, "grow_wikidata_item"}
+    # The tree-version singleton is one token row without private data; migrate does not recreate it and the count
+    # verifications refuse to.
+    | {TYPES, "grow_wikidata_item", TREE_VERSION}
     | {f"{GRAPH}{name}" for name in GRAPH_TABLES}
 )
 
@@ -236,7 +238,7 @@ def data_policy(tsv: str, schema_sql: bytes) -> Policy:
                     # An emptied projection must not pass: `--if-stale` would trust its state row and skip the rebuild.
                     "minimum_rows": 30_000_000
                     if name in {TRACK, "grow_song", "grow_song_search"}
-                    else (1 if name in {TYPES, "grow_artist_song"} else 0),
+                    else (1 if name in {TYPES, TREE_VERSION, "grow_artist_song"} else 0),
                 }
                 for name in sorted(RETAIN | DERIVED)
             },

@@ -415,6 +415,32 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaises(hosted.DeadlineExceeded), runtime.prepare(self.session.base, 1):
             pass
 
+    def test_running_job_past_the_manifest_deadline_is_a_deadline_failure(self):
+        def expired():
+            raise hosted.DeadlineExceeded("deadline")
+
+        runtime = self.runtime()
+        runtime.check = expired
+        with patch.object(runtime, "docker", return_value="true"), self.assertRaises(hosted.DeadlineExceeded):
+            runtime.finish("job", 3600)
+
+    def test_preparation_timeout_is_the_time_left_before_the_manifest_deadline(self):
+        runtime = self.runtime()
+        with (
+            patch("benchmarks.catalogue.hosted_runtime.time.time", return_value=self.session.deadline_timestamp - 90),
+            patch.object(runtime, "finish", return_value=0) as finish,
+        ):
+            runtime.prepare_application(self.session.base, Path(self.workspace), self.bundle)
+        self.assertEqual(90, finish.call_args.args[1])
+
+    def test_failed_preparation_script_is_a_preparation_failure(self):
+        runtime = self.runtime()
+        with (
+            patch.object(runtime, "finish", return_value=1),
+            self.assertRaisesRegex(RuntimeError, "preparation failed"),
+        ):
+            runtime.prepare_application(self.session.base, Path(self.workspace), self.bundle)
+
 
 class VerdictTest(unittest.TestCase):
     def setUp(self):
