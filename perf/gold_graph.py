@@ -127,8 +127,9 @@ def build_graph(trees: list[dict]) -> dict:
 def identity_mapping(graph: dict, genres: list[dict]) -> dict[str, str | None]:
     """Gold id → genre UUID through Genre.wikidata_id (which stores the Gold id), never by label."""
     by_gold_id = {genre["wikidata_id"]: genre["uuid"] for genre in genres if genre.get("wikidata_id")}
-    mapping = {node["id"]: by_gold_id.get(node["id"]) for node in graph["nodes"] if node["kind"] == "genre"}
-    missing = [identity for identity, pk in mapping.items() if pk is None]
+    mapping = {node["id"]: by_gold_id.get(node["id"]) for node in graph["nodes"]}
+    # An overview has no genre row: it maps to null, like any new node.
+    missing = [identity for identity, pk in mapping.items() if pk is None and identity != OVERVIEW_ID]
     if missing:
         raise ValueError(f"{len(missing)} Gold nodes have no imported genre, e.g. {missing[:5]}")
     return mapping
