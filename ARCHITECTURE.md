@@ -43,6 +43,8 @@ Every `Criteria` node has a 1:1 shadow `CriteriaPlaylist`, kept in sync automati
 
 `GenrePlaylist`/`TagPlaylist` (`grow/model/playlist/children/criteria/genre/`, `.../tag/`) are further specializations of `CriteriaPlaylist` backing the read-only genre/tag playlist endpoints.
 
+Genre membership of a song is read from the semantic attributions of the reference graph (`GenreGraphAccess` in the genre kit, closure in `grow/genre_graph/closure.py`), never from `Track.genre_id` or display parents: `Criteria` parents and `CriteriaLineageRel` only drive the UI tree.
+
 Net picture: one self-referential `Criteria` tree (parent/children + `CriteriaLineageRel` for precomputed ascendant/descendant lookups), `type` discriminating Genre vs Tag, with an auto-maintained shadow playlist per node that tracks attach to and get queried through.
 
 ## Required root genre labels

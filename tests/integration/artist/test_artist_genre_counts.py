@@ -7,6 +7,7 @@ from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel impor
 
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestCase(AppTestCase):
@@ -19,6 +20,11 @@ class TestCase(AppTestCase):
         self.hardcore = self.factory.create_genre("Hardcore", parent=self.punk)
         self.jazz = self.factory.create_genre("Jazz")
         self.artist = self.factory.create_artist("Minor Threat")
+        self.attributed = {self.rock: [], self.punk: [], self.hardcore: [], self.jazz: []}
+        self.classifications = [(self.punk, self.rock), (self.hardcore, self.punk)]
+        self.boundaries = []
+        self.overrides = {}
+        install_song_graph(self.attributed, classifications=self.classifications)
 
     def counts(self, artist=None) -> dict[str, tuple[int, int]]:
         response = self.api_client.get(path=reverse("artist-genre-counts", kwargs={"pk": (artist or self.artist).uuid}))
@@ -31,8 +37,30 @@ class TestCase(AppTestCase):
         }
         return {names[str(row["genre_playlist"])]: (row["songs_count"], row["tracks_count"]) for row in response.data}
 
+    def install(self):
+        install_song_graph(
+            self.attributed,
+            classifications=self.classifications,
+            boundaries=self.boundaries,
+            node_overrides=self.overrides,
+        )
+
+    def regional_expression(self, name="Regional"):
+        """A regional population below Rock: a classification child past the canonical exit."""
+        regional = self.factory.create_genre(name, tree_name="regional")
+        self.attributed[regional] = []
+        self.overrides[regional] = {"canonicalState": "after_exit"}
+        self.classifications.append((regional, self.rock))
+        self.boundaries.append((regional, "exit"))
+        return regional
+
     def song(self, title, genre, **kwargs):
-        return self.factory.create_song(title=title, genre=genre, artists=[self.artist], **kwargs)
+        kwargs.setdefault("artists", [self.artist])
+        song = self.factory.create_song(title=title, genre=genre, **kwargs)
+        if genre is not None:
+            self.attributed.setdefault(genre, []).append(song)
+            self.install()
+        return song
 
     def test_subtree_folds_into_ascendants_only(self):
         self.song("Straight Edge", self.hardcore)
@@ -66,7 +94,7 @@ class TestCase(AppTestCase):
 
     def test_other_artists_songs_are_ignored(self):
         other = self.factory.create_artist("Other")
-        self.factory.create_song(title="Bebop", genre=self.jazz, artists=[other])
+        self.song("Bebop", self.jazz, artists=[other])
         self.song("Straight Edge", self.hardcore)
 
         assert set(self.counts()) == {"Hardcore", "Punk", "Rock"}
@@ -126,8 +154,7 @@ class TestCase(AppTestCase):
         )
 
     def test_artist_tree_scope_counts_use_actual_parent_memberships(self):
-        regional = self.factory.create_genre("Regional", tree_name="regional")
-        regional.additional_primary_parents.add(self.rock)
+        regional = self.regional_expression()
         self.song("Direct", self.rock)
         self.song("Canonical", self.punk)
         regional_song = self.song("Regional song", regional)
@@ -147,8 +174,7 @@ class TestCase(AppTestCase):
         assert row["genreAndSubgenresTracksCount"] == {"canonical": 2, "regional": 1, "all": 2}
 
     def test_artist_counts_use_actual_membership_and_scoped_catalogue(self):
-        regional = self.factory.create_genre("Regional", tree_name="regional")
-        regional.additional_primary_parents.add(self.rock)
+        regional = self.regional_expression()
         song = self.song("Regional song", regional)
         playlist = GenrePlaylist.objects.get(criteria=self.rock)
         TrackPlaylistRel.objects.get_or_create(playlist=playlist, track=song, defaults={"user": None})
@@ -168,8 +194,7 @@ class TestCase(AppTestCase):
         assert row["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 0, "all": 0}
 
     def test_artist_tree_keeps_canonical_genre_with_only_regional_songs(self):
-        regional = self.factory.create_genre("Regional", tree_name="regional")
-        regional.additional_primary_parents.add(self.rock)
+        regional = self.regional_expression()
         self.song("Regional song", regional)
 
         path = reverse("genre-playlist-list") + "tree/"

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from grow.genre_music.selection import all_genre_selections, genre_graph
+from grow.genre_graph.closure import GraphClosure
 
 
 @dataclass
@@ -14,12 +14,15 @@ class GenreScopedCounts:
         return values.get("canonical", values["all"])
 
 
-def catalogue_counts(exact: dict, graph=None, *, selections=None) -> dict:
-    """Project exact catalogue counts onto each distinct primary-path selection."""
-    trees, edges = graph if graph is not None else genre_graph()
+def catalogue_counts(exact: dict, closure: GraphClosure, *, genres=None) -> dict:
+    """Project exact catalogue buckets onto each genre's kit closure.
+
+    Each song sits in exactly one bucket, so summing the buckets of a closure's deduplicated descendant set
+    counts every song once, however many paths reach it.
+    """
     result = {}
-    closures = selections if selections is not None else all_genre_selections(trees, edges)
-    for genre, scopes in closures.items():
+    for genre in closure.selections if genres is None else genres:
+        scopes = closure.selections[genre]
         values = {scope.value: sum(exact[node] for node in exact.keys() & nodes) for scope, nodes in scopes.items()}
         result[genre] = GenreScopedCounts(exact.get(genre, 0), values)
     genreless = exact.get(None, 0)

@@ -382,7 +382,7 @@ def test_song_assignment_rejects_multiple_direct_genres_without_mutation(payload
 @pytest.mark.parametrize(
     "scope,expected",
     [
-        ("canonical", {"style", "scoped", "overlap"}),
+        ("canonical", {"style", "scoped", "overlap", "exited"}),
         ("regional", {"scoped", "overlap", "exited"}),
         ("all", {"style", "scoped", "overlap", "exited"}),
     ],

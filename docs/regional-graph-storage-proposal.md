@@ -1,6 +1,6 @@
 # Regional graph storage and catalogue cutover proposal
 
-Investigation: 14 November 2026. Proposal only; the implementation and cutover remain incomplete.
+Investigation: 14 November 2026. Proposal; the semantic-attribution read cutover (grow#521) is implemented, with the rollout steps in the plan still pending.
 
 ## Recommendation
 

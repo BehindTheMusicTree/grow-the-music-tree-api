@@ -2,6 +2,7 @@ import json
 from uuid import UUID, uuid4
 
 from django.db import connection, transaction
+from django.db.models import Subquery
 from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
 from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot, register_evidence
@@ -287,15 +288,33 @@ def write_song_attributions(
         return dataset
 
 
+def tree_version() -> tuple[UUID, UUID, UUID]:
+    """Display token and graph revisions in one statement, so the ETag costs a single read."""
+    dataset = GenreGraphDataset.objects.filter(pk=DATASET_KEY)
+    row = (
+        GenreTreeVersion.objects.filter(pk=1)
+        .annotate(
+            revision=Subquery(dataset.values("revision")),
+            membership_revision=Subquery(dataset.values("membership_revision")),
+        )
+        .values_list("token", "revision", "membership_revision")
+        .get()
+    )
+    if row[1] is None:
+        raise GraphValidationError("Import the reference graph with an explicit identity mapping first")
+    return row
+
+
 @transaction.atomic
-def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> bool:
-    """Single writer entry for a song's direct genre. With a reference dataset installed the attribution is the only
-    authority (`Track.genre_id` is left alone) and True is returned; without one, False tells the caller to use the
-    legacy column. Gate and dataset locks are taken here, before the song row, in the canonical order."""
+def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> None:
+    """Single writer entry for a song's direct genre: the attribution is the only authority (`Track.genre_id` is
+    left alone) and a missing reference dataset is an error. Gate and dataset locks are taken here, before the song
+    row, in the canonical order."""
     lock_catalogue_sources()
-    dataset = GenreGraphDataset.objects.select_for_update().filter(pk=DATASET_KEY).first()
-    if dataset is None:
-        return False
+    try:
+        dataset = GenreGraphDataset.objects.select_for_update().get(pk=DATASET_KEY)
+    except GenreGraphDataset.DoesNotExist as error:
+        raise GraphValidationError("Import the reference graph with an explicit identity mapping first") from error
     attributions = {}
     if genre is not None:
         node = genre.graph_node
@@ -310,11 +329,10 @@ def set_song_genre(song: Song, genre: Genre | None, *, provenance: dict) -> bool
         expected_membership_revision=dataset.membership_revision,
         expected_assignment_revision=state.revision if state else None,
     )
-    return True
 
 
 def song_genre(song: Song) -> Genre | None:
-    """The song's effective genre, materialised on `grow_song.genre_id` (legacy column before the dataset)."""
+    """The song's effective genre, materialised on `grow_song.genre_id` from its attribution."""
     return Song.objects.select_related("membership_genre").get(pk=song.pk).membership_genre
 
 

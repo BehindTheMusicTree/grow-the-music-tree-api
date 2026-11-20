@@ -657,10 +657,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
         for song in list(self._songs_of(source)):
             provenance = {"decisionId": f"alias-{uuid4()}", "source": "admin curation", "rationale": "Genre alias"}
-            if set_song_genre(song, target, provenance=provenance):
-                type(song).objects.record_semantic_genre_change(song, old_genre=source, actor=actor)
-            else:
-                type(song).objects.update_instance(song, actor=actor, genre=target)
+            set_song_genre(song, target, provenance=provenance)
+            type(song).objects.record_semantic_genre_change(song, old_genre=source, actor=actor)
         pks = self._essential_track_pks(target)
         pks += [pk for pk in self._essential_track_pks(source) if pk not in pks]
         songs = self.model.essential_songs.field.related_model.objects.in_bulk(pks)

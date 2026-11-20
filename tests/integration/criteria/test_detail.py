@@ -7,6 +7,7 @@ from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRe
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from tests.integration.criteria.GenreTestCase import GenreTestCase
 from tests.utils.essential_songs import add_essential_song
+from tests.utils.song_graph import install_graph_from_rows
 
 
 class TestCriteriaDetail(GenreTestCase):
@@ -24,6 +25,8 @@ class TestCriteriaDetail(GenreTestCase):
                 song = self.model_fixture_factory.create_song(f"{genre.name} {index}", genre=genre)
                 song.artists.add(self.model_fixture_factory.create_artist(f"{genre.name} artist {index}"))
                 add_essential_song(genre, song)
+
+        install_graph_from_rows()
 
         def get(genre):
             return self.api_client.get(reverse("genre-detail", kwargs={"pk": genre.uuid}))
@@ -46,6 +49,7 @@ class TestCriteriaDetail(GenreTestCase):
         child = self.model_fixture_factory.create_genre("Child", parent=parent)
         self.model_fixture_factory.create_song("Direct", genre=parent, youtube_video_id=None)
         self.model_fixture_factory.create_song("Child song", genre=child)
+        install_graph_from_rows()
 
         response = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid}))
 
@@ -67,6 +71,7 @@ class TestCriteriaDetail(GenreTestCase):
         playlist = GenrePlaylist.objects.get(criteria=parent)
         TrackPlaylistRel.objects.filter(playlist=playlist, track=child_song).delete()
         TrackPlaylistRel.objects.get_or_create(playlist=playlist, track=regional_song, defaults={"user": None})
+        install_graph_from_rows()
 
         response = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid}))
 
@@ -74,13 +79,14 @@ class TestCriteriaDetail(GenreTestCase):
         summary = response.json()["criteriaPlaylist"]
         assert summary["uuid"] == str(playlist.uuid)
         assert summary["genreOnlyTracksCount"] == 1
-        assert summary["genreAndSubgenresTracksCount"] == {"canonical": 1, "regional": 2, "all": 2}
+        assert summary["genreAndSubgenresTracksCount"] == {"canonical": 2, "regional": 2, "all": 2}
         assert TrackPlaylistRel.objects.filter(playlist=playlist, track=direct).exists()
 
     def test_child_only_catalogue_matches_tree(self):
         parent = self.model_fixture_factory.create_genre("Parent")
         child = self.model_fixture_factory.create_genre("Child", parent=parent)
         self.model_fixture_factory.create_song("Child song", genre=child, youtube_video_id=None)
+        install_graph_from_rows()
 
         detail = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()
         tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "canonical"}).json()
@@ -100,6 +106,7 @@ class TestCriteriaDetail(GenreTestCase):
         regional.additional_primary_parents.add(parent)
         CriteriaLineageRel.objects.create(descendant=regional, ascendant=parent, degree=1)
         self.model_fixture_factory.create_song("Song", genre=regional)
+        install_graph_from_rows()
 
         detail = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()
         tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "canonical"}).json()
@@ -109,7 +116,7 @@ class TestCriteriaDetail(GenreTestCase):
             == tree_parent["catalogue"]
             == {
                 "genreOnlyTracksCount": 0,
-                "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 1, "all": 1},
+                "genreAndSubgenresTracksCount": {"canonical": 1, "regional": 1, "all": 1},
             }
         )
 
@@ -123,6 +130,7 @@ class TestCriteriaDetail(GenreTestCase):
         )
         for genre in (parent, child, regional, regional_child):
             self.model_fixture_factory.create_song(f"Song {genre.name}", genre=genre)
+        install_graph_from_rows()
 
         parent_counts = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()["catalogue"]
         regional_counts = self.api_client.get(reverse("genre-detail", kwargs={"pk": regional.uuid})).json()["catalogue"]
@@ -130,9 +138,9 @@ class TestCriteriaDetail(GenreTestCase):
         assert parent_counts == next(row for row in tree if row["name"] == parent.name)["catalogue"]
         assert parent_counts == {
             "genreOnlyTracksCount": 1,
-            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 3, "all": 4},
+            "genreAndSubgenresTracksCount": {"canonical": 4, "regional": 3, "all": 4},
         }
-        assert regional_counts == {"genreOnlyTracksCount": 1, "genreAndSubgenresTracksCount": {"all": 2}}
+        assert regional_counts == {"genreOnlyTracksCount": 1, "genreAndSubgenresTracksCount": {"all": 1}}
 
     def test_tag_detail(self):
         tag = self.model_fixture_factory.create_tag("Live")
@@ -151,6 +159,7 @@ class TestCriteriaDetail(GenreTestCase):
                 song = self.model_fixture_factory.create_song(f"{genre.name} {index}", genre=genre)
                 song.artists.add(self.model_fixture_factory.create_artist(f"{genre.name} artist {index}"))
                 add_essential_song(genre, song)
+        install_graph_from_rows()
         with CaptureQueriesContext(connection) as small_queries:
             small_response = self._put_genre(small.uuid, {"summary": "Updated"})
         with CaptureQueriesContext(connection) as large_queries:

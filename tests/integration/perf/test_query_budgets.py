@@ -21,6 +21,7 @@ from grow.model.song.Song import Song
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 from tests.utils.query_budget import QueryCounts
+from tests.utils.song_graph import install_graph_from_rows
 
 # Genre playlist summaries read the graph, catalogue and membership buckets in one
 # statement. This is independent of page and song counts;
@@ -43,7 +44,7 @@ BUDGETS = {
     "plays-list": 4,
     "artist-list": 4,
     "artist-detail": 6,
-    "artist-genre-counts": 4,
+    "artist-genre-counts": 3,
 }
 
 factory = ModelFixtureFactory(default_user=None)
@@ -65,12 +66,14 @@ def _seed_genres(start: int, stop: int) -> None:
         genre = factory.create_genre(f"Genre {index}", parent=root)
         factory.create_tag(f"Tag {index}")
         factory.create_song(title=f"Track {index}", genre=genre)
+    install_graph_from_rows()
 
 
 def _seed_tracks(start: int, stop: int) -> None:
     genre = GenrePlaylist.objects.get(criteria__name="Root").criteria if start else factory.create_genre("Root")
     for index in range(start, stop):
         factory.create_song(title=f"Track {index}", genre=genre)
+    install_graph_from_rows()
 
 
 def _seed_plays(start: int, stop: int) -> None:
@@ -92,6 +95,7 @@ def _seed_artists(start: int, stop: int) -> None:
         album = factory.create_album(f"Album {index}")
         album.album_artists.set([band, member])
         factory.create_song(title=f"Track {index}", genre=genre, artists=[band, member])
+    install_graph_from_rows()
 
 
 def _seed_artist_genre_counts(start: int, stop: int) -> None:
@@ -101,6 +105,7 @@ def _seed_artist_genre_counts(start: int, stop: int) -> None:
         genre = factory.create_genre(f"Genre {index}", parent=root)
         factory.create_song(title=f"Track {index}", genre=genre, artists=[band])
         factory.create_song(title=f"Unplayable {index}", genre=genre, artists=[band], youtube_video_id=None)
+    install_graph_from_rows()
 
 
 def _root_playlist_path(name: str) -> str:
@@ -117,6 +122,7 @@ SNAPSHOT_ENDPOINTS = {
     "tag-playlist-detail",
     "genre-playlist-tracks",
     "playlist-tracks",
+    "artist-genre-counts",
 }
 
 
@@ -171,7 +177,7 @@ def test_query_count_is_constant_and_within_budget(endpoint):
     assert many_rows == BUDGETS[endpoint], f"{endpoint}: {many_rows} queries, budget {BUDGETS[endpoint]}"
 
 
-TREE_BUDGETS = {"cold": 6, "warm": 1, "not-modified": 1}
+TREE_BUDGETS = {"cold": 5, "warm": 1, "not-modified": 1}
 
 
 def _count_tree_queries(**headers) -> int:
@@ -211,6 +217,7 @@ def _count_reparent_queries(track_count: int) -> int:
     for index in range(track_count):
         factory.create_song(title=f"Moved track {track_count}-{index}", genre=moved)
         factory.create_song(title=f"Parent track {track_count}-{index}", genre=new_parent)
+    install_graph_from_rows()
     with CaptureQueriesContext(connection) as queries:
         Genre.objects.update_instance(moved, parent=new_parent)
     return len(queries.captured_queries)

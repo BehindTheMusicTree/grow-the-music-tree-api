@@ -16,6 +16,7 @@ from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlayl
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_graph_from_rows
 
 
 class TestMembershipProjection(AppTestCase):
@@ -88,6 +89,7 @@ class TestMembershipProjection(AppTestCase):
         song = self.model_fixture_factory.create_song("Song", genre=child)
         playlist = GenrePlaylist.objects.get(criteria=parent)
         TrackPlaylistRel.objects.filter(playlist=playlist, track=song).delete()
+        install_graph_from_rows()
         expected = {
             "genreOnlyTracksCount": 0,
             "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 0, "all": 0},
@@ -121,8 +123,10 @@ class TestMembershipProjection(AppTestCase):
         def summary():
             return genre_playlist_summaries({playlist.pk})[playlist.pk]
 
+        install_graph_from_rows()
         assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 0
         song = self.model_fixture_factory.create_song("Song", genre=child)
+        install_graph_from_rows()
         assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 1
         assert summary()["tracks_count"] == 1
         with transaction.atomic():
@@ -131,12 +135,6 @@ class TestMembershipProjection(AppTestCase):
             assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 1
             transaction.set_rollback(True)
         assert summary()["tracks_count"] == 1
-        with transaction.atomic():
-            child.parent = None
-            child.save()
-            assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 0
-            transaction.set_rollback(True)
-        assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 1
         assert summary()["tracks_count"] == 1
 
     def test_trigger_migration_can_be_reversed_and_replayed(self):

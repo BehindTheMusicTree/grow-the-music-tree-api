@@ -1,14 +1,13 @@
 from dataclasses import asdict
-from functools import lru_cache
 
 from django.db.models import Case, IntegerField, Value, When
 from rest_framework import serializers
 from the_music_tree_genre_kit.criteria.track_playlist_rel.tracks_count_annotation import tracks_count_annotation
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
+from the_music_tree_genre_kit.genre_graph.storage import graph_read_snapshot
 
 from grow.genre_music.artist import playlist_counts_from_rows
 from grow.genre_music.catalogue import GenreScopedCounts, catalogue_counts
-from grow.genre_music.selection import all_genre_selections
 from grow.genre_music.summary_inputs import summary_inputs
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 
@@ -23,43 +22,20 @@ def playlist_tracks_count_annotation():
     )
 
 
-@lru_cache(maxsize=1)
-def _catalogue_projection(rows: tuple, playlist_ids: frozenset):
-    # Key the pure projection by every source value, not a process-local version token:
-    # uncommitted reads and rollbacks must never poison another request's counts.
-    trees = {}
-    exact = {}
-    selected = set()
-    selected_rows = {}
-    for playlist, genre, count, tree, _, _ in rows:
-        exact[genre] = count
-        if genre is not None:
-            trees[genre] = tree
-        if playlist in playlist_ids:
-            selected_rows[playlist] = genre, tree
-            if genre is not None:
-                selected.add(genre)
-    edges = {
-        (parent, genre)
-        for _, genre, _, _, direct, extra in rows
-        for parent in (direct, extra)
-        if parent is not None and parent in trees and genre is not None
-    }
-    graph = trees, edges
-    selections = all_genre_selections(trees, edges, genres=selected)
-    catalogue = catalogue_counts(exact, graph, selections=selections)
-    return graph, selections, catalogue, selected_rows
-
-
 def genre_playlist_summaries(playlist_ids) -> dict:
-    """One statement snapshot for catalogue and actual membership summaries."""
+    """Catalogue and actual membership summaries, read from one graph snapshot."""
     playlist_ids = frozenset(playlist_ids)
-    rows, membership_rows = summary_inputs(playlist_ids)
-    graph, selections, catalogue, selected_rows = _catalogue_projection(rows, playlist_ids)
-    memberships = playlist_counts_from_rows(membership_rows, graph, selections=selections)
+    with graph_read_snapshot():
+        inputs = summary_inputs(playlist_ids)
+        closure, exact, owners = inputs.closure, inputs.exact, inputs.owners
+        selected = {genre for genre in owners.values() if genre is not None}
+        catalogue = catalogue_counts(exact, closure, genres=selected)
+        memberships = playlist_counts_from_rows(inputs.memberships, closure)
     summaries = {}
-    for playlist, (genre, tree) in selected_rows.items():
-        scopes = {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0}
+    for playlist, genre in owners.items():
+        scopes = (
+            {"canonical": 0, "regional": 0, "all": 0} if closure.tree_names.get(genre) == "canonical" else {"all": 0}
+        )
         counts = memberships.get(playlist, GenreScopedCounts(0, scopes))
         summaries[playlist] = {
             **asdict(counts),
