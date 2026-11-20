@@ -7,14 +7,18 @@ from grow.genre_graph.service import DATASET_KEY
 from grow.model.criteria.children.genre.Genre import Genre
 
 
-def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), regional=()):
+def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), regional=None):
     """Install explicit test semantics independently of Song.genre and display parents.
 
     assignments maps each graph genre to its directly attributed songs, including
     an empty list for nodes with no direct songs. Repeated songs model polygenre.
-    Every genre without a classification parent is a canonical root unless listed in ``regional``.
+    Every genre without a classification parent is a canonical root unless listed in ``regional``,
+    a mapping of each regional genre to its overview: it adds the ``regional_membership`` edge, which
+    (unlike ``anchoring``) is what makes a node regional.
     """
     node_overrides = node_overrides or {}
+    regional = regional or {}
+    relations = [*relations, *((genre, overview, "regional_membership") for genre, overview in regional.items())]
 
     def identity(genre):
         return f"LOCAL:{genre.pk}"

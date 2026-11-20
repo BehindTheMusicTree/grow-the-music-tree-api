@@ -60,8 +60,7 @@ class TestCase(AppTestCase):
         install_song_graph(
             {techno: [coarse], detroit: [fine]},
             node_overrides={techno: {"kind": "overview"}},
-            regional=[detroit],
-            relations=[(detroit, techno, "regional_membership")],
+            regional={detroit: techno},
         )
 
         type(coarse).objects.filter(pk=coarse.pk).update(genre=detroit)

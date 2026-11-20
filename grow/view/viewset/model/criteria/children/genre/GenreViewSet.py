@@ -15,6 +15,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
+from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
@@ -268,11 +270,19 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def alias_of(self, request: Request, *args, **kwargs) -> Response:
         serializer = GenreAliasOfSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        target = Genre.objects.alias_instance(
-            self.get_object(),
-            self._genre_by_uuid(serializer.validated_data["target"]),
-            **self._get_manager_write_kwargs(request),
-        )
+        try:
+            target = Genre.objects.alias_instance(
+                self.get_object(),
+                self._genre_by_uuid(serializer.validated_data["target"]),
+                **self._get_manager_write_kwargs(request),
+            )
+        except GraphRevisionConflict as error:
+            return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
+        except GraphValidationError as error:
+            return Response(
+                {"detail": str(error), "paths": [list(path) for path in getattr(error, "paths", [])]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return self._detailed(target)
 
     @action(detail=True, methods=["get"], url_path="alias-of/preview", permission_classes=[IsAdmin])

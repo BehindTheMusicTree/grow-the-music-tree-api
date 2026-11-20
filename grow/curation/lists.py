@@ -21,6 +21,8 @@ ITEM_ID_COLUMNS = frozenset(
         "child_item_id",
         "expression_item_id",
         "style_item_id",
+        "source_item_id",
+        "target_item_id",
     }
 )
 GRAPH_ITEM_ID_PATTERN = r"Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*"
@@ -173,6 +175,12 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "overview_item_id"),
         (),
         "Regional overview an item is anchored to.",
+    ),
+    "genre_merges": _graph_list(
+        ("source_item_id", "target_item_id"),
+        (),
+        "A node merged into another through the graph: the source's relations, display children and attributions "
+        "move to the target and the source is retired.",
     ),
     "regional_overview_types": _graph_list(
         ("item_id",),
@@ -406,6 +414,7 @@ GRAPH_LISTS = frozenset(
         "regional_memberships",
         "expression_styles",
         "regional_anchorings",
+        "genre_merges",
         "regional_overview_types",
     }
 )
@@ -413,7 +422,7 @@ GRAPH_LISTS = frozenset(
 (`grow.curation.rule_set`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
 before any row uses it."""
 
-GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "expression_styles", "regional_anchorings"})
+GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "expression_styles", "regional_anchorings", "genre_merges"})
 """Graph lists keyed by two item ids, which must differ."""
 
 ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
