@@ -82,6 +82,8 @@ def playlist_counts_from_rows(rows, closure: GraphClosure) -> dict:
     result = {}
     for playlist, counts in grouped.items():
         genre = owners[playlist]
+        if genre is not None and genre not in closure.selections:
+            continue  # genre without an active graph node: it has no semantic scopes to count
         direct = counts.get(genre, 0)
         if genre is None:
             values = {"all": direct}
