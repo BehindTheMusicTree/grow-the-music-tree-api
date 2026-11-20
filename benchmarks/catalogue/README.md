@@ -71,7 +71,7 @@ canonical songs only credit canonical artists, so no private name reaches it.
 
 `prepare.py` runs once per side, as `grow_perf_owner` inside the side's own image, with
 `DJANGO_SETTINGS_MODULE=grow_perf_settings` (inert secrets, `LocMemCache`, no `statement_timeout`, no network).
-The same two files prepare the base and the head, so they only call commands both versions ship. It stops at the
+The same two files prepare the base and the head, so they only call commands both versions ship (a base older than `verify_song_membership` fails fast with `Unknown command`). It stops at the
 first failure, logging a timestamped line per step:
 
 1. check PostgreSQL 16, then `migrate`;

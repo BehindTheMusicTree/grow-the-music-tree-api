@@ -1,6 +1,7 @@
 """Approved per-side preparation of a restored catalogue, run as ``grow_perf_owner`` inside the side's image.
 
-The same file prepares the base and the head code, so it only calls management commands that both versions ship.
+The same file prepares the base and the head code, so it only calls management commands that both versions ship;
+the base must already contain `verify_song_membership`.
 It stops at the first failure: a half-prepared database must never be measured. Order matters: the cheap
 derivation check runs before hours of projection rebuilds, and the count repairs run after the rebuilds.
 """
