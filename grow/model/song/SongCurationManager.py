@@ -1,5 +1,5 @@
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet
@@ -8,7 +8,7 @@ from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
-from grow.curation.admin_rules import invalid, upsert_admin_rule
+from grow.curation.admin_rules import admin_provenance, invalid, upsert_admin_rule
 from grow.curation.rows import InvalidRow, lock_writes
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources
@@ -75,6 +75,7 @@ class SongCurationManager:
                 "rule": rule.row if rule else None,
                 "was_manually_edited": song.is_manually_edited,
             }
+            provenance = admin_provenance(actor, "admin")
             upsert_admin_rule(
                 SONG_GENRE_LIST,
                 {
@@ -82,12 +83,8 @@ class SongCurationManager:
                     "genre_item_id": genre.wikidata_id if genre else "",
                 },
                 actor,
+                provenance=provenance,
             )
-            provenance = {
-                "decisionId": f"admin-{uuid4()}",
-                "source": "admin curation",
-                "rationale": f"Assigned by {getattr(actor, 'pk', None)}",
-            }
             if set_song_genre(song, genre, provenance=provenance):
                 Song.objects.record_semantic_genre_change(song, old_genre=old, actor=actor)
                 after = song_attribution_state(song)

@@ -17,7 +17,7 @@ from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.criteria.Fields import Fields
 
-from grow.curation.admin_rules import invalid, upsert_admin_rule
+from grow.curation.admin_rules import admin_provenance, invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
 from grow.curation.lists import ADDITION_LISTS, CANONICAL_ROOTS_LIST, EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
@@ -675,13 +675,11 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             {"musicbrainz_genre_name": source.name.lower(), "wikidata_genre_name": target.name},
             actor,
         )
-        from uuid import uuid4
-
         from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 
         from grow.genre_graph.service import DATASET_KEY, merge_reference_genres, set_song_genre
 
-        provenance = {"decisionId": f"alias-{uuid4()}", "source": "admin curation", "rationale": "Genre alias"}
+        provenance = admin_provenance(actor, "alias")
         if GenreGraphDataset.objects.filter(pk=DATASET_KEY).exists() and source.semantic_identity is not None:
             # The identity belongs to the graph: one revision moves relations and attributions, and the source's
             # row stays bound to its now inactive node.
@@ -691,10 +689,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 {
                     "source_item_id": source.semantic_identity,
                     "target_item_id": target.semantic_identity,
-                    "decision_id": provenance["decisionId"],
-                    "decision_source": provenance["source"],
                 },
                 actor,
+                provenance=provenance,
             )
         else:
             for song in list(self._songs_of(source)):

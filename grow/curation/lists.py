@@ -253,7 +253,7 @@ CURATION_LISTS: dict[str, CurationList] = {
     "song_genre": CurationList(
         "musicbrainz",
         ("musicbrainz_recording_id",),
-        ("musicbrainz_recording_id", "genre_item_id", "reason"),
+        ("musicbrainz_recording_id", "genre_item_id", *PROVENANCE_COLUMNS),
         "Genre an admin assigned to a song, overriding its MusicBrainz tags.",
     ),
     "recording_youtube_video": CurationList(

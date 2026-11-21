@@ -348,6 +348,26 @@ class TestCase(AppTestCase):
 
         assert export["entity_additions"] == [{"entity_id": "Q141814080", "entity_kind": "", "reason": "legacy"}]
 
+    def test_export_then_song_genre_rows_carry_provenance_columns(self):
+        CurationEntry.objects.create(
+            list_name="song_genre",
+            key="mbid-1",
+            values={"genre_item_id": "Q11399", "decision_id": "admin-1", "decision_source": "admin curation"},
+            reason="grow admin edit",
+        )
+
+        export = self.api_client.get(path=reverse("curation-export")).json()
+
+        assert export["song_genre"] == [
+            {
+                "musicbrainz_recording_id": "mbid-1",
+                "genre_item_id": "Q11399",
+                "decision_id": "admin-1",
+                "decision_source": "admin curation",
+                "reason": "grow admin edit",
+            }
+        ]
+
     def test_time_span_override_then_years_optional_integers(self):
         ok = self._create(
             {"entity_id": "Q153836", "start_year": "-3500", "end_year": "", "reason": "testing"},
