@@ -222,6 +222,23 @@ class TestMergeLocals(AppTestCase):
 
         assert _violations() == []
 
+    def test_derivation_local_declared_by_addition_list_then_no_violation(self):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
+            reason="r",
+        )
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _violations() == []
+
+    def test_derivation_naming_undeclared_local_then_violation(self):
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _kinds() == ["undeclared_local"]
+
     def test_merge_local_declared_by_local_identity_then_no_violation(self):
         _local("LOCAL:x", "genre", "d1")
         _graph("genre_merges", "LOCAL:x\tQ1", "d2")
