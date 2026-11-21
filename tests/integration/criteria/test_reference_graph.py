@@ -102,6 +102,40 @@ def test_e03_preserves_bindings_songs_duplicate_labels_and_retry(payload):
     assert not select_tracks(Song.objects.all(), node=_node("LOCAL:jamaica")).exists()
 
 
+def test_null_mapping_adopts_the_legacy_genre_with_that_wikidata_id(payload):
+    factory = ModelFixtureFactory(None)
+    dub = factory.create_genre("Dub", wikidata_id="LOCAL:dub")
+    song = factory.create_song("Assigned", dub)
+    dataset = import_graph(payload)
+    dub.refresh_from_db()
+    assert dub.graph_node.identity == "LOCAL:dub"
+    assert Genre.objects.filter(_name="Dub").count() == 4
+    assert list(GenreGraphAttribution.objects.values_list("track_id", "node__identity")) == [(song.pk, "LOCAL:dub")]
+    assert import_graph(payload, None, dataset.revision).revision == dataset.revision
+    assert Genre.objects.get(pk=dub.pk).graph_node.identity == "LOCAL:dub"
+
+
+def test_null_mapping_without_a_legacy_genre_creates_a_new_node(payload):
+    dataset = import_graph(payload)
+    assert Genre.objects.filter(graph_node__dataset=dataset).count() == len(payload["nodes"])
+
+
+def test_null_mapping_refuses_ambiguous_or_owned_wikidata_ids(payload):
+    factory = ModelFixtureFactory(None)
+    factory.create_genre("Dub", wikidata_id="LOCAL:dub")
+    factory.create_genre("Dub bis", wikidata_id="LOCAL:dub")
+    with pytest.raises(GraphValidationError, match="Several genres share"):
+        import_graph(payload)
+    assert GenreGraphImport.objects.count() == 0
+
+
+def test_null_mapping_refuses_a_genre_owned_by_another_identity(payload):
+    import_graph(payload)
+    Genre.objects.filter(graph_node__identity="LOCAL:roots").update(wikidata_id="LOCAL:new")
+    with pytest.raises(GraphValidationError, match="already belongs to identity LOCAL:roots"):
+        service._legacy_genres(["LOCAL:new"])
+
+
 def test_e02_missing_mapping_and_revision_rejected_atomically(payload):
     factory = ModelFixtureFactory(None)
     factory.create_genre("Unmapped")
