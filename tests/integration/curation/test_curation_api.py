@@ -665,6 +665,7 @@ class TestCase(AppTestCase):
             },
             "expression_styles": {"expression_item_id": "Q2", "style_item_id": "Q3", **PROVENANCE},
             "regional_anchorings": {"item_id": "Q4", "overview_item_id": "LOCAL:x", **PROVENANCE},
+            "genre_derivations": {"item_id": "Q6", "origin_item_id": "Q7", **PROVENANCE},
         }
         for index, (name, row) in enumerate(rows.items()):
             assert self._create({**row, "decision_id": f"ok-{index}"}, name).status_code == status.HTTP_201_CREATED
@@ -676,7 +677,7 @@ class TestCase(AppTestCase):
             ).status_code
             == status.HTTP_400_BAD_REQUEST
         )
-        for name in ("regional_memberships", "expression_styles", "regional_anchorings"):
+        for name in ("regional_memberships", "expression_styles", "regional_anchorings", "genre_derivations"):
             row = rows[name]
             first_column = CURATION_LISTS[name].key[0]
             second_column = CURATION_LISTS[name].key[1]

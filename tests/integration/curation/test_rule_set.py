@@ -168,6 +168,18 @@ class TestGraphViolations(AppTestCase):
 
         assert _kinds() == ["local_kind"]
 
+    def test_overview_as_derivation_end_then_violation(self):
+        _local("LOCAL:over-a", "overview", "d1")
+        _graph("genre_derivations", "Q1\tLOCAL:over-a", "d2")
+
+        assert _kinds() == ["local_kind"]
+
+    def test_genre_derivation_then_no_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("genre_derivations", "LOCAL:genre-a\tQ1", "d2")
+
+        assert _kinds() == []
+
     def test_membership_cycle_then_violation(self):
         _local("LOCAL:a", "overview", "d1")
         _local("LOCAL:b", "overview", "d2")

@@ -105,6 +105,7 @@ GraphRow = tuple[str, str, dict[str, Any]]
 LOCAL_PREFIX = "LOCAL:"
 MEMBERSHIP_LIST = "regional_memberships"
 MERGE_LIST = "genre_merges"
+DERIVATION_LIST = "genre_derivations"
 LOCAL_KIND_ROLES: tuple[tuple[str, str, str], ...] = (
     ("regional_anchorings", "overview_item_id", "overview"),
     ("regional_overview_types", "item_id", "overview"),
@@ -186,6 +187,12 @@ def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> 
                         {item},
                     )
                 )
+        if list_name == DERIVATION_LIST:
+            violations.extend(
+                Violation("local_kind", f"{item} is an overview, so it can't be an end of the derivation {key}", {item})
+                for item in items.values()
+                if kinds.get(item) == "overview"
+            )
         style = items.get("style_item_id")
         if list_name == "expression_styles" and kinds.get(style) == "overview":
             violations.append(
