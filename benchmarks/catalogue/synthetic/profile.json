@@ -1,0 +1,10 @@
+{
+  "source": "grow staging gtmt-api, 2026-11-21, aggregates only",
+  "rows": {"track": 31280773, "artist_song": 31280773, "history_entry": 17855417, "album": 4335938, "artist": 1943964,
+           "playlist_rel": 653498, "genre": 6133, "lineage_rel": 33497},
+  "songs_per_artist": {"artists_with_songs": 1668437, "p50": 5, "p90": 39, "p99": 210, "p999": 737, "max": 141427},
+  "tracks_per_genre": {"tagged_tracks": 15917111, "genres_with_tracks": 1641, "p50": 755, "p90": 18153, "p99": 170444,
+                       "p999": 753109, "max": 755887, "untagged_fraction": 0.49},
+  "genre_graph": {"nodes": 6133, "max_depth": 8, "children_p50": 2, "children_p99": 41, "children_max": 94,
+                  "subtree_p99": 450, "subtree_max": 4351}
+}
