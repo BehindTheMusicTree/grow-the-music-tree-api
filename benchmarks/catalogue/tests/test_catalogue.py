@@ -406,12 +406,13 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             f'INSERT INTO public."{GRAPH}dataset" (key, revision, membership_revision, payload) VALUES '
             f"('k', '{uid(1)}', '{uid(1)}', '{{}}');"
         )
-        self.sql(SQL, success=False)
+        self.assertIn(f"catalogue verification failed: {GRAPH}dataset", self.sql(SQL, success=False))
         self.assertEqual(self.count(TRACK), 4)
 
     def test_retained_criteria_cannot_reference_the_graph(self):
         self.sql("UPDATE public.grow_criteria SET graph_node_id = 1 WHERE user_id IS NULL;")
-        self.sql(SQL, success=False)
+        self.assertIn("catalogue verification failed: grow_criteria", self.sql(SQL, success=False))
+        self.assertEqual(self.count(TRACK), 4)
 
     def test_hostile_search_path_does_not_redirect_projection(self):
         self.sql("CREATE SCHEMA hostile; CREATE TABLE hostile.grow_song (private_payload text);")
