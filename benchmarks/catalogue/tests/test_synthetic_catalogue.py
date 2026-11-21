@@ -28,6 +28,8 @@ SELECT json_build_object(
                                     WHERE genre_id IS NOT NULL GROUP BY genre_id) t),
   'top_artist', (SELECT max(c) FROM (SELECT count(*) c FROM the_music_tree_genre_kit_track_artists
                                      GROUP BY artist_id) t),
+  'genre_type_rows', (SELECT count(*) FROM grow_criteria c JOIN the_music_tree_genre_kit_criteriatype t
+                      ON t.id = c.type_id WHERE t.label = 'genre' AND c.type_id = 0),
   'depth', (SELECT max(degree) FROM grow_criteria_lineage_rel),
   'lineage', (SELECT count(*) FROM grow_criteria_lineage_rel),
   'children_max', (SELECT max(c) FROM (SELECT count(*) c FROM grow_criteria GROUP BY parent_id) t
@@ -37,14 +39,21 @@ SELECT json_build_object(
 
 
 def psql(sql):
-    return subprocess.run(
-        ["psql", URL, "-q", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql], check=True, capture_output=True, text=True
-    ).stdout.strip()
+    done = subprocess.run(
+        ["psql", URL, "-q", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql], capture_output=True, text=True, check=False
+    )
+    if done.returncode:
+        raise RuntimeError(done.stderr)
+    return done.stdout.strip()
 
 
 def generate():
     psql(f"TRUNCATE {ROOTS} CASCADE")
-    subprocess.run(["bash", str(SYNTHETIC / "generate.sh"), URL, str(DIVISOR)], check=True, capture_output=True)
+    done = subprocess.run(
+        ["bash", str(SYNTHETIC / "generate.sh"), URL, str(DIVISOR)], capture_output=True, text=True, check=False
+    )
+    if done.returncode:
+        raise RuntimeError(done.stderr)
 
 
 @unittest.skipUnless(URL, "set GROW_SYNTHETIC_DATABASE_URL to a migrated empty PostgreSQL database")
@@ -60,7 +69,10 @@ class SyntheticCatalogueTest(unittest.TestCase):
         self.assertEqual(first, psql(FINGERPRINT_SQL))
 
         graph = PROFILE["genre_graph"]
-        self.assertAlmostEqual(shape["untagged"] / shape["tracks"], PROFILE["tracks_per_genre"]["untagged_fraction"], 1)
+        self.assertAlmostEqual(
+            shape["untagged"] / shape["tracks"], PROFILE["tracks_per_genre"]["untagged_fraction"], delta=0.02
+        )
+        self.assertEqual(shape["genre_type_rows"], PROFILE["rows"]["genre"])
         # Genre count is not scaled, so the genre-side shares and the graph compare directly with staging.
         tagged = shape["tracks"] - shape["untagged"]
         self.within(
@@ -70,7 +82,7 @@ class SyntheticCatalogueTest(unittest.TestCase):
         )
         self.within(shape["depth"], graph["max_depth"], "graph depth")
         self.within(shape["lineage"], PROFILE["rows"]["lineage_rel"], "lineage rows")
-        self.assertLessEqual(shape["children_max"], graph["children_max"] * TOLERANCE)
+        self.within(shape["children_max"], graph["children_max"], "max children")
         # The top artist share depends on the artist count (draw u**2.7 over N artists), so check the closed form
         # at this scale; the staging value itself is checked at full scale by the fidelity run.
         artists = PROFILE["rows"]["artist"] // DIVISOR

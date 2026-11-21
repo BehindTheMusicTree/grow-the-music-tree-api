@@ -1,12 +1,19 @@
 -- Synthetic Grow catalogue calibrated on staging aggregates (profile.json, 2026-11-21), for the catalogue benchmark
--- (#511). Run with psql against a migrated schema: -v songs=N -v artists=N -v albums=N -v genres=N -v rels=N.
+-- (#511). Run with psql against a migrated schema: -v songs=N -v artists=N -v albums=N -v genres=6133 -v tagged_genres=N -v rel_stride=N
+-- (genres must be 6133: the graph level sizes are tuned for it).
 -- Same seed and variables give the same rows. Skews follow profile.json: songs per artist (largest artist about 0.45% of songs),
 -- largest genre about 4.7% of the genre-tagged tracks, 49% of tracks without a genre.
 \set ON_ERROR_STOP on
 BEGIN;
 SELECT setseed(0.511);
 
-INSERT INTO the_music_tree_genre_kit_criteriatype (id, label) VALUES (1, 'genre') ON CONFLICT DO NOTHING;
+-- Criteria type 0 is genre (seeded by migration 0002); the reference-genre constraint requires it.
+SELECT :genres = 6133 AS genres_ok \gset
+\if :genres_ok
+\else
+  \echo 'generate.sql: genres must be 6133 (graph level sizes are tuned for it)'
+  SELECT 1 / 0;
+\endif
 
 INSERT INTO grow_artist (uuid, name, created_on, ended, recording_count, musicbrainz_artist_id, country, begin_year)
 SELECT md5('a' || i)::uuid, 'Artist ' || i, now(), false, 0, md5('ma' || i)::uuid,
@@ -45,7 +52,7 @@ LEFT JOIN synthetic_genre_range pr ON pr.lvl = r.lvl - 1;
 
 INSERT INTO grow_criteria (uuid, created_on, name, parent_id, root_id, type_id, tree_name)
 SELECT md5('g' || i)::uuid, now(), 'Genre ' || i, CASE WHEN parent IS NULL THEN NULL ELSE md5('g' || parent)::uuid END,
-       md5('g1')::uuid, 1, 'genre'
+       md5('g1')::uuid, 0, 'genre'
 FROM synthetic_genre_parent;
 
 INSERT INTO grow_genre (criteria_ptr_id, is_excluded, is_manually_edited, source, has_name_conflict, is_unaccepted_root,
@@ -65,7 +72,7 @@ INSERT INTO the_music_tree_genre_kit_playlist (uuid, created_on, play_count)
 SELECT md5('p' || i)::uuid, now(), 0 FROM generate_series(1, :genres) AS i;
 
 INSERT INTO grow_criteria_playlist (playlist_id, criteria_id, type_id, views_count)
-SELECT md5('p' || i)::uuid, md5('g' || i)::uuid, 1, 0 FROM generate_series(1, :genres) AS i;
+SELECT md5('p' || i)::uuid, md5('g' || i)::uuid, 0, 0 FROM generate_series(1, :genres) AS i;
 
 -- Tracks: 49% have no genre. The others are split between the first :tagged_genres genres by a quota curve that
 -- interpolates, in log-log, the staging quantiles of tracks per genre (rank fraction -> tracks: 0.001 -> 753109,
