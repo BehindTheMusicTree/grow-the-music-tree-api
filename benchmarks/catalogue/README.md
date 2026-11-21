@@ -162,6 +162,21 @@ CI qualifies it with `tests/test_hosted.py` (fake Docker),
 `tests/test_hosted_postgres.py` (PostgreSQL 16 handoff) and `qualification.py`
 (real Docker isolation, root, disposable GitHub-hosted runner only).
 
+## Synthetic catalogue
+
+`synthetic/generate.sh <database-url> [scale-divisor]` fills a migrated, empty database with a synthetic catalogue
+calibrated on aggregates read from staging (`synthetic/profile.json`, no row data): songs per artist, tracks per genre,
+49% untagged tracks, genre graph depth and lineage size, playlist rel volume. Divisor 1 is the staging scale (31M songs);
+`generate.sql` is seeded (`setseed`), so the same variables give the same rows. It is an alternative to a prod bundle
+for catalogue benchmarks; it carries no prod data and no migration can invalidate it, since it is generated on the
+current schema.
+
+`tests/test_synthetic_catalogue.py` generates at 1/1000 scale twice into the database named by
+`GROW_SYNTHETIC_DATABASE_URL` (migrated, empty; it is truncated) and checks determinism and the shape within 1.5x. The
+children and subtree percentiles of the graph are not matched (the generator hits depth, lineage and max children, not
+the p99 of children per genre). Fidelity at full scale (plans of the heavy queries against staging) needs a runner
+sized like the capacity probe, not a laptop.
+
 ## Validation
 
 From the repository root (the suite uses `unittest`, not pytest, and stays out of

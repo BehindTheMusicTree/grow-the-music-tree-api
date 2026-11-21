@@ -23,11 +23,25 @@ UNION ALL
 SELECT md5('al' || i)::uuid, md5('a' || (1 + (i * 7 + 3) % :artists))::uuid
 FROM generate_series(1, :albums) AS i WHERE i % 6 = 0 AND (i * 7 + 3) % :artists <> i % :artists;
 
--- Genre graph: node 1 is the root, every other node hangs under an earlier node (power < 1 favours early nodes, which
--- gives the wide hubs and the shallow depth of the real graph). Lineage holds every ancestor pair, self included.
+-- Genre graph: node 1 is the root and nodes are laid out in levels whose sizes (a share of the node count, tuned so the
+-- depth and the lineage row count match staging) sum to :genres. A node hangs under a node of the level above, drawn
+-- with a power skew that gives the wide hubs; the level-2 nodes get a stronger skew so one branch holds most of the
+-- tree, as staging does. A flat power law over all earlier nodes cannot reach depth 8 with at most 94 children.
+CREATE TEMP TABLE synthetic_genre_level AS
+WITH share (lvl, n, skew) AS (VALUES (0, 1, 1.0), (1, 15, 2.3), (2, 200, 6.0), (3, 1000, 2.3), (4, 1950, 2.3),
+                                     (5, 1700, 2.3), (6, 900, 2.3), (7, 300, 2.3), (8, 67, 2.3))
+SELECT lvl, skew, CASE WHEN lvl = 8 THEN :genres - SUM(n) OVER (ORDER BY lvl ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING)
+                       ELSE round(n * :genres / 6133.0) END AS n
+FROM share;
+CREATE TEMP TABLE synthetic_genre_range AS
+SELECT lvl, skew, n, COALESCE(SUM(n) OVER (ORDER BY lvl ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING), 0) AS first_id
+FROM synthetic_genre_level;
 CREATE TEMP TABLE synthetic_genre_parent AS
-SELECT i, CASE WHEN i = 1 THEN NULL ELSE 1 + floor((i - 1) * power(random(), 2.2))::int END AS parent
-FROM generate_series(1, :genres) AS i;
+SELECT i, CASE WHEN r.lvl = 0 THEN NULL
+               ELSE (pr.first_id + 1 + floor(pr.n * power(random(), r.skew)))::int END AS parent
+FROM generate_series(1, :genres) AS i
+JOIN synthetic_genre_range r ON i > r.first_id AND i <= r.first_id + r.n
+LEFT JOIN synthetic_genre_range pr ON pr.lvl = r.lvl - 1;
 
 INSERT INTO grow_criteria (uuid, created_on, name, parent_id, root_id, type_id, tree_name)
 SELECT md5('g' || i)::uuid, now(), 'Genre ' || i, CASE WHEN parent IS NULL THEN NULL ELSE md5('g' || parent)::uuid END,
