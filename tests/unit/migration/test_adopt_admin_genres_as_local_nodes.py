@@ -105,6 +105,20 @@ class TestCase(TransactionTestCase):
             assert Genre.objects.get(pk=skipped.pk).wikidata_id is None
         assert Genre.objects.get(pk=under_scene.pk).wikidata_id == "LOCAL:under-scene"
 
+    def test_forward_then_scene_split_known_only_from_the_tree_skips_children_of_the_split(self):
+        apps = migrate(BEFORE)
+        rock = self._genre(apps, "Rock", wikidata_id="Q1")
+        split = self._genre(apps, "Split", parent=rock, wikidata_id="Q4")
+        self._genre(apps, "Scene", parent=split, wikidata_id="Q5")
+        under_split = self._genre(apps, "Under split", parent=split)
+        apps.get_model("grow", "CurationEntry").objects.create(
+            list_name="canonical_genre_scene", key="Q5", values={"scene": "commercial"}, reason="r"
+        )
+
+        apps = migrate(AFTER)
+
+        assert apps.get_model("grow", "Genre").objects.get(pk=under_split.pk).wikidata_id is None
+
     def test_forward_then_ids_taken_by_any_local_list_or_genre_are_not_reused(self):
         apps = migrate(BEFORE)
         rock = self._genre(apps, "Rock", wikidata_id="Q1")

@@ -57,6 +57,14 @@ def adopt_admin_genres(apps, schema_editor):
         )
         if item in scene_keys
     }
+    # A scene node placed by the pipeline's own tree has no curated edge: its Genre row shows the split.
+    split_parents |= {
+        item_ids[parent_id]
+        for parent_id, wikidata_id in Genre.objects.filter(
+            wikidata_id__in=scene_keys, parent__isnull=False
+        ).values_list("parent_id", "wikidata_id")
+        if parent_id in item_ids
+    }
 
     # Parents before children: a pass adopts every pending genre whose parent already has an item id.
     while pending:
