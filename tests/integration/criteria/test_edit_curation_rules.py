@@ -520,3 +520,18 @@ class TestAdminCreatedGenreAdoption(GenreTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not Genre.objects.filter(_name="Orphan").exists()
         assert not CurationEntry.objects.filter(list_name="canonical_parent_additions", key="LOCAL:orphan").exists()
+
+    def test_create_with_slug_taken_by_existing_genre_or_seeded_list_then_suffixed(self):
+        self.model_fixture_factory.create_genre("Squatter", wikidata_id="LOCAL:lol-music")
+        CurationEntry.objects.create(
+            user=None,
+            list_name="local_identities",
+            key="LOCAL:lol-music-2",
+            values={"kind": "genre", "label": "X", "decision_id": "d", "decision_source": "s"},
+            reason="r",
+        )
+
+        response = self._post_genre(data={"name": "Lol Music", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Genre.objects.get(uuid=response.json()["uuid"]).wikidata_id == "LOCAL:lol-music-3"

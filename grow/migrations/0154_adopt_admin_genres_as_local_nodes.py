@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 
 ADDITIONS = "canonical_parent_additions"
 ADDITION_LISTS = (ADDITIONS, "regional_overview_additions")
+# Lists whose keys are `LOCAL:` ids a new node must not reuse.
+IDENTITY_LISTS = (*ADDITION_LISTS, "local_identities", "canonical_roots")
+SCENE_LIST = "canonical_genre_scene"
 REASON = "grow migration: app-created genre adopted as a node"
 
 
@@ -26,7 +29,7 @@ def adopt_admin_genres(apps, schema_editor):
     Entry = apps.get_model("grow", "CurationEntry")
     Rule = apps.get_model("grow", "GenreEdgeRule")
 
-    taken = set(Entry.objects.filter(user=None, list_name__in=ADDITION_LISTS).values_list("key", flat=True))
+    taken = set(Entry.objects.filter(user=None, list_name__in=IDENTITY_LISTS).values_list("key", flat=True))
     taken |= set(Genre.objects.filter(wikidata_id__startswith="LOCAL:").values_list("wikidata_id", flat=True))
 
     pending = list(
@@ -38,9 +41,21 @@ def adopt_admin_genres(apps, schema_editor):
             semantic_identity__isnull=True,
         ).order_by("created_on", "pk")
     )
+    # Only canonical, non-excluded genres can parent a new node (the admin refuses the others the same way).
     item_ids = {
         pk: wikidata_id
-        for pk, wikidata_id in Genre.objects.filter(wikidata_id__isnull=False).values_list("pk", "wikidata_id")
+        for pk, wikidata_id in Genre.objects.filter(
+            wikidata_id__isnull=False, tree_name="canonical", is_excluded=False
+        ).values_list("pk", "wikidata_id")
+    }
+    # A genre with a scene child is a scene split: a new, scene-less node can't sit directly under it.
+    scene_keys = set(Entry.objects.filter(user=None, list_name=SCENE_LIST).values_list("key", flat=True))
+    split_parents = {
+        parent
+        for item, parent in Rule.objects.filter(user=None, relation="canonical_parent").values_list(
+            "item_id", "parent_item_id"
+        )
+        if item in scene_keys
     }
 
     # Parents before children: a pass adopts every pending genre whose parent already has an item id.
@@ -50,6 +65,14 @@ def adopt_admin_genres(apps, schema_editor):
             parent_item_id = item_ids.get(genre.parent_id) if genre.parent_id is not None else None
             if parent_item_id is None:
                 remaining.append(genre)
+                continue
+            if parent_item_id in split_parents:
+                logger.warning(
+                    "Genre %r (%s) left unadopted: its parent %s is split into scenes",
+                    genre._name,
+                    genre.uuid,
+                    parent_item_id,
+                )
                 continue
             item_id, n = f"LOCAL:{slugify(genre._name)}", 1
             base = item_id

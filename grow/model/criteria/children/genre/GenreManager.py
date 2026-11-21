@@ -73,7 +73,11 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             r"[^a-z0-9]+", "-", unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode().lower()
         )
         slug = slug.strip("-") or "genre"
-        taken = set(CurationEntry.objects.filter(user=None, list_name__in=ADDITION_LISTS).values_list("key", flat=True))
+        taken = set(
+            CurationEntry.objects.filter(
+                user=None, list_name__in=(*ADDITION_LISTS, "local_identities", CANONICAL_ROOTS_LIST)
+            ).values_list("key", flat=True)
+        )
         candidate, n = f"LOCAL:{slug}", 1
         while candidate in taken or self.filter(wikidata_id=candidate).exists():
             n += 1
