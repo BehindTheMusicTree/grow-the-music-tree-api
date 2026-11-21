@@ -7,5 +7,5 @@ d=${2:-1}
 here=$(cd "$(dirname "$0")" && pwd)
 psql "$url" -q -v ON_ERROR_STOP=1 \
   -v songs=$((31280773 / d)) -v artists=$((1943964 / d)) -v albums=$((4335938 / d)) \
-  -v genres=6133 -v tagged_genres=1641 -v rel_stride=48 \
+  -v genres=6133 -v tagged_genres=1641 -v rel_stride=24 \
   -f "$here/generate.sql"
