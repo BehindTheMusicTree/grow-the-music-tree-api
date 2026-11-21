@@ -1,8 +1,9 @@
 from django.urls import reverse
 from rest_framework import status
-from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttribution, GenreGraphEvidence
 
 from grow.genre_graph.service import song_attribution_state, song_genre
+from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.song_graph import install_song_graph
@@ -34,6 +35,31 @@ class TestCase(AppTestCase):
         assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None}]
         assert song_genre(Song.objects.get(pk=song.pk)) == rock
         assert Song.objects.get(pk=song.pk).genre_id is None
+
+    def test_with_dataset_then_evidence_equals_the_rule_provenance(self):
+        rock, jazz, song = self._setup()
+        install_song_graph({rock: [], jazz: []})
+
+        self._assign([song], rock)
+
+        rule = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None)
+        evidence = GenreGraphEvidence.objects.get(decision_id=rule.values["decision_id"])
+        assert (evidence.source, evidence.rationale) == (rule.values["decision_source"], rule.reason)
+
+    def test_with_dataset_then_undo_restores_the_rule_with_its_provenance(self):
+        rock, jazz, song = self._setup()
+        install_song_graph({rock: [], jazz: []})
+        self._assign([song], rock)
+        before = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None).row
+
+        undo = self.api_client.post(
+            path=reverse("song-undo-assign-genre"),
+            data={"undoToken": self._assign([song], jazz).json()["undoToken"]},
+            format="json",
+        )
+
+        assert undo.status_code == status.HTTP_204_NO_CONTENT
+        assert CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None).row == before
 
     def test_with_dataset_then_move_reports_previous_and_replaces_attribution(self):
         rock, jazz, song = self._setup()

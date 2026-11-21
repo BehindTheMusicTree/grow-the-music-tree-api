@@ -96,6 +96,12 @@ class TestCase(AppTestCase):
         self.target.refresh_from_db()
         assert receipt.retirements[source.semantic_identity]["target"] == self.target.semantic_identity
         assert GenreTreeVersion.objects.get(pk=1).token != token
+        rule = CurationEntry.objects.get(list_name="genre_merges", user=None)
+        assert {
+            "decisionId": rule.values["decision_id"],
+            "source": rule.values["decision_source"],
+            "rationale": rule.reason,
+        } == receipt.retirements[source.semantic_identity]["provenance"]
 
     def test_alias_of_then_counts_follow_source_attributions(self):
         self._install()

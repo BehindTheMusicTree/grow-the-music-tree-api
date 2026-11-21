@@ -74,6 +74,22 @@ class TestCase(AppTestCase):
         assert not song.is_manually_edited
         assert self._rule("song_genre") == []
 
+    def test_assign_then_unlink_then_rule_carries_admin_provenance(self):
+        rock = self._rock()
+        song = self._song()
+
+        self._assign([song], rock)
+        assigned = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None)
+        self._assign([song], None)
+        unlinked = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None)
+
+        for entry in (assigned, unlinked):
+            assert entry.values["decision_id"].startswith("admin-")
+            assert entry.values["decision_source"] == "admin curation"
+            assert entry.reason.startswith("grow admin edit by ")
+        assert assigned.values["decision_id"] != unlinked.values["decision_id"]
+        assert unlinked.values["genre_item_id"] == ""
+
     def test_undo_restores_previous_rule_row(self):
         rock, jazz = self._rock(), self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q8341")
         song = self._song()
