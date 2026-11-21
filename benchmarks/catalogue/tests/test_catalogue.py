@@ -262,15 +262,6 @@ class CataloguePostgresFixture(unittest.TestCase):
         for table in ("grow_artist_alias", "grow_artist_link"):
             for number in (1, 3):
                 statements.append(insert(table, id=number, artist_id=uid(number)))
-        for number in (1, 3):
-            statements.extend(
-                [
-                    insert(f"{GRAPH}attribution", id=number, track_id=uid(number)),
-                    insert(f"{GRAPH}attributionevidence", id=number, attribution_id=number),
-                    insert(f"{GRAPH}assignmentstate", id=number, track_id=uid(number)),
-                    insert(f"{GRAPH}attributionrevision", track_id=uid(number)),
-                ]
-            )
         self.sql("\n".join(statements))
 
     def count(self, table):
@@ -297,10 +288,6 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             "grow_criteria_additional_primary_parents": 2,
             "grow_criteria_secondary_parents": 2,
             "grow_genre_essential_songs": 1,
-            f"{GRAPH}attribution": 1,
-            f"{GRAPH}attributionevidence": 1,
-            f"{GRAPH}assignmentstate": 1,
-            f"{GRAPH}attributionrevision": 1,
             # Derived rows of user songs, private artists and missing songs are pruned, the state rows survive.
             "grow_song_search": 2,
             "grow_artist_song": 1,
@@ -407,12 +394,24 @@ class CataloguePostgresTest(CataloguePostgresFixture):
         self.sql(SQL)
         self.assertEqual(self.count(TRACK), 2)
         self.setUp()
-        for table in (f"{GRAPH}node", "grow_song"):
+        for table in ("grow_song", "grow_criteria"):
             with self.subTest(table=table):
                 self.sql(f'ALTER TABLE public."{table}" SET UNLOGGED;')
                 self.sql(SQL, success=False)
                 self.assertEqual(self.count(TRACK), 4)
                 self.setUp()
+
+    def test_genre_graph_payload_is_refused(self):
+        self.sql(
+            f'INSERT INTO public."{GRAPH}dataset" (key, revision, membership_revision, payload) VALUES '
+            f"('k', '{uid(1)}', '{uid(1)}', '{{}}');"
+        )
+        self.sql(SQL, success=False)
+        self.assertEqual(self.count(TRACK), 4)
+
+    def test_retained_criteria_cannot_reference_the_graph(self):
+        self.sql("UPDATE public.grow_criteria SET graph_node_id = 1 WHERE user_id IS NULL;")
+        self.sql(SQL, success=False)
 
     def test_hostile_search_path_does_not_redirect_projection(self):
         self.sql("CREATE SCHEMA hostile; CREATE TABLE hostile.grow_song (private_payload text);")

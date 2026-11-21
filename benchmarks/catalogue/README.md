@@ -64,6 +64,9 @@ state matches and the A/B comparison stays fair. REBUILD tables (the two
 count tables) stay empty in the dump and are rebuilt by preparation. The
 tree-version singleton is RETAIN: it holds one token row, and neither `migrate`
 nor the count verifications recreate it.
+The whole genre graph (`the_music_tree_genre_kit_genregraph*`) is EMPTY: its payloads, retirements and curation
+rationales are not reference catalogue, and every graph table carries a `dataset_id` foreign key, so no subset can be kept.
+The projection requires `grow_criteria.graph_node_id` to be NULL on retained rows.
 Limitation: pruning drops derived rows of missing songs and artists but does not
 recompute a retained song's search document, which aggregates its artists' names;
 canonical songs only credit canonical artists, so no private name reaches it.

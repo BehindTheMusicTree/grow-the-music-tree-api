@@ -20,7 +20,9 @@ TYPES = "the_music_tree_genre_kit_criteriatype"
 SCHEMA = Path(__file__).with_name("catalogue-schema.tsv")
 
 # Every new table requires a reviewed decision, including tables whose data is
-# excluded. Opaque snapshots can embed private objects, so are never copied.
+# excluded. Opaque snapshots can embed private objects, so are never copied. The whole genre graph is schema-only:
+# its payloads and curation rationales are not reference catalogue, and every graph table has a dataset foreign key,
+# so keeping nodes without their dataset is impossible.
 EMPTY = frozenset(
     [
         "auth_group",
@@ -62,6 +64,15 @@ EMPTY = frozenset(
         "grow_song_import_staging",
         "grow_user_profile",
         "the_music_tree_genre_kit_importrun",
+        f"{GRAPH}access",
+        f"{GRAPH}assignmentstate",
+        f"{GRAPH}attribution",
+        f"{GRAPH}attributionevidence",
+        f"{GRAPH}attributionrevision",
+        f"{GRAPH}dataset",
+        f"{GRAPH}evidence",
+        f"{GRAPH}node",
+        f"{GRAPH}revision",
     ]
 )
 REBUILD = frozenset(
@@ -135,10 +146,6 @@ DEPENDENTS = {
         missing_reference("genre_id", "grow_genre", "criteria_ptr_id"),
         missing_reference("song_id", "grow_song", "track_id"),
     ),
-    f"{GRAPH}attribution": (missing_reference("track_id", TRACK),),
-    f"{GRAPH}attributionevidence": (missing_reference("attribution_id", f"{GRAPH}attribution", "id"),),
-    f"{GRAPH}assignmentstate": (missing_reference("track_id", TRACK),),
-    f"{GRAPH}attributionrevision": (missing_reference("track_id", TRACK),),
     f"{TRACK}_artists": (missing_reference("track_id", TRACK), missing_reference("artist_id", "grow_artist")),
     f"{TRACK}_playlist_rel": (
         '"user_id" IS NOT NULL',
@@ -155,14 +162,6 @@ DEPENDENTS = {
 }
 
 
-# Canonical graph tables hold no user_id: only the track-keyed ones are pruned.
-GRAPH_TABLES = (
-    "access",
-    "dataset",
-    "evidence",
-    "node",
-    "revision",
-)
 TREE_VERSION = "grow_genre_tree_version"
 RETAIN = (
     frozenset(ROOTS)
@@ -170,7 +169,6 @@ RETAIN = (
     # The tree-version singleton is one token row without private data; migrate does not recreate it and the count
     # verifications refuse to.
     | {TYPES, "grow_wikidata_item", TREE_VERSION}
-    | {f"{GRAPH}{name}" for name in GRAPH_TABLES}
 )
 
 # Missing public references must fail instead of silently changing catalogue
@@ -185,7 +183,6 @@ REFERENCES = (
     # Derived from Track.genre_id or the graph attribution (migration 0140). Its
     # derivation is verified after restore, not re-implemented here.
     ("grow_song", "genre_id", "grow_genre", "criteria_ptr_id"),
-    ("grow_criteria", "graph_node_id", f"{GRAPH}node", "id"),
     (f"{TRACK}_playlist_rel", "genre_id", "grow_criteria", "uuid"),
 )
 
@@ -335,6 +332,8 @@ def projection_sql(tsv: str) -> str:
         _require_empty(table, f'"{column}" IS NOT NULL AND {missing_reference(column, target, key)}')
         for table, column, target, key in REFERENCES
     ]
+    # The graph is schema-only, so no retained criterion may point into it.
+    checks.append(_require_empty("grow_criteria", '"graph_node_id" IS NOT NULL'))
     checks.append(
         f'IF (SELECT count(*) FROM "public"."{rel}" AS candidate '
         f'JOIN "public"."{TRACK}" AS retained ON retained."uuid"=candidate."track_id" '
