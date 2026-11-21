@@ -30,7 +30,9 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
 
     def test_admin_write_then_ownerless_row(self):
-        response = self.api_client.post(path=reverse("genre-list"), data={"name": "Rock"})
+        parent = self.model_fixture_factory.create_genre("Music", wikidata_id="Q1")
+
+        response = self.api_client.post(path=reverse("genre-list"), data={"name": "Rock", "parent": str(parent.uuid)})
 
         assert response.status_code == status.HTTP_201_CREATED
         assert Genre.objects.get(name="Rock").user is None
