@@ -284,6 +284,34 @@ def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
     assert graph_client("pipeline").put(url, body, format="json").json() == response.json()
 
 
+def test_e01_graph_endpoint_accepts_contract_3_derivation_relation(payload):
+    payload = {
+        **payload,
+        "contractVersion": 3,
+        "relations": [
+            *payload["relations"],
+            {
+                "childId": "LOCAL:reggae-fusion",
+                "parentId": "LOCAL:roots",
+                "type": "derivation",
+                "provenance": {
+                    "decisionId": "derivation-reggae-fusion-roots",
+                    "source": "synthetic fixture",
+                    "rationale": "Synthetic derivation relation.",
+                },
+            },
+        ],
+    }
+    record_graph_export(payload)
+    url = reverse("reference-graph")
+    body = {"graph": payload, "mapping": {node["id"]: None for node in payload["nodes"]}, "expectedRevision": None}
+    response = graph_client("pipeline").put(url, body, format="json")
+    assert response.status_code == 200, response.data
+    loaded = APIClient().get(url).json()
+    assert loaded["graph"]["contractVersion"] == 3
+    assert [r["type"] for r in loaded["graph"]["relations"]].count("derivation") == 1
+
+
 def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(payload):
     song = ModelFixtureFactory(None).create_song("Unknown", None)
     dataset = import_graph(payload)

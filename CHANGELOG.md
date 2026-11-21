@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Bumps `the-music-tree-genre-kit` to v0.70.0 (genre graph 0.4.0): the reference graph endpoint now accepts contract version 3 graphs, which carry the `derivation` relation. Contract 2 graphs stay valid. A test imports and reads back a contract 3 graph with a `derivation` relation.
+
 ### Added
 
 - Curation list `genre_derivations` (migration `0153`, header-only seed): `(item_id, origin_item_id)` pairs with decision provenance declare the graph's `derivation` relation (genre-kit contract 3), taking priority over Wikidata and MusicBrainz-derived ones. A `LOCAL:` end declared `overview` is a `local_kind` violation. Tests cover the CRUD round trip and the rule-set checks.
