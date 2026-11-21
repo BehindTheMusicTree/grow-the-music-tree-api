@@ -124,15 +124,14 @@ def build_graph(trees: list[dict]) -> dict:
     }
 
 
-def identity_mapping(graph: dict, genres: list[dict]) -> dict[str, str | None]:
-    """Gold id → genre UUID through Genre.wikidata_id (which stores the Gold id), never by label."""
-    by_gold_id = {genre["wikidata_id"]: genre["uuid"] for genre in genres if genre.get("wikidata_id")}
-    mapping = {node["id"]: by_gold_id.get(node["id"]) for node in graph["nodes"]}
-    # An overview has no genre row: it maps to null, like any new node.
-    missing = [identity for identity, pk in mapping.items() if pk is None and identity != OVERVIEW_ID]
+def identity_mapping(graph: dict, genres: list[dict]) -> dict[str, None]:
+    """Every identity maps to null: the importer adopts the genre whose wikidata_id (the Gold id) matches, and
+    creates one for a node with none, like an overview. Fails when a Gold node lacks its imported genre."""
+    imported = {genre["wikidata_id"] for genre in genres if genre.get("wikidata_id")}
+    missing = [node["id"] for node in graph["nodes"] if node["id"] not in imported and node["id"] != OVERVIEW_ID]
     if missing:
         raise ValueError(f"{len(missing)} Gold nodes have no imported genre, e.g. {missing[:5]}")
-    return mapping
+    return {node["id"]: None for node in graph["nodes"]}
 
 
 def resolve_songs(trees: list[dict], songs: list[dict]) -> dict[str, str | None]:

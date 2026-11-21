@@ -11,6 +11,13 @@ Manage genre hierarchies and trees.
 Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`). grow-api is a
 single-tenant service — this is the canonical reference dataset, not scoped per user.
 
+## Reference graph
+
+`PUT {base}graph/` (pipeline or admin) takes `graph`, `mapping` and `expectedRevision`. A `null` mapping
+keeps the identity's existing binding; otherwise it adopts the ownerless genre whose `wikidata_id` equals the
+identity (never by label), or creates a genre. Several genres sharing that `wikidata_id`, or one already bound
+to another identity, answer 400 and change nothing.
+
 ## Endpoints
 
 #### List

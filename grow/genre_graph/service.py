@@ -71,13 +71,39 @@ def reference_dataset() -> GenreGraphDataset:
         raise GraphValidationError("Import the reference graph with an explicit identity mapping first") from error
 
 
+def _legacy_genres(identities) -> dict[str, UUID]:
+    """A graph identity left unmapped adopts the legacy genre whose wikidata_id is that identity (the Gold id).
+
+    Never by label, never a genre another identity already owns, and never when the id is ambiguous."""
+    wanted = set(identities)
+    if not wanted:
+        return {}
+    found: dict[str, list[tuple[UUID, str | None]]] = {}
+    for pk, wikidata_id, semantic_identity in Genre.objects.filter(
+        user__isnull=True, wikidata_id__in=wanted
+    ).values_list("pk", "wikidata_id", "semantic_identity"):
+        found.setdefault(wikidata_id, []).append((pk, semantic_identity))
+    result = {}
+    for identity, rows in found.items():
+        if len(rows) > 1:
+            raise GraphValidationError(f"Several genres share the wikidata_id {identity}; map it explicitly")
+        pk, owner = rows[0]
+        if owner is not None:
+            raise GraphValidationError(f"Genre with wikidata_id {identity} already belongs to identity {owner}")
+        result[identity] = pk
+    return result
+
+
 def _bindings(graph: GenreGraph, mapping: dict, existing: dict) -> dict:
     if not isinstance(mapping, dict) or set(mapping) != graph.node_ids:
         raise GraphValidationError("Mapping must name every semantic identity exactly once")
     result = {}
+    legacy = _legacy_genres(
+        identity for identity, value in mapping.items() if value is None and identity not in existing
+    )
     for identity, value in mapping.items():
         if value is None:
-            result[identity] = existing.get(identity, uuid4())
+            result[identity] = existing.get(identity) or legacy.get(identity) or uuid4()
         else:
             try:
                 result[identity] = UUID(str(value))

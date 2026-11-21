@@ -95,7 +95,7 @@ There's no `.env.example` — Docker Compose supplies dev defaults for all of th
 
 ## API
 
-Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/`, `genres/trees/import-runs/`, `library/songs/songs/import-runs/` and `artists/import-runs/` and `regions/map/import-runs/` (create, part upload, commit), `pipeline/imports/unresolved-genre-tags/`, `genealogy/import/`, `curation/wikidata-resolutions/`, `curation/wikidata-items/`, `pipeline/runs/` (`full` only), `pipeline/runs/claim/` and `pipeline/runs/{uuid}/`, and read `curation/export/` and `pipeline/runs/latest/`; other writes with it return 403 `permission_denied`. The `X-API-Key` header set to `CURATION_API_KEY` is the `curator` role for agents: it can only read and write `curation/<list>/entries/` and `curation/edges/` (history attributes its writes to the `curation-bot` user), and `curation/export/` stays pipeline/admin-only. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). Reference data has no owner (`user IS NULL`) and is the same for every caller; a Google sign-in creates a `User` keyed by the account's `sub`, which owns nothing yet.
+Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`/`DELETE`) require an `Authorization: Bearer <Google ID token>` for the `ADMIN_GOOGLE_SUB` account. The `X-API-Key` header (set to `PIPELINE_API_KEY`) is for the nightly pipeline and can only write to `genres/tree/import/`, `genres/trees/import-runs/`, `genres/graph/` (`PUT`), `library/songs/songs/import-runs/` and `artists/import-runs/` and `regions/map/import-runs/` (create, part upload, commit), `pipeline/imports/unresolved-genre-tags/`, `genealogy/import/`, `curation/wikidata-resolutions/`, `curation/wikidata-items/`, `pipeline/runs/` (`full` only), `pipeline/runs/claim/` and `pipeline/runs/{uuid}/`, and read `curation/export/` and `pipeline/runs/latest/`; other writes with it return 403 `permission_denied`. The `X-API-Key` header set to `CURATION_API_KEY` is the `curator` role for agents: it can only read and write `curation/<list>/entries/` and `curation/edges/` (history attributes its writes to the `curation-bot` user), and `curation/export/` stays pipeline/admin-only. No credentials returns 401 `authentication_required`, an invalid or expired token 401 `invalid_token`, and a verified non-admin Google account 403 `permission_denied`. `GET /v1/auth/me/` returns the caller's `{"role", "email"}` (401 when anonymous). Reference data has no owner (`user IS NULL`) and is the same for every caller; a Google sign-in creates a `User` keyed by the account's `sub`, which owns nothing yet.
 
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
@@ -282,10 +282,13 @@ Semantic song-assignment staging is available as a preview with reviewed revisio
 This branch starts the reference graph v2 cutover and is not ready for deployment.
 `GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
 mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
-`graph`, a complete `mapping` (existing genre UUID or `null` for a new identity),
+`graph`, a complete `mapping` (existing genre UUID or `null`),
 and `expectedRevision` (`null` for the initial import). The graph must carry the
-current curation export timestamp. Missing mappings and stale revisions fail;
-labels never resolve identities. Check the route definitions in `grow/urls.py`
+current curation export timestamp. A `null` identity keeps its existing
+binding; otherwise it adopts the ownerless genre whose `wikidata_id` equals the
+identity (the Gold id), or gets a new genre when there is none. Ambiguous
+`wikidata_id`s and genres already bound to another identity answer 400. Missing
+mappings and stale revisions fail; labels never resolve identities. Check the route definitions in `grow/urls.py`
 for the graph restore endpoint.
 
 `GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
