@@ -12,10 +12,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Changed
-
-- Bumps `the-music-tree-genre-kit` to v0.70.0 (genre graph 0.4.0): the reference graph endpoint now accepts contract version 3 graphs, which carry the `derivation` relation. Contract 2 graphs stay valid. A test imports and reads back a contract 3 graph with a `derivation` relation.
-
 ### Added
 
 - Curation list `genre_derivations` (migration `0153`, header-only seed): `(item_id, origin_item_id)` pairs with decision provenance declare the graph's `derivation` relation (genre-kit contract 3), taking priority over Wikidata and MusicBrainz-derived ones. A `LOCAL:` end declared `overview` is a `local_kind` violation. Tests cover the CRUD round trip and the rule-set checks.
@@ -29,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Bumps `the-music-tree-genre-kit` to v0.70.0 (genre graph 0.4.0): the reference graph endpoint now accepts contract version 3 graphs, which carry the `derivation` relation. Contract 2 graphs stay valid. A test imports and reads back a contract 3 graph with a `derivation` relation.
 - **Breaking for pipelines**: the `song_genre` curation list now carries `decision_id`, `decision_source` and `reason` (header `musicbrainz_recording_id, genre_item_id, decision_id, decision_source, reason`; migration `0152` backfills existing rows with a legacy provenance and is reversible). Admin assign-genre (unlink included) and genre alias merges write the exact `(decisionId, source, rationale)` triplet registered as graph evidence, so the Gold stage and the import agree and no longer hit "Conflicting evidence". The pipelines must mirror the new header (`curation/lists.py`) before the next run. An assign-genre undo token issued before this migration answers 409 (its stored rule lacks the new columns). Tests cover the rules written by assign-genre, the alias merge versus its receipt, the export columns and the migration both ways.
 - `AGENTS.md` tells agents that `CURATION_API_KEY` and `PIPELINE_API_KEY` are server variables and that staging and prod calls go through `curate-grow` or `infrastructure/scripts/grow-api-call.sh`, so a key is never requested.
 - **Breaking for app-kit, frontend and pipelines** (#528): accepted canonical roots are the graph list `canonical_roots` (key `item_id`, with `decision_id`, `decision_source` and `reason`) instead of `canonical_parent` edge rules without a parent, and the never-populated `canonical_boundaries` list is gone. Migration `0151` moves the 12 stored roots into the list (reversible) and adds the `genre_edge_rule_parent_required` constraint: an edge always has a parent. Adding a root over an item with a curated canonical parent or a regional rule is rejected (409). Each `GET curation/export/` served to the pipeline is now stored whole in `grow_curation_export` (purged 30 days before the applied export), replacing `CurationSyncState.exported_on`; a tree import needs an export at its exact `curationExportedOn`, and a regional graph import is rejected when its `canonicalRoots` differ from the `canonical_roots` of that export. Tests cover the list CRUD, the root/edge conflicts, the migration both ways and the export bookkeeping.
