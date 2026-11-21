@@ -168,6 +168,18 @@ class TestGraphViolations(AppTestCase):
 
         assert _kinds() == ["local_kind"]
 
+    def test_overview_as_derivation_end_then_violation(self):
+        _local("LOCAL:over-a", "overview", "d1")
+        _graph("genre_derivations", "Q1\tLOCAL:over-a", "d2")
+
+        assert _kinds() == ["local_kind"]
+
+    def test_genre_derivation_then_no_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("genre_derivations", "LOCAL:genre-a\tQ1", "d2")
+
+        assert _kinds() == []
+
     def test_membership_cycle_then_violation(self):
         _local("LOCAL:a", "overview", "d1")
         _local("LOCAL:b", "overview", "d2")
@@ -209,6 +221,23 @@ class TestMergeLocals(AppTestCase):
         _graph("genre_merges", "LOCAL:x\tQ1", "d1")
 
         assert _violations() == []
+
+    def test_derivation_local_declared_by_addition_list_then_no_violation(self):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
+            reason="r",
+        )
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _violations() == []
+
+    def test_derivation_naming_undeclared_local_then_violation(self):
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _kinds() == ["undeclared_local"]
 
     def test_merge_local_declared_by_local_identity_then_no_violation(self):
         _local("LOCAL:x", "genre", "d1")
