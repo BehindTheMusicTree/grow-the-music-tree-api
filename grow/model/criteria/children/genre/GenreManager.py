@@ -97,7 +97,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             {
                 "item_id": item_id,
                 "label": genre.name,
-                "reason": f"grow admin: app-created genre adopted as a parent by {actor.profile.pseudo}",
+                "reason": f"grow admin: app-created genre adopted as a node by {actor.profile.pseudo}",
             },
             actor,
         )
@@ -216,6 +216,20 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         if actor is not None:
             self._lock(instance)
         HistoryEntry.objects.record(instance, action=HistoryAction.CREATED, actor=actor)
+        if actor is not None and not self._is_pipeline_item(instance):
+            self._adopt_created(instance, actor)
+
+    def _adopt_created(self, instance: Genre, actor: Any) -> None:
+        """An admin-created genre has no pipeline item, so the reference graph sync would reject it as unmapped:
+        it becomes a curated `LOCAL:` node (with its app-created ancestors) the next run rebuilds under the same id."""
+        if instance.tree_name != CriteriaTreeName.CANONICAL or instance.is_excluded:
+            raise self._invalid(
+                "tree_name", "Only a canonical genre can be created here; regional genres come from curation"
+            )
+        if instance.parent_id is None:
+            raise self._invalid("parent", "A genre created without a wikidata id needs a parent")
+        self._lock_curation_writes(actor)
+        self._ensure_pipeline_item(instance, actor)
 
     def _on_bulk_created(self, instances: list[Genre], *, actor: Any = None) -> None:
         super()._on_bulk_created(instances, actor=actor)

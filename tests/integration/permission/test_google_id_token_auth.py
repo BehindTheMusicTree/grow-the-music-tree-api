@@ -5,6 +5,7 @@ from django.urls import reverse
 from google.auth.exceptions import TransportError
 from rest_framework import status
 
+from grow.model.criteria.children.genre.Genre import Genre
 from tests.utils.AppTestCase import AppTestCase
 
 VERIFY = "grow.authentication.GoogleIdTokenAuthentication.id_token.verify_oauth2_token"
@@ -20,7 +21,10 @@ class TestCase(AppTestCase):
         self.api_client.credentials(HTTP_AUTHORIZATION="Bearer some-token")
 
     def _post_genre(self):
-        return self.api_client.post(path=reverse(self.list_endpoint), data={"name": "Rock"})
+        parent = Genre.objects.filter(wikidata_id="Q1").first() or self.model_fixture_factory.create_genre(
+            "Music", wikidata_id="Q1"
+        )
+        return self.api_client.post(path=reverse(self.list_endpoint), data={"name": "Rock", "parent": str(parent.uuid)})
 
     def test_admin_token_write_then_201(self):
         self._use_token()

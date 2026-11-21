@@ -482,3 +482,41 @@ class TestCase(GenreTestCase):
 
         assert Genre.objects.get(pk=mine.pk).is_manually_edited
         assert _rows("canonical_genre_pop_side") == []
+
+
+class TestAdminCreatedGenreAdoption(GenreTestCase):
+    def setUp(self):
+        super().setUp()
+        self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q888001")
+
+    def test_create_under_parent_then_local_node_and_edge(self):
+        response = self._post_genre(data={"name": "Lol Music", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        created = Genre.objects.get(uuid=response.json()["uuid"])
+        assert created.wikidata_id == "LOCAL:lol-music"
+        assert created.is_manually_edited is True
+        additions = CurationEntry.objects.get(user=None, list_name="canonical_parent_additions", key="LOCAL:lol-music")
+        assert additions.row["label"] == "Lol Music"
+        edge = GenreEdgeRule.objects.get(user=None, relation="canonical_parent", item_id="LOCAL:lol-music")
+        assert edge.parent_item_id == "Q888001"
+
+    def test_create_under_app_created_parent_then_ancestors_adopted(self):
+        mid = self.model_fixture_factory.create_genre("Mid", parent=self.rock)
+
+        response = self._post_genre(data={"name": "Leaf", "parent": str(mid.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        edges = dict(
+            GenreEdgeRule.objects.filter(
+                user=None, relation="canonical_parent", item_id__in=["LOCAL:mid", "LOCAL:leaf"]
+            ).values_list("item_id", "parent_item_id")
+        )
+        assert edges == {"LOCAL:mid": "Q888001", "LOCAL:leaf": "LOCAL:mid"}
+
+    def test_create_at_root_without_wikidata_id_then_400_and_nothing_written(self):
+        response = self._post_genre(data={"name": "Orphan"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not Genre.objects.filter(_name="Orphan").exists()
+        assert not CurationEntry.objects.filter(list_name="canonical_parent_additions", key="LOCAL:orphan").exists()

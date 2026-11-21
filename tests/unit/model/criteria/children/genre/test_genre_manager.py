@@ -96,7 +96,9 @@ class TestCase(AppTestCase):
         assert entry.actor is None
 
     def test_create_with_actor_locks_and_logs_admin_history(self):
-        genre = self.model_fixture_factory.create_genre("Electronic", actor=self.admin)
+        parent = self.model_fixture_factory.create_genre("Music", wikidata_id="Q1")
+
+        genre = self.model_fixture_factory.create_genre("Electronic", actor=self.admin, parent=parent)
 
         assert genre.is_manually_edited is True
         entry = HistoryEntry.objects.get(content_uuid=genre.uuid, action=HistoryAction.CREATED)
