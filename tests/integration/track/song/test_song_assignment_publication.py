@@ -34,7 +34,7 @@ def population():
     CriteriaType.objects.get_or_create(pk=0, defaults={"label": "genre"})
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     GenrePlaylist.objects.get_or_create(user=None, criteria=None, type_id=0)
-    payload = json.loads((Path(__file__).parents[3] / "fixtures/genre_graph/regional-v2.json").read_text())
+    payload = json.loads((Path(__file__).parents[3] / "fixtures/genre_graph/regional-v4.json").read_text())
     dataset = import_graph(payload)
     factory = ModelFixtureFactory(None)
     songs = [factory.create_song(f"Song {i}", None, musicbrainz_recording_id=uuid4()) for i in range(3)]

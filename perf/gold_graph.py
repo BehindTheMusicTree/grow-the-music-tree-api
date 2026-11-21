@@ -1,6 +1,6 @@
 """Seed helpers shared by perf/conftest.py and scripts/seed_dev_db.py (pure Python, no Django).
 
-The pinned Gold exports predate any producer of a v2 reference graph or of reviewed song assignments, so
+The pinned Gold exports predate any producer of a v4 reference graph or of reviewed song assignments, so
 this module derives both from the Gold trees. The conversion is approximate (regional placement,
 primaryParents, groupings and scene splits are flattened into classification edges, no polygenre): replace
 it with the Gold graph export and exports carrying assignments once the pipelines produce them.
@@ -95,7 +95,7 @@ def build_graph(trees: list[dict]) -> dict:
         if not accepted and tree_of[child] != "canonical"
     ]
     return {
-        "contractVersion": 2,
+        "contractVersion": 4,
         "curationExportedOn": trees[0]["curationExportedOn"],
         "nodes": [
             {

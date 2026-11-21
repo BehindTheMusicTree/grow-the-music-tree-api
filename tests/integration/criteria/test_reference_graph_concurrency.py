@@ -44,7 +44,7 @@ def reference_configuration(db):
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     original = import_graph(payload)
     mapping = deepcopy(GenreGraphImport.objects.get(pk=original.revision).mapping)
@@ -81,7 +81,7 @@ def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publication():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
     run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
     backend = Queue()
 
@@ -123,7 +123,7 @@ def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publicat
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_playlist_tree_response_and_etag_share_one_snapshot(monkeypatch):
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     dataset = import_graph(payload)
     genre = Genre.objects.get(graph_node__dataset=dataset, graph_node__identity="LOCAL:dub")
@@ -163,7 +163,7 @@ def test_playlist_tree_response_and_etag_share_one_snapshot(monkeypatch):
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_assignment_api_edits_preserve_the_winners_complete_evidence():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     song = ModelFixtureFactory(None).create_song("Concurrent assignment", None)
     import_graph(payload)

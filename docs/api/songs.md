@@ -75,6 +75,18 @@ While it is unbuilt, the merges skip it and queue one bulk build (`song-search-b
 but song, artist and genre writes wait for it, imports included: run it outside the nightly pipeline window. `manage.py rebuild_song_search --check` prints the `missing`, `orphaned` and `stale` row counts and
 fails if any of them is non-zero.
 
+#### List by genre
+
+`GET {base}?genre=<uuid>&coverage=genre_and_subgenres&subgenres=<scope>`
+
+With inclusive coverage, contract 4 supports `restricted` (direct songs plus restricted descendants),
+`extended` (direct songs plus all accessible descendants), and `expressions` (the additional descendants reached
+by extended coverage). The exact `coverage=genre_only` selects only directly assigned songs and rejects `subgenres`.
+
+For existing clients, `canonical` aliases `restricted`, `all` aliases `extended`, and `regional` selects
+`expressions` plus direct songs. The default is `canonical` for canonical genres and `all` for regional genres.
+Regional genres only accept `all` among the legacy values. Contract 4 scopes work for either tree.
+
 #### List by artist
 
 `GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
