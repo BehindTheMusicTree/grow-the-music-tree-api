@@ -105,6 +105,7 @@ GraphRow = tuple[str, str, dict[str, Any]]
 LOCAL_PREFIX = "LOCAL:"
 MEMBERSHIP_LIST = "regional_memberships"
 MERGE_LIST = "genre_merges"
+DERIVATION_LIST = "genre_derivations"
 LOCAL_KIND_ROLES: tuple[tuple[str, str, str], ...] = (
     ("regional_anchorings", "overview_item_id", "overview"),
     ("regional_overview_types", "item_id", "overview"),
@@ -148,7 +149,7 @@ def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], a
     used = {
         i
         for n, k, v in rows
-        if n not in ("local_identities", MERGE_LIST, "canonical_roots")
+        if n not in ("local_identities", MERGE_LIST, DERIVATION_LIST, "canonical_roots")
         for i in graph_row_items(n, k, v).values()
         if i.startswith(LOCAL_PREFIX)
     }
@@ -158,8 +159,13 @@ def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], a
         )
         for item in sorted(used - kinds.keys())
     ]
-    # A merge or a root names canonical nodes, which an addition list declares as often as a local identity does.
-    for list_name, usage in ((MERGE_LIST, "a genre merge"), ("canonical_roots", "the canonical roots")):
+    # A merge, a derivation or a root names canonical nodes, which an addition list declares as often as a local
+    # identity does.
+    for list_name, usage in (
+        (MERGE_LIST, "a genre merge"),
+        (DERIVATION_LIST, "a genre derivation"),
+        ("canonical_roots", "the canonical roots"),
+    ):
         violations += [
             Violation(
                 "undeclared_local",
@@ -186,6 +192,12 @@ def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> 
                         {item},
                     )
                 )
+        if list_name == DERIVATION_LIST:
+            violations.extend(
+                Violation("local_kind", f"{item} is an overview, so it can't be an end of the derivation {key}", {item})
+                for item in items.values()
+                if kinds.get(item) == "overview"
+            )
         style = items.get("style_item_id")
         if list_name == "expression_styles" and kinds.get(style) == "overview":
             violations.append(
