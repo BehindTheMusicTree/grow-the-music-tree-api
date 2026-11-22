@@ -353,6 +353,13 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("wikidata_id", "reason"),
         "Music traditions dropped, with their placements and links.",
     ),
+    "cultural_place_overrides": CurationList(
+        "geohistory",
+        ("child_entity_id",),
+        ("child_entity_id", "parent_entity_id", "reason"),
+        "Geographic anchor for music associated with a language or ethnic group. An explicit tradition "
+        "placement takes priority.",
+    ),
     "tradition_placement_overrides": CurationList(
         "geohistory",
         ("wikidata_id",),

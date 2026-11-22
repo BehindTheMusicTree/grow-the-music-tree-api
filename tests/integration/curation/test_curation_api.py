@@ -47,6 +47,14 @@ class TestCase(AppTestCase):
         assert set(lists) == set(CURATION_LISTS)
         assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
 
+    def test_cultural_place_override_round_trip(self):
+        name = "cultural_place_overrides"
+        row = {"child_entity_id": "wall1255", "parent_entity_id": "Q231", "reason": "Walloon homeland"}
+        assert self._create({**row, "parent_entity_id": "invalid"}, name).status_code == status.HTTP_400_BAD_REQUEST
+        assert self._create(row, name).status_code == status.HTTP_201_CREATED
+        assert self._create({**row, "parent_entity_id": "Q1537"}, name).status_code == status.HTTP_400_BAD_REQUEST
+        assert self.api_client.get(path=reverse("curation-export")).json()[name] == [row]
+
     def test_place_relation_override_round_trip(self):
         name = "place_relation_overrides"
         row = {"child_entity_id": "Q145", "parent_entity_id": "Q161885", "extent": "partial", "reason": "overlap"}
