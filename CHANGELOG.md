@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Reference graph imports and restores now require contract 4. Song filters support restricted, extended and expression-only coverage while accepting the existing query values. Deployment over an active graph requires a re-import to rebuild its access index.
+
 - Catalogue benchmark bundle (#511): the whole genre graph (`the_music_tree_genre_kit_genregraph*`: datasets, revisions, evidence rationales, attributions) is now schema-only instead of retained, so graph payloads and curation justifications never leave production. Every graph table has a `dataset_id` foreign key, so no partial subset is possible; the projection now requires `grow_criteria.graph_node_id` to be NULL. Tests cover the Postgres projection refusing graph rows and a retained criterion pointing into the graph.
 
 - Bumps `the-music-tree-genre-kit` to v0.70.0 (genre graph 0.4.0): the reference graph endpoint now accepts contract version 3 graphs, which carry the `derivation` relation. Contract 2 graphs stay valid. A test imports and reads back a contract 3 graph with a `derivation` relation.
@@ -66,6 +68,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Deprecated
 
 - The export key `overview_status_overrides` (`item_id`, `status`, `reason`) is a projection of `regional_overview_types` kept until the pipelines read the new list (pipelines#436); a later PR removes it.
+
+### CI
+
+- Workflow `concurrency` groups follow the org convention (github-config#69): CI workflows (`validate`, `perf`, `catalogue-benchmark`, `agent-drift`) group by `head_ref || ref` and cancel superseded runs on pull requests only; `release-tag` runs once per pushed commit and is never cancelled.
 
 ## [18.0.0] - 2026-11-18
 

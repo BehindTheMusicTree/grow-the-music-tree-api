@@ -9,6 +9,10 @@ on:
   schedule:
     - cron: "17 5 * * *"
 
+concurrency:
+  group: validate-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     if: github.event_name != 'schedule'

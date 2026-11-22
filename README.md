@@ -239,12 +239,14 @@ Bulk import status endpoints retain `pending|success|failed`, `result` and `erro
 
 ### Genre selection and counts
 
-Genre catalogue reads and genre-playlist track reads accept `coverage=genre_only|genre_and_subgenres`.
-Inclusive reads also accept `subgenres=canonical|regional|all`: canonical genres default to `canonical`,
+Genre-playlist track reads accept `coverage=genre_only|genre_and_subgenres`.
+Inclusive playlist reads accept `subgenres=canonical|regional|all`: canonical genres default to `canonical`,
 regional genres default to and require `all`. Exact coverage rejects `subgenres`; Genreless rejects both parameters.
 Primary paths are deduplicated; secondary parents do not contribute. Canonical coverage never crosses a regional
 node on its way to another canonical genre. Regional coverage includes the selected genre and reachable regional
 genres; `all` combines those selections. A regional root's `all` includes all its primary descendants.
+Playlist track reads and summary counts still use the display-tree projection and stored playlist memberships.
+The [song catalogue filter](docs/api/songs.md#list-by-genre) uses the semantic reference graph and accepts contract 4 scopes.
 
 Genre playlist summaries expose `genreOnlyTracksCount` and `genreAndSubgenresTracksCount` (`canonical`, `regional`,
 `all` for canonical genres; only `all` for regional and Genreless). These count actual members of that playlist,
@@ -289,7 +291,6 @@ takes exclusive source-table locks; its operational window must be measured on r
 
 Semantic song-assignment staging is available as a preview with reviewed revisions and durable part receipts; commit remains disabled pending the catalogue, playlist and search cutover. See the [song import contract](docs/api/songs.md#import). Legacy imports remain blocked once a reference graph is active.
 
-This branch starts the reference graph v2 cutover and is not ready for deployment.
 `GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
 mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
 `graph`, a complete `mapping` (existing genre UUID or `null`),
@@ -298,8 +299,12 @@ current curation export timestamp. A `null` identity keeps its existing
 binding; otherwise it adopts the ownerless genre whose `wikidata_id` equals the
 identity (the Gold id), or gets a new genre when there is none. Ambiguous
 `wikidata_id`s and genres already bound to another identity answer 400. Missing
-mappings and stale revisions fail; labels never resolve identities. Check the route definitions in `grow/urls.py`
-for the graph restore endpoint.
+mappings and stale revisions fail. Curator/admin `POST /v1/genres/graph/restore/` accepts the archived `revision` and
+the current `expectedRevision`.
+
+Both operations require `contractVersion: 4`. A classification (restricted or a regional expression) can coexist
+with derivation on the same directed pair. An explicit influence on a pair already classified or derived is rejected
+with 400 before publication. Derivation and influence alone grant no semantic descendant access.
 
 `GET /v1/library/songs/<song UUID>/attributions/` returns `revision`,
 `membershipRevision`, `assignmentRevision`, complete direct `attributions`,
@@ -345,6 +350,12 @@ and graph restores require `retirements` for every removed identity, each with
 archived before any remap. Retired genre UUIDs and semantic identities remain
 reserved; reintroducing an identity reuses its original UUID, including when
 several concepts share a display label.
+
+The genre-kit migration 0023 clears the old access index. Before deploying over an active graph, retain the payload,
+revision and UUID mapping and prepare a compatible contract 4 import with explicit retirements for removed identities.
+Keep graph-dependent traffic gated until the import has rebuilt the access index. A pre-v4 archive is retained for
+recovery with its compatible runtime and database backup. To use its contents on the new runtime, validate a converted
+contract 4 payload and publish it as a new import. Reverting the migration alone leaves the old access index empty.
 
 Curator/admin `POST /v1/genres/graph/assignments/restore/` accepts the initial
 import `revision`, `expectedRevision`, `expectedMembershipRevision` and explicit
