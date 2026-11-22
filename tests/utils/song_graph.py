@@ -14,11 +14,15 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
     an empty list for nodes with no direct songs. Repeated songs model polygenre.
     Every genre without a classification parent is a canonical root unless listed in ``regional``,
     a mapping of each regional genre to its overview: it adds the ``regional_membership`` edge, which
-    (unlike ``anchoring``) is what makes a node regional.
+    makes a node regional.
     """
     node_overrides = node_overrides or {}
     regional = regional or {}
-    relations = [*relations, *((genre, overview, "regional_membership") for genre, overview in regional.items())]
+    relations = [
+        *((child, parent, "classification") for child, parent in classifications),
+        *relations,
+        *((genre, overview, "regional_membership") for genre, overview in regional.items()),
+    ]
 
     def identity(genre):
         return f"LOCAL:{genre.pk}"
@@ -41,14 +45,14 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
                 isUmbrella=True,
             )
         nodes.append(node)
-    children = {child for child, _ in classifications}
+    non_roots = {child for child, _, kind in relations if kind in {"classification", "regional_membership"}}
     roots = [
         genre
         for genre, node in zip(assignments, nodes, strict=True)
-        if genre not in children and genre not in regional and node["kind"] == "genre"
+        if genre not in non_roots and node["kind"] == "genre"
     ]
     payload = {
-        "contractVersion": 2,
+        "contractVersion": 4,
         "curationExportedOn": "2026-11-14T00:00:00Z",
         "nodes": nodes,
         "relations": [
@@ -58,10 +62,7 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
                 "type": relation_type,
                 "provenance": provenance(f"{relation_type}-{identity(child)}-{identity(parent)}"),
             }
-            for child, parent, relation_type in [
-                *((child, parent, "classification") for child, parent in classifications),
-                *relations,
-            ]
+            for child, parent, relation_type in relations
         ],
         "canonicalRoots": [
             {"nodeId": identity(genre), "provenance": provenance(f"canonical-root-{genre.pk}")} for genre in roots

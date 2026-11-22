@@ -66,9 +66,12 @@ def _curation_state() -> CurationSyncState:
 
 def reference_dataset() -> GenreGraphDataset:
     try:
-        return GenreGraphDataset.objects.get(pk=DATASET_KEY)
+        dataset = GenreGraphDataset.objects.get(pk=DATASET_KEY)
     except GenreGraphDataset.DoesNotExist as error:
         raise GraphValidationError("Import the reference graph with an explicit identity mapping first") from error
+    if dataset.payload.get("contractVersion") != 4:
+        raise GraphValidationError("Stored reference graph is not in contract 4: re-import required")
+    return dataset
 
 
 def _legacy_genres(identities) -> dict[str, UUID]:
@@ -192,7 +195,7 @@ def _publish_revision(
     for identity, pk in bindings.items():
         data = graph.node(identity)
         genre = genres.get(pk)
-        tree_name = "canonical" if graph.canonical_state(identity) == "canonical" else "regional"
+        tree_name = "canonical" if graph.state(identity) == "canonical" else "regional"
         if genre is None:
             genre = Genre(
                 uuid=pk,

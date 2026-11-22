@@ -196,18 +196,22 @@ class TestCase(AppTestCase):
         region = self.model_fixture_factory.create_genre("Region")
         self._install_graph(
             {regional: [regional_song], region: []},
-            relations=[(regional, self.rock, "expression_style"), (regional, region, "regional_membership")],
-            node_overrides={regional: {"kind": "expression"}, region: {"kind": "overview"}},
+            relations=[(regional, self.rock, "classification"), (regional, region, "regional_membership")],
+            node_overrides={region: {"kind": "overview"}},
         )
         genre = str(self.rock.uuid)
         direct = str(self.matching_track.uuid)
         assert self._list_uuids(genre=genre) == {direct}
         assert self._list_uuids(genre=genre, subgenres="regional") == {direct, str(regional_song.uuid)}
         assert self._list_uuids(genre=genre, subgenres="all") == {direct, str(regional_song.uuid)}
+        assert self._list_uuids(genre=genre, subgenres="restricted") == {direct}
+        assert self._list_uuids(genre=genre, subgenres="expressions") == {str(regional_song.uuid)}
+        assert self._list_uuids(genre=genre, subgenres="extended") == {direct, str(regional_song.uuid)}
         assert self._list_uuids(genre=str(regional.uuid)) == {str(regional_song.uuid)}
         for params in (
             {"subgenres": "all"},
             {"genre": genre, "coverage": "genre_only", "subgenres": "all"},
+            {"genre": genre, "coverage": "genre_only", "subgenres": "expressions"},
             {"genre": genre, "subgenres": "invalid"},
             {"genre": str(regional.uuid), "subgenres": "canonical"},
         ):

@@ -22,6 +22,7 @@ from the_music_tree_genre_kit.genre_graph.models import (
     GenreGraphAttributionRevision,
     GenreGraphDataset,
     GenreGraphNode,
+    GenreGraphRevision,
 )
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict, select_tracks
 
@@ -69,7 +70,7 @@ def assignment_revision(song_id):
 
 @pytest.fixture
 def payload():
-    return json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    return json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
 
 
 def import_graph(payload, mapping=None, revision=None):
@@ -275,7 +276,7 @@ def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
     assert loaded.status_code == 200
     result = loaded.json()
     assert result["revision"] == response.json()["revision"]
-    assert result["graph"]["contractVersion"] == 2
+    assert result["graph"]["contractVersion"] == 4
     assert {node["id"] for node in result["graph"]["nodes"]} == set(body["mapping"])
     assert all(result["mapping"].values())
     assert graph_client("pipeline").put(url, body, format="json").status_code == 409
@@ -284,32 +285,117 @@ def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
     assert graph_client("pipeline").put(url, body, format="json").json() == response.json()
 
 
-def test_e01_graph_endpoint_accepts_contract_3_derivation_relation(payload):
-    payload = {
-        **payload,
-        "contractVersion": 3,
-        "relations": [
-            *payload["relations"],
-            {
-                "childId": "LOCAL:reggae-fusion",
-                "parentId": "LOCAL:roots",
-                "type": "derivation",
-                "provenance": {
-                    "decisionId": "derivation-reggae-fusion-roots",
-                    "source": "synthetic fixture",
-                    "rationale": "Synthetic derivation relation.",
-                },
-            },
-        ],
+def _relation(child, parent, kind):
+    return {
+        "childId": child,
+        "parentId": parent,
+        "type": kind,
+        "provenance": {
+            "decisionId": f"{kind}-{child}-{parent}",
+            "source": "synthetic fixture",
+            "rationale": f"Synthetic {kind} relation.",
+        },
     }
-    record_graph_export(payload)
+
+
+@pytest.mark.parametrize(
+    "child,kind,expected",
+    [
+        ("LOCAL:reggae-fusion", "derivation", {"classification", "derivation"}),
+        ("LOCAL:french-reggae", "derivation", {"classification", "derivation"}),
+        ("LOCAL:country", "derivation", {"derivation"}),
+        ("LOCAL:country", "influence", {"influence"}),
+    ],
+)
+def test_graph_publication_and_restore_preserve_direct_relation_types(payload, child, kind, expected):
+    parent = "LOCAL:reggae"
+    genre = ModelFixtureFactory(None).create_genre("Test genre", wikidata_id=child)
+    song = ModelFixtureFactory(None).create_song("Direct assignment", genre)
+    initial = import_graph(payload)
+    payload["relations"].append(_relation(child, parent, kind))
     url = reverse("reference-graph")
-    body = {"graph": payload, "mapping": {node["id"]: None for node in payload["nodes"]}, "expectedRevision": None}
+    body = {
+        "graph": payload,
+        "mapping": {node["id"]: None for node in payload["nodes"]},
+        "expectedRevision": str(initial.revision),
+    }
     response = graph_client("pipeline").put(url, body, format="json")
     assert response.status_code == 200, response.data
-    loaded = APIClient().get(url).json()
-    assert loaded["graph"]["contractVersion"] == 3
-    assert [r["type"] for r in loaded["graph"]["relations"]].count("derivation") == 1
+    published = response.json()["revision"]
+
+    def assert_published_pair():
+        loaded = APIClient().get(url).json()
+        assert {
+            relation["type"]
+            for relation in loaded["graph"]["relations"]
+            if (relation["childId"], relation["parentId"]) == (child, parent)
+        } == expected
+        assert select_tracks(Song.objects.filter(pk=song.pk), node=_node(parent)).exists() == (
+            "classification" in expected
+        )
+
+    assert_published_pair()
+    payload["relations"].pop()
+    reverted = import_graph(payload, revision=reference_dataset().revision)
+    response = graph_client("curator").post(
+        reverse("reference-graph-restore"),
+        {"revision": published, "expectedRevision": str(reverted.revision)},
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert_published_pair()
+
+
+@pytest.mark.parametrize("operation", ["import", "restore"])
+@pytest.mark.parametrize(
+    "child,add_derivation",
+    [
+        ("LOCAL:reggae-fusion", False),
+        ("LOCAL:french-reggae", False),
+        ("LOCAL:country", True),
+        ("LOCAL:reggae-fusion", True),
+        ("LOCAL:french-reggae", True),
+    ],
+)
+def test_graph_rejects_implied_influence_without_publication(payload, operation, child, add_derivation):
+    import_graph(payload)
+    payload["nodes"][0]["name"] += " (unpublished)"
+    parent = "LOCAL:reggae"
+    payload["relations"].insert(0, _relation(child, parent, "influence"))
+    if add_derivation:
+        payload["relations"].append(_relation(child, parent, "derivation"))
+    url = reverse("reference-graph")
+    reader = APIClient()
+    before = reader.get(url).json()
+    version = GenreTreeVersion.objects.get(pk=1).token
+    if operation == "import":
+        response = graph_client("pipeline").put(
+            url, {"graph": payload, "mapping": before["mapping"], "expectedRevision": before["revision"]}, format="json"
+        )
+    else:
+        # Simulate an incompatible archived payload while leaving the live revision intact.
+        archived = GenreGraphRevision.objects.create(revision=uuid4(), dataset_id="grow", payload=payload)
+        live_receipt = GenreGraphImport.objects.get(pk=before["revision"])
+        GenreGraphImport.objects.create(
+            revision=archived.revision,
+            mapping=live_receipt.mapping,
+            curation_exported_on=live_receipt.curation_exported_on,
+        )
+        response = graph_client("curator").post(
+            reverse("reference-graph-restore"),
+            {"revision": str(archived.revision), "expectedRevision": before["revision"]},
+            format="json",
+        )
+    assert response.status_code == 400, response.data
+    assert (
+        f"Influence is already implied by classification or derivation: {child} -> {parent}"
+        in response.json()["detail"]
+    )
+    assert reader.get(url).json() == before
+    assert (
+        GenreGraphImport.objects.count() == GenreGraphRevision.objects.count() == (2 if operation == "restore" else 1)
+    )
+    assert GenreTreeVersion.objects.get(pk=1).token == version
 
 
 def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(payload):
@@ -444,8 +530,11 @@ def test_song_assignment_rejects_multiple_direct_genres_without_mutation(payload
     "scope,expected",
     [
         ("canonical", {"style"}),
+        ("restricted", {"style"}),
         ("regional", {"scoped", "overlap", "exited"}),
+        ("expressions", {"scoped", "overlap", "exited"}),
         ("all", {"style", "scoped", "overlap", "exited"}),
+        ("extended", {"style", "scoped", "overlap", "exited"}),
     ],
 )
 def test_song_filter_uses_semantic_memberships_without_display_edges(payload, scope, expected):
@@ -484,6 +573,17 @@ def test_song_selection_requires_graph_and_identity_mapping(payload):
     with pytest.raises(IntegrityError, match="Permanent graph binding"), transaction.atomic():
         Genre.objects.filter(pk=genre.pk).update(graph_node=None)
     assert not select_songs(Song.objects.all(), genre_id=genre.pk, coverage=CriteriaCoverage.ONLY).exists()
+
+
+def test_pre_contract_4_dataset_requires_reimport_before_graph_selection(payload):
+    dataset = import_graph(payload)
+    GenreGraphDataset.objects.filter(pk=dataset.pk).update(payload={**dataset.payload, "contractVersion": 3})
+    genre = Genre.objects.get(graph_node__identity="LOCAL:reggae")
+    with pytest.raises(ValidationError, match="re-import required"):
+        select_songs(Song.objects.all(), genre_id=genre.pk, coverage=CriteriaCoverage.AND_DESCENDANTS)
+    response = APIClient().get(reverse("reference-graph"))
+    assert response.status_code == 400
+    assert "re-import required" in response.json()["detail"]
 
 
 def test_song_list_keeps_unassigned_and_unplayable_songs(payload):
