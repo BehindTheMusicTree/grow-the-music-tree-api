@@ -61,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+- The curation API and export drop `expression_styles`. Migration `0155` fails if the list still contains entries and converts local identities of kind `expression` to `genre`, preserving their IDs and provenance.
 - Legacy (non reviewed) songs import runs.
 - Drop the tracked `.agent-plans/.gitignore`: plans now live in the common git directory.
 

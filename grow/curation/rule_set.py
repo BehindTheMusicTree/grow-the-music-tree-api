@@ -106,13 +106,11 @@ LOCAL_PREFIX = "LOCAL:"
 MEMBERSHIP_LIST = "regional_memberships"
 MERGE_LIST = "genre_merges"
 DERIVATION_LIST = "genre_derivations"
-LOCAL_KIND_ROLES: tuple[tuple[str, str, str], ...] = (
-    ("regional_anchorings", "overview_item_id", "overview"),
-    ("regional_overview_types", "item_id", "overview"),
-    (MEMBERSHIP_LIST, "parent_item_id", "overview"),
-    ("expression_styles", "expression_item_id", "expression"),
-)
-"""(list, column, kind) a `LOCAL:` id used in that column must be declared as."""
+OVERVIEW_COLUMNS = {
+    "regional_anchorings": "overview_item_id",
+    "regional_overview_types": "item_id",
+    MEMBERSHIP_LIST: "parent_item_id",
+}
 
 
 def graph_row_items(list_name: str, key: str, values: dict[str, Any]) -> dict[str, str]:
@@ -181,14 +179,15 @@ def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> 
     violations = []
     for list_name, key, values in rows:
         items = graph_row_items(list_name, key, values)
-        for role_list, column, kind in LOCAL_KIND_ROLES:
+        column = OVERVIEW_COLUMNS.get(list_name)
+        if column and (list_name != MEMBERSHIP_LIST or values.get("action") == "add"):
             item = items.get(column)
-            if list_name == role_list and item in kinds and kinds[item] != kind:
+            if item in kinds and kinds[item] != "overview":
                 violations.append(
                     Violation(
                         "local_kind",
                         f"{item} is declared as a {kinds[item]} but is the {column} of {list_name} {key}: "
-                        f"it must be an {kind}",
+                        "it must be an overview",
                         {item},
                     )
                 )
@@ -197,11 +196,6 @@ def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> 
                 Violation("local_kind", f"{item} is an overview, so it can't be an end of the derivation {key}", {item})
                 for item in items.values()
                 if kinds.get(item) == "overview"
-            )
-        style = items.get("style_item_id")
-        if list_name == "expression_styles" and kinds.get(style) == "overview":
-            violations.append(
-                Violation("local_kind", f"{style} is an overview, so it can't be the style of {key}", {style})
             )
     return violations
 

@@ -39,6 +39,7 @@ from grow.curation.lists import (
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
+    RETIRED_HISTORY_LISTS,
 )
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import (
@@ -366,7 +367,7 @@ class CurationHistoryView(CurationView):
         content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
         queryset = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if "list" in params:
-            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS):
+            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS, *RETIRED_HISTORY_LISTS):
                 raise ValidationError({"list": "Unknown curation list"})
             # Edits made before migration 0112 stay under the entry content type with a `list_name`; later ones are
             # edge snapshots carrying a `relation`.

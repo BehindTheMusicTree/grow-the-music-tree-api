@@ -134,6 +134,16 @@ An admin edit of a wikidata-backed genre also upserts the curation rule that mak
 
 Full request/response details per resource are documented in [`docs/api/`](docs/api/).
 
+### Retiring `expression_styles`
+
+Deploy the compatible curation Bronze reader ([Pipelines #461](https://github.com/BehindTheMusicTree/the-music-tree-pipelines/pull/461)) before deploying Grow migration `0155`. Pause curation edits for the migration window. Move any remaining `expression_styles` entries to genre classification edges before migrating. Migration `0155` aborts while the list contains entries.
+
+If a legacy style uses a `LOCAL:` identity declared only in `local_identities`, resolve or materialize that endpoint through the genre addition workflow before creating its replacement edge.
+
+Back up the curation data before upgrading so you can recover the original `local_identities.kind` values and review reports if needed. The migration changes `expression` identities to `genre` in place and clears review items for the retired list. Reversing the migration restores the previous list choices only. The curation export omits `expression_styles` after deployment. The history endpoint still accepts `?list=expression_styles`.
+
+Before rolling back to the previous Grow version, remove or restore any regional membership prohibitions added since the upgrade that target a declared local genre. The previous version rejects these rules when exporting curation.
+
 A [Bruno](https://www.usebruno.com/) collection for manual testing is at [`bruno/Track/`](bruno/Track/) — open it in the Bruno app, select the `local` environment, and set the `API_KEY` secret to your `PIPELINE_API_KEY`.
 
 ## Tests

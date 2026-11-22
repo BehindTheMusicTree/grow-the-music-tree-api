@@ -513,8 +513,8 @@ class TestCase(AppTestCase):
         assert reused.status_code == status.HTTP_400_BAD_REQUEST
         assert "d-1" in str(reused.json())
 
-    def test_m15_expression_membership_without_boundary_or_style_then_valid_and_exported(self):
-        declare = {"item_id": "LOCAL:french-dub", "kind": "expression", "label": "French dub", **PROVENANCE}
+    def test_local_genre_membership_exported_without_expression_styles(self):
+        declare = {"item_id": "LOCAL:french-dub", "kind": "genre", "label": "French dub", **PROVENANCE}
         membership = {
             "child_item_id": "LOCAL:french-dub",
             "parent_item_id": "Q2",
@@ -523,11 +523,17 @@ class TestCase(AppTestCase):
             "decision_id": "d-2",
         }
 
+        rejected = self._create({**declare, "kind": "expression"}, "local_identities")
+        assert rejected.status_code == status.HTTP_400_BAD_REQUEST
         assert self._create(declare, "local_identities").status_code == status.HTTP_201_CREATED
         assert self._create(membership, "regional_memberships").status_code == status.HTTP_201_CREATED
+        retired_list = self.api_client.get(path=reverse("curation-entries", kwargs={"list_name": "expression_styles"}))
+        assert retired_list.status_code == status.HTTP_404_NOT_FOUND
         export = self.api_client.get(path=reverse("curation-export"))
         assert export.status_code == status.HTTP_200_OK
-        assert [r["child_item_id"] for r in export.json()["regional_memberships"]] == ["LOCAL:french-dub"]
+        payload = export.json()
+        assert "expression_styles" not in payload
+        assert [r["child_item_id"] for r in payload["regional_memberships"]] == ["LOCAL:french-dub"]
 
     def _declared_and_referenced_local(self):
         declare = self._create(
@@ -663,7 +669,6 @@ class TestCase(AppTestCase):
                 "action": "add",
                 **PROVENANCE,
             },
-            "expression_styles": {"expression_item_id": "Q2", "style_item_id": "Q3", **PROVENANCE},
             "regional_anchorings": {"item_id": "Q4", "overview_item_id": "LOCAL:x", **PROVENANCE},
             "genre_derivations": {"item_id": "Q6", "origin_item_id": "Q7", **PROVENANCE},
         }
@@ -677,7 +682,7 @@ class TestCase(AppTestCase):
             ).status_code
             == status.HTTP_400_BAD_REQUEST
         )
-        for name in ("regional_memberships", "expression_styles", "regional_anchorings", "genre_derivations"):
+        for name in ("regional_memberships", "regional_anchorings", "genre_derivations"):
             row = rows[name]
             first_column = CURATION_LISTS[name].key[0]
             second_column = CURATION_LISTS[name].key[1]

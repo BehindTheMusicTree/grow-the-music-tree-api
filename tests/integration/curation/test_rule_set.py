@@ -156,17 +156,18 @@ class TestGraphViolations(AppTestCase):
     def test_wrong_local_kind_then_violation(self):
         _local("LOCAL:genre-a", "genre", "d1")
         _graph("regional_anchorings", "Q1\tLOCAL:genre-a", "d2")
-        _local("LOCAL:over-a", "overview", "d3")
-        _graph("expression_styles", "LOCAL:over-a\tQ5", "d4")
-
-        assert _kinds() == ["local_kind", "local_kind"]
-
-    def test_overview_as_style_then_violation(self):
-        _local("LOCAL:expr", "expression", "d1")
-        _local("LOCAL:over-a", "overview", "d2")
-        _graph("expression_styles", "LOCAL:expr\tLOCAL:over-a", "d3")
 
         assert _kinds() == ["local_kind"]
+
+    def test_membership_add_under_local_genre_then_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_memberships", "Q1\tLOCAL:genre-a", "d2", action="add")
+        assert _kinds() == ["local_kind"]
+
+    def test_membership_prohibit_under_local_genre_then_allowed(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_memberships", "Q1\tLOCAL:genre-a", "d2", action="prohibit")
+        assert _kinds() == []
 
     def test_overview_as_derivation_end_then_violation(self):
         _local("LOCAL:over-a", "overview", "d1")

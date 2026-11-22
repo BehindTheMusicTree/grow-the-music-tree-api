@@ -3,6 +3,7 @@ from typing import Literal
 
 ADDITION_LABEL_COLUMN = "label"
 CANONICAL_ROOTS_LIST = "canonical_roots"
+RETIRED_HISTORY_LISTS = frozenset({"expression_styles"})
 
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
@@ -20,7 +21,7 @@ ITEM_ID_COLUMNS = frozenset(
         "pop_child_item_id",
         "replacement_item_id",
         "child_item_id",
-        "expression_item_id",
+        "expression_item_id",  # Kept for the history of expression_styles.
         "style_item_id",
         "source_item_id",
         "target_item_id",
@@ -46,7 +47,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "synthetic_overview_resolutions": {"action": ("replace", "remove")},
     "regional_overview_types": {"overview_type": ("current", "historical")},
     "regional_memberships": {"action": ("add", "prohibit")},
-    "local_identities": {"kind": ("genre", "expression", "overview")},
+    "local_identities": {"kind": ("genre", "overview")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
         "entity_kind": ("cultural_region", "macro_region", "city", "admin_unit", "historical_country")
@@ -154,8 +155,7 @@ CURATION_LISTS: dict[str, CurationList] = {
     "local_identities": _graph_list(
         ("item_id",),
         ("kind", "label"),
-        "Identity of a `LOCAL:` item of the regional graph, which Wikidata lacks: a `genre`, an `expression` (a "
-        "regional rendering of a genre, e.g. a language-specific one) or an `overview`.",
+        "Identity of a `LOCAL:` item of the regional graph, which Wikidata lacks: a `genre` or an `overview`.",
     ),
     "canonical_roots": _graph_list(
         ("item_id",),
@@ -166,12 +166,7 @@ CURATION_LISTS: dict[str, CurationList] = {
     "regional_memberships": _graph_list(
         ("child_item_id", "parent_item_id"),
         ("action",),
-        "Regional membership of an item in a parent: `add` creates it, `prohibit` forbids it.",
-    ),
-    "expression_styles": _graph_list(
-        ("expression_item_id", "style_item_id"),
-        (),
-        "The style an expression item renders.",
+        "Regional membership of an item in a parent: `add` attaches it to an overview, `prohibit` forbids the pair.",
     ),
     "regional_anchorings": _graph_list(
         ("item_id", "overview_item_id"),
@@ -414,7 +409,6 @@ GRAPH_LISTS = frozenset(
         "local_identities",
         "canonical_roots",
         "regional_memberships",
-        "expression_styles",
         "regional_anchorings",
         "genre_merges",
         "genre_derivations",
@@ -425,9 +419,7 @@ GRAPH_LISTS = frozenset(
 (`grow.curation.rule_set`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
 before any row uses it."""
 
-GRAPH_PAIR_LISTS = frozenset(
-    {"regional_memberships", "expression_styles", "regional_anchorings", "genre_merges", "genre_derivations"}
-)
+GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "regional_anchorings", "genre_merges", "genre_derivations"})
 """Graph lists keyed by two item ids, which must differ."""
 
 ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
