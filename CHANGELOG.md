@@ -66,6 +66,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The export key `overview_status_overrides` (`item_id`, `status`, `reason`) is a projection of `regional_overview_types` kept until the pipelines read the new list (pipelines#436); a later PR removes it.
 
+### CI
+
+- Workflow `concurrency` groups follow the org convention (github-config#69): CI workflows (`validate`, `perf`, `catalogue-benchmark`, `agent-drift`) group by `head_ref || ref` and cancel superseded runs on pull requests only; `release-tag` runs once per pushed commit and is never cancelled.
+
 ## [18.0.0] - 2026-11-18
 
 ### Added
