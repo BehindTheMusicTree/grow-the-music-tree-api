@@ -7,13 +7,15 @@ from uuid import uuid4
 
 import pytest
 from django.apps import apps
-from django.db import IntegrityError, connection, transaction
+from django.contrib.auth.models import User
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot
 from the_music_tree_genre_kit.genre_graph.models import (
@@ -40,6 +42,8 @@ from grow.genre_graph.service import (
     restore_song_attributions,
     write_song_attributions,
 )
+from grow.genre_music.catalogue_verification import derived_song_genres, verify_catalogue_counts
+from grow.genre_music.membership import verify_membership_counts
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationExport import CurationExport
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -47,6 +51,7 @@ from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlayl
 from grow.model.song.Song import Song
 from tests.utils.curation_export import record_export, record_graph_export
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.song_graph import reject_scalar_genre_projection
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -694,6 +699,8 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
         expected_membership_revision=original.membership_revision,
         expected_assignment_revision=assignment_revision(song.pk),
     )
+    relation = TrackPlaylistRel.objects.create(track=song, playlist=retained.criteria_playlist)
+    untouched = ModelFixtureFactory(None).create_song("Unaffected", None)
     changed = _without_identity(payload, "LOCAL:french-dub")
     mapping = dict(GenreGraphImport.objects.get(pk=original.revision).mapping)
     del mapping["LOCAL:french-dub"]
@@ -711,6 +718,16 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
     assert Genre.objects.get(pk=retained.pk).name == retired.name == "Dub"
     expected = {target} if target else set()
     assert set(song.graph_attributions.values_list("node__identity", flat=True)) == expected
+    song.refresh_from_db()
+    relation.refresh_from_db()
+    expected_genre = mapping[target] if target else None
+    assert (str(song.membership_genre_id) if song.membership_genre_id else None) == expected_genre
+    assert relation.genre_id == song.membership_genre_id
+    assert Song.objects.get(pk=untouched.pk).membership_genre_id is None
+    assert derived_song_genres() == {song.pk: song.membership_genre_id, untouched.pk: None}
+    assert verify_catalogue_counts()["catalogue"].valid
+    expected_counts, stored_counts = verify_membership_counts()
+    assert expected_counts == stored_counts
     snapshot = GenreGraphAttributionRevision.objects.filter(
         track_id=song.pk, attributions__has_key="LOCAL:french-dub"
     ).latest("created_at")
@@ -1134,3 +1151,118 @@ def test_restore_does_not_need_the_original_export_to_be_kept(payload):
     CurationExport.objects.all().delete()
     restored = restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
     assert restored.payload == original.payload
+
+
+@pytest.mark.postgres
+@pytest.mark.parametrize("previous", [None, "off", "on"])
+def test_managed_graph_cutover_uses_final_projection_and_restores_setting(payload, previous):
+    canonical = ModelFixtureFactory(None).create_song("Assigned", None)
+    unassigned = ModelFixtureFactory(None).create_song("Unassigned", None)
+    genre = ModelFixtureFactory(None).create_genre("Existing")
+    canonical.genre = genre
+    canonical.save(update_fields=["genre"])
+    private = ModelFixtureFactory(User.objects.create(username="private")).create_song("Private", genre)
+    assert Song.objects.get(pk=private.pk).membership_genre_id == genre.pk
+    mapping = {node["id"]: None for node in payload["nodes"]}
+    mapping["LOCAL:french-dub"] = str(genre.pk)
+    record_graph_export(payload)
+
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        if previous is not None:
+            cursor.execute("SELECT set_config('grow.membership_maintenance', %s, true)", [previous])
+        else:
+            assert cursor.fetchone()[0] in (None, "")
+        cursor.execute(
+            "CREATE TEMP TABLE song_genre_trace (track_id uuid, old_genre uuid, new_genre uuid) ON COMMIT DROP"
+        )
+        cursor.execute(
+            """CREATE FUNCTION pg_temp.trace_song_genre() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                INSERT INTO song_genre_trace VALUES (NEW.track_id, OLD.genre_id, NEW.genre_id);
+                RETURN NEW;
+            END $$"""
+        )
+        cursor.execute(
+            """CREATE TRIGGER trace_song_genre AFTER UPDATE OF genre_id ON grow_song
+            FOR EACH ROW WHEN (OLD.genre_id IS DISTINCT FROM NEW.genre_id)
+            EXECUTE FUNCTION pg_temp.trace_song_genre()"""
+        )
+        with reject_scalar_genre_projection():
+            current = import_graph(payload, mapping)
+            replay = import_graph(payload, mapping, current.revision)
+            cursor.execute("SELECT * FROM song_genre_trace")
+            assert cursor.fetchall() == [(private.pk, genre.pk, None)]
+            cursor.execute("TRUNCATE song_genre_trace")
+            changed = _without_identity(payload, "LOCAL:french-dub")
+            receipt = GenreGraphImport.objects.get(pk=current.revision)
+            del receipt.mapping["LOCAL:french-dub"]
+            import_reference_graph(
+                payload=changed,
+                mapping=receipt.mapping,
+                expected_revision=current.revision,
+                curation_exported_on=changed["curationExportedOn"],
+                retirements={"LOCAL:french-dub": _retirement("LOCAL:reggae")},
+            )
+            target = Genre.objects.get(semantic_identity="LOCAL:reggae")
+            cursor.execute("SELECT * FROM song_genre_trace")
+            assert cursor.fetchall() == [(canonical.pk, genre.pk, target.pk)]
+        assert (replay.revision, replay.membership_revision) == (current.revision, current.membership_revision)
+        assert (
+            dict(Song.objects.values_list("pk", "membership_genre_id"))
+            == derived_song_genres()
+            == {
+                canonical.pk: target.pk,
+                unassigned.pk: None,
+                private.pk: None,
+            }
+        )
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        assert cursor.fetchone()[0] == (previous or "")
+        cursor.execute("DROP TRIGGER trace_song_genre ON grow_song")
+        cursor.execute("DROP FUNCTION pg_temp.trace_song_genre()")
+
+
+@pytest.mark.postgres
+def test_error_after_final_projection_rolls_back_and_restores_setting(payload, monkeypatch):
+    original = import_graph(payload)
+    genre = Genre.objects.get(semantic_identity="LOCAL:french-dub")
+    song = ModelFixtureFactory(None).create_song("Affected", genre)
+    write_song_attributions(
+        song_id=song.pk,
+        attributions={"LOCAL:french-dub": [_retirement(None)["provenance"]]},
+        expected_revision=original.revision,
+        expected_membership_revision=original.membership_revision,
+        expected_assignment_revision=assignment_revision(song.pk),
+    )
+    relation, _ = TrackPlaylistRel.objects.get_or_create(track=song, playlist=genre.criteria_playlist)
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    del mapping["LOCAL:french-dub"]
+    changed = _without_identity(payload, "LOCAL:french-dub")
+    finish = service.SongMaterialization.finish
+
+    def fail_after_update(materialization):
+        assert finish(materialization) == 1
+        assert Song.objects.get(pk=song.pk).membership_genre_id is None
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 / 0")
+
+    monkeypatch.setattr(service.SongMaterialization, "finish", fail_after_update)
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('grow.membership_maintenance', 'off', true)")
+        with pytest.raises(DatabaseError, match="division by zero"):
+            import_reference_graph(
+                payload=changed,
+                mapping=mapping,
+                expected_revision=original.revision,
+                curation_exported_on=changed["curationExportedOn"],
+                retirements={"LOCAL:french-dub": _retirement(None)},
+            )
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        assert cursor.fetchone()[0] == "off"
+        assert reference_dataset().revision == original.revision
+        assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
+        assert TrackPlaylistRel.objects.get(pk=relation.pk).genre_id == genre.pk
+        assert verify_catalogue_counts()["catalogue"].valid
+        expected, actual = verify_membership_counts()
+        assert expected == actual

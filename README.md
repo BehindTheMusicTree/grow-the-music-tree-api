@@ -357,6 +357,13 @@ archived before any remap. Retired genre UUIDs and semantic identities remain
 reserved; reintroducing an identity reuses its original UUID, including when
 several concepts share a display label.
 
+Graph publication updates stored song genres in the same transaction as the
+graph. The first publication reconciles the full catalogue. Subsequent imports,
+merges and restores reconcile only songs affected by changed assignments or
+bindings. A graph restore reuses the archived UUID bindings for identities in
+that revision. It preserves the assignments already moved by a merge unless a
+new retirement remaps them.
+
 The genre-kit migration 0023 clears the old access index. Before deploying over an active graph, retain the payload,
 revision and UUID mapping and prepare a compatible contract 4 import with explicit retirements for removed identities.
 Keep graph-dependent traffic gated until the import has rebuilt the access index. A pre-v4 archive is retained for

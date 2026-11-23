@@ -1,5 +1,6 @@
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 from uuid import uuid4
@@ -18,12 +19,19 @@ from grow.authentication.ApiKeyAuthentication import PipelineUser
 from grow.authentication.Principal import Principal
 from grow.bulk_import.analyze import tables
 from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, BulkImportRun
-from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
+from grow.bulk_import.lifecycle import queue_attempt
 from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
-from grow.genre_graph.bulk_import.merge import GRAPH_IMPORT_MODELS, merge_reference_graph_import_run
+from grow.genre_graph.bulk_import.merge import (
+    GRAPH_REVISION_MODELS,
+    SONG_PROJECTION_MODELS,
+    merge_reference_graph_import_run,
+)
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.model.song.Song import Song
+from tests.integration.criteria.test_reference_graph import _retirement, _without_identity
 from tests.utils.curation_export import record_graph_export
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
@@ -160,6 +168,7 @@ def test_unmapped_existing_genre_then_failed_with_the_validation_message(payload
     assert failed["status"] == "failed"
     assert failed["error"].startswith("GraphValidationError: Unmapped existing genre UUIDs: [")
     assert not GenreGraphDataset.objects.exists()
+    assert not ImportReceipt.objects.filter(pk=run.pk).exists()
 
 
 def test_unlisted_merge_error_then_failed_with_the_generic_message(payload):
@@ -183,19 +192,31 @@ def test_unlisted_merge_error_then_failed_with_the_generic_message(payload):
 
 @pytest.mark.postgres
 def test_tables_written_by_the_import_are_all_analyzed(payload):
-    song = ModelFixtureFactory(None).create_song("Unassigned", None)
-    assert song
+    factory = ModelFixtureFactory(None)
+    source = factory.create_genre("Existing genre")
+    song = factory.create_song("Assigned", source)
     api = client("pipeline")
-    with patch("grow.view.genre_graph.enqueue_merge"):
-        api.post(runs_url(), body(payload), format="json")
-    run = BulkImportRun.objects.get()
-    attempt = ImportAttempt.objects.get()
+    mapping = {node["id"]: None for node in payload["nodes"]}
+    mapping["LOCAL:french-dub"] = str(source.pk)
 
-    with CaptureQueriesContext(connection) as queries:
-        merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
+    def publish(request):
+        with patch("grow.view.genre_graph.enqueue_merge"):
+            response = api.post(runs_url(), request, format="json")
+        assert response.status_code == 202, response.content
+        run = BulkImportRun.objects.get()
+        attempt = ImportAttempt.objects.get(run_id=run.pk)
+        with CaptureQueriesContext(connection) as queries:
+            result = merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
+        attempt.refresh_from_db()
+        assert ImportReceipt.objects.get(pk=run.pk).result == result
+        return result, {step["label"]: step for step in attempt.completed_steps}, [q["sql"] for q in queries]
+
+    original, steps, sql = publish(body(payload, mapping=mapping))
+    assert steps.keys() >= {"lock_graph_sources", "replace_graph", "publish_graph_revision", "analyze", "commit"}
+    assert steps["materialize_song_genres"]["rowcount"] == 0
 
     pattern = re.compile(r'^\s*(?:INSERT INTO|UPDATE|DELETE FROM|TRUNCATE(?: TABLE)?)\s+(?:ONLY\s+)?"?(\w+)"?', re.I)
-    written = {m.group(1) for q in queries.captured_queries if (m := pattern.match(q["sql"]))}
+    written = {m.group(1) for query in sql if (m := pattern.match(query))}
     written = {t for t in written if not t.startswith(("grow_assignment_", "graph_assignment_changes_"))}
     # Telemetry and the merge's own bookkeeping are not catalogue data.
     written -= {
@@ -206,4 +227,63 @@ def test_tables_written_by_the_import_are_all_analyzed(payload):
         "grow_bulk_import_deletion",
     }
     written -= {"grow_genre_graph_import_payload", "django_q_ormq", "django_q_task"}
-    assert written <= set(tables(GRAPH_IMPORT_MODELS)), sorted(written - set(tables(GRAPH_IMPORT_MODELS)))
+    written.discard("grow_song")  # The bootstrap UPDATE changed zero rows.
+    assert written <= {query.removeprefix("ANALYZE ").strip('"') for query in sql if query.startswith("ANALYZE ")}
+
+    mapping = GenreGraphImport.objects.get(pk=original["revision"]).mapping
+    replay, steps, sql = publish(body(payload, original["revision"], mapping))
+    assert replay == original
+    assert "materialize_song_genres" not in steps
+    assert not any(query.startswith("ANALYZE ") or "grow_song" in query for query in sql)
+    assert GenreGraphImport.objects.count() == GenreGraphAssignmentBackup.objects.count() == 1
+
+    edited = deepcopy(payload)
+    edited["nodes"][0]["name"] += " (updated)"
+    updated, steps, sql = publish(body(edited, original["revision"], mapping))
+    assert updated["revision"] != original["revision"]
+    assert steps["materialize_song_genres"]["rowcount"] == 0
+    assert not any("grow_song" in query or "grow_affected_song_" in query for query in sql)
+    analyzed = {q.removeprefix("ANALYZE ").strip('"') for q in sql if q.startswith("ANALYZE ")}
+    assert {table for table in analyzed if not table.startswith("graph_access_stage_")} == set(
+        tables(GRAPH_REVISION_MODELS)
+    )
+
+    retired = body(_without_identity(edited, "LOCAL:french-dub"), updated["revision"], mapping)
+    del retired["mapping"]["LOCAL:french-dub"]
+    retired["retirements"] = {"LOCAL:french-dub": _retirement(None)}
+    _, steps, sql = publish(retired)
+    assert steps["capture_retired_song_candidates"]["rowcount"] == 1
+    assert steps["materialize_song_genres"]["rowcount"] == 1
+    assert set(tables(SONG_PROJECTION_MODELS)) <= {
+        q.removeprefix("ANALYZE ").strip('"') for q in sql if q.startswith("ANALYZE ")
+    }
+    assert Song.objects.get(pk=song.pk).membership_genre_id is None
+
+
+def test_committed_graph_run_retries_cleanup_without_republication(payload):
+    api = client("pipeline")
+    with patch("grow.view.genre_graph.enqueue_merge"):
+        response = api.post(runs_url(), body(payload), format="json")
+    assert response.status_code == 202, response.content
+    run = BulkImportRun.objects.get()
+    attempt = ImportAttempt.objects.get()
+
+    with (
+        patch("grow.bulk_import.lifecycle._finalize", side_effect=RuntimeError("cleanup interrupted")),
+        pytest.raises(RuntimeError, match="cleanup interrupted"),
+    ):
+        merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
+
+    receipt = ImportReceipt.objects.get(pk=run.pk)
+    assert receipt.result["revision"] == str(GenreGraphDataset.objects.get().revision)
+    attempt.refresh_from_db()
+    assert attempt.state == ImportAttempt.State.FAILED
+    assert attempt.data_applied
+    retry = queue_attempt(run)
+    with patch("grow.genre_graph.bulk_import.merge._merge") as merge:
+        result = merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=retry.pk)
+    merge.assert_not_called()
+    assert result == receipt.result
+    assert GenreGraphImport.objects.count() == 1
+    assert not BulkImportRun.objects.exists()
+    assert not GenreGraphImportPayload.objects.exists()

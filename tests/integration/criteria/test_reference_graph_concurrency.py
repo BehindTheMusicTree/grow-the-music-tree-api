@@ -15,12 +15,16 @@ from django.urls import reverse
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
+from the_music_tree_genre_kit.genre_graph.assignments import register_evidence
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphAttributionEvidence, GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportReceipt
 from grow.genre_graph.models import GenreGraphImport
-from grow.genre_graph.service import import_reference_graph, reference_dataset
+from grow.genre_graph.service import DATASET_KEY, import_reference_graph, reference_dataset, set_song_genre
+from grow.genre_music.catalogue_verification import derived_song_genres, verify_catalogue_counts
+from grow.genre_music.membership import verify_membership_counts
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
@@ -82,6 +86,10 @@ def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
 @pytest.mark.django_db(transaction=True)
 def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publication():
     payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    genre = ModelFixtureFactory(None).create_genre("Legacy genre")
+    song = ModelFixtureFactory(None).create_song("Legacy song", genre)
+    mapping = {node["id"]: None for node in payload["nodes"]}
+    mapping["LOCAL:dub"] = str(genre.pk)
     run = BulkImportRun.objects.create(kind=ImportRun.Kind.SONGS)
     backend = Queue()
 
@@ -95,11 +103,20 @@ def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publicat
         finally:
             connections.close_all()
 
-    with ThreadPoolExecutor(max_workers=1) as pool:
+    def read_committed_sources():
+        try:
+            return (
+                GenreGraphDataset.objects.filter(pk=DATASET_KEY).exists(),
+                Song.objects.get(pk=song.pk).membership_genre_id,
+                Genre.objects.get(pk=genre.pk).graph_node_id,
+            )
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
         with transaction.atomic():
             lock_catalogue_sources()
-            import_graph(payload)
-            songs = list(Song.objects.values_list("pk", flat=True))
+            published = import_graph(payload, mapping)
             future = pool.submit(publish)
             pid = backend.get(timeout=10)
             deadline = monotonic() + 10
@@ -115,8 +132,13 @@ def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publicat
                     if future.done() or monotonic() >= deadline:
                         pytest.fail("Song publication did not wait for graph activation")
                     sleep(0.01)
+            assert pool.submit(read_committed_sources).result(timeout=10) == (False, genre.pk, None)
         future.result(timeout=10)
-    assert list(Song.objects.values_list("pk", flat=True)) == songs
+    assert reference_dataset().revision == published.revision
+    assert dict(Song.objects.values_list("pk", "membership_genre_id")) == derived_song_genres() == {song.pk: genre.pk}
+    assert verify_catalogue_counts()["catalogue"].valid
+    expected_counts, stored_counts = verify_membership_counts()
+    assert expected_counts == stored_counts
     assert not ImportReceipt.objects.filter(pk=run.pk).exists()
 
 
@@ -199,3 +221,71 @@ def test_concurrent_assignment_api_edits_preserve_the_winners_complete_evidence(
     final = APIClient().get(path).json()
     assert final["attributions"] == {identity: evidence}
     assert {key: final[key] for key in tokens} == tokens
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("operation", ["insert", "update", "delete"])
+def test_direct_evidence_dml_takes_source_gate_before_dataset(operation):
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    original = import_graph(payload)
+    genre = Genre.objects.get(semantic_identity="LOCAL:french-dub")
+    song = ModelFixtureFactory(None).create_song("With evidence", None)
+    assert set_song_genre(song, genre, provenance=_retirement(None)["provenance"])
+    link = GenreGraphAttributionEvidence.objects.get(attribution__track_id=song.pk)
+    extra = register_evidence(
+        original, [{"decisionId": "extra", "source": "test", "rationale": "Concurrent evidence"}]
+    )["extra"]
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] += " (updated)"
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    backend_pids = Queue()
+    table = GenreGraphAttributionEvidence._meta.db_table
+
+    def write_link():
+        try:
+            with transaction.atomic(), connections["default"].cursor() as cursor:
+                cursor.execute("SET LOCAL lock_timeout = '10s'")
+                cursor.execute("SELECT pg_backend_pid()")
+                backend_pids.put(cursor.fetchone()[0])
+                if operation == "insert":
+                    cursor.execute(
+                        f"INSERT INTO {table} (attribution_id, evidence_id) VALUES (%s, %s)",
+                        [link.attribution_id, extra.pk],
+                    )
+                elif operation == "update":
+                    cursor.execute(f"UPDATE {table} SET evidence_id = %s WHERE id = %s", [extra.pk, link.pk])
+                else:
+                    cursor.execute(f"DELETE FROM {table} WHERE id = %s", [link.pk])
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with transaction.atomic(), connections["default"].cursor() as cursor:
+            cursor.execute("SET LOCAL lock_timeout = '5s'")
+            lock_catalogue_sources()
+            writer = pool.submit(write_link)
+            writer_pid = backend_pids.get(timeout=5)
+            deadline = monotonic() + 5
+            while monotonic() < deadline:
+                cursor.execute("SELECT EXISTS(SELECT FROM pg_locks WHERE pid = %s AND NOT granted)", [writer_pid])
+                if cursor.fetchone()[0]:
+                    break
+                sleep(0.01)
+            else:
+                pytest.fail("Evidence writer never waited while publication held its source lock")
+            cursor.execute(
+                "SELECT locktype FROM pg_locks WHERE pid = %s AND NOT granted",
+                [writer_pid],
+            )
+            assert cursor.fetchall() == [("advisory",)]
+            published = import_graph(changed, mapping, original.revision)
+        writer.result(timeout=10)
+
+    current = GenreGraphDataset.objects.get(pk=original.pk)
+    assert current.revision == published.revision
+    assert current.membership_revision != published.membership_revision
+    assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
+    links = GenreGraphAttributionEvidence.objects.filter(attribution__track_id=song.pk)
+    expected = {"insert": {link.evidence_id, extra.pk}, "update": {extra.pk}, "delete": set()}
+    assert set(links.values_list("evidence_id", flat=True)) == expected[operation]

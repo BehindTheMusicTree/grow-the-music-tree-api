@@ -183,6 +183,8 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     before = list(GenreGraphAttribution.objects.values_list("pk", "track_id", "node_id"))
     catalogue = import_module("grow.migrations.0141_semantic_catalogue_projection")
     playlists = import_module("grow.migrations.0142_semantic_playlist_projection")
+    evidence = import_module("grow.migrations.0159_gate_graph_evidence_links")
+    evidence.uninstall(apps, editor)
     playlists.backwards(apps, editor)
     catalogue.backwards(apps, editor)
     migration.drop_boundary(apps, editor)
@@ -191,6 +193,7 @@ def test_boundary_reversal_and_reinstallation_preserve_sources():
     migration.create_boundary(apps, editor)
     catalogue.forwards(apps, editor)
     playlists.forwards(apps, editor)
+    evidence.install(apps, editor)
     assert Song.objects.get(pk=song.pk).membership_genre_id == semantic.pk
 
 
@@ -209,6 +212,7 @@ def test_boundary_ddl_and_assignments_roll_back_together():
             import_module("grow.migrations.0141_semantic_catalogue_projection").backwards(
                 apps, connection.schema_editor()
             )
+            import_module("grow.migrations.0159_gate_graph_evidence_links").uninstall(apps, connection.schema_editor())
             migration.drop_boundary(apps, connection.schema_editor())
             GenreGraphAttribution.objects.filter(track_id=song.pk).delete()
             raise RuntimeError("abort migration")

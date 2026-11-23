@@ -1,7 +1,9 @@
 from typing import Any
 from uuid import UUID
 
+from django.db.models import Model
 from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.genre_graph.models import (
     GenreGraphAccess,
     GenreGraphAssignmentState,
@@ -17,17 +19,20 @@ from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
 from grow.bulk_import.analyze import analyze
 from grow.bulk_import.lifecycle import execute_merge
+from grow.bulk_import.progress import report_step
 from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
-from grow.genre_graph.service import import_reference_graph
+from grow.genre_graph.service import GraphPublicationStats, import_reference_graph
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
+from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
+from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
+from grow.model.song.Song import Song
 
-# The tables a graph import writes (tracks are only row-locked). Analyzed in its transaction, like the other merges.
-GRAPH_IMPORT_MODELS = (
+GRAPH_REVISION_MODELS = (
     Criteria,
     Genre,
     Playlist,
@@ -35,17 +40,19 @@ GRAPH_IMPORT_MODELS = (
     CurationSyncState,
     GenreTreeVersion,
     GenreGraphImport,
-    GenreGraphAssignmentBackup,
     GenreGraphDataset,
     GenreGraphRevision,
     GenreGraphNode,
+    GenreGraphAccess,
+)
+ASSIGNMENT_MODELS = (
     GenreGraphEvidence,
     GenreGraphAttribution,
     GenreGraphAttributionEvidence,
     GenreGraphAttributionRevision,
     GenreGraphAssignmentState,
-    GenreGraphAccess,
 )
+SONG_PROJECTION_MODELS = (Song, GenreCatalogueCount, GenreMembershipCount, TrackPlaylistRel)
 
 
 def merge_reference_graph_import_run(
@@ -68,12 +75,23 @@ def merge_reference_graph_import_run(
 def _merge(run_id: int) -> dict[str, Any]:
     body = GenreGraphImportPayload.objects.get(run_id=run_id).payload
     expected = body["expected_revision"]
+    stats = GraphPublicationStats()
     dataset = import_reference_graph(
         payload=body["graph"],
         mapping=body["mapping"],
         expected_revision=UUID(expected) if expected is not None else None,
         curation_exported_on=body["graph"].get("curationExportedOn"),
         retirements=body.get("retirements"),
+        publication_stats=stats,
     )
-    analyze(GRAPH_IMPORT_MODELS)
+    if str(dataset.revision) != expected:
+        models: list[type[Model]] = list(GRAPH_REVISION_MODELS)
+        if expected is None:
+            models.append(GenreGraphAssignmentBackup)
+        if expected is None or body.get("retirements"):
+            models.extend(ASSIGNMENT_MODELS)
+        if stats.songs_changed:
+            models.extend(SONG_PROJECTION_MODELS)
+        with report_step("analyze"):
+            analyze(models)
     return {"revision": str(dataset.revision), "membership_revision": str(dataset.membership_revision)}

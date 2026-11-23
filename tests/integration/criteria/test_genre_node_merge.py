@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -25,7 +26,7 @@ from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import record_export
 from tests.utils.essential_songs import add_essential_song
-from tests.utils.song_graph import install_song_graph
+from tests.utils.song_graph import install_song_graph, reject_scalar_genre_projection
 
 MB_ID = "11111111-1111-4111-8111-111111111111"
 
@@ -83,6 +84,7 @@ class TestCase(AppTestCase):
         source = Genre.objects.get(pk=self.source.pk)
         assert source.graph_node.is_active is False
         assert song_genre(Song.objects.get(pk=self.song.pk)) == self.target
+        assert Song.objects.get(pk=self.song.pk).membership_genre_id == self.target.pk
         assert GenreGraphAttribution.objects.filter(node=source.graph_node).count() == 0
         self.child.refresh_from_db()
         assert self.child.parent.pk == self.target.pk
@@ -126,6 +128,8 @@ class TestCase(AppTestCase):
         assert "different kinds" in response.json()["detail"]
         assert GenreGraphDataset.objects.get(pk=DATASET_KEY).revision == revision
         assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is True
+        self.song.refresh_from_db()
+        assert self.song.membership_genre_id is None
 
     def test_alias_of_into_regional_target_then_400_and_no_write(self):
         overview = self.model_fixture_factory.create_genre("Region")
@@ -160,7 +164,8 @@ class TestCase(AppTestCase):
         GenreGraphImport.objects.create(
             revision=before.revision, mapping=mapping, curation_exported_on=before.payload["curationExportedOn"]
         )
-        assert self._alias().status_code == status.HTTP_200_OK
+        with reject_scalar_genre_projection():
+            assert self._alias().status_code == status.HTTP_200_OK
         return before, GenreGraphDataset.objects.get(pk=DATASET_KEY).revision
 
     def test_restore_before_merge_while_rule_lives_then_refused(self):
@@ -180,6 +185,37 @@ class TestCase(AppTestCase):
         restore_reference_graph(revision=before.revision, expected_revision=current)
 
         assert Genre.objects.get(pk=self.source.pk).graph_node.is_active is True
+
+    def test_restore_revision_produced_by_merge(self):
+        _, merged = self._alias_then_receipt()
+        archived = GenreGraphImport.objects.get(pk=merged)
+        source_identity = f"LOCAL:{self.source.pk}"
+        payload = deepcopy(GenreGraphDataset.objects.get(pk=DATASET_KEY).payload)
+        edited = payload["nodes"][0]
+        original_name = edited["name"]
+        edited["name"] += " (updated)"
+        later = import_reference_graph(
+            payload=payload,
+            mapping={identity: pk for identity, pk in archived.mapping.items() if identity != source_identity},
+            expected_revision=merged,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+        with reject_scalar_genre_projection():
+            restored = restore_reference_graph(revision=merged, expected_revision=later.revision)
+
+        assert restored.revision != later.revision
+        assert next(node["name"] for node in restored.payload["nodes"] if node["id"] == edited["id"]) == original_name
+        archived.refresh_from_db()
+        assert archived.mapping[source_identity] == str(self.source.pk)
+        self.song.refresh_from_db()
+        assert self.song.membership_genre_id == self.target.pk
+
+        del archived.mapping[edited["id"]]
+        archived.save(update_fields=["mapping"])
+        with self.assertRaisesMessage(GraphValidationError, "archive is missing identity bindings"):
+            restore_reference_graph(revision=merged, expected_revision=restored.revision)
+        assert GenreGraphDataset.objects.get(pk=DATASET_KEY).revision == restored.revision
 
     def test_import_graph_naming_merged_source_then_refused(self):
         before, current = self._alias_then_receipt()
@@ -269,7 +305,7 @@ class TestCase(AppTestCase):
         assert not CurationEntry.objects.filter(list_name="genre_merges", user=None).exists()
 
     def test_alias_of_without_dataset_then_everything_moved_and_source_deleted(self):
-        Song.objects.filter(pk=self.song.pk).update(membership_genre=self.source)
+        Song.objects.update_instance(self.song, actor=None, genre=self.source)
 
         response = self._alias()
 
