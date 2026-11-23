@@ -178,6 +178,10 @@ class ReferenceGraphImportRunsView(GraphView):
             "retirements": data.get("retirements"),
         }
         with transaction.atomic():
+            if connection.vendor == "postgresql":
+                # Serialize concurrent POSTs: the exists() check below takes no row lock.
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [GENRE_GRAPH_KIND])
             # Drop the runs of an earlier merge django-q killed without cleanup (see bulk_import_run_actions).
             stale = BulkImportRun.objects.filter(
                 kind=GENRE_GRAPH_KIND,
