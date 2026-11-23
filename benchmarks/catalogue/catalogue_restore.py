@@ -45,6 +45,7 @@ EMPTY = frozenset(
         "grow_curation_sync_state",
         "grow_genealogy_snapshot",
         "grow_genre_edge_rule",
+        "grow_genre_graph_import_payload",
         "grow_genre_tree_import_payload",
         "grow_genregraphassignmentbackup",
         "grow_genregraphimport",

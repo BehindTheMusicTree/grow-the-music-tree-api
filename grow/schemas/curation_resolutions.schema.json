@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/BehindTheMusicTree/the-music-tree-pipelines/wikidata/curation_resolutions.schema.json",
+  "title": "Curation QID resolutions",
+  "type": "object",
+  "properties": {
+    "remaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "list": { "type": "string", "minLength": 1 },
+          "key": { "type": "string", "minLength": 1 },
+          "column": { "type": "string", "minLength": 1 },
+          "from": { "type": "string", "pattern": "^Q[0-9]+$" },
+          "to": { "type": "string", "pattern": "^Q[0-9]+$" }
+        },
+        "required": ["list", "key", "column", "from", "to"],
+        "additionalProperties": false
+      }
+    },
+    "review": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "list": { "type": "string", "minLength": 1 },
+          "key": { "type": "string", "minLength": 1 },
+          "column": { "type": "string", "minLength": 1 },
+          "itemId": { "type": "string", "pattern": "^(Q[0-9]+|LOCAL:[a-z0-9-]+)$" },
+          "reason": { "enum": ["redirect_conflict", "missing", "not_in_tree", "invalid_rule", "exclusive_parent_regional", "unreached_genre"] },
+          "target": { "type": "string", "pattern": "^Q[0-9]+$" },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "modified": { "type": "string", "format": "date-time" },
+              "instanceOf": { "type": "array", "items": { "$ref": "#/$defs/classRef" } },
+              "subclassOf": { "type": "array", "items": { "$ref": "#/$defs/classRef" } },
+              "conflictList": { "type": "string", "minLength": 1 },
+              "detail": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": ["list", "key", "column", "itemId", "reason"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": {
+    "classRef": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^Q[0-9]+$" },
+        "label": { "type": ["string", "null"] }
+      },
+      "required": ["id", "label"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["remaps", "review"],
+  "additionalProperties": false
+}

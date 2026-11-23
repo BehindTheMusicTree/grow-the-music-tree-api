@@ -22,6 +22,7 @@ from the_music_tree_genre_kit.genre_graph.storage import (
     replace_track_attributions,
 )
 
+from grow.bulk_import.progress import report_step
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.genre_tree.bulk_import.merge import load_curation_export, parse_curation_exported_on
@@ -176,7 +177,8 @@ def _publish_revision(
         has_initial_assignment_backup=initial,
     )
     if initial:
-        _backup_assignments(receipt)
+        with report_step("backup_assignments"):
+            _backup_assignments(receipt)
     nodes = {node.identity: node for node in dataset.nodes.all()}
     # Bind first so distinct concepts can use the same display label.
     projection = []
@@ -227,7 +229,8 @@ def _publish_revision(
         projection.append(genre)
     Genre.objects.bulk_update(projection, ["parent", "root"], batch_size=250)
     if initial:
-        _migrate_assignments(dataset)
+        with report_step("migrate_assignments"):
+            _migrate_assignments(dataset)
     state.applied_export_on = exported_on
     state.save(update_fields=["applied_export_on"])
     GenreTreeVersion.objects.filter(pk=1).update(token=uuid4())

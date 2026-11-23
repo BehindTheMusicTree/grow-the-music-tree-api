@@ -21,6 +21,7 @@ from grow.view.curation import (
 from grow.view.genealogy import GenealogyImportView, GenealogyView
 from grow.view.genre_graph import (
     InitialAssignmentsRestoreView,
+    ReferenceGraphImportRunsView,
     ReferenceGraphRestoreView,
     ReferenceGraphView,
     SongAttributionsRestoreView,
@@ -73,6 +74,11 @@ urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),
+    path(
+        f"{settings.API_ROOT_BASE}genres/graph/import-runs/",
+        ReferenceGraphImportRunsView.as_view(),
+        name="reference-graph-import-runs",
+    ),
     path(
         f"{settings.API_ROOT_BASE}genres/graph/restore/",
         ReferenceGraphRestoreView.as_view(),
