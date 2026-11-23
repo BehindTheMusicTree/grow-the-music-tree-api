@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- `GET curation/<list>/entries/{uuid}/` and `GET curation/edges/{uuid}/` return one curation entry or genre edge (admin or `curator`), so a client can read a row before patching or deleting it. Tests cover 200, unknown UUID, unknown list and a UUID from another list.
 - Curators can assign a geographic anchor to a language or ethnic group through `cultural_place_overrides`.
 
 - Admin-created genres are adopted as local nodes (`wikidata_id` `LOCAL:<slug>`, a `canonical_parent_additions` row and a parent edge), so `PUT genres/graph/` no longer fails with `Unmapped existing genre UUIDs` on a genre without a `wikidata_id`. A regional or excluded genre, or a root without a parent, created in the admin now answers 400. Migration `0154` adopts the existing ones (a chain without an adoptable parent is skipped and logged; reverse is a no-op). A genre created during a pipeline run is absent from that run's curation export, so that run still answers 400. Tests cover the manager, the 400s and the migration.
