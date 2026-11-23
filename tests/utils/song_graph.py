@@ -1,10 +1,28 @@
 from collections import defaultdict
+from contextlib import contextmanager
 
+from django.db import connection, transaction
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphAssignmentState, GenreGraphDataset
 from the_music_tree_genre_kit.genre_graph.storage import replace_graph, replace_track_attributions
 
 from grow.genre_graph.service import DATASET_KEY
 from grow.model.criteria.children.genre.Genre import Genre
+
+
+@contextmanager
+def reject_scalar_genre_projection():
+    if connection.vendor != "postgresql":
+        yield
+        return
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT pg_get_functiondef('grow_effective_genre(uuid)'::regprocedure)")
+        original_function = cursor.fetchone()[0]
+        cursor.execute(
+            """CREATE OR REPLACE FUNCTION grow_effective_genre(p_track uuid) RETURNS uuid LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'Unexpected scalar genre projection'; END $$"""
+        )
+        yield
+        cursor.execute(original_function)
 
 
 def install_song_graph(assignments, *, classifications=(), node_overrides=None, relations=(), regional=None):
