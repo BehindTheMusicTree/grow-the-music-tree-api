@@ -110,6 +110,20 @@ class TestEndpoints(AppTestCase):
     def _post(self, **body):
         return self.api_client.post(path=reverse("curation-edges"), data=body, format="json")
 
+    def test_get_edge_then_200_and_unknown_then_404(self):
+        uuid = self._post(relation="canonical_parent", itemId=A, parentItemId=B, excludeOtherParents=True).json()[
+            "uuid"
+        ]
+
+        found = self.api_client.get(path=reverse("curation-edge", kwargs={"uuid": uuid}))
+        missing = self.api_client.get(
+            path=reverse("curation-edge", kwargs={"uuid": "00000000-0000-0000-0000-000000000000"})
+        )
+
+        assert found.status_code == status.HTTP_200_OK
+        assert found.json()["uuid"] == uuid
+        assert missing.status_code == status.HTTP_404_NOT_FOUND
+
     def test_create_list_patch_delete(self):
         created = self._post(relation="canonical_parent", itemId=A, parentItemId=B, excludeOtherParents=True)
         assert created.status_code == status.HTTP_201_CREATED, created.content

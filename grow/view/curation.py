@@ -207,6 +207,10 @@ class CurationEntryView(CurationView):
         lock_writes(_entries())
         return get_object_or_404(_entries(), list_name=list_name, uuid=uuid)
 
+    def get(self, request: Request, list_name: str, uuid: str) -> Response:
+        _check_list(list_name)
+        return Response(_serialize(get_object_or_404(_entries(), list_name=list_name, uuid=uuid)))
+
     @transaction.atomic
     def patch(self, request: Request, list_name: str, uuid: str) -> Response:
         entry = self._get(list_name, uuid)
@@ -325,6 +329,9 @@ class CurationEdgeView(CurationView):
     def _get(self, uuid: str) -> GenreEdgeRule:
         lock_writes(edge_rules())
         return get_object_or_404(edge_rules(), uuid=uuid)
+
+    def get(self, request: Request, uuid: str) -> Response:
+        return Response(_serialize_edge(get_object_or_404(edge_rules(), uuid=uuid)))
 
     @transaction.atomic
     def patch(self, request: Request, uuid: str) -> Response:

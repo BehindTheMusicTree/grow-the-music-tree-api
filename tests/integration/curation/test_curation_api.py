@@ -169,6 +169,34 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_get_entry_then_200_and_row(self):
+        uuid = self._create(ITEM).json()["uuid"]
+
+        response = self.api_client.get(self._entry_url(uuid))
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["uuid"] == uuid
+        assert response.json()["row"] == ITEM
+
+    def test_get_entry_unknown_uuid_then_404(self):
+        response = self.api_client.get(self._entry_url("00000000-0000-0000-0000-000000000000"))
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_entry_unknown_list_then_404(self):
+        uuid = self._create(ITEM).json()["uuid"]
+
+        response = self.api_client.get(self._entry_url(uuid, "no_such_list"))
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_entry_wrong_list_then_404(self):
+        uuid = self._create(ITEM).json()["uuid"]
+
+        response = self.api_client.get(self._entry_url(uuid, "umbrella_non_stylistic_genres"))
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_patch_then_merged_and_history(self):
         uuid = self._create(ITEM).json()["uuid"]
 
