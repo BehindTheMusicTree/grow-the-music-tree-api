@@ -107,10 +107,14 @@ def enqueue_merge(merge: Callable[..., dict[str, int]], run: BulkImportRun, atte
         raise
 
 
-def import_run_status_action(url_prefix: str, kind: str, merge: Callable[..., dict[str, int]]) -> Callable:
-    """The poll action of a `kind`'s import runs: the latest attempt's state, or the legacy django-q task of `merge`."""
+def import_run_status_action(
+    url_prefix: str, kind: str, merge: Callable[..., dict[str, int]], name: str = "import_run_status"
+) -> Callable:
+    """
+    The poll action of a `kind`'s import runs: the latest attempt's state, or the legacy django-q task of `merge`.
+    `name` must be the attribute it is bound to on the viewset: DRF reads the handler name when `@action` runs.
+    """
 
-    @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
     def import_run_status(self, request, task_id=None):
         privileged = request.auth is not None and request.auth.role in {"admin", "pipeline"}
         attempt = ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
@@ -150,7 +154,13 @@ def import_run_status_action(url_prefix: str, kind: str, merge: Callable[..., di
             return Response({"status": "success", "result": task.result})
         return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
 
-    return import_run_status
+    import_run_status.__name__ = name
+    return action(
+        detail=False,
+        methods=["get"],
+        url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status",
+        url_name=name.replace("_", "-"),
+    )(import_run_status)
 
 
 def bulk_import_run_actions(

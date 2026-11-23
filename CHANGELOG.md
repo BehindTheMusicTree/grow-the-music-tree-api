@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Async reference graph import: `POST genres/graph/import-runs/` (same body as `PUT genres/graph/`) returns 202 `{taskId}`, status at `genres/graph/import/<taskId>/status/`, so a large import no longer hits the 503 `query_timeout`. New `unreached_genre` curation review reason (migration `0158`) and a `curation_resolutions` schema contract. Tests cover the run, the Postgres analyze subset and the contracts.
+
 - Full pipeline runs can report stage timestamps and outcomes for the foreground and Wikidata chains, including WDQS retry details. Existing runners retain the same progress and heartbeat contract.
 
 - `GET curation/<list>/entries/{uuid}/` and `GET curation/edges/{uuid}/` return one curation entry or genre edge (admin or `curator`), so a client can read a row before patching or deleting it. Tests cover 200, unknown UUID, unknown list and a UUID from another list.
@@ -29,6 +31,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Structured regional graph decisions (#520): new curation lists `local_identities`, `regional_memberships`, `expression_styles` and `regional_anchorings` (header-only seeds), each carrying `decision_id`, `decision_source` and `reason`. Writes and the export (409) reject a reused `decision_id`, an undeclared or wrongly-kinded `LOCAL:` item and a cycle of `add` memberships; a membership contradicting the stored `add`/`prohibit` of the same pair is rejected. Deleting or renaming a local identity still referenced by graph entries is rejected. Tests cover each violation, the b13/r21/m15 witnesses, the seeds and migration `0148`.
 - `library/songs/?artist=<uuid>&ordering=title|-albumYear` reads a keyset page from the new denormalized table `grow_artist_song` (migration `0146`), so its cost no longer grows with the artist's song count. Pages are chained by an opaque `cursor` in `next`; `count`, `page` and `totalPages` are null. The songs and artists merges and the song, album and credit ORM writes keep the table current. `manage.py rebuild_artist_song` builds it (`--check` reports drift). The endpoint answers 503 until it has been built; there is no fallback to the old query. Tests cover the endpoint, the keyset, the projection and the merges (Postgres-marked tests included), and `perf` gains two scenarios.
 - `POST library/songs/assign-genre/undo/` `{undoToken}` restores what an assign-genre call overwrote (#505): each song's previous attributions with their provenance, and the previous `song_genre` curation rule or its absence. It answers 409 for the whole batch when any song's assignment changed since, and a token is single-use and only its creator can spend it. New table `grow_song_genre_undo` (migration `0145`); tests cover provenance restoration, rule restoration, the batch 409, token reuse and the legacy (no dataset) path.
+
+### Deprecated
+
+- `PUT genres/graph/` is deprecated in favour of `POST genres/graph/import-runs/`.
 
 ### Changed
 

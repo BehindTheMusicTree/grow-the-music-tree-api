@@ -236,6 +236,9 @@ grow_genre_essential_songs|id|bigint|NO
 grow_genre_essential_songs|genre_id|uuid|NO
 grow_genre_essential_songs|song_id|uuid|NO
 grow_genre_essential_songs|position|integer|NO
+grow_genre_graph_import_payload|id|bigint|NO
+grow_genre_graph_import_payload|run_id|bigint|NO
+grow_genre_graph_import_payload|payload|jsonb|NO
 grow_genre_membership_count|id|bigint|NO
 grow_genre_membership_count|genre_id|uuid|YES
 grow_genre_membership_count|tracks_count|bigint|NO

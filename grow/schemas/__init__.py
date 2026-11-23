@@ -12,7 +12,14 @@ from jsonschema import Draft7Validator, Draft202012Validator
 from jsonschema.protocols import Validator
 
 SCHEMAS_DIR = Path(__file__).parent
-GOLD_SCHEMA_NAMES = ("artist", "genealogy", "region_map", "hidden_regions", "synthesized_overview_alerts")
+GOLD_SCHEMA_NAMES = (
+    "artist",
+    "genealogy",
+    "region_map",
+    "hidden_regions",
+    "synthesized_overview_alerts",
+    "curation_resolutions",
+)
 
 
 def load_gold_schema(name: str) -> dict[str, Any]:

@@ -55,6 +55,7 @@ def execute_merge(
     invalidate: Callable[[], Any] | None = None,
     *,
     extra_staging_models: tuple[type[models.Model], ...] = (),
+    public_errors: tuple[type[BaseException], ...] = (),
 ) -> dict[str, Any]:
     staging_models = (staging_model, *extra_staging_models)
     with hold_merge_lock(run_id):
@@ -113,11 +114,16 @@ def execute_merge(
         except BaseException as exc:
             # Do not expose database exceptions (which can include SQL and input values) through the status endpoint.
             logger.exception("import run %s attempt %s failed (data_applied=%s)", run_id, attempt.attempt, applied)
+            # `public_errors` are validation errors whose message holds no SQL nor input values, which the caller needs.
+            if not applied and isinstance(exc, public_errors):
+                error = f"{type(exc).__name__}: {exc}"
+            else:
+                error = f"{type(exc).__name__}: import {'post-commit processing' if applied else 'merge'} failed; see worker logs"
             reporter.publish(
                 state=ImportAttempt.State.FAILED,
                 data_applied=applied,
                 result=result if applied else None,
-                error=f"{type(exc).__name__}: import {'post-commit processing' if applied else 'merge'} failed; see worker logs",
+                error=error,
                 finished_at=timezone.now(),
             )
             raise

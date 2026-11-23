@@ -1,14 +1,24 @@
-from django.db import transaction
+import json
+from datetime import timedelta
+
+from django.conf import settings
+from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import serializers
+from django.utils import timezone
+from rest_framework import serializers, status
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_api_kit.private.get_request_owner import get_request_owner
+from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot
-from the_music_tree_genre_kit.genre_graph.models import GenreGraphAssignmentState, GenreGraphAttributionRevision
+from the_music_tree_genre_kit.genre_graph.models import (
+    GenreGraphAssignmentState,
+    GenreGraphAttributionRevision,
+    GenreGraphDataset,
+)
 from the_music_tree_genre_kit.genre_graph.storage import (
     GraphRevisionConflict,
     effective_attributions,
@@ -18,6 +28,10 @@ from the_music_tree_genre_kit.genre_graph.storage import (
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, BulkImportRun
+from grow.bulk_import.lifecycle import queue_attempt
+from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
+from grow.genre_graph.bulk_import.merge import merge_reference_graph_import_run
 from grow.genre_graph.service import (
     DATASET_KEY,
     import_reference_graph,
@@ -30,6 +44,7 @@ from grow.genre_graph.service import (
 from grow.model.song.Song import Song
 from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
+from grow.view.viewset.mixin.BulkImportRunMixin import enqueue_merge
 
 
 class GraphInput(serializers.Serializer):
@@ -135,6 +150,55 @@ class ReferenceGraphView(GraphView):
             retirements=data.get("retirements"),
         )
         return Response(_tokens(dataset))
+
+
+class ReferenceGraphImportRunsView(GraphView):
+    """
+    Queues a reference graph import (same body as `PUT genres/graph/`) and answers 202 `{taskId}`; the merge runs in the
+    worker, so the initial cutover over every song is not bound by the web `statement_timeout`. The checks here only
+    fail fast: the worker repeats them under its locks.
+    """
+
+    permission_classes = [IsPipelineOrAdmin]
+
+    def post(self, request):
+        serializer = GraphImportInput(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        GenreGraph(data["graph"])
+        expected = data["expected_revision"]
+        current = GenreGraphDataset.objects.filter(pk=DATASET_KEY).values_list("revision", flat=True).first()
+        if current != expected:
+            raise GraphRevisionConflict("Reference graph revision changed; reload before importing")
+        owner = get_request_owner(request)
+        body = {
+            "graph": data["graph"],
+            "mapping": {key: str(value) if value is not None else None for key, value in data["mapping"].items()},
+            "expected_revision": str(expected) if expected is not None else None,
+            "retirements": data.get("retirements"),
+        }
+        with transaction.atomic():
+            if connection.vendor == "postgresql":
+                # Serialize concurrent POSTs: the exists() check below takes no row lock.
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [GENRE_GRAPH_KIND])
+            # Drop the runs of an earlier merge django-q killed without cleanup (see bulk_import_run_actions).
+            stale = BulkImportRun.objects.filter(
+                kind=GENRE_GRAPH_KIND,
+                committed_on__lt=timezone.now() - timedelta(seconds=2 * settings.Q_CLUSTER["timeout"]),
+            )
+            GenreGraphImportPayload.objects.filter(run_id__in=stale.values("pk")).delete()
+            stale.delete()
+            # A finished run (success or failure) is deleted by its merge, so a remaining one is queued or running.
+            if BulkImportRun.objects.filter(kind=GENRE_GRAPH_KIND).exists():
+                return Response({"detail": "A graph import is already running"}, status=status.HTTP_409_CONFLICT)
+            run = BulkImportRun.objects.create(
+                kind=GENRE_GRAPH_KIND, committed_on=timezone.now(), user_id=owner and owner.pk, record=False
+            )
+            GenreGraphImportPayload.objects.create(run_id=run.pk, payload=json.loads(json.dumps(body)))
+            attempt = queue_attempt(run)
+        enqueue_merge(merge_reference_graph_import_run, run, attempt)
+        return Response({"taskId": attempt.task_id}, status=status.HTTP_202_ACCEPTED)
 
 
 class ReferenceGraphRestoreView(GraphView):

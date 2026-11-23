@@ -22,6 +22,9 @@ class CurationReviewItem(models.Model):
         EXCLUSIVE_PARENT_REGIONAL = "exclusive_parent_regional"
         """A `canonical_parent` with `exclude_other_parents` whose item still ends up regional: the exclusion cannot
         hold, so the item belongs in `forced_canonical_genres`."""
+        UNREACHED_GENRE = "unreached_genre"
+        """A regional genre that reaches neither a 'music of <place>' overview nor an accepted canonical root through
+        its parents: the admin adds a `regional_memberships` rule, accepts it in `canonical_roots` or prunes it."""
         SYNTHETIC_OVERVIEW_SUPERSEDED = "synthetic_overview_superseded"
         """A generated `LOCAL:region-*` overview is kept although Wikidata now has an overview for its region
         (`target_item_id`): the admin chooses a `synthetic_overview_resolutions` entry."""

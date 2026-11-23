@@ -4,6 +4,7 @@ from grow.model.import_run.ImportRun import ImportRun
 
 # Not an `ImportRun.Kind`: its runs are recorded per tree (canonical / regional), so `/imports/latest/` never lists it.
 GENRE_TREES_KIND = "genre_trees"
+GENRE_GRAPH_KIND = "genre_graph"
 
 
 class BulkImportRun(models.Model):
@@ -13,7 +14,9 @@ class BulkImportRun(models.Model):
         FULL = "full"
         DELTA = "delta"
 
-    kind = models.TextField(choices=[*ImportRun.Kind.choices, (GENRE_TREES_KIND, "Genre Trees")])
+    kind = models.TextField(
+        choices=[*ImportRun.Kind.choices, (GENRE_TREES_KIND, "Genre Trees"), (GENRE_GRAPH_KIND, "Genre Graph")]
+    )
     # `full`: the run is the whole catalog, so owner rows missing from it are deleted. `delta`: only changed rows plus
     # explicit deletions (`BulkImportDeletion`), nothing else is deleted.
     mode = models.TextField(choices=Mode.choices, default=Mode.FULL)

@@ -22,8 +22,9 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
 
 from grow.bulk_import.analyze import analyze
-from grow.bulk_import.BulkImportRun import GENRE_TREES_KIND, BulkImportRun
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, GENRE_TREES_KIND, BulkImportRun
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.genre_graph.bulk_import.merge import merge_reference_graph_import_run
 from grow.genre_graph.snapshot import graph_snapshot
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.genre_tree.bulk_import.merge import (
@@ -149,6 +150,9 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         return response
 
     import_run_status = import_run_status_action("trees/", GENRE_TREES_KIND, merge_genre_trees_import_run)
+    graph_import_run_status = import_run_status_action(
+        "graph/", GENRE_GRAPH_KIND, merge_reference_graph_import_run, name="graph_import_run_status"
+    )
 
     @action(detail=False, methods=["post"], url_path="trees/import-runs", permission_classes=[IsPipelineOrAdmin])
     def import_trees(self, request):
