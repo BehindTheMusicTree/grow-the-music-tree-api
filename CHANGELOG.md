@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Full pipeline runs can report stage timestamps and outcomes for the foreground and Wikidata chains, including WDQS retry details. Existing runners retain the same progress and heartbeat contract.
+
 - `GET curation/<list>/entries/{uuid}/` and `GET curation/edges/{uuid}/` return one curation entry or genre edge (admin or `curator`), so a client can read a row before patching or deleting it. Tests cover 200, unknown UUID, unknown list and a UUID from another list.
 - Curators can assign a geographic anchor to a language or ethnic group through `cultural_place_overrides`.
 

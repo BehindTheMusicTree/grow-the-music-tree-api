@@ -318,6 +318,7 @@ grow_pipeline_run_request|heartbeat_on|timestamp with time zone|YES
 grow_pipeline_run_request|cancel_requested_on|timestamp with time zone|YES
 grow_pipeline_run_request|trigger|text|NO
 grow_pipeline_run_request|requested_by_id|integer|YES
+grow_pipeline_run_request|step_telemetry|jsonb|YES
 grow_play|uuid|uuid|NO
 grow_play|created_on|timestamp with time zone|NO
 grow_play|updated_on|timestamp with time zone|YES
