@@ -174,6 +174,37 @@ class TestPipelineRun(AppTestCase):
             assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
         assert self._latest().json()["stepTelemetry"] is None
 
+    def test_rejects_step_telemetry_that_drops_or_rewrites_earlier_steps(self):
+        uuid = self._request("full")["uuid"]
+        self._claim()
+        done = {
+            "stage": "ingesting_wikidata",
+            "startedAt": "2026-11-20T12:00:00Z",
+            "finishedAt": "2026-11-20T12:01:00Z",
+            "state": "succeeded",
+        }
+        second = {**done, "stage": "ingesting_geohistory", "startedAt": "2026-11-20T12:02:00Z", "finishedAt": None}
+        second["state"] = "running"
+        ok = self._patch(uuid, {"stepTelemetry": {"variant": "bronze_only", "wikidata": [done, second]}})
+        assert ok.status_code == status.HTTP_200_OK, ok.content
+        for wikidata in (
+            [done],
+            [{**done, "finishedAt": "2026-11-20T12:01:30Z"}, second],
+            [done, {**second, "startedAt": "2026-11-20T12:03:00Z"}],
+        ):
+            response = self._patch(uuid, {"stepTelemetry": {"wikidata": wikidata}})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        finished = {**second, "state": "succeeded", "finishedAt": "2026-11-20T12:04:00Z"}
+        assert self._patch(uuid, {"stepTelemetry": {"wikidata": [done, finished]}}).status_code == status.HTTP_200_OK
+
+    def test_step_telemetry_is_rejected_on_a_curation_run(self):
+        uuid = self._request("curation")["uuid"]
+        self._claim()
+
+        response = self._patch(uuid, {"stepTelemetry": {"variant": "bronze_only"}})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+
     def test_empty_patch_is_a_heartbeat(self):
         uuid = self._request("full")["uuid"]
         self._claim()

@@ -16,7 +16,7 @@ from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 from grow.view.curation import CurationView
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
-from grow.view.pipeline_step_telemetry import StepTelemetrySerializer
+from grow.view.pipeline_step_telemetry import StepTelemetrySerializer, check_chains_extend
 
 Status = PipelineRunRequest.Status
 Kind = PipelineRunRequest.Kind
@@ -154,6 +154,7 @@ class PipelineRunView(CurationView):
                 raise ValidationError({"step_telemetry": "Step telemetry is only available for full runs"})
             update = data["step_telemetry"]
             telemetry = StepTelemetrySerializer(update).data
+            check_chains_extend(run.step_telemetry, telemetry)
             run.step_telemetry = {
                 "variant": None,
                 "foreground": [],

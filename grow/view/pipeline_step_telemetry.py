@@ -64,3 +64,20 @@ class StepTelemetrySerializer(serializers.Serializer):
                 if previous["finished_at"] is None or previous["finished_at"] > current["started_at"]:
                     raise serializers.ValidationError({chain: "Steps must be ordered and cannot overlap"})
         return attrs
+
+
+def check_chains_extend(stored: dict[str, Any] | None, update: dict[str, Any]) -> None:
+    """A snapshot may only append steps or finish a running one: it never drops or rewrites finished history."""
+    for chain in ("foreground", "wikidata"):
+        if chain not in update or not stored:
+            continue
+        old, new = stored[chain], update[chain]
+        rewritten = len(new) < len(old) or any(
+            before["state"] != "running" and before != after for before, after in zip(old, new, strict=False)
+        )
+        if rewritten or any(
+            before["state"] == "running"
+            and (before["stage"], before["started_at"]) != (after["stage"], after["started_at"])
+            for before, after in zip(old, new, strict=False)
+        ):
+            raise serializers.ValidationError({chain: "A snapshot cannot drop or rewrite earlier steps"})
