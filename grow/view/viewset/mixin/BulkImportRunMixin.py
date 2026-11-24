@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Task
 from django_q.tasks import async_task
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
@@ -29,6 +30,7 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.serializer.schema.common import ImportRunStatusSerializer
 from grow.track.bulk_import.assignment_part_loader import load_part as load_assignment_part
 from grow.track.bulk_import.contract import (
     require_complete_run,
@@ -155,12 +157,15 @@ def import_run_status_action(
         return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
 
     import_run_status.__name__ = name
-    return action(
+    bound = action(
         detail=False,
         methods=["get"],
         url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status",
         url_name=name.replace("_", "-"),
     )(import_run_status)
+    return extend_schema(
+        parameters=[OpenApiParameter("task_id", str, OpenApiParameter.PATH)], responses=ImportRunStatusSerializer
+    )(bound)
 
 
 def bulk_import_run_actions(

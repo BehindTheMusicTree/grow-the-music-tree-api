@@ -8,6 +8,8 @@ from django.db.models import Count, F, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseNotModified
 from django.utils.http import parse_etags
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from redis.exceptions import RedisError
 from rest_framework import serializers
 from rest_framework.decorators import action
@@ -41,6 +43,8 @@ from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.query_expressions import InSubquery
+from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
+from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.view.pagination.PlaylistTracksPagination import PlaylistTracksPagination
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
 from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import blocked_restricted_songs
@@ -177,6 +181,24 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
     return rows
 
 
+@extend_schema_view(
+    tracks=extend_schema(
+        parameters=[
+            OpenApiParameter("coverage", str, required=False),
+            OpenApiParameter("subgenres", bool, required=False),
+            OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
+            OpenApiParameter(FROM_QUERY_PARAM, str, required=False),
+        ],
+        responses=TrackPlaylistRelInPageSerializer(many=True),
+    ),
+    tree=extend_schema(
+        parameters=[
+            OpenApiParameter("tree_name", str, required=True, enum=list(CriteriaTreeName.values)),
+            OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
+        ],
+        responses=CriteriaPlaylistSimpleSerializer(many=True),
+    ),
+)
 class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
     def __init__(self, **kwargs):
         super().__init__(model_class=GenrePlaylist, **kwargs)

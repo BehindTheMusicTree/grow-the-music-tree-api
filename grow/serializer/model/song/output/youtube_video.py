@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field, inline_serializer
 from rest_framework import serializers
 
 from grow.model.song.Song import Song
@@ -11,6 +12,16 @@ class SongYoutubeVideoSerializer(serializers.ModelSerializer):
 
     availability = serializers.SerializerMethodField()
 
+    @extend_schema_field(
+        inline_serializer(
+            "SongYoutubeAvailability",
+            {
+                "status": serializers.ChoiceField(choices=["eligible", "blocked", "unknown"]),
+                "reason": serializers.CharField(allow_null=True),
+                "country": serializers.CharField(allow_null=True),
+            },
+        )
+    )
     def get_availability(self, instance):
         return availability(instance, viewer_country(self.context.get("request")))
 

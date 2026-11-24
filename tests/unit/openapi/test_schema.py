@@ -46,3 +46,13 @@ def test_schema_is_generated_once_per_process(client):
     client.get("/schema/")
     assert first is not None
     assert CachedSchemaView._schema is first
+
+
+def test_genre_operations_have_typed_responses(schema):
+    paths = schema["paths"]
+    assert "202" in paths["/v1/genres/graph/import-runs/"]["post"]["responses"]
+    assert "409" in paths["/v1/genres/graph/import-runs/"]["post"]["responses"]
+    for path in ("/v1/genres/graph/", "/v1/genres/tree/", "/v1/genres/{uuid}/alias-of/"):
+        assert paths[path], path
+    tree_params = {p["name"] for p in paths["/v1/genre-playlists/tree/"]["get"]["parameters"]}
+    assert "tree_name" in tree_params

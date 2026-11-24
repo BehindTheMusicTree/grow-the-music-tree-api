@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import connection, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
@@ -42,6 +43,13 @@ from grow.genre_graph.service import (
     write_song_attributions,
 )
 from grow.model.song.Song import Song
+from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
+from grow.serializer.schema.genre_graph import (
+    GraphAssignmentTokensSerializer,
+    GraphTokensSerializer,
+    ReferenceGraphSerializer,
+    SongAttributionsSerializer,
+)
 from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.mixin.BulkImportRunMixin import enqueue_merge
@@ -127,6 +135,7 @@ class ReferenceGraphView(GraphView):
     def get_permissions(self):
         return [AllowAny()] if self.request.method == "GET" else [IsPipelineOrAdmin()]
 
+    @extend_schema(responses=ReferenceGraphSerializer)
     def get(self, request):
         reference_dataset()
         with graph_read_transaction(key=DATASET_KEY, with_payload=True) as dataset:
@@ -137,6 +146,7 @@ class ReferenceGraphView(GraphView):
                 {**_tokens(dataset), "graph": dataset.payload, "mapping": {key: str(pk) for key, pk in mapping.items()}}
             )
 
+    @extend_schema(request=GraphImportInput, responses=GraphTokensSerializer)
     @transaction.atomic
     def put(self, request):
         serializer = GraphImportInput(data=request.data)
@@ -161,6 +171,10 @@ class ReferenceGraphImportRunsView(GraphView):
 
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(
+        request=GraphImportInput,
+        responses={status.HTTP_202_ACCEPTED: TaskIdSerializer, status.HTTP_409_CONFLICT: DetailSerializer},
+    )
     def post(self, request):
         serializer = GraphImportInput(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -204,6 +218,7 @@ class ReferenceGraphImportRunsView(GraphView):
 class ReferenceGraphRestoreView(GraphView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(request=GraphRestoreInput, responses=GraphTokensSerializer)
     def post(self, request):
         serializer = GraphRestoreInput(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -213,6 +228,7 @@ class ReferenceGraphRestoreView(GraphView):
 class InitialAssignmentsRestoreView(GraphView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(request=InitialAssignmentsRestoreInput, responses=GraphTokensSerializer)
     def post(self, request):
         serializer = InitialAssignmentsRestoreInput(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -223,6 +239,7 @@ class SongAttributionsView(GraphView):
     def get_permissions(self):
         return [AllowAny()] if self.request.method == "GET" else [IsCuratorOrAdmin()]
 
+    @extend_schema(responses=SongAttributionsSerializer)
     def get(self, request, song_id):
         reference_dataset()
         with graph_read_transaction(key=DATASET_KEY) as dataset:
@@ -246,6 +263,7 @@ class SongAttributionsView(GraphView):
                 }
             )
 
+    @extend_schema(request=AttributionInput, responses=GraphAssignmentTokensSerializer)
     @transaction.atomic
     def put(self, request, song_id):
         get_object_or_404(Song, pk=song_id, user__isnull=True)
@@ -259,6 +277,7 @@ class SongAttributionsView(GraphView):
 class SongAttributionsRestoreView(GraphView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(request=AttributionRestoreInput, responses=GraphAssignmentTokensSerializer)
     @transaction.atomic
     def post(self, request, song_id):
         get_object_or_404(Song, pk=song_id, user__isnull=True)
