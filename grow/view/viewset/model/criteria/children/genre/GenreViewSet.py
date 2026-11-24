@@ -107,7 +107,9 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
         responses=GenreTreeNodeSerializer,
     ),
     overview=extend_schema(responses=CriteriaOverviewSerializer),
-    search=extend_schema(parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True)),
+    search=extend_schema(
+        parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True), filters=False
+    ),
     import_tree=extend_schema(
         request=GenreTreeImportFileSerializer,
         responses={status.HTTP_201_CREATED: OpenApiTypes.OBJECT},
@@ -118,7 +120,7 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
         responses=_TASK_ID_BODY,
     ),
     exclude=extend_schema(request=GenreExcludeSerializer, responses=GenreDetailedSerializer),
-    name_conflicts=extend_schema(responses=GenreNameConflictGroupSerializer(many=True)),
+    name_conflicts=extend_schema(responses=GenreNameConflictGroupSerializer(many=True), filters=False),
     validate_name_conflicts=extend_schema(
         request=GenreNameConflictValidateSerializer, responses={status.HTTP_204_NO_CONTENT: None}
     ),
@@ -126,7 +128,7 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
     accept_unaccepted_roots=extend_schema(
         request=GenreUnacceptedRootAcceptSerializer, responses={status.HTTP_204_NO_CONTENT: None}
     ),
-    link_suggestions=extend_schema(responses=GenreLinkSuggestionSerializer(many=True)),
+    link_suggestions=extend_schema(responses=GenreLinkSuggestionSerializer(many=True), filters=False),
     secondary_parent=extend_schema(request=None, parameters=[_UUID_PATH_PARAM], responses=GenreDetailedSerializer),
     alias_of=extend_schema(
         request=GenreAliasOfSerializer,
@@ -168,6 +170,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         authentication_classes=[],
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
+        pagination_class=None,
     )
     @graph_snapshot
     def search(self, request: Request) -> Response:
@@ -262,7 +265,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         )
         return self._detailed(instance)
 
-    @action(detail=False, methods=["get"], url_path="name-conflicts")
+    @action(detail=False, methods=["get"], url_path="name-conflicts", pagination_class=None)
     def name_conflicts(self, request: Request) -> Response:
         groups = Genre.objects.get_name_conflict_groups(get_request_owner(request))
         return Response(data=GenreNameConflictGroupSerializer(groups, many=True).data)
@@ -300,7 +303,9 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def _detailed(self, genre: Genre) -> Response:
         return Response(data=self._get_detailed_serializer(genre).data)
 
-    @action(detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin])
+    @action(
+        detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin], pagination_class=None
+    )
     def link_suggestions(self, request: Request, *args, **kwargs) -> Response:
         songs = SongCurationManager.link_suggestions(self.get_object())
         data = SongWithoutPlaylistsSerializer(songs, many=True, context=self.get_serializer_context()).data

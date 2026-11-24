@@ -16,3 +16,19 @@ class ImportRunStatusSerializer(serializers.Serializer):
 
 class DetailSerializer(serializers.Serializer):
     detail = serializers.CharField()
+
+
+class ImportRunCreateRequestSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(
+        choices=["full", "delta"],
+        required=False,
+        help_text="Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.",
+    )
+
+
+class ImportRunCreatedSerializer(serializers.Serializer):
+    run_id = serializers.IntegerField()
+
+
+class CountSerializer(serializers.Serializer):
+    count = serializers.IntegerField(help_text="Rows loaded from the uploaded body.")
