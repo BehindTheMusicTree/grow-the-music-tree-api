@@ -338,3 +338,6 @@ def test_merge_session_checks_client_connection():
     with hold_merge_lock(1), connection.cursor() as cursor:
         cursor.execute("SHOW client_connection_check_interval")
         assert cursor.fetchone()[0] == "10s"
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW client_connection_check_interval")
+        assert cursor.fetchone()[0] == "0"

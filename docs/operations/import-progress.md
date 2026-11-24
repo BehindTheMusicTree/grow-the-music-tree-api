@@ -64,7 +64,7 @@ django-q de cette tentative) est suivie par `workerAbsentSince`. Après 10 minut
 (`WORKER_ABSENT_GRACE_SECONDS`, de quoi couvrir un redéploiement), le statut authentifié
 la passe en `failed` avec l’erreur « No import worker running for 600 s; the queued
 import was abandoned », sans la relancer : l’opérateur redémarre le run quand un worker
-est revenu. Les mises à jour sont conditionnelles et sans verrou.
+est revenu ; un import de graphe abandonné supprime aussi son run et sa charge utile, sinon un nouvel import répondrait 409. Une tentative dont les données sont déjà commitées (reçu présent) n’est jamais abandonnée : elle attend un worker pour finaliser. Si Redis est injoignable, l’absence est inconnue : ni marquage ni abandon. Les mises à jour sont conditionnelles et sans verrou.
 
 Le worker prend la tentative par un `UPDATE … WHERE state='queued'` atomique
 (`queued` → `running`). Si la réconciliation l’a déjà passée en `failed`, la prise
@@ -73,7 +73,9 @@ touche 0 ligne et `execute_merge` lève `ValueError` sans rien fusionner.
 La session de fusion fixe `client_connection_check_interval = '10s'` avant de prendre
 le verrou advisory : Postgres détecte alors un worker tué (timeout django-q) même pendant
 une longue instruction, abandonne la requête et libère le verrou, au lieu de la laisser
-tourner jusqu’à sa fin.
+tourner jusqu’à sa fin. Le réglage est remis à zéro à la libération du verrou, la connexion du worker survivant à la fusion.
+
+La fenêtre de 10 minutes n’est pas garantie continue : `workerAbsentSince` n’est effacé que par un statut qui voit un cluster, donc une absence brève après un long intervalle sans lecture peut échouer la tentative aussitôt.
 
 Limite connue : une tâche perdue dans Redis alors que le worker vit reste `queued`,
 car un cluster vivant efface `workerAbsentSince`.

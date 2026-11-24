@@ -32,6 +32,7 @@ def hold_merge_lock(run_id: int) -> Iterator[None]:
     finally:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_unlock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
+            cursor.execute("RESET client_connection_check_interval")  # the worker connection outlives the merge
 
 
 def merge_is_live(run_id: int) -> bool:

@@ -6,9 +6,10 @@ from django.utils import timezone
 from django_q.models import Task
 from rest_framework.test import APIClient
 
-from grow.bulk_import.BulkImportRun import BulkImportRun
-from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.bulk_import.status import reconcile
 from tests.utils.AppTestCase import AppTestCase
 
 PREFIX = reverse("song-list") + "songs/"
@@ -137,3 +138,34 @@ class TestWorkerAbsence(AppTestCase):
         with patch("grow.bulk_import.status.Stat.get_all") as get_all:
             APIClient().get(self.path)
         get_all.assert_not_called()
+
+    def test_attempt_with_committed_data_is_never_abandoned(self):
+        ImportReceipt.objects.create(run_id=self.run.pk, result={})
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=601)
+        )
+        with patch("grow.bulk_import.status.Stat.get_all", return_value=[]):
+            self.api_client.get(self.path)
+        self.attempt.refresh_from_db()
+        assert self.attempt.state == "queued"
+
+    def test_unreachable_redis_neither_fails_the_read_nor_abandons(self):
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=601)
+        )
+        with patch("grow.bulk_import.status.Stat.get_all", side_effect=ConnectionError("redis down")):
+            response = self.api_client.get(self.path)
+        assert response.status_code == 200
+        self.attempt.refresh_from_db()
+        assert self.attempt.state == "queued"
+
+    def test_abandoned_graph_import_frees_the_single_run_slot(self):
+        run = BulkImportRun.objects.create(kind=GENRE_GRAPH_KIND, committed_on=timezone.now())
+        attempt = queue_attempt(run)
+        ImportAttempt.objects.filter(pk=attempt.pk).update(worker_absent_since=timezone.now() - timedelta(seconds=601))
+        attempt.refresh_from_db()
+        with patch("grow.bulk_import.status.Stat.get_all", return_value=[]):
+            assert reconcile(attempt) is None
+        attempt.refresh_from_db()
+        assert attempt.state == "failed"
+        assert not BulkImportRun.objects.filter(pk=run.pk).exists()
