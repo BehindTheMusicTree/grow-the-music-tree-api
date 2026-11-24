@@ -33,6 +33,8 @@ class ImportAttempt(models.Model):
     error = models.TextField(null=True)
     result = models.JSONField(null=True)
     data_applied = models.BooleanField(default=False)
+    # Set while a queued attempt sees no live django-q cluster; reconcile fails the attempt once it lasts too long.
+    worker_absent_since = models.DateTimeField(null=True)
 
     class Meta:
         db_table = "grow_import_attempt"

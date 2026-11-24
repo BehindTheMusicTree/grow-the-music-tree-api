@@ -1,4 +1,5 @@
 import unicodedata
+from unittest.mock import patch
 
 import pytest
 from django.db import connection
@@ -68,3 +69,10 @@ def sqlite_flush_graph_guards(django_db_setup):
         yield
     finally:
         connection.ops.sql_flush = original
+
+
+@pytest.fixture(autouse=True)
+def django_q_cluster_alive():
+    """Privileged status reads ask Redis for live django-q clusters; tests report one alive unless they override it."""
+    with patch("grow.bulk_import.status.Stat.get_all", return_value=[object()]) as get_all:
+        yield get_all

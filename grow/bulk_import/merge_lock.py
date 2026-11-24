@@ -9,6 +9,7 @@ from grow.bulk_import.BulkImportRun import BulkImportRun
 logger = logging.getLogger(__name__)
 
 IMPORT_LOCK_KEY = 0x696D7072  # pg advisory lock namespace, "impr"; the run id is the second key
+CLIENT_CONNECTION_CHECK_INTERVAL = "10s"
 
 
 @contextmanager
@@ -22,6 +23,9 @@ def hold_merge_lock(run_id: int) -> Iterator[None]:
         yield
         return
     with connection.cursor() as cursor:
+        # Postgres otherwise notices a killed worker only when it next writes to the socket, so a long statement keeps
+        # running, and the lock stays held, after django-q killed the merge on its timeout.
+        cursor.execute(f"SET client_connection_check_interval = '{CLIENT_CONNECTION_CHECK_INTERVAL}'")
         cursor.execute("SELECT pg_advisory_lock(%s, %s)", [IMPORT_LOCK_KEY, run_id])
     try:
         yield
