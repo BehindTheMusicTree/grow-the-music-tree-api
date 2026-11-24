@@ -118,6 +118,32 @@ class TestGenreAliasTargets(AppTestCase):
         v1 = self.api_client.get(reverse("curation-export")).json()
         assert "target_item_id" not in v1["genre_alias"][0]
 
+    def test_legacy_editor_can_retarget_a_migrated_alias_by_exact_unique_label(self):
+        state = CurationSyncState.load()
+        state.genre_alias_publication = {"targets": TARGETS}
+        state.save(update_fields=["genre_alias_publication"])
+        entries = reverse("curation-entries", kwargs={"list_name": "genre_alias"})
+        response = self.api_client.post(
+            entries,
+            {"row": {"musicbrainz_genre_name": "legacy-editor", "target_item_id": "Q2", "reason": "original"}},
+        )
+        assert response.status_code == 201, response.json()
+        current = response.json()
+        entry = reverse("curation-entry", kwargs={"list_name": "genre_alias", "uuid": current["uuid"]})
+        response = self.api_client.patch(
+            entry,
+            {"row": {**current["row"], "wikidata_genre_name": "Local sound"}},
+            format="json",
+        )
+        assert response.status_code == 200, response.json()
+        assert response.json()["row"]["target_item_id"] == "LOCAL:sound"
+        response = self.api_client.patch(
+            entry,
+            {"row": {**response.json()["row"], "wikidata_genre_name": "Same label"}},
+            format="json",
+        )
+        assert response.status_code == 400, response.json()
+
     def test_picker_lists_both_eligible_homonyms_and_reports_unavailable_catalogue(self):
         url = reverse("genre-alias-targets")
         assert self.api_client.get(url, {"q": "Same label"}).status_code == 503

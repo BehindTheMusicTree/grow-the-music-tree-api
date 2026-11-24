@@ -66,10 +66,9 @@ def prepare_alias_write(row: dict[str, Any], entry: CurationEntry | None = None)
         return {**old, **row}
 
     targets = alias_catalogue()["targets"]
-    if ("target_item_id" in row and target_id) or (old_id and label == old_label):
+    legacy_retarget = target_id == old_id and label != old_label
+    if target_id and not legacy_retarget:
         candidates = [target for target in targets if target["id"] == target_id]
-        if target_id == old_id and label != old_label:
-            raise ValidationError({"row": {"target_item_id": "Select a new target by id"}})
     else:
         candidates = [target for target in targets if target["label"] == label]
     if len(candidates) != 1:
