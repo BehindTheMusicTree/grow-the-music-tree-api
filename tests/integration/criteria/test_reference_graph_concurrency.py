@@ -289,3 +289,16 @@ def test_direct_evidence_dml_takes_source_gate_before_dataset(operation):
     links = GenreGraphAttributionEvidence.objects.filter(attribution__track_id=song.pk)
     expected = {"insert": {link.evidence_id, extra.pk}, "update": {extra.pk}, "delete": set()}
     assert set(links.values_list("evidence_id", flat=True)) == expected[operation]
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db
+def test_first_publication_raises_session_limits_for_its_transaction():
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    import_graph(payload)
+    with connections["default"].cursor() as cursor:
+        cursor.execute(
+            "SELECT current_setting('work_mem'), current_setting('maintenance_work_mem'),"
+            " current_setting('temp_file_limit')"
+        )
+        assert cursor.fetchone() == ("256MB", "512MB", "60GB")

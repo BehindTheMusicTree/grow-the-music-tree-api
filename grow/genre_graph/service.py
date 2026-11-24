@@ -331,9 +331,13 @@ def import_reference_graph(
             raise GraphValidationError("An unchanged graph cannot change its bindings")
         return current
     if current is None and connection.vendor == "postgresql":
-        # The first publication joins the whole catalogue in set-wise statements; keep sorts and hashes in memory.
+        # The first publication joins the whole catalogue in set-wise statements: keep sorts, hashes and the
+        # temporary-table index builds in memory where possible, and let the serial sorts of ~16 M rows spill past
+        # the server's 1 GB temp_file_limit (superuser-only: fails fast if the role cannot raise it).
         with connection.cursor() as cursor:
             cursor.execute("SET LOCAL work_mem = '256MB'")
+            cursor.execute("SET LOCAL maintenance_work_mem = '512MB'")
+            cursor.execute("SET LOCAL temp_file_limit = '60GB'")
     materialization = SongMaterialization(dataset_key=DATASET_KEY, initial=current is None)
     materialization.capture(retired)
     with membership_maintenance():
