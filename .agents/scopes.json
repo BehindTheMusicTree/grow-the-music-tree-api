@@ -5,5 +5,13 @@
       "grow/model/**/*.py",
       "grow/migrations/*.py"
     ]
+  },
+  "curation-export": {
+    "source": ".agents/rules/curation-export.md",
+    "paths": [
+      "grow/curation/**/*.py",
+      "grow/view/curation.py",
+      "grow/model/curation/**/*.py"
+    ]
   }
 }
