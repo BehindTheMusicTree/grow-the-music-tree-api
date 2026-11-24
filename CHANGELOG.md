@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `perf.yml` limits the `GITHUB_TOKEN` to `contents: read` for both jobs, closing the two CodeQL `actions/missing-workflow-permissions` alerts.
+
 ### Improved
 
 - `Perf` is skipped for PRs that only change non-runtime files (docs, `*.md`, agent config, unrelated workflows): a `Perf route` job classifies the diff with `scripts/perf_route.py` and any unknown path, mixed diff or routing failure runs the full A/B. Covered by `tests/unit/ci/test_perf_route.py`.
