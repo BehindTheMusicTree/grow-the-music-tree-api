@@ -1021,51 +1021,6 @@ paths:
           type: string
           format: uuid
       - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: name
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
         name: tree_name
         schema:
           type: string
@@ -1073,31 +1028,6 @@ paths:
           - canonical
           - regional
         required: true
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
       tags:
       - v1
       security:
@@ -1108,7 +1038,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedGenrePlaylistTreeRowList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenrePlaylistTreeRow'
           description: ''
         '304':
           description: No response body
@@ -5519,9 +5451,7 @@ components:
         songsCount:
           type: integer
         catalogue:
-          type: object
-          additionalProperties:
-            type: integer
+          $ref: '#/components/schemas/GenreTreeCatalogue'
       required:
       - catalogue
       - createdOn
@@ -5704,6 +5634,20 @@ components:
       - primaryParents
       - secondaryParents
       - uuid
+    GenreTreeCatalogue:
+      type: object
+      properties:
+        genreOnlyTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+        genreAndSubgenresTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - genreAndSubgenresTracksCount
+      - genreOnlyTracksCount
     GenreTreeImportFile:
       type: object
       description: 'A Gold tree file: the import pops `curationExportedOn` before
@@ -6188,29 +6132,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GenreNameConflictGroup'
-    PaginatedGenrePlaylistTreeRowList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/GenrePlaylistTreeRow'
     PaginatedGenreSearchResultList:
       type: object
       required:

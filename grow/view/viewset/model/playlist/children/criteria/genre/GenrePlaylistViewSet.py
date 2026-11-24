@@ -193,6 +193,7 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         responses=TrackPlaylistRelInPageSerializer(many=True),
     ),
     tree=extend_schema(
+        filters=False,
         parameters=[
             OpenApiParameter("tree_name", str, required=True, enum=list(CriteriaTreeName.values)),
             OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
@@ -288,7 +289,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             Coalesce(Subquery(in_buckets), 0) - Coalesce(Subquery(blocked), 0), flat=True
         )[0]
 
-    @action(detail=False, methods=["get"], url_path="tree")
+    @action(detail=False, methods=["get"], url_path="tree", pagination_class=None)
     @graph_snapshot
     def tree(self, request: Request) -> HttpResponse:
         """Whole genre tree, unpaginated, cached under the DB-trigger-maintained GenreTreeVersion token."""

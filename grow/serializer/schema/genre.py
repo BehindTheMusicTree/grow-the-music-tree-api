@@ -50,11 +50,16 @@ class GenreTreeImportFileSerializer(CriteriaTreeImportSerializer):
     curation_exported_on = serializers.DateTimeField(required=False)
 
 
+class GenreTreeCatalogueSerializer(serializers.Serializer):
+    genre_only_tracks_count = serializers.DictField(child=serializers.IntegerField())
+    genre_and_subgenres_tracks_count = serializers.DictField(child=serializers.IntegerField())
+
+
 class GenrePlaylistTreeRowSerializer(CriteriaPlaylistSimpleSerializer):
     """`genre-playlists/tree/` rows are built from `.values()`: counts the list serializer lacks, no `views_count` with `artist`."""
 
     songs_count = serializers.IntegerField()
-    catalogue = serializers.DictField(child=serializers.IntegerField())
+    catalogue = GenreTreeCatalogueSerializer()
     views_count = serializers.IntegerField(required=False)
 
     class Meta(CriteriaPlaylistSimpleSerializer.Meta):
