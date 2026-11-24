@@ -112,6 +112,19 @@ class TestPipelineRun(AppTestCase):
         assert self._latest().json() == done
         assert self.api_client.get(path=reverse("pipeline-runs-latest")).json() == done
 
+    def test_background_geohistory_failure_replaces_foreground_stage(self):
+        uuid = self._request("full")["uuid"]
+        assert self._claim().status_code == status.HTTP_200_OK
+        assert self._patch(uuid, {"stage": "building_songs"}).status_code == status.HTTP_200_OK
+
+        error = "source=overpass snapshot=2026-11-20T16:00:00Z relation=123 HTTP 403"
+        failed = self._patch(uuid, {"status": "failed", "stage": "ingesting_geohistory", "error": error})
+        assert failed.status_code == status.HTTP_200_OK, failed.content
+        result = failed.json()
+        assert (result["status"], result["stage"], result["error"]) == ("failed", "ingesting_geohistory", error)
+        assert result["finishedOn"] is not None
+        assert self._latest().json() == result
+
     def test_full_step_telemetry_survives_independent_progress_and_terminal_updates(self):
         uuid = self._request("full")["uuid"]
         assert self._claim().json()["stepTelemetry"] is None

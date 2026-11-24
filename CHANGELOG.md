@@ -69,6 +69,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Pipeline runs can report a terminal Geohistory ingestion failure with its stage and diagnostic after foreground work finishes.
+
 - Reference graph publication updates song genres from the final assignments in one pass. Later revisions limit the update to affected songs. Merge revisions can be restored from their archives, and direct evidence writes follow the catalogue lock order.
 
 - Genre node merges (#532 follow-up): `import_reference_graph`, and so a restore, now refuses a graph that still contains the source of a live `genre_merges` rule instead of silently reactivating it (`GraphValidationError`). Until the pipelines emit `genre_merges`, an admin merge therefore blocks the next nightly import; to undo a merge, delete the rule and restore (attributions are not moved back). A merge naming a `LOCAL:` item declared in neither a local identity nor an addition list is now an `undeclared_local` violation. Tests cover refused/accepted restore and import, a target without identity, the legacy path without dataset, and the rollback when the rule write fails. Deleting an addition entry, or renaming its key, is now rejected (400 on DELETE, 400 on PATCH) while a `genre_merges` rule or a graph edge still names its `LOCAL:` item; edges naming an undeclared `LOCAL:` item are covered too. Tests also cover merge chains (A→B→C) and an import whose graph is unchanged but names a merged source.
