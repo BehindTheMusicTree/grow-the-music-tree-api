@@ -370,7 +370,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunStatus'
+          description: ''
   /v1/artists/search/:
     get:
       operationId: v1_artists_search_retrieve
@@ -701,27 +705,50 @@ paths:
   /v1/genealogy/:
     get:
       operationId: v1_genealogy_retrieve
-      description: The latest genealogy snapshot, public, revalidated by its checksum.
+      description: The latest genealogy document, verbatim, with its checksum as `ETag`.
       tags:
       - v1
       security:
       - {}
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '304':
           description: No response body
   /v1/genealogy/import/:
     post:
       operationId: v1_genealogy_import_create
-      description: 'Pipeline import of the genealogy document. Parsed and rendered
-        verbatim: the document''s keys must not be recased.'
+      description: The genealogy document, validated against the `genealogy` Gold
+        schema.
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: {}
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenealogyImportResult'
+          description: ''
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenealogyImportResult'
+          description: ''
   /v1/genre-playlists/:
     get:
       operationId: v1_genre_playlists_list
@@ -857,7 +884,7 @@ paths:
           description: ''
   /v1/genre-playlists/{uuid}/tracks/:
     get:
-      operationId: v1_genre_playlists_tracks_retrieve
+      operationId: v1_genre_playlists_tracks_list
       description: |-
         Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
         play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
@@ -866,6 +893,103 @@ paths:
         `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
         track is not in the playlist, 400 if the value is not a UUID.
       parameters:
+      - in: query
+        name: artist
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: coverage
+        schema:
+          type: string
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: from
+        schema:
+          type: string
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: subgenres
+        schema:
+          type: boolean
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
+        description: |-
+          * `canonical` - Canonical
+          * `regional` - Regional
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
       - in: path
         name: uuid
         schema:
@@ -880,12 +1004,30 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTrackPlaylistRelInPageList'
+          description: ''
   /v1/genre-playlists/tree/:
     get:
-      operationId: v1_genre_playlists_tree_retrieve
+      operationId: v1_genre_playlists_tree_list
       description: Whole genre tree, unpaginated, cached under the DB-trigger-maintained
         GenreTreeVersion token.
+      parameters:
+      - in: query
+        name: artist
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
+        required: true
       tags:
       - v1
       security:
@@ -893,7 +1035,29 @@ paths:
       - apiKey: []
       responses:
         '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenrePlaylistTreeRow'
+          description: ''
+        '304':
           description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /v1/genres/:
     get:
       operationId: v1_genres_list
@@ -1161,16 +1325,50 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreAliasOf'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreAliasOf'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreAliasOf'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreDetailed'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreAliasConflict'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Detail'
+          description: ''
   /v1/genres/{uuid}/alias-of/preview/:
     get:
       operationId: v1_genres_alias_of_preview_retrieve
       parameters:
+      - in: query
+        name: target
+        schema:
+          type: string
+          format: uuid
+        required: true
       - in: path
         name: uuid
         schema:
@@ -1185,7 +1383,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreAliasCounts'
+          description: ''
   /v1/genres/{uuid}/exclude/:
     post:
       operationId: v1_genres_exclude_create
@@ -1199,12 +1401,28 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreExclude'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreExclude'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreExclude'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreDetailed'
+          description: ''
   /v1/genres/{uuid}/history/:
     get:
       operationId: v1_genres_history_list
@@ -1327,8 +1545,101 @@ paths:
           description: ''
   /v1/genres/{uuid}/link-suggestions/:
     get:
-      operationId: v1_genres_link_suggestions_retrieve
+      operationId: v1_genres_link_suggestions_list
       parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
       - in: path
         name: uuid
         schema:
@@ -1336,6 +1647,10 @@ paths:
           format: uuid
         description: A UUID string identifying this genre.
         required: true
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
       tags:
       - v1
       security:
@@ -1343,7 +1658,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGenreLinkSuggestionList'
+          description: ''
   /v1/genres/{uuid}/overview/:
     get:
       operationId: v1_genres_overview_retrieve
@@ -1362,7 +1681,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaOverview'
+          description: ''
   /v1/genres/{uuid}/secondary-parents/{parent_uuid}/:
     post:
       operationId: v1_genres_secondary_parents_create
@@ -1371,7 +1694,7 @@ paths:
         name: parent_uuid
         schema:
           type: string
-          pattern: ^[0-9a-f-]+$
+          format: uuid
         required: true
       - in: path
         name: uuid
@@ -1387,7 +1710,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreDetailed'
+          description: ''
     delete:
       operationId: v1_genres_secondary_parents_destroy
       parameters:
@@ -1395,7 +1722,7 @@ paths:
         name: parent_uuid
         schema:
           type: string
-          pattern: ^[0-9a-f-]+$
+          format: uuid
         required: true
       - in: path
         name: uuid
@@ -1423,28 +1750,52 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferenceGraph'
+          description: ''
     put:
       operationId: v1_genres_graph_update
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphImportInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphTokens'
+          description: ''
   /v1/genres/graph/assignments/restore/:
     post:
       operationId: v1_genres_graph_assignments_restore_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitialAssignmentsRestoreInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphTokens'
+          description: ''
   /v1/genres/graph/import-runs/:
     post:
       operationId: v1_genres_graph_import_runs_create
@@ -1454,12 +1805,28 @@ paths:
         fail fast: the worker repeats them under its locks.
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphImportInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Detail'
+          description: ''
   /v1/genres/graph/import/{task_id}/status/:
     get:
       operationId: v1_genres_graph_import_status_retrieve
@@ -1476,21 +1843,133 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunStatus'
+          description: ''
   /v1/genres/graph/restore/:
     post:
       operationId: v1_genres_graph_restore_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphRestoreInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphTokens'
+          description: ''
   /v1/genres/name-conflicts/:
     get:
-      operationId: v1_genres_name_conflicts_retrieve
+      operationId: v1_genres_name_conflicts_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
       tags:
       - v1
       security:
@@ -1498,28 +1977,171 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGenreNameConflictGroupList'
+          description: ''
   /v1/genres/name-conflicts/validate/:
     post:
       operationId: v1_genres_name_conflicts_validate_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreNameConflictValidate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreNameConflictValidate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreNameConflictValidate'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
+        '204':
           description: No response body
   /v1/genres/search/:
     get:
-      operationId: v1_genres_search_retrieve
+      operationId: v1_genres_search_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 25
+          minimum: 1
+          default: 8
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 2
+        required: true
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: tree_name
+        schema:
+          enum:
+          - canonical
+          - regional
+          type: string
+          minLength: 1
+        description: |-
+          * `canonical` - Canonical
+          * `regional` - Regional
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
       tags:
       - v1
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGenreSearchResultList'
+          description: ''
   /v1/genres/tree/:
     get:
       operationId: v1_genres_tree_retrieve
@@ -1536,44 +2158,17 @@ paths:
             }
           ]
         }
-      tags:
-      - v1
-      security:
-      - googleIdToken: []
-      - apiKey: []
-      responses:
-        '200':
-          description: No response body
-  /v1/genres/tree/import/:
-    post:
-      operationId: v1_genres_tree_import_create
-      description: |-
-        Imports a tree structure of criteria, replacing all existing criteria of the current type.
-        Returns a paginated list of created criteria.
-        The input should be an array of criteria trees, where each tree follows the format:
-        {
-          "name": "Criteria name",
-          "children": [
-            {
-              "name": "Child criteria name",
-              "children": []
-            }
-          ]
-        }
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
+      parameters:
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
         required: true
+      tags:
+      - v1
       security:
       - googleIdToken: []
       - apiKey: []
@@ -1582,7 +2177,36 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CriteriaTreeImport'
+                $ref: '#/components/schemas/GenreTreeNode'
+          description: ''
+  /v1/genres/tree/import/:
+    post:
+      operationId: v1_genres_tree_import_create
+      description: Paginated simple genres of the imported tree.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreTreeImportFile'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreTreeImportFile'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreTreeImportFile'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
   /v1/genres/trees/import-runs/:
     post:
@@ -1593,12 +2217,28 @@ paths:
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreTreesImportRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreTreesImportRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreTreesImportRequest'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+          description: ''
   /v1/genres/trees/import/{task_id}/status/:
     get:
       operationId: v1_genres_trees_import_status_retrieve
@@ -1615,10 +2255,112 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunStatus'
+          description: ''
   /v1/genres/unaccepted-roots/:
     get:
-      operationId: v1_genres_unaccepted_roots_retrieve
+      operationId: v1_genres_unaccepted_roots_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
       tags:
       - v1
       security:
@@ -1626,17 +2368,33 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGenreSimpleList'
+          description: ''
   /v1/genres/unaccepted-roots/accept/:
     post:
       operationId: v1_genres_unaccepted_roots_accept_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreUnacceptedRootAccept'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenreUnacceptedRootAccept'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenreUnacceptedRootAccept'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
+        '204':
           description: No response body
   /v1/library/songs/:
     get:
@@ -1990,7 +2748,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongAttributions'
+          description: ''
     put:
       operationId: v1_library_songs_attributions_update
       parameters:
@@ -2002,12 +2764,22 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributionInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphAssignmentTokens'
+          description: ''
   /v1/library/songs/{song_id}/attributions/restore/:
     post:
       operationId: v1_library_songs_attributions_restore_create
@@ -2020,12 +2792,22 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttributionRestoreInput'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphAssignmentTokens'
+          description: ''
   /v1/library/songs/assign-genre/:
     post:
       operationId: v1_library_songs_assign_genre_create
@@ -2169,7 +2951,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunStatus'
+          description: ''
   /v1/manual-playlists/:
     get:
       operationId: v1_manual_playlists_list
@@ -2939,7 +3725,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunStatus'
+          description: ''
   /v1/tag-playlists/:
     get:
       operationId: v1_tag_playlists_list
@@ -3344,7 +4134,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaOverview'
+          description: ''
   /v1/tags/tree/:
     get:
       operationId: v1_tags_tree_retrieve
@@ -3361,6 +4155,15 @@ paths:
             }
           ]
         }
+      parameters:
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
+        required: true
       tags:
       - v1
       security:
@@ -3368,7 +4171,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreTreeNode'
+          description: ''
   /v1/tags/tree/import/:
     post:
       operationId: v1_tags_tree_import_create
@@ -3683,9 +4490,67 @@ components:
       - name
       - tracksCount
       - uuid
+    AttributionInput:
+      type: object
+      properties:
+        attributions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              additionalProperties: {}
+        expectedRevision:
+          type: string
+          format: uuid
+        expectedAssignmentRevision:
+          type: string
+          format: uuid
+          nullable: true
+        expectedMembershipRevision:
+          type: string
+          format: uuid
+      required:
+      - attributions
+      - expectedAssignmentRevision
+      - expectedMembershipRevision
+      - expectedRevision
+    AttributionRestoreInput:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        expectedRevision:
+          type: string
+          format: uuid
+        expectedAssignmentRevision:
+          type: string
+          format: uuid
+          nullable: true
+        expectedMembershipRevision:
+          type: string
+          format: uuid
+      required:
+      - expectedAssignmentRevision
+      - expectedMembershipRevision
+      - expectedRevision
+      - revision
     BlankEnum:
       enum:
       - ''
+    CategoryEnum:
+      enum:
+      - theme
+      - technique
+      - out_of_scope
+      - duplicate
+      type: string
+      description: |-
+        * `theme` - theme
+        * `technique` - technique
+        * `out_of_scope` - out_of_scope
+        * `duplicate` - duplicate
     CriteriaDetailed:
       type: object
       description: |-
@@ -3801,6 +4666,59 @@ components:
           readOnly: true
       required:
       - name
+      - uuid
+    CriteriaOverview:
+      type: object
+      description: |-
+        Resolves `side` and `wikidata_id` for a serializer whose `Meta.model` is the shared base `Criteria`
+        table rather than the concrete `Genre` MTI subtype -- both only exist as columns
+        on `Genre` (see `AbstractGenreCriteria`), reached from a base `Criteria` instance via
+        the reverse `genre` one-to-one accessor that convention requires concrete `Genre`
+        models to declare (`criteria_ptr = ... related_name="genre"`).
+
+        Safe for non-genre criteria (e.g. `Tag`): Django's `RelatedObjectDoesNotExist`
+        subclasses both `Genre.DoesNotExist` and `AttributeError`, so
+        `getattr(obj, "genre", None)` returns `None` rather than raising.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+          readOnly: true
+        summarySourceUrl:
+          type: string
+          nullable: true
+          readOnly: true
+        side:
+          type: string
+          nullable: true
+          readOnly: true
+        image:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+        essentialSongs:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+      required:
+      - description
+      - essentialSongs
+      - image
+      - name
+      - side
+      - summarySourceUrl
       - uuid
     CriteriaPlaylistDetailed:
       type: object
@@ -4184,6 +5102,94 @@ components:
       required:
       - id
       - secondaryParents
+    Detail:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    GenealogyImportResult:
+      type: object
+      properties:
+        checksum:
+          type: string
+        created:
+          type: boolean
+      required:
+      - checksum
+      - created
+    GenreAliasConflict:
+      type: object
+      properties:
+        detail:
+          type: string
+        paths:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+      required:
+      - detail
+      - paths
+    GenreAliasCounts:
+      type: object
+      properties:
+        songs:
+          type: integer
+        essentialSongs:
+          type: integer
+        children:
+          type: integer
+      required:
+      - children
+      - essentialSongs
+      - songs
+    GenreAliasOf:
+      type: object
+      properties:
+        target:
+          type: string
+          format: uuid
+      required:
+      - target
+    GenreCataloguePlaylist:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        genreOnlyTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+        genreAndSubgenresTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - genreAndSubgenresTracksCount
+      - genreOnlyTracksCount
+      - name
+      - uuid
     GenreDetailed:
       type: object
       description: |-
@@ -4227,10 +5233,11 @@ components:
           items:
             $ref: '#/components/schemas/CriteriaMinimum'
         criteriaPlaylist:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/GenreCataloguePlaylist'
           readOnly: true
         tracksCount:
-          type: string
+          type: integer
           readOnly: true
         side:
           type: string
@@ -4251,7 +5258,8 @@ components:
           format: date-time
           nullable: true
         catalogue:
-          type: string
+          type: object
+          additionalProperties: {}
           readOnly: true
       required:
       - ascendants
@@ -4267,6 +5275,196 @@ components:
       - tracksCount
       - uuid
       - wikidataId
+    GenreExclude:
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/CategoryEnum'
+      required:
+      - category
+    GenreLinkSuggestion:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        relativeUrl:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        album:
+          $ref: '#/components/schemas/AlbumMinimum'
+        trackNumber:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          nullable: true
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        youtubeVideo:
+          $ref: '#/components/schemas/SongYoutubeVideo'
+        youtubeVideoId:
+          type: string
+          nullable: true
+          maxLength: 11
+        musicbrainzRecordingId:
+          type: string
+          format: uuid
+          nullable: true
+        youtubeUnplayableReason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        sharedArtists:
+          type: integer
+          description: Artists the song shares with the genre's songs.
+      required:
+      - album
+      - artists
+      - createdOn
+      - genre
+      - relativeUrl
+      - sharedArtists
+      - title
+      - uuid
+      - youtubeVideo
+    GenreNameConflictGroup:
+      type: object
+      properties:
+        name:
+          type: string
+        genres:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreSimple'
+      required:
+      - genres
+      - name
+    GenreNameConflictName:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 256
+      required:
+      - name
+      - uuid
+    GenreNameConflictValidate:
+      type: object
+      properties:
+        genres:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreNameConflictName'
+      required:
+      - genres
+    GenrePlaylistTreeRow:
+      type: object
+      description: '`genre-playlists/tree/` rows are built from `.values()`: counts
+        the list serializer lacks, no `views_count` with `artist`.'
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        criteria:
+          $ref: '#/components/schemas/CriteriaSimple'
+        parent:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        root:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        tracksCount:
+          type: integer
+        viewsCount:
+          type: integer
+        isUnacceptedRoot:
+          type: boolean
+          readOnly: true
+        isUmbrella:
+          type: boolean
+          readOnly: true
+        scene:
+          type: string
+          nullable: true
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        songsCount:
+          type: integer
+        catalogue:
+          $ref: '#/components/schemas/GenreTreeCatalogue'
+      required:
+      - catalogue
+      - createdOn
+      - criteria
+      - isUmbrella
+      - isUnacceptedRoot
+      - name
+      - parent
+      - root
+      - scene
+      - songsCount
+      - tracksCount
+      - uuid
     GenrePost:
       type: object
       properties:
@@ -4317,6 +5515,51 @@ components:
           nullable: true
         side:
           $ref: '#/components/schemas/SideEnum'
+    GenreSearchResult:
+      type: object
+      description: Built from `GenreManager.search` rows. `root` tells apart same-named
+        genres and places the hit in the tree.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        wikidataId:
+          type: string
+          nullable: true
+        treeName:
+          type: string
+        genrePlaylistUuid:
+          type: string
+          format: uuid
+          nullable: true
+        isUmbrella:
+          type: boolean
+        root:
+          $ref: '#/components/schemas/GenreSearchRoot'
+        viewsCount:
+          type: integer
+      required:
+      - genrePlaylistUuid
+      - isUmbrella
+      - name
+      - root
+      - treeName
+      - uuid
+      - viewsCount
+      - wikidataId
+    GenreSearchRoot:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+      - name
+      - uuid
     GenreSimple:
       type: object
       description: |-
@@ -4391,6 +5634,152 @@ components:
       - primaryParents
       - secondaryParents
       - uuid
+    GenreTreeCatalogue:
+      type: object
+      properties:
+        genreOnlyTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+        genreAndSubgenresTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - genreAndSubgenresTracksCount
+      - genreOnlyTracksCount
+    GenreTreeImportFile:
+      type: object
+      description: 'A Gold tree file: the import pops `curationExportedOn` before
+        the tree serializer validates the rest.'
+      properties:
+        treeName:
+          $ref: '#/components/schemas/TreeNameEnum'
+        tree:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaTreeNode'
+        crossTreeSecondaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrossTreeSecondaryParents'
+        curationExportedOn:
+          type: string
+          format: date-time
+      required:
+      - tree
+      - treeName
+    GenreTreeNode:
+      type: object
+      properties:
+        name:
+          type: string
+        children:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: Nodes of this same shape (`name`, `children`), recursively.
+      required:
+      - children
+      - name
+    GenreTreesImportRequest:
+      type: object
+      properties:
+        trees:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreTreeImportFile'
+      required:
+      - trees
+    GenreUnacceptedRootAccept:
+      type: object
+      properties:
+        genres:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreUnacceptedRootUuid'
+      required:
+      - genres
+    GenreUnacceptedRootUuid:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+      required:
+      - uuid
+    GraphAssignmentTokens:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        membershipRevision:
+          type: string
+          format: uuid
+        assignmentRevision:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - assignmentRevision
+      - membershipRevision
+      - revision
+    GraphImportInput:
+      type: object
+      properties:
+        graph:
+          type: object
+          additionalProperties: {}
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+            nullable: true
+        retirements:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+        expectedRevision:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - expectedRevision
+      - graph
+      - mapping
+    GraphRestoreInput:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        retirements:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties: {}
+        expectedRevision:
+          type: string
+          format: uuid
+      required:
+      - expectedRevision
+      - revision
+    GraphTokens:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        membershipRevision:
+          type: string
+          format: uuid
+      required:
+      - membershipRevision
+      - revision
     HistoryAction:
       enum:
       - created
@@ -4443,6 +5832,54 @@ components:
       - actorPseudo
       - createdOn
       - uuid
+    ImportRunStatus:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ImportRunStatusStatusEnum'
+        result:
+          type: object
+          additionalProperties: {}
+          description: Merge counters, once the status is `success`.
+        error:
+          type: string
+          description: Failure reason, once the status is `failed`.
+        progress:
+          type: object
+          additionalProperties: {}
+          description: Merge progress, for privileged callers.
+      required:
+      - status
+    ImportRunStatusStatusEnum:
+      enum:
+      - pending
+      - success
+      - failed
+      type: string
+      description: |-
+        * `pending` - pending
+        * `success` - success
+        * `failed` - failed
+    InitialAssignmentsRestoreInput:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        provenance:
+          type: object
+          additionalProperties: {}
+        expectedRevision:
+          type: string
+          format: uuid
+        expectedMembershipRevision:
+          type: string
+          format: uuid
+      required:
+      - expectedMembershipRevision
+      - expectedRevision
+      - provenance
+      - revision
     KindEnum:
       enum:
       - official
@@ -4649,6 +6086,75 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaSimple'
+    PaginatedGenreLinkSuggestionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreLinkSuggestion'
+    PaginatedGenreNameConflictGroupList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreNameConflictGroup'
+    PaginatedGenreSearchResultList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreSearchResult'
     PaginatedGenreSimpleList:
       type: object
       required:
@@ -4787,6 +6293,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SongDetailed'
+    PaginatedTrackPlaylistRelInPageList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackPlaylistRelInPage'
     PatchedCriteriaPut:
       type: object
       description: |-
@@ -5018,6 +6547,30 @@ components:
       - tracksCount
       - type
       - uuid
+    ReferenceGraph:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        membershipRevision:
+          type: string
+          format: uuid
+        graph:
+          type: object
+          additionalProperties: {}
+          description: The reference graph payload, verbatim.
+        mapping:
+          type: object
+          additionalProperties:
+            type: string
+            format: uuid
+          description: Node identity to genre uuid.
+      required:
+      - graph
+      - mapping
+      - membershipRevision
+      - revision
     SceneEnum:
       enum:
       - commercial
@@ -5034,6 +6587,36 @@ components:
       description: |-
         * `core` - Core
         * `pop` - Pop
+    SongAttributions:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+        membershipRevision:
+          type: string
+          format: uuid
+        assignmentRevision:
+          type: string
+          format: uuid
+          nullable: true
+        attributions:
+          type: object
+          additionalProperties: {}
+          description: Direct attributions of the song, by node identity.
+        effectiveAttributions:
+          type: array
+          items:
+            type: string
+        needsRefinement:
+          type: boolean
+      required:
+      - assignmentRevision
+      - attributions
+      - effectiveAttributions
+      - membershipRevision
+      - needsRefinement
+      - revision
     SongDetailed:
       type: object
       description: |-
@@ -5221,6 +6804,120 @@ components:
       - title
       - uuid
       - youtubeVideo
+    SongWithoutPlaylists:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        relativeUrl:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        album:
+          $ref: '#/components/schemas/AlbumMinimum'
+        trackNumber:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          nullable: true
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        youtubeVideo:
+          $ref: '#/components/schemas/SongYoutubeVideo'
+        youtubeVideoId:
+          type: string
+          nullable: true
+          maxLength: 11
+        musicbrainzRecordingId:
+          type: string
+          format: uuid
+          nullable: true
+        youtubeUnplayableReason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - album
+      - artists
+      - createdOn
+      - genre
+      - relativeUrl
+      - title
+      - uuid
+      - youtubeVideo
+    SongYoutubeAvailability:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/SongYoutubeAvailabilityStatusEnum'
+        reason:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+      required:
+      - country
+      - reason
+      - status
+    SongYoutubeAvailabilityStatusEnum:
+      enum:
+      - eligible
+      - blocked
+      - unknown
+      type: string
+      description: |-
+        * `eligible` - eligible
+        * `blocked` - blocked
+        * `unknown` - unknown
     SongYoutubeVideo:
       type: object
       properties:
@@ -5233,13 +6930,48 @@ components:
           type: integer
           nullable: true
         availability:
-          type: string
+          allOf:
+          - $ref: '#/components/schemas/SongYoutubeAvailability'
           readOnly: true
       required:
       - availability
       - id
       - unplayableReason
       - viewCount
+    TaskId:
+      type: object
+      properties:
+        taskId:
+          type: string
+      required:
+      - taskId
+    TrackPlaylistRelInPage:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        track:
+          $ref: '#/components/schemas/SongWithoutPlaylists'
+        position:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+      required:
+      - track
     TrackSimpleWithoutAlbumWithPositionInAlbum:
       type: object
       properties:

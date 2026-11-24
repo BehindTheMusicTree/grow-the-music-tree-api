@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import transaction
 from django.http import QueryDict
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -16,6 +18,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
@@ -59,7 +62,16 @@ from grow.serializer.model.criteria.children.genre.output.detailed import GenreD
 from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.serializer.model.criteria.children.genre.search import GenreSearchQuerySerializer, GenreSearchResultSerializer
+from grow.serializer.model.criteria.output.overview import CriteriaOverviewSerializer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
+from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
+from grow.serializer.schema.genre import (
+    GenreAliasConflictSerializer,
+    GenreAliasCountsSerializer,
+    GenreLinkSuggestionSerializer,
+    GenreTreeImportFileSerializer,
+    GenreTreeNodeSerializer,
+)
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.mixin.BulkImportRunMixin import enqueue_merge, import_run_status_action
@@ -84,6 +96,48 @@ def _curation_exported_on(request: Request) -> datetime:
     return parse_curation_exported_on(_pop_curation_exported_on(request.data))
 
 
+_UUID_PATH_PARAM = OpenApiParameter("parent_uuid", OpenApiTypes.UUID, OpenApiParameter.PATH)
+_TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
+
+
+@extend_schema_view(
+    destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}),
+    tree=extend_schema(
+        parameters=[OpenApiParameter("tree_name", str, enum=list(CriteriaTreeName.values), required=True)],
+        responses=GenreTreeNodeSerializer,
+    ),
+    overview=extend_schema(responses=CriteriaOverviewSerializer),
+    search=extend_schema(parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True)),
+    import_tree=extend_schema(
+        request=GenreTreeImportFileSerializer,
+        responses={status.HTTP_201_CREATED: OpenApiTypes.OBJECT},
+        description="Paginated simple genres of the imported tree.",
+    ),
+    import_trees=extend_schema(
+        request=inline_serializer("GenreTreesImportRequest", {"trees": GenreTreeImportFileSerializer(many=True)}),
+        responses=_TASK_ID_BODY,
+    ),
+    exclude=extend_schema(request=GenreExcludeSerializer, responses=GenreDetailedSerializer),
+    name_conflicts=extend_schema(responses=GenreNameConflictGroupSerializer(many=True)),
+    validate_name_conflicts=extend_schema(
+        request=GenreNameConflictValidateSerializer, responses={status.HTTP_204_NO_CONTENT: None}
+    ),
+    unaccepted_roots=extend_schema(responses=GenreSimpleSerializer(many=True)),
+    accept_unaccepted_roots=extend_schema(
+        request=GenreUnacceptedRootAcceptSerializer, responses={status.HTTP_204_NO_CONTENT: None}
+    ),
+    link_suggestions=extend_schema(responses=GenreLinkSuggestionSerializer(many=True)),
+    secondary_parent=extend_schema(request=None, parameters=[_UUID_PATH_PARAM], responses=GenreDetailedSerializer),
+    alias_of=extend_schema(
+        request=GenreAliasOfSerializer,
+        responses={
+            status.HTTP_200_OK: GenreDetailedSerializer,
+            status.HTTP_400_BAD_REQUEST: GenreAliasConflictSerializer,
+            status.HTTP_409_CONFLICT: DetailSerializer,
+        },
+    ),
+    alias_of_preview=extend_schema(parameters=[GenreAliasOfSerializer], responses=GenreAliasCountsSerializer),
+)
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     throttle_scope = "genre-search"
 
