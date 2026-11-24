@@ -30,6 +30,10 @@ Read `.agents/rules/migrations.md` before reviewing migration changes. Check mod
 
 `pyproject.toml` directly pins `the-music-tree-genre-kit` via a Git tag; `uv.lock` records its transitive dependencies, including api-kit. When reviewing a PR that bumps either pin, confirm it points at a real tag on that package's `main` (not a feature branch), that the corresponding change has already merged and gone green in its own CI, and that `uv.lock` was regenerated in the same commit — a stale lockfile after a pin bump is easy to miss in review. Also watch for git-ref conflicts: if two dependencies-of-dependencies pin the same shared package to different refs, `uv lock` fails even when one ref is a strict ancestor of the other (uv does not do content-based dedup across git refs).
 
+## Perf routing
+
+A PR that adds a path to `SKIP_FILES`, `SKIP_SUFFIXES` or `SKIP_PREFIXES` in `scripts/perf_route.py` must show that `perf/`, `scripts/perf_ab.sh` and what they import don't read that path. Otherwise flag it: that PR's own `Perf` would be skipped. New workflows and top-level paths run Perf in full until someone lists them, which is the intended safe default and not something to flag.
+
 ## Style and tooling
 
 - Ruff config is vendored from `hear-the-music-tree-api/baselines/ruff.toml` (`line-length = 120`) via `extend` in `pyproject.toml` — don't suggest reformatting to a different line length or diverging from the vendored baseline.
