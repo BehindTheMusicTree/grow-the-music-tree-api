@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Improved
+
+- First reference graph publication (#562) publishes 31 M song assignments feasibly: songs without a genre are left out of the initial population, the kit publishes in chunks of 1 000 000 with per-step progress (also for song bulk imports), and the cutover transaction raises `work_mem` to 256 MB. Requires the genre kit v0.72.3.
+
 ### Added
 
 - Async reference graph import: `POST genres/graph/import-runs/` (same body as `PUT genres/graph/`) returns 202 `{taskId}`, status at `genres/graph/import/<taskId>/status/`, so a large import no longer hits the 503 `query_timeout`. New `unreached_genre` curation review reason (migration `0158`) and a `curation_resolutions` schema contract. Tests cover the run, the Postgres analyze subset and the contracts.

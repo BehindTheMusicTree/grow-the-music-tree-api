@@ -76,7 +76,8 @@ def test_multiple_evidence_empty_sets_locked_songs_and_idempotent_retry(populati
     assert not GenreGraphAssignmentState.objects.filter(track_id=songs[2].pk).exists()
     assert GenreGraphEvidence.objects.filter(decision_id__in=[EVIDENCE["decisionId"], "second"]).count() == 2
     dataset.refresh_from_db()
-    assert GenreGraphAssignmentState.objects.count() == 2
+    # A song without a state and without assignments gets neither a state nor a history.
+    assert GenreGraphAssignmentState.objects.count() == 1
     states = list(GenreGraphAssignmentState.objects.order_by("track_id").values_list("revision", flat=True))
     history = list(GenreGraphAttributionRevision.objects.order_by("revision").values_list("revision", flat=True))
     membership = dataset.membership_revision
