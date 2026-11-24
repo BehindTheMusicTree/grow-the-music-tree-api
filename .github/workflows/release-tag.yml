@@ -12,6 +12,8 @@ concurrency:
 
 jobs:
   release:
+    permissions:
+      contents: write
     uses: BehindTheMusicTree/github-workflows/.github/workflows/release-tag.yml@8b10f1dfcb88a245e4e4256e61164b49e595faea # v6.5.0
     with:
       app-id: ${{ vars.RELEASE_APP_ID }}

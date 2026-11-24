@@ -1074,7 +1074,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "jsonschema", specifier = "==4.26.0" }]
+requires-dist = [{ name = "jsonschema", specifier = ">=4.26,<5" }]
 
 [[package]]
 name = "types-pyyaml"
