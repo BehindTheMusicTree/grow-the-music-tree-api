@@ -4,10 +4,7 @@ from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, KEY_MAX_LENGTH
 
 
 class CurationReviewItem(models.Model):
-    """A curation entry's item id the pipeline's last run couldn't resolve on Wikidata, so it dropped the rule.
-
-    Each pipeline report replaces every item but the synthetic overview ones, which the region map merge replaces.
-    Those carry only `item_id` (the `LOCAL:` id) and `target_item_id`, with no list, key or rule."""
+    """Review items from Wikidata resolution, region-map merges, or Gold genre matching."""
 
     class Reason(models.TextChoices):
         REDIRECT_CONFLICT = "redirect_conflict"
@@ -33,6 +30,17 @@ class CurationReviewItem(models.Model):
         SYNTHETIC_OVERVIEW_RENAMED = "synthetic_overview_renamed"
         """A generated overview is kept under its former name; `target_item_id` is the new item, if any."""
 
+        ALIAS_TARGET_MISSING = "alias_target_missing"
+        ALIAS_TARGET_INELIGIBLE = "alias_target_ineligible"
+        ALIAS_SOURCE_AUTO_RESOLVED = "alias_source_auto_resolved"
+        ALIAS_LEGACY_UNMIGRATED = "alias_legacy_unmigrated"
+
+    GENRE_ALIAS_REASONS = (
+        Reason.ALIAS_TARGET_MISSING,
+        Reason.ALIAS_TARGET_INELIGIBLE,
+        Reason.ALIAS_SOURCE_AUTO_RESOLVED,
+        Reason.ALIAS_LEGACY_UNMIGRATED,
+    )
     SYNTHETIC_OVERVIEW_REASONS = (
         Reason.SYNTHETIC_OVERVIEW_SUPERSEDED,
         Reason.SYNTHETIC_OVERVIEW_ORPHANED,

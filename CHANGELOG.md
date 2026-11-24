@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Genre alias curations store stable Wikidata or local IDs. A versioned export, review catalogue and backfill support migration of existing aliases.
+
 - Async reference graph import: `POST genres/graph/import-runs/` (same body as `PUT genres/graph/`) returns 202 `{taskId}`, status at `genres/graph/import/<taskId>/status/`, so a large import no longer hits the 503 `query_timeout`. New `unreached_genre` curation review reason (migration `0158`) and a `curation_resolutions` schema contract. Tests cover the run, the Postgres analyze subset and the contracts.
 
 - Full pipeline runs can report stage timestamps and outcomes for the foreground and Wikidata chains, including WDQS retry details. Existing runners retain the same progress and heartbeat contract.

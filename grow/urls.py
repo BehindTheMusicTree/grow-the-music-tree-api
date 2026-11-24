@@ -19,6 +19,7 @@ from grow.view.curation import (
     CurationStatusView,
     CurationWikidataItemsView,
     CurationWikidataResolutionsView,
+    GenreAliasTargetsView,
 )
 from grow.view.genealogy import GenealogyImportView, GenealogyView
 from grow.view.genre_graph import (
@@ -125,6 +126,11 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}curation/wikidata-items/",
         CurationWikidataItemsView.as_view(),
         name="curation-wikidata-items",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}curation/genre-alias-targets/",
+        GenreAliasTargetsView.as_view(),
+        name="genre-alias-targets",
     ),
     path(f"{settings.API_ROOT_BASE}curation/items/", CurationItemsView.as_view(), name="curation-items"),
     path(f"{settings.API_ROOT_BASE}curation/edges/", CurationEdgesView.as_view(), name="curation-edges"),

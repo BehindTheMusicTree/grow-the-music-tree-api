@@ -68,6 +68,15 @@ OPTIONAL_COLUMNS = frozenset(
         *INT_COLUMNS,
     }
 )
+GENRE_ALIAS_LIST = "genre_alias"
+LEGACY_GENRE_ALIAS_COLUMNS = ("musicbrainz_genre_name", "wikidata_genre_name", "reason")
+GENRE_ALIAS_COLUMNS = (*LEGACY_GENRE_ALIAS_COLUMNS[:2], "target_item_id", "reason")
+
+
+def is_optional_column(list_name: str, column: str) -> bool:
+    return column in OPTIONAL_COLUMNS or (list_name == GENRE_ALIAS_LIST and column == "target_item_id")
+
+
 REASON_COLUMN = "reason"
 DECISION_ID_COLUMN = "decision_id"
 PROVENANCE_COLUMNS = (DECISION_ID_COLUMN, "decision_source", REASON_COLUMN)
@@ -97,8 +106,7 @@ class CurationList:
     def has_reason(self) -> bool:
         return REASON_COLUMN in self.columns
 
-    @property
-    def column_specs(self) -> tuple[dict[str, str | bool], ...]:
+    def column_specs(self, list_name: str) -> tuple[dict[str, str | bool], ...]:
         return tuple(
             {
                 "name": c,
@@ -113,7 +121,7 @@ class CurationList:
                 else "bool"
                 if c in BOOL_COLUMNS
                 else "text",
-                "optional": c in OPTIONAL_COLUMNS and c not in self.key,
+                "optional": is_optional_column(list_name, c) and c not in self.key,
             }
             for c in self.columns
         )
@@ -233,11 +241,11 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("root_item_id", "pop_child_item_id", "reason"),
         "Direct children of a canonical root exported on its pop side.",
     ),
-    "genre_alias": CurationList(
+    GENRE_ALIAS_LIST: CurationList(
         "gold",
         ("musicbrainz_genre_name",),
-        ("musicbrainz_genre_name", "wikidata_genre_name", "reason"),
-        "MusicBrainz genre names matched to a differently named Wikidata genre.",
+        GENRE_ALIAS_COLUMNS,
+        "MusicBrainz tags matched to genres by stable identity.",
     ),
     "genre_disambiguation": CurationList(
         "gold",

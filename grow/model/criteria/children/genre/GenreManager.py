@@ -690,7 +690,11 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         self.alias_counts(source, target)
         upsert_admin_rule(
             "genre_alias",
-            {"musicbrainz_genre_name": source.name.lower(), "wikidata_genre_name": target.name},
+            {
+                "musicbrainz_genre_name": source.name.lower(),
+                "wikidata_genre_name": target.name,
+                "target_item_id": target.wikidata_id,
+            },
             actor,
         )
         from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset

@@ -11,6 +11,7 @@ class CurationSyncState(models.Model):
     """Singleton: which curation export the canonical tree was last built from (exports themselves: `CurationExport`)."""
 
     applied_export_on = models.DateTimeField(null=True)
+    genre_alias_publication = models.JSONField(null=True)
 
     class Meta:
         db_table = "grow_curation_sync_state"
