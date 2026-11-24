@@ -116,15 +116,16 @@ def _abandon_if_no_worker(attempt: ImportAttempt) -> bool:
         queued.filter(worker_absent_since__isnull=False).update(worker_absent_since=None)
         return False
     queued.filter(worker_absent_since__isnull=True).update(worker_absent_since=now)
-    abandoned = queued.filter(worker_absent_since__lte=now - timedelta(seconds=WORKER_ABSENT_GRACE_SECONDS)).update(
-        state=ImportAttempt.State.FAILED,
-        finished_at=now,
-        error=f"No import worker running for {WORKER_ABSENT_GRACE_SECONDS} s; the queued import was abandoned",
-    )
-    if abandoned and attempt.kind == GENRE_GRAPH_KIND:
-        # Like a failed graph merge, release the single-run slot: a new graph import answers 409 while a run exists.
-        GenreGraphImportPayload.objects.filter(run_id=attempt.run_id).delete()
-        BulkImportRun.objects.filter(pk=attempt.run_id).delete()
+    with transaction.atomic():
+        abandoned = queued.filter(worker_absent_since__lte=now - timedelta(seconds=WORKER_ABSENT_GRACE_SECONDS)).update(
+            state=ImportAttempt.State.FAILED,
+            finished_at=now,
+            error=f"No import worker running for {WORKER_ABSENT_GRACE_SECONDS} s; the queued import was abandoned",
+        )
+        if abandoned and attempt.kind == GENRE_GRAPH_KIND:
+            # Like a failed graph merge, release the single-run slot: a new graph import answers 409 while a run exists.
+            GenreGraphImportPayload.objects.filter(run_id=attempt.run_id).delete()
+            BulkImportRun.objects.filter(pk=attempt.run_id).delete()
     return bool(abandoned)
 
 
