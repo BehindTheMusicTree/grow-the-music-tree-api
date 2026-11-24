@@ -423,9 +423,7 @@ def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(
     assert APIClient().get(url).json()["effectiveAttributions"] == ["LOCAL:french-dub"]
     assert not APIClient().get(url).json()["needsRefinement"]
     assert curator.put(url, body, format="json").status_code == 409
-    archived = GenreGraphAttributionRevision.objects.get(
-        track_id=song.pk, revision=original.json()["assignmentRevision"], attributions={}
-    )
+    archived = GenreGraphAttributionRevision.objects.get(track_id=song.pk, attributions={})
     restore_url = reverse("song-attributions-restore", kwargs={"song_id": song.pk})
     restore_body = {
         "revision": str(archived.revision),

@@ -330,6 +330,10 @@ def import_reference_graph(
         if bindings != active:
             raise GraphValidationError("An unchanged graph cannot change its bindings")
         return current
+    if current is None and connection.vendor == "postgresql":
+        # The first publication joins the whole catalogue in set-wise statements; keep sorts and hashes in memory.
+        with connection.cursor() as cursor:
+            cursor.execute("SET LOCAL work_mem = '256MB'")
     materialization = SongMaterialization(dataset_key=DATASET_KEY, initial=current is None)
     materialization.capture(retired)
     with membership_maintenance():
@@ -600,7 +604,7 @@ def _migrate_assignments(dataset) -> None:
     track, song = (quote(model._meta.db_table) for model in (Track, Song))
     population = (
         f"SELECT t.uuid AS track_id, t.genre_id FROM {track} t "
-        f"JOIN {song} s ON s.track_id = t.uuid WHERE t.user_id IS NULL"
+        f"JOIN {song} s ON s.track_id = t.uuid WHERE t.user_id IS NULL AND t.genre_id IS NOT NULL"
     )
     _publish_legacy_assignments(
         dataset,
@@ -643,6 +647,8 @@ def _publish_legacy_assignments(dataset, population_sql, params, provenance):
         )
         cursor.execute(f"ANALYZE {p}")
         cursor.execute(f"ANALYZE {d}")
-        publish_staged_attributions(dataset=dataset, population=population, assignments=desired)
+        publish_staged_attributions(
+            dataset=dataset, population=population, assignments=desired, chunk_size=1_000_000, on_step=report_step
+        )
         cursor.execute(f"DROP TABLE {d}")
         cursor.execute(f"DROP TABLE {p}")
