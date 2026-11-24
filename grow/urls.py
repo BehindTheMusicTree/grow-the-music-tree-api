@@ -1,6 +1,8 @@
 from django.conf import settings
 from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView
 from rest_framework import routers
+from rest_framework.permissions import AllowAny
 
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
@@ -70,7 +72,14 @@ router.register(r"plays", PlayViewSet, basename="play")
 router.register(r"library/songs", SongViewSet, basename="song")
 router.register(r"regions/map", RegionMapViewSet, basename="region-map")
 
-urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
+urlpatterns = [
+    path("health/", HealthCheckView.as_view(), name="health"),
+    path(
+        "schema/",
+        SpectacularAPIView.as_view(permission_classes=[AllowAny], authentication_classes=[]),
+        name="schema",
+    ),
+]
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),

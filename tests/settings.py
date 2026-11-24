@@ -3,7 +3,7 @@ import tomllib
 from pathlib import Path
 
 from grow.middleware_settings import MIDDLEWARE
-from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK
+from grow.rest_framework_settings import JSON_CAMEL_CASE, REST_FRAMEWORK, SPECTACULAR_SETTINGS
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -14,6 +14,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.postgres",
     "rest_framework",
+    "drf_spectacular",
     "django_q",
     "the_music_tree_genre_kit",
     "grow",
