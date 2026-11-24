@@ -4,10 +4,14 @@ from datetime import datetime
 from typing import Any
 
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import APIException, ValidationError
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 
 from grow.curation.lists import GENRE_ALIAS_LIST
 from grow.curation.rows import lock_writes
+from grow.genre_graph.service import DATASET_KEY
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
@@ -55,7 +59,8 @@ def prepare_alias_write(row: dict[str, Any], entry: CurationEntry | None = None)
     target_id = row.get("target_item_id", old_id)
     label = row.get("wikidata_genre_name", old_label)
     key_changed = entry is None or row.get("musicbrainz_genre_name", entry.key) != entry.key
-    if "target_item_id" in row and not target_id and (entry is None or old_id):
+    legacy_create = entry is None and bool(label)
+    if "target_item_id" in row and not target_id and (old_id or (entry is None and not legacy_create)):
         raise ValidationError({"row": {"target_item_id": "Select a target by id"}})
     if entry and target_id == old_id and label == old_label and not key_changed:
         return {**old, **row}
@@ -79,6 +84,8 @@ def alias_revision(entry: CurationEntry) -> list[str]:
 
 def apply_alias_report(exported_on: datetime, report: dict[str, Any], count: int) -> bool:
     """Apply a report inside the transaction that records the ImportRun."""
+    lock_catalogue_sources()
+    dataset = GenreGraphDataset.objects.select_for_update().filter(pk=DATASET_KEY).first()
     entries = CurationEntry.objects.filter(user=None, list_name=GENRE_ALIAS_LIST)
     lock_writes(entries)
     state = CurationSyncState.objects.select_for_update().get(pk=CurationSyncState.load().pk)
@@ -105,6 +112,10 @@ def apply_alias_report(exported_on: datetime, report: dict[str, Any], count: int
     ):
         raise ValidationError({"genre_alias_review": "Report must reference the applied v2 curation export"})
 
+    graph_export = dataset.payload.get("curationExportedOn") if dataset else None
+    if not isinstance(graph_export, str) or parse_datetime(graph_export) != exported_on:
+        raise ValidationError({"genre_alias_review": "Report must reference the published reference graph export"})
+
     by_tag = {row["musicbrainz_genre_name"]: row for row in export.snapshot[GENRE_ALIAS_LIST]}
     live = {entry.key: alias_revision(entry) for entry in entries}
     reviews = []
@@ -112,7 +123,11 @@ def apply_alias_report(exported_on: datetime, report: dict[str, Any], count: int
         tag = issue["tag"]
         row = by_tag.get(tag)
         target_id = issue.get("target_item_id")
-        if row is None or target_id != (row["target_item_id"] or None):
+        if (
+            row is None
+            or target_id != (row["target_item_id"] or None)
+            or issue.get("last_known_label") != row["wikidata_genre_name"]
+        ):
             raise ValidationError({"genre_alias_review": f"Issue does not match the exported rule for {tag}"})
         if live.get(tag) != export.genre_alias_revisions[tag]:
             continue
@@ -124,7 +139,8 @@ def apply_alias_report(exported_on: datetime, report: dict[str, Any], count: int
                 item_id=target_id or "",
                 reason=issue["reason"],
                 evidence={
-                    "label": issue.get("last_known_label"),
+                    "label": row["wikidata_genre_name"],
+                    "entry_uuid": live[tag][0],
                     "exposure": issue["exposure"],
                     "alias": issue["evidence"],
                 },

@@ -7,10 +7,13 @@ from django.conf import settings
 from django.core.management import call_command
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
+from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
 
+from grow.genre_graph.service import DATASET_KEY
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
+from tests.utils.AppApiClient import AppApiClient
 from tests.utils.AppTestCase import AppTestCase
 
 TARGETS = [
@@ -59,6 +62,14 @@ class TestGenreAliasTargets(AppTestCase):
             },
         }
         url = reverse("import-runs-unresolved-genre-tags")
+        assert self.api_client.post(url, report).status_code == 400
+        GenreGraphDataset.objects.create(key=DATASET_KEY, payload={"curationExportedOn": export["exported_on"]})
+        review = report["genreAliasReview"]
+        bad_issue = {**issue, "tag": untouched.key, "lastKnownLabel": "Wrong label"}
+        assert (
+            self.api_client.post(url, {**report, "genreAliasReview": {**review, "issues": [bad_issue]}}).status_code
+            == 400
+        )
         response = self.api_client.post(url, report)
         assert response.status_code == 201, response.json()
         assert self.api_client.post(url, report).status_code == 200
@@ -66,6 +77,11 @@ class TestGenreAliasTargets(AppTestCase):
         assert list(CurationReviewItem.objects.filter(list_name="genre_alias").values_list("key", flat=True)) == [
             untouched.key
         ]
+        review_url = reverse("curation-review")
+        admin = AppApiClient()
+        assert admin.get(review_url).json() == []
+        items = admin.get(review_url, {"genre_alias_version": 2}).json()
+        assert items[0]["evidence"]["entryUuid"] == str(untouched.uuid)
         CurationEntry.objects.update_instance(untouched, reason="reviewed")
         assert not CurationReviewItem.objects.filter(list_name="genre_alias").exists()
 
@@ -80,6 +96,16 @@ class TestGenreAliasTargets(AppTestCase):
         assert response.status_code == 201, response.json()
         result = response.json()
         assert result["row"] == {**row, "target_item_id": "Q2", "wikidata_genre_name": "Same label"}
+
+        old_client = {
+            **row,
+            "musicbrainz_genre_name": "old-client",
+            "target_item_id": "",
+            "wikidata_genre_name": "Local sound",
+        }
+        response = self.api_client.post(entries, {"row": old_client})
+        assert response.status_code == 201, response.json()
+        assert response.json()["row"]["target_item_id"] == "LOCAL:sound"
 
         state.genre_alias_publication = {"targets": [{**TARGETS[1], "label": "New label"}]}
         state.save(update_fields=["genre_alias_publication"])
