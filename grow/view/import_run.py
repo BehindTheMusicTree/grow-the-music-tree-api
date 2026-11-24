@@ -6,9 +6,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
+from the_music_tree_grow_contracts.curation_lists import GRAPH_ITEM_ID_PATTERN
 
 from grow.curation.genre_aliases import apply_alias_report
-from grow.curation.lists import GRAPH_ITEM_ID_PATTERN
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.import_run.ImportRun import ImportRun
 from grow.view.curation import CurationView, _StrictSerializer

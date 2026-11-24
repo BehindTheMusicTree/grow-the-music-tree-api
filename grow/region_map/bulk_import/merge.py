@@ -3,6 +3,7 @@ import json
 from typing import Any
 
 from django.db import transaction
+from the_music_tree_grow_contracts import first_error
 
 from grow.bulk_import.lifecycle import execute_merge
 from grow.bulk_import.progress import report_step
@@ -13,14 +14,13 @@ from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.region_map.bulk_import.part_loader import SHA256
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
-from grow.schemas import first_error
 
 INDEX_PATH = "index.json"
 # Hidden regions are curation-only targets, so they ship beside the index instead of inflating the map's document.
 HIDDEN_REGIONS_PATH = "hidden_regions.json"
 # Curation-only too: the import signal for `CurationReviewItem`, never served, so it must not travel in the index.
 OVERVIEW_ALERTS_PATH = "synthesized_overview_alerts.json"
-# Each file is checked against the Gold schema of the same name (`grow/schemas/`), which also keeps the served index
+# Each file is checked against the contract schema of the same name (`the_music_tree_grow_contracts`), which also keeps the served index
 # byte-for-byte within the strict client schema. Tradition genres come from the genealogy, not the genre trees, so grow
 # has no `Genre` for them.
 SCHEMA_NAMES = {

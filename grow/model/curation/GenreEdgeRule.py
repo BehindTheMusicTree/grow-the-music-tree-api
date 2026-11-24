@@ -4,8 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 from the_music_tree_api_kit.private_unique_resource.PrivateUniqueResource import PrivateUniqueResource
-
-from grow.curation.lists import KEY_MAX_LENGTH
+from the_music_tree_grow_contracts.curation_lists import KEY_MAX_LENGTH
 
 from .GenreEdgeRuleManager import GenreEdgeRuleManager
 

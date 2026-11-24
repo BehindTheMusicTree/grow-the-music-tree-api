@@ -6,9 +6,9 @@ from typing import IO
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
+from the_music_tree_grow_contracts.curation_lists import ITEM_ID_PATTERN
 
 from grow.bulk_import.copy_part import copy_part
-from grow.curation.lists import ITEM_ID_PATTERN
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.youtube_regions import normalize_policy
 

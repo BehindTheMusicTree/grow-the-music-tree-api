@@ -9,9 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.db import models
-
-from grow.curation.edges import Relation
-from grow.curation.lists import (
+from the_music_tree_grow_contracts.curation_lists import (
     ADDITION_LISTS,
     CURATION_LISTS,
     DECISION_ID_COLUMN,
@@ -19,6 +17,8 @@ from grow.curation.lists import (
     GRAPH_LISTS,
     ITEM_ID_COLUMNS,
 )
+
+from grow.curation.edges import Relation
 from grow.curation.rows import (
     KEY_SEPARATOR,
     POP_SIDE_LIST,

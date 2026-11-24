@@ -7,8 +7,8 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import APIException, ValidationError
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
+from the_music_tree_grow_contracts.curation_lists import GENRE_ALIAS_LIST
 
-from grow.curation.lists import GENRE_ALIAS_LIST
 from grow.curation.rows import lock_writes
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources

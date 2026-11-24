@@ -12,11 +12,11 @@ import pytest
 from django.conf import settings
 from jsonschema import Draft202012Validator
 from rest_framework.exceptions import ValidationError
+from the_music_tree_grow_contracts import load_schema
 
 from grow.artist.bulk_import.part_loader import _row
 from grow.model.artist.Artist import Artist
 from grow.model.artist_link.ArtistLink import ArtistLink
-from grow.schemas import load_gold_schema
 from tests.utils.json_schema import keys_used, property_names
 
 MBID = "0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
@@ -74,7 +74,7 @@ def _accepted_by_row(artist: dict) -> bool:
 
 
 def _valid_for_schema(artist: dict) -> bool:
-    return Draft202012Validator(load_gold_schema("artist")).is_valid(artist)
+    return Draft202012Validator(load_schema("artist")).is_valid(artist)
 
 
 def _mutated(path: tuple, value) -> dict:
@@ -122,7 +122,7 @@ def test_sample_is_accepted_by_schema_and_import():
 
 
 def test_sample_covers_every_schema_property():
-    declared, used = property_names(load_gold_schema("artist")), keys_used(SAMPLE)
+    declared, used = property_names(load_schema("artist")), keys_used(SAMPLE)
 
     assert declared == used, {"unused": declared - used, "unknown": used - declared}
 
@@ -141,13 +141,13 @@ REQUIRED_BY_IMPORT = ("musicbrainz_artist_id", "name", "ended", "members", "link
 def test_key_required_by_the_import_is_required_by_the_schema(key):
     artist = {k: v for k, v in SAMPLE.items() if k != key}
 
-    assert key in load_gold_schema("artist")["required"]
+    assert key in load_schema("artist")["required"]
     assert not _valid_for_schema(artist)
     assert not _accepted_by_row(artist)
 
 
 def test_enums_match_the_models():
-    schema = load_gold_schema("artist")
+    schema = load_schema("artist")
     properties = schema["properties"]
     link_kinds = set(properties["links"]["items"]["properties"]["kind"]["enum"])
     origin_sources = set(properties["origin"]["properties"]["source"]["enum"])
@@ -158,7 +158,7 @@ def test_enums_match_the_models():
 
 
 def test_length_limits_match_settings():
-    properties = load_gold_schema("artist")["properties"]
+    properties = load_schema("artist")["properties"]
     release_group = properties["release_groups"]["items"]["properties"]
 
     assert properties["name"]["maxLength"] == settings.ARTIST_NAME_LEN_MAX
