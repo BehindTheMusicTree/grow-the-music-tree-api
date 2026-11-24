@@ -69,6 +69,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- The first `genre_graph` publication no longer runs a quadratic `affected` query (genre kit v0.72.4).
+
 - Pipeline runs can report a terminal Geohistory ingestion failure with its stage and diagnostic after foreground work finishes.
 
 - Reference graph publication updates song genres from the final assignments in one pass. Later revisions limit the update to affected songs. Merge revisions can be restored from their archives, and direct evidence writes follow the catalogue lock order.
