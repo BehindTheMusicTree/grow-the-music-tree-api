@@ -2,10 +2,10 @@ from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.schemas import load_gold_schema
 
 
-def test_schema_reasons_then_equal_the_reasons_the_pipeline_can_report():
+def test_schema_reasons_match_the_wikidata_resolution_review_reasons():
     schema_reasons = set(
         load_gold_schema("curation_resolutions")["properties"]["review"]["items"]["properties"]["reason"]["enum"]
     )
 
-    synthetic = {str(reason) for reason in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS}
-    assert schema_reasons == {str(reason) for reason in CurationReviewItem.Reason} - synthetic
+    other_reports = {*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS}
+    assert schema_reasons == {str(reason) for reason in CurationReviewItem.Reason if reason not in other_reports}

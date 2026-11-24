@@ -15,14 +15,23 @@ class CurationExport(models.Model):
 
     exported_on = models.DateTimeField(unique=True)
     snapshot = models.JSONField(null=True)
+    genre_alias_revisions = models.JSONField(null=True)
 
     class Meta:
         db_table = "grow_curation_export"
 
     @classmethod
-    def record(cls, exported_on: Any, snapshot: dict[str, Any], applied_export_on: Any) -> CurationExport:
+    def record(
+        cls,
+        exported_on: Any,
+        snapshot: dict[str, Any],
+        applied_export_on: Any,
+        genre_alias_revisions: dict[str, list[str]] | None = None,
+    ) -> CurationExport:
         """Stores an export and purges those over 30 days older than the applied one (a replay of those is rejected)."""
-        export = cls.objects.create(exported_on=exported_on, snapshot=snapshot)
+        export = cls.objects.create(
+            exported_on=exported_on, snapshot=snapshot, genre_alias_revisions=genre_alias_revisions
+        )
         if applied_export_on is not None:
             cls.objects.filter(exported_on__lt=applied_export_on - PURGE_AFTER).delete()
         return export
