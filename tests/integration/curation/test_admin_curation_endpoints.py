@@ -355,7 +355,11 @@ class TestCase(AppTestCase):
         assert child.parent.pk == target.pk
         assert list(target.essential_songs.all()) == [Song.objects.get(pk=song.pk)]
         [rule] = self._rule("genre_alias")
-        assert (rule["key"], rule["wikidata_genre_name"]) == ("alt rock", "Alternative rock")
+        assert (rule["key"], rule["wikidata_genre_name"], rule["target_item_id"]) == (
+            "alt rock",
+            "Alternative rock",
+            "Q11366",
+        )
         assert [r["key"] for r in self._rule("essential_songs")] == [f"Q11366\t{MB_ID}"]
 
     def test_alias_of_descendant_then_400(self):
