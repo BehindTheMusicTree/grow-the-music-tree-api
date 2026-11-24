@@ -9,17 +9,23 @@ from grow.bulk_import.merge_lock import merge_is_live
 
 logger = logging.getLogger(__name__)
 
+# The deploy runs this command with the new code against the previous schema, before migrations: load only
+# columns that predate every migration, never the full row.
+DRAIN_COLUMNS = ("run_id", "attempt", "state", "kind", "step", "started_at", "queued_at")
+
 ACTIVE_STATES = (ImportAttempt.State.RUNNING, ImportAttempt.State.COMMITTING, ImportAttempt.State.CLEANING_UP)
 
 
 def live_attempts() -> list[ImportAttempt]:
     """Active attempts whose worker still holds the run's advisory lock; a dead worker never blocks a deploy."""
-    attempts = ImportAttempt.objects.filter(state__in=ACTIVE_STATES).order_by("run_id", "attempt")
+    attempts = ImportAttempt.objects.only(*DRAIN_COLUMNS).filter(state__in=ACTIVE_STATES).order_by("run_id", "attempt")
     live = [attempt for attempt in attempts if merge_is_live(attempt.run_id)]
     # A queued finalization (receipt present) holds no lock yet but a restart would drop its queue entry.
-    pending = ImportAttempt.objects.filter(
-        state=ImportAttempt.State.QUEUED, run_id__in=ImportReceipt.objects.values("run_id")
-    ).order_by("run_id", "attempt")
+    pending = (
+        ImportAttempt.objects.only(*DRAIN_COLUMNS)
+        .filter(state=ImportAttempt.State.QUEUED, run_id__in=ImportReceipt.objects.values("run_id"))
+        .order_by("run_id", "attempt")
+    )
     return live + list(pending)
 
 
