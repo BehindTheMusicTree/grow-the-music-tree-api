@@ -1,9 +1,8 @@
 from django.conf import settings
 from django.urls import include, path
-from drf_spectacular.views import SpectacularAPIView
 from rest_framework import routers
-from rest_framework.permissions import AllowAny
 
+from grow.openapi.views import CachedSchemaView
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
     CurationEdgesView,
@@ -77,7 +76,7 @@ urlpatterns = [
     path("health/", HealthCheckView.as_view(), name="health"),
     path(
         "schema/",
-        SpectacularAPIView.as_view(permission_classes=[AllowAny], authentication_classes=[]),
+        CachedSchemaView.as_view(),
         name="schema",
     ),
 ]

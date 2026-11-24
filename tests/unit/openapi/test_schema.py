@@ -2,6 +2,7 @@ import pytest
 from drf_spectacular.generators import SchemaGenerator
 
 from grow.model.history.HistoryAction import HistoryAction
+from grow.openapi.views import CachedSchemaView
 
 
 @pytest.fixture(scope="module")
@@ -33,5 +34,15 @@ def test_both_authentication_schemes_are_declared(schema):
     assert (schemes["apiKey"]["in"], schemes["apiKey"]["name"]) == ("header", "X-API-Key")
 
 
-def test_schema_route_is_public(client):
-    assert client.get("/schema/").status_code == 200
+def test_schema_route_is_public_and_serves_the_api(client):
+    response = client.get("/schema/")
+    assert response.status_code == 200
+    assert "/v1/albums/" in response.content.decode()
+
+
+def test_schema_is_generated_once_per_process(client):
+    client.get("/schema/")
+    first = CachedSchemaView._schema
+    client.get("/schema/")
+    assert first is not None
+    assert CachedSchemaView._schema is first
