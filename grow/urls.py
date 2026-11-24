@@ -2,6 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 from rest_framework import routers
 
+from grow.openapi.views import CachedSchemaView
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
     CurationEdgesView,
@@ -71,7 +72,14 @@ router.register(r"plays", PlayViewSet, basename="play")
 router.register(r"library/songs", SongViewSet, basename="song")
 router.register(r"regions/map", RegionMapViewSet, basename="region-map")
 
-urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
+urlpatterns = [
+    path("health/", HealthCheckView.as_view(), name="health"),
+    path(
+        "schema/",
+        CachedSchemaView.as_view(),
+        name="schema",
+    ),
+]
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),

@@ -1,0 +1,5453 @@
+openapi: 3.0.3
+info:
+  title: TheMusicTree grow API
+  version: '1'
+paths:
+  /health/:
+    get:
+      operationId: health_retrieve
+      tags:
+      - health
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/albums/:
+    get:
+      operationId: v1_albums_list
+      parameters:
+      - in: query
+        name: album_artist_name
+        schema:
+          type: string
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAlbumSimpleList'
+          description: ''
+  /v1/albums/{uuid}/:
+    get:
+      operationId: v1_albums_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this album.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlbumDetailed'
+          description: ''
+    delete:
+      operationId: v1_albums_destroy
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this album.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/artists/:
+    get:
+      operationId: v1_artists_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedArtistSimpleList'
+          description: ''
+  /v1/artists/{uuid}/:
+    get:
+      operationId: v1_artists_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this artist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtistDetailed'
+          description: ''
+    delete:
+      operationId: v1_artists_destroy
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this artist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/artists/{uuid}/genre-counts/:
+    get:
+      operationId: v1_artists_genre_counts_retrieve
+      description: Sparse per-genre-playlist counts of the artist's songs, for pruning
+        the genre tree to their footprint.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this artist.
+        required: true
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/import-runs/:
+    post:
+      operationId: v1_artists_import_runs_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/import-runs/{run_id}/commit/:
+    post:
+      operationId: v1_artists_import_runs_commit_create
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/import-runs/{run_id}/deletions/:
+    put:
+      operationId: v1_artists_import_runs_deletions_update
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/import-runs/{run_id}/parts/{part}/:
+    put:
+      operationId: v1_artists_import_runs_parts_update
+      parameters:
+      - in: path
+        name: part
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/import/{task_id}/status/:
+    get:
+      operationId: v1_artists_import_status_retrieve
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/artists/search/:
+    get:
+      operationId: v1_artists_search_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/auth/me/:
+    get:
+      operationId: v1_auth_me_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/{list_name}/entries/:
+    get:
+      operationId: v1_curation_entries_retrieve
+      parameters:
+      - in: path
+        name: list_name
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_curation_entries_create
+      parameters:
+      - in: path
+        name: list_name
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/{list_name}/entries/{uuid}/:
+    get:
+      operationId: v1_curation_entries_retrieve_2
+      parameters:
+      - in: path
+        name: list_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_curation_entries_partial_update
+      parameters:
+      - in: path
+        name: list_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_curation_entries_destroy
+      parameters:
+      - in: path
+        name: list_name
+        schema:
+          type: string
+        required: true
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/curation/edges/:
+    get:
+      operationId: v1_curation_edges_retrieve
+      description: The curated genre edges (canonical/regional parents, roots, regional
+        overviews, secondary parents).
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_curation_edges_create
+      description: The curated genre edges (canonical/regional parents, roots, regional
+        overviews, secondary parents).
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/edges/{uuid}/:
+    get:
+      operationId: v1_curation_edges_retrieve_2
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: v1_curation_edges_partial_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_curation_edges_destroy
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/curation/export/:
+    get:
+      operationId: v1_curation_export_retrieve
+      description: |-
+        Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+
+        `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
+        knows which export the imported tree was built from.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/genre-alias-targets/:
+    get:
+      operationId: v1_curation_genre_alias_targets_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/history/:
+    get:
+      operationId: v1_curation_history_retrieve
+      description: Edits to canonical entries and edges, newest first, optionally
+        narrowed to a `list`, an `entry` uuid or an `item_id`.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/items/:
+    get:
+      operationId: v1_curation_items_retrieve
+      description: 'Items matching `q` by id or name, for an admin to pick one: the
+        canonical tree, the catalog and pending additions.'
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/lists/:
+    get:
+      operationId: v1_curation_lists_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/review/:
+    get:
+      operationId: v1_curation_review_retrieve
+      description: The curation item ids the pipeline's last report couldn't resolve,
+        for an admin to fix.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/rules/:
+    get:
+      operationId: v1_curation_rules_retrieve
+      description: Every canonical entry and edge referencing an item.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/status/:
+    get:
+      operationId: v1_curation_status_retrieve
+      description: Which pipeline export the canonical tree was last built from, and
+        how many entries were edited since.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/wikidata-items/:
+    post:
+      operationId: v1_curation_wikidata_items_create
+      description: 'The pipeline''s catalog of every Wikidata item it knows, pruned
+        ones included: replaces the previous one.'
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/curation/wikidata-resolutions/:
+    post:
+      operationId: v1_curation_wikidata_resolutions_create
+      description: 'The pipeline''s Wikidata resolution of curation item ids: redirects
+        to remap, and ids it couldn''t resolve.'
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genealogy/:
+    get:
+      operationId: v1_genealogy_retrieve
+      description: The latest genealogy snapshot, public, revalidated by its checksum.
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/genealogy/import/:
+    post:
+      operationId: v1_genealogy_import_create
+      description: 'Pipeline import of the genealogy document. Parsed and rendered
+        verbatim: the document''s keys must not be recased.'
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genre-playlists/:
+    get:
+      operationId: v1_genre_playlists_list
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
+        description: |-
+          * `canonical` - Canonical
+          * `regional` - Regional
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCriteriaPlaylistSimpleList'
+          description: ''
+  /v1/genre-playlists/{uuid}/:
+    get:
+      operationId: v1_genre_playlists_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaPlaylistDetailed'
+          description: ''
+  /v1/genre-playlists/{uuid}/tracks/:
+    get:
+      operationId: v1_genre_playlists_tracks_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genre-playlists/tree/:
+    get:
+      operationId: v1_genre_playlists_tree_retrieve
+      description: Whole genre tree, unpaginated, cached under the DB-trigger-maintained
+        GenreTreeVersion token.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/:
+    get:
+      operationId: v1_genres_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedGenreSimpleList'
+          description: ''
+    post:
+      operationId: v1_genres_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenrePost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenrePost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenrePost'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenrePost'
+          description: ''
+  /v1/genres/{uuid}/:
+    get:
+      operationId: v1_genres_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreDetailed'
+          description: ''
+    put:
+      operationId: v1_genres_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenrePut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GenrePut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GenrePut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenrePut'
+          description: ''
+    patch:
+      operationId: v1_genres_partial_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGenrePut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGenrePut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGenrePut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenrePut'
+          description: ''
+    delete:
+      operationId: v1_genres_destroy
+      description: |-
+        Delete a criteria.
+
+        When deleting a criteria:
+        - If it has children and a parent, children are reassigned to the parent
+        - If it has children but no parent, children become root criteria
+        - If it's a root criteria, tracks are moved to the criterialess playlist
+        - The criteria playlist is deleted along with the criteria
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/genres/{uuid}/alias-of/:
+    post:
+      operationId: v1_genres_alias_of_create
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/{uuid}/alias-of/preview/:
+    get:
+      operationId: v1_genres_alias_of_preview_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/{uuid}/exclude/:
+    post:
+      operationId: v1_genres_exclude_create
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/{uuid}/history/:
+    get:
+      operationId: v1_genres_history_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: has_name_conflict
+        schema:
+          type: boolean
+      - in: query
+        name: is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: is_unaccepted_root
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: scene
+        schema:
+          type: string
+          nullable: true
+          enum:
+          - commercial
+          - underground
+        description: |-
+          * `commercial` - Commercial
+          * `underground` - Underground
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      - in: query
+        name: wikidata_id
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHistoryEntryDetailedList'
+          description: ''
+  /v1/genres/{uuid}/link-suggestions/:
+    get:
+      operationId: v1_genres_link_suggestions_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/{uuid}/overview/:
+    get:
+      operationId: v1_genres_overview_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/{uuid}/secondary-parents/{parent_uuid}/:
+    post:
+      operationId: v1_genres_secondary_parents_create
+      parameters:
+      - in: path
+        name: parent_uuid
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: v1_genres_secondary_parents_destroy
+      parameters:
+      - in: path
+        name: parent_uuid
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this genre.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/genres/graph/:
+    get:
+      operationId: v1_genres_graph_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_genres_graph_update
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/graph/assignments/restore/:
+    post:
+      operationId: v1_genres_graph_assignments_restore_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/graph/import-runs/:
+    post:
+      operationId: v1_genres_graph_import_runs_create
+      description: |-
+        Queues a reference graph import (same body as `PUT genres/graph/`) and answers 202 `{taskId}`; the merge runs in the
+        worker, so the initial cutover over every song is not bound by the web `statement_timeout`. The checks here only
+        fail fast: the worker repeats them under its locks.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/graph/import/{task_id}/status/:
+    get:
+      operationId: v1_genres_graph_import_status_retrieve
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/graph/restore/:
+    post:
+      operationId: v1_genres_graph_restore_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/name-conflicts/:
+    get:
+      operationId: v1_genres_name_conflicts_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/name-conflicts/validate/:
+    post:
+      operationId: v1_genres_name_conflicts_validate_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/search/:
+    get:
+      operationId: v1_genres_search_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/tree/:
+    get:
+      operationId: v1_genres_tree_retrieve
+      description: |-
+        Returns the tree of the criteria matching the required
+        `treeName` query parameter (`canonical`/`regional`).
+        The structure follows the format:
+        {
+          "name": "Criteria name",
+          "children": [
+            {
+              "name": "Child criteria name",
+              "children": []
+            }
+          ]
+        }
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/tree/import/:
+    post:
+      operationId: v1_genres_tree_import_create
+      description: |-
+        Imports a tree structure of criteria, replacing all existing criteria of the current type.
+        Returns a paginated list of created criteria.
+        The input should be an array of criteria trees, where each tree follows the format:
+        {
+          "name": "Criteria name",
+          "children": [
+            {
+              "name": "Child criteria name",
+              "children": []
+            }
+          ]
+        }
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaTreeImport'
+          description: ''
+  /v1/genres/trees/import-runs/:
+    post:
+      operationId: v1_genres_trees_import_runs_create
+      description: |-
+        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
+        takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/trees/import/{task_id}/status/:
+    get:
+      operationId: v1_genres_trees_import_status_retrieve
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/unaccepted-roots/:
+    get:
+      operationId: v1_genres_unaccepted_roots_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/genres/unaccepted-roots/accept/:
+    post:
+      operationId: v1_genres_unaccepted_roots_accept_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/:
+    get:
+      operationId: v1_library_songs_list
+      parameters:
+      - in: query
+        name: album_name
+        schema:
+          type: string
+      - in: query
+        name: artist
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: artists_name
+        schema:
+          type: string
+      - in: query
+        name: coverage
+        schema:
+          type: string
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: genre
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: genre_is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: genre_name
+        schema:
+          type: string
+      - in: query
+        name: language
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -albumYear
+          - -title
+          - albumYear
+          - title
+        description: |-
+          * `title` - title
+          * `-title` - -title
+          * `albumYear` - albumYear
+          * `-albumYear` - -albumYear
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: playable
+        schema:
+          type: boolean
+      - in: query
+        name: subgenres
+        schema:
+          type: string
+      - in: query
+        name: title
+        schema:
+          type: string
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSongDetailedList'
+          description: ''
+  /v1/library/songs/{uuid}/:
+    get:
+      operationId: v1_library_songs_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Song.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongFull'
+          description: ''
+    delete:
+      operationId: v1_library_songs_destroy
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Song.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/library/songs/{uuid}/history/:
+    get:
+      operationId: v1_library_songs_history_list
+      parameters:
+      - in: query
+        name: album_name
+        schema:
+          type: string
+      - in: query
+        name: artist
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: artists_name
+        schema:
+          type: string
+      - in: query
+        name: coverage
+        schema:
+          type: string
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: genre
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: genre_is_umbrella
+        schema:
+          type: boolean
+      - in: query
+        name: genre_name
+        schema:
+          type: string
+      - in: query
+        name: language
+        schema:
+          type: string
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -albumYear
+          - -title
+          - albumYear
+          - title
+        description: |-
+          * `title` - title
+          * `-title` - -title
+          * `albumYear` - albumYear
+          * `-albumYear` - -albumYear
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: playable
+        schema:
+          type: boolean
+      - in: query
+        name: subgenres
+        schema:
+          type: string
+      - in: query
+        name: title
+        schema:
+          type: string
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Song.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHistoryEntryDetailedList'
+          description: ''
+  /v1/library/songs/{song_id}/attributions/:
+    get:
+      operationId: v1_library_songs_attributions_retrieve
+      parameters:
+      - in: path
+        name: song_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: v1_library_songs_attributions_update
+      parameters:
+      - in: path
+        name: song_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/{song_id}/attributions/restore/:
+    post:
+      operationId: v1_library_songs_attributions_restore_create
+      parameters:
+      - in: path
+        name: song_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/assign-genre/:
+    post:
+      operationId: v1_library_songs_assign_genre_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/assign-genre/undo/:
+    post:
+      operationId: v1_library_songs_assign_genre_undo_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/search/:
+    get:
+      operationId: v1_library_songs_search_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import-runs/:
+    post:
+      operationId: v1_library_songs_songs_import_runs_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import-runs/{run_id}/assignments/parts/{part}/:
+    put:
+      operationId: v1_library_songs_songs_import_runs_assignments_parts_update
+      parameters:
+      - in: path
+        name: part
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import-runs/{run_id}/commit/:
+    post:
+      operationId: v1_library_songs_songs_import_runs_commit_create
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import-runs/{run_id}/deletions/:
+    put:
+      operationId: v1_library_songs_songs_import_runs_deletions_update
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import-runs/{run_id}/parts/{part}/:
+    put:
+      operationId: v1_library_songs_songs_import_runs_parts_update
+      parameters:
+      - in: path
+        name: part
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/library/songs/songs/import/{task_id}/status/:
+    get:
+      operationId: v1_library_songs_songs_import_status_retrieve
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/manual-playlists/:
+    get:
+      operationId: v1_manual_playlists_list
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedManualPlaylistSimpleList'
+          description: ''
+    post:
+      operationId: v1_manual_playlists_create
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPost'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualPlaylistPost'
+          description: ''
+  /v1/manual-playlists/{uuid}/:
+    get:
+      operationId: v1_manual_playlists_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Manual Playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualPlaylistDetailed'
+          description: ''
+    put:
+      operationId: v1_manual_playlists_update
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Manual Playlist.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ManualPlaylistPut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualPlaylistPut'
+          description: ''
+    patch:
+      operationId: v1_manual_playlists_partial_update
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Manual Playlist.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedManualPlaylistPut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedManualPlaylistPut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedManualPlaylistPut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualPlaylistPut'
+          description: ''
+  /v1/manual-playlists/{uuid}/tracks/:
+    get:
+      operationId: v1_manual_playlists_tracks_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Manual Playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/imports/:
+    get:
+      operationId: v1_pipeline_imports_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/imports/latest/:
+    get:
+      operationId: v1_pipeline_imports_latest_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/imports/unresolved-genre-tags/:
+    post:
+      operationId: v1_pipeline_imports_unresolved_genre_tags_create
+      description: The pipeline's count of song genre tags its Gold stage couldn't
+        match to a genre.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/runs/:
+    get:
+      operationId: v1_pipeline_runs_retrieve
+      description: |-
+        Lists past runs (admin), or queues one for the pipeline's poller to claim.
+
+        The origin comes from auth: an admin's request is `manual`, the pipeline key's is the `scheduled` nightly `full`.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: v1_pipeline_runs_create
+      description: |-
+        Lists past runs (admin), or queues one for the pipeline's poller to claim.
+
+        The origin comes from auth: an admin's request is `manual`, the pipeline key's is the `scheduled` nightly `full`.
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/runs/{uuid}/:
+    patch:
+      operationId: v1_pipeline_runs_partial_update
+      description: |-
+        The poller's heartbeat, progress report and outcome for the request it claimed (an empty body is a heartbeat).
+
+        The response's `cancelRequested` tells the poller to stop the run and report `cancelled`.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/runs/{uuid}/cancel/:
+    post:
+      operationId: v1_pipeline_runs_cancel_create
+      description: Cancels a queued request outright, or asks the poller to stop a
+        running one.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/runs/claim/:
+    post:
+      operationId: v1_pipeline_runs_claim_create
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/pipeline/runs/latest/:
+    get:
+      operationId: v1_pipeline_runs_latest_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/playback/context/:
+    get:
+      operationId: v1_playback_context_retrieve
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /v1/playlists/:
+    get:
+      operationId: v1_playlists_list
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: type
+        schema:
+          type: string
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPlaylistSimpleList'
+          description: ''
+  /v1/playlists/{uuid}/:
+    get:
+      operationId: v1_playlists_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaylistDetailed'
+          description: ''
+  /v1/playlists/{uuid}/tracks/:
+    get:
+      operationId: v1_playlists_tracks_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/plays/:
+    get:
+      operationId: v1_plays_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPlayDetailedList'
+          description: ''
+    post:
+      operationId: v1_plays_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PlayPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PlayPost'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayPost'
+          description: ''
+  /v1/plays/{uuid}/:
+    get:
+      operationId: v1_plays_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Play.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayDetailed'
+          description: ''
+  /v1/regions/map/import-runs/:
+    post:
+      operationId: v1_regions_map_import_runs_create
+      description: 'Pipeline import of the region map: one full run uploads the index,
+        one line.'
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/regions/map/import-runs/{run_id}/commit/:
+    post:
+      operationId: v1_regions_map_import_runs_commit_create
+      description: 'Pipeline import of the region map: one full run uploads the index,
+        one line.'
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/regions/map/import-runs/{run_id}/deletions/:
+    put:
+      operationId: v1_regions_map_import_runs_deletions_update
+      description: 'Pipeline import of the region map: one full run uploads the index,
+        one line.'
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/regions/map/import-runs/{run_id}/parts/{part}/:
+    put:
+      operationId: v1_regions_map_import_runs_parts_update
+      description: 'Pipeline import of the region map: one full run uploads the index,
+        one line.'
+      parameters:
+      - in: path
+        name: part
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      - in: path
+        name: run_id
+        schema:
+          type: string
+          pattern: ^\d+$
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/regions/map/import/{task_id}/status/:
+    get:
+      operationId: v1_regions_map_import_status_retrieve
+      description: 'Pipeline import of the region map: one full run uploads the index,
+        one line.'
+      parameters:
+      - in: path
+        name: task_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/tag-playlists/:
+    get:
+      operationId: v1_tag_playlists_list
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: tree_name
+        schema:
+          type: string
+          enum:
+          - canonical
+          - regional
+        description: |-
+          * `canonical` - Canonical
+          * `regional` - Regional
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCriteriaPlaylistSimpleList'
+          description: ''
+  /v1/tag-playlists/{uuid}/:
+    get:
+      operationId: v1_tag_playlists_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaPlaylistDetailed'
+          description: ''
+  /v1/tag-playlists/{uuid}/tracks/:
+    get:
+      operationId: v1_tag_playlists_tracks_retrieve
+      description: |-
+        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
+        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
+        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
+
+        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
+        track is not in the playlist, 400 if the value is not a UUID.
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag playlist.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/tags/:
+    get:
+      operationId: v1_tags_list
+      parameters:
+      - in: query
+        name: created_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: created_on_lte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: name
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
+      - in: query
+        name: parent
+        schema:
+          type: string
+      - in: query
+        name: updated_on
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_gte
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lt
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: updated_on_lte
+        schema:
+          type: string
+          format: date-time
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCriteriaSimpleList'
+          description: ''
+    post:
+      operationId: v1_tags_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriteriaPost'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CriteriaPost'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CriteriaPost'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaPost'
+          description: ''
+  /v1/tags/{uuid}/:
+    get:
+      operationId: v1_tags_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaDetailed'
+          description: ''
+    put:
+      operationId: v1_tags_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriteriaPut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CriteriaPut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CriteriaPut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaPut'
+          description: ''
+    patch:
+      operationId: v1_tags_partial_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCriteriaPut'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCriteriaPut'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCriteriaPut'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaPut'
+          description: ''
+    delete:
+      operationId: v1_tags_destroy
+      description: |-
+        Delete a criteria.
+
+        When deleting a criteria:
+        - If it has children and a parent, children are reassigned to the parent
+        - If it has children but no parent, children become root criteria
+        - If it's a root criteria, tracks are moved to the criterialess playlist
+        - The criteria playlist is deleted along with the criteria
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
+  /v1/tags/{uuid}/overview/:
+    get:
+      operationId: v1_tags_overview_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this tag.
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/tags/tree/:
+    get:
+      operationId: v1_tags_tree_retrieve
+      description: |-
+        Returns the tree of the criteria matching the required
+        `treeName` query parameter (`canonical`/`regional`).
+        The structure follows the format:
+        {
+          "name": "Criteria name",
+          "children": [
+            {
+              "name": "Child criteria name",
+              "children": []
+            }
+          ]
+        }
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
+  /v1/tags/tree/import/:
+    post:
+      operationId: v1_tags_tree_import_create
+      description: |-
+        Imports a tree structure of criteria, replacing all existing criteria of the current type.
+        Returns a paginated list of created criteria.
+        The input should be an array of criteria trees, where each tree follows the format:
+        {
+          "name": "Criteria name",
+          "children": [
+            {
+              "name": "Child criteria name",
+              "children": []
+            }
+          ]
+        }
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CriteriaTreeImport'
+        required: true
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriteriaTreeImport'
+          description: ''
+components:
+  schemas:
+    AlbumDetailed:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        year:
+          type: string
+          nullable: true
+          maxLength: 4
+        albumArtists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        tracksSorted:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackSimpleWithoutAlbumWithPositionInAlbum'
+        tracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - albumArtists
+      - createdOn
+      - name
+      - tracksCount
+      - tracksSorted
+      - uuid
+    AlbumMinimum:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        albumArtists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+      required:
+      - albumArtists
+      - name
+      - uuid
+    AlbumSimple:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        year:
+          type: string
+          nullable: true
+          maxLength: 4
+        albumArtists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        tracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - albumArtists
+      - createdOn
+      - name
+      - tracksCount
+      - uuid
+    ArtistDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        musicbrainzArtistId:
+          type: string
+          format: uuid
+          nullable: true
+        type:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        country:
+          type: string
+          nullable: true
+          maxLength: 2
+        beginYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        endYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        ended:
+          type: boolean
+        image:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+        origin:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          readOnly: true
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Link'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Member'
+        memberOf:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Group'
+        albums:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Album'
+        tracksCount:
+          type: integer
+        playableTracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - albums
+      - createdOn
+      - image
+      - links
+      - memberOf
+      - members
+      - name
+      - origin
+      - playableTracksCount
+      - tracksCount
+      - uuid
+    ArtistMinimum:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        isSpecialPurpose:
+          type: boolean
+          readOnly: true
+      required:
+      - isSpecialPurpose
+      - name
+      - uuid
+    ArtistSimple:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        albums:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlbumMinimum'
+        tracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - albums
+      - createdOn
+      - name
+      - tracksCount
+      - uuid
+    BlankEnum:
+      enum:
+      - ''
+    CriteriaDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        wikidataId:
+          type: string
+          nullable: true
+          readOnly: true
+        summary:
+          type: string
+          nullable: true
+        parent:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        ascendants:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaLineageRelWithoutDescendant'
+        root:
+          $ref: '#/components/schemas/CriteriaRoot'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+        criteriaPlaylist:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        tracksCount:
+          type: integer
+        side:
+          type: string
+          nullable: true
+          readOnly: true
+        essentialSongs:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - ascendants
+      - children
+      - createdOn
+      - criteriaPlaylist
+      - essentialSongs
+      - name
+      - parent
+      - root
+      - side
+      - tracksCount
+      - uuid
+      - wikidataId
+    CriteriaLineageRelWithoutDescendant:
+      type: object
+      properties:
+        ascendant:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        degree:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - ascendant
+      - degree
+    CriteriaMinimum:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - name
+      - uuid
+    CriteriaPlaylistDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        tracksCount:
+          type: integer
+        criteria:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        parent:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        root:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - createdOn
+      - criteria
+      - name
+      - parent
+      - root
+      - tracksCount
+      - uuid
+    CriteriaPlaylistMinimum:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - name
+      - uuid
+    CriteriaPlaylistSimple:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        criteria:
+          $ref: '#/components/schemas/CriteriaSimple'
+        parent:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        root:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        tracksCount:
+          type: integer
+        viewsCount:
+          type: integer
+        isUnacceptedRoot:
+          type: boolean
+          readOnly: true
+        isUmbrella:
+          type: boolean
+          readOnly: true
+        scene:
+          type: string
+          nullable: true
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - createdOn
+      - criteria
+      - isUmbrella
+      - isUnacceptedRoot
+      - name
+      - parent
+      - root
+      - scene
+      - tracksCount
+      - uuid
+      - viewsCount
+    CriteriaPost:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - name
+    CriteriaPut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+    CriteriaRoot:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        wikidataId:
+          type: string
+          nullable: true
+          readOnly: true
+      required:
+      - name
+      - uuid
+      - wikidataId
+    CriteriaSimple:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        parent:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        side:
+          type: string
+          nullable: true
+          readOnly: true
+        wikidataId:
+          type: string
+          nullable: true
+          readOnly: true
+        summary:
+          type: string
+          nullable: true
+        treeName:
+          $ref: '#/components/schemas/TreeNameEnum'
+        primaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+          readOnly: true
+        secondaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+          readOnly: true
+      required:
+      - createdOn
+      - name
+      - parent
+      - primaryParents
+      - secondaryParents
+      - side
+      - uuid
+      - wikidataId
+    CriteriaTreeImport:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        treeName:
+          $ref: '#/components/schemas/TreeNameEnum'
+        tree:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaTreeNode'
+        crossTreeSecondaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrossTreeSecondaryParents'
+      required:
+      - tree
+      - treeName
+    CriteriaTreeNode:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 256
+        children:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          nullable: true
+        side:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/SideEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        summary:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        summarySourceUrl:
+          nullable: true
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 500
+          - type: string
+            maxLength: 0
+        id:
+          type: string
+          nullable: true
+          pattern: ^(Q\d+|LOCAL:[a-z0-9-]+)$
+        primaryParents:
+          type: array
+          items:
+            type: string
+        secondaryParents:
+          type: array
+          items:
+            type: string
+        isUnacceptedRoot:
+          type: boolean
+          default: false
+        isUmbrella:
+          type: boolean
+          default: false
+        overviewType:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/OverviewTypeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        scene:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/SceneEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - name
+    CrossTreeSecondaryParents:
+      type: object
+      properties:
+        id:
+          type: string
+        secondaryParents:
+          type: array
+          items:
+            type: string
+      required:
+      - id
+      - secondaryParents
+    GenreDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        wikidataId:
+          type: string
+          nullable: true
+          readOnly: true
+        summary:
+          type: string
+          nullable: true
+        parent:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        ascendants:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaLineageRelWithoutDescendant'
+        root:
+          $ref: '#/components/schemas/CriteriaRoot'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+        criteriaPlaylist:
+          type: string
+          readOnly: true
+        tracksCount:
+          type: string
+          readOnly: true
+        side:
+          type: string
+          nullable: true
+          readOnly: true
+        essentialSongs:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        catalogue:
+          type: string
+          readOnly: true
+      required:
+      - ascendants
+      - catalogue
+      - children
+      - createdOn
+      - criteriaPlaylist
+      - essentialSongs
+      - name
+      - parent
+      - root
+      - side
+      - tracksCount
+      - uuid
+      - wikidataId
+    GenrePost:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        essentialSongs:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required:
+      - name
+    GenrePut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        essentialSongs:
+          type: array
+          items:
+            type: string
+            format: uuid
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        side:
+          $ref: '#/components/schemas/SideEnum'
+    GenreSimple:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        parent:
+          $ref: '#/components/schemas/CriteriaMinimum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        side:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/SideEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        wikidataId:
+          type: string
+          nullable: true
+          maxLength: 32
+        summary:
+          type: string
+          nullable: true
+        treeName:
+          $ref: '#/components/schemas/TreeNameEnum'
+        primaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+          readOnly: true
+        secondaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+          readOnly: true
+        hasNameConflict:
+          type: boolean
+        isUnacceptedRoot:
+          type: boolean
+        isUmbrella:
+          type: boolean
+        scene:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/SceneEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+      required:
+      - createdOn
+      - name
+      - parent
+      - primaryParents
+      - secondaryParents
+      - uuid
+    HistoryAction:
+      enum:
+      - created
+      - parent_changed
+      - renamed
+      - side_changed
+      - excluded
+      - genre_changed
+      - updated
+      - deleted
+      - name_conflict_resolved
+      - root_accepted
+      type: string
+      description: |-
+        * `created` - Created
+        * `parent_changed` - Parent changed
+        * `renamed` - Renamed
+        * `side_changed` - Side changed
+        * `excluded` - Excluded
+        * `genre_changed` - Genre changed
+        * `updated` - Updated
+        * `deleted` - Deleted
+        * `name_conflict_resolved` - Name conflict resolved
+        * `root_accepted` - Root accepted
+    HistoryEntryDetailed:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/HistoryAction'
+        actorPseudo:
+          type: string
+          nullable: true
+          readOnly: true
+        oldValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - action
+      - actorPseudo
+      - createdOn
+      - uuid
+    KindEnum:
+      enum:
+      - official
+      - wikipedia
+      - wikidata
+      - spotify
+      - youtube
+      - bandcamp
+      - soundcloud
+      - discogs
+      - social
+      type: string
+      description: |-
+        * `official` - Official
+        * `wikipedia` - Wikipedia
+        * `wikidata` - Wikidata
+        * `spotify` - Spotify
+        * `youtube` - Youtube
+        * `bandcamp` - Bandcamp
+        * `soundcloud` - Soundcloud
+        * `discogs` - Discogs
+        * `social` - Social
+    ManualPlaylistDetailed:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        tracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackWithoutAlbumPlaylistGenre'
+        tracksCount:
+          type: integer
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - createdOn
+      - name
+      - tracks
+      - tracksCount
+      - uuid
+    ManualPlaylistPost:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 256
+      required:
+      - name
+    ManualPlaylistPut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 256
+    ManualPlaylistSimple:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        tracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - createdOn
+      - name
+      - tracksCount
+      - uuid
+    NullEnum:
+      enum:
+      - null
+    OverviewTypeEnum:
+      enum:
+      - current
+      - historical
+      type: string
+      description: |-
+        * `current` - current
+        * `historical` - historical
+    PaginatedAlbumSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AlbumSimple'
+    PaginatedArtistSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistSimple'
+    PaginatedCriteriaPlaylistSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaPlaylistSimple'
+    PaginatedCriteriaSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaSimple'
+    PaginatedGenreSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreSimple'
+    PaginatedHistoryEntryDetailedList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryEntryDetailed'
+    PaginatedManualPlaylistSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualPlaylistSimple'
+    PaginatedPlayDetailedList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayDetailed'
+    PaginatedPlaylistSimpleList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaylistSimple'
+    PaginatedSongDetailedList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SongDetailed'
+    PatchedCriteriaPut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+    PatchedGenrePut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        essentialSongs:
+          type: array
+          items:
+            type: string
+            format: uuid
+        name:
+          type: string
+          maxLength: 256
+        parent:
+          type: string
+          format: uuid
+          nullable: true
+        summary:
+          type: string
+          nullable: true
+        side:
+          $ref: '#/components/schemas/SideEnum'
+    PatchedManualPlaylistPut:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        name:
+          type: string
+          maxLength: 256
+    PlayDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        contentType:
+          type: string
+        content:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - content
+      - contentType
+      - createdOn
+      - uuid
+    PlayPost:
+      type: object
+      properties:
+        content:
+          type: string
+          writeOnly: true
+      required:
+      - content
+    PlaylistDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        type:
+          type: string
+        tracksCount:
+          type: integer
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - createdOn
+      - name
+      - tracksCount
+      - type
+      - uuid
+    PlaylistMinimum:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+      required:
+      - name
+      - uuid
+    PlaylistSimple:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        type:
+          type: string
+        tracksCount:
+          type: integer
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - createdOn
+      - name
+      - tracksCount
+      - type
+      - uuid
+    SceneEnum:
+      enum:
+      - commercial
+      - underground
+      type: string
+      description: |-
+        * `commercial` - Commercial
+        * `underground` - Underground
+    SideEnum:
+      enum:
+      - core
+      - pop
+      type: string
+      description: |-
+        * `core` - Core
+        * `pop` - Pop
+    SongDetailed:
+      type: object
+      description: |-
+        Lets a serializer declare the joins, prefetches and annotations its own fields read, so
+        `AppModelViewSet` loads them up front instead of issuing queries per serialized row.
+
+        `prefix` is the relation path from the queryset's model to this serializer's instance, which
+        lets a parent serializer compose a nested one's needs next to the field that nests it:
+
+            @classmethod
+            def setup_queryset(cls, queryset, prefix=""):
+                queryset = queryset.select_related(f"{prefix}criteria")
+                return CriteriaSerializer.setup_queryset(queryset, prefix=f"{prefix}criteria__")
+
+        Detailed responses re-read the instance through `setup_queryset`, so attributes or annotations an
+        overridden `get_object` put on the instance are not seen by an opted-in serializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        relativeUrl:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        album:
+          $ref: '#/components/schemas/AlbumMinimum'
+        trackNumber:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          nullable: true
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playlists:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaylistMinimum'
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        youtubeVideo:
+          $ref: '#/components/schemas/SongYoutubeVideo'
+        youtubeVideoId:
+          type: string
+          nullable: true
+          maxLength: 11
+        musicbrainzRecordingId:
+          type: string
+          format: uuid
+          nullable: true
+        youtubeUnplayableReason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - album
+      - artists
+      - createdOn
+      - genre
+      - playlists
+      - relativeUrl
+      - title
+      - uuid
+      - youtubeVideo
+    SongFull:
+      type: object
+      description: 'A single song''s page: the list item plus what only the detail
+        view needs.'
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        relativeUrl:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        album:
+          $ref: '#/components/schemas/AlbumMinimum'
+        trackNumber:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          nullable: true
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playlists:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlaylistMinimum'
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        youtubeVideo:
+          $ref: '#/components/schemas/SongYoutubeVideo'
+        youtubeVideoId:
+          type: string
+          nullable: true
+          maxLength: 11
+        musicbrainzRecordingId:
+          type: string
+          format: uuid
+          nullable: true
+        youtubeUnplayableReason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        firstReleaseYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+        essentialGenres:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaMinimum'
+      required:
+      - album
+      - artists
+      - createdOn
+      - essentialGenres
+      - genre
+      - playlists
+      - relativeUrl
+      - title
+      - uuid
+      - youtubeVideo
+    SongYoutubeVideo:
+      type: object
+      properties:
+        id:
+          type: string
+        unplayableReason:
+          type: string
+          nullable: true
+        viewCount:
+          type: integer
+          nullable: true
+        availability:
+          type: string
+          readOnly: true
+      required:
+      - availability
+      - id
+      - unplayableReason
+      - viewCount
+    TrackSimpleWithoutAlbumWithPositionInAlbum:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        trackNumber:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          nullable: true
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - artists
+      - genre
+      - title
+      - uuid
+    TrackWithoutAlbumPlaylistGenre:
+      type: object
+      description: |-
+        Base serializer class for input validation (POST, PUT, etc.).
+
+        This serializer extends Django REST Framework's Serializer to provide input validation features:
+        - Consistent error handling using AppValidationException
+        - Multipart form data normalization and validation
+        - Duplicate field detection
+        - Unknown field detection
+        - List field handling with [] suffix for multipart requests
+
+        Note: This serializer is specialized for INPUT validation. Output serializers
+        (read-only, for GET responses) do not need AppInputSerializer and can inherit directly
+        from serializers.ModelSerializer.
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        rating:
+          type: integer
+          maximum: 10
+          minimum: 0
+          nullable: true
+        language:
+          type: string
+          nullable: true
+          maxLength: 3
+        playCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - artists
+      - title
+      - uuid
+    TreeNameEnum:
+      enum:
+      - canonical
+      - regional
+      type: string
+      description: |-
+        * `canonical` - Canonical
+        * `regional` - Regional
+    TypeEnum:
+      enum:
+      - person
+      - group
+      - orchestra
+      - choir
+      - character
+      - other
+      type: string
+      description: |-
+        * `person` - Person
+        * `group` - Group
+        * `orchestra` - Orchestra
+        * `choir` - Choir
+        * `character` - Character
+        * `other` - Other
+    YoutubeUnplayableReasonEnum:
+      enum:
+      - not_found
+      - not_embeddable
+      - private
+      - not_processed
+      - region_whitelisted
+      type: string
+      description: |-
+        * `not_found` - Not Found
+        * `not_embeddable` - Not Embeddable
+        * `private` - Private
+        * `not_processed` - Not Processed
+        * `region_whitelisted` - Region Whitelisted
+    _Album:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        year:
+          type: string
+          nullable: true
+          maxLength: 4
+        primaryType:
+          type: string
+          nullable: true
+        secondaryTypes: {}
+      required:
+      - name
+      - uuid
+    _Group:
+      type: object
+      properties:
+        artist:
+          $ref: '#/components/schemas/ArtistMinimum'
+        beginYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        endYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        ended:
+          type: boolean
+        roles: {}
+      required:
+      - artist
+    _Link:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        url:
+          type: string
+      required:
+      - kind
+      - url
+    _Member:
+      type: object
+      properties:
+        artist:
+          $ref: '#/components/schemas/ArtistMinimum'
+        beginYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        endYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        ended:
+          type: boolean
+        roles: {}
+      required:
+      - artist
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Pipeline or curation key, held server-side.
+    googleIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Google ID token, sent as `Authorization: Bearer <token>`.'
