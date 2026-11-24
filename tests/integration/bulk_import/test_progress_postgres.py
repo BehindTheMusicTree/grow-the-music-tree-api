@@ -18,7 +18,7 @@ from django_q.models import Task
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.lifecycle import execute_merge, queue_attempt
-from grow.bulk_import.merge_lock import IMPORT_LOCK_KEY
+from grow.bulk_import.merge_lock import IMPORT_LOCK_KEY, hold_merge_lock
 from grow.bulk_import.progress import ProgressReporter, report_step
 from grow.bulk_import.status import MAX_ATTEMPTS, reconcile, sql_activity
 from grow.model.import_run.ImportRun import ImportRun
@@ -332,3 +332,12 @@ def test_drain_ignores_a_queued_attempt_without_receipt():
     run = BulkImportRun.objects.create(kind="songs", started_on=timezone.now(), committed_on=timezone.now())
     queue_attempt(run)
     call_command("wait_for_import_drain", timeout=1, interval=1)
+
+
+def test_merge_session_checks_client_connection():
+    with hold_merge_lock(1), connection.cursor() as cursor:
+        cursor.execute("SHOW client_connection_check_interval")
+        assert cursor.fetchone()[0] == "10s"
+    with connection.cursor() as cursor:
+        cursor.execute("SHOW client_connection_check_interval")
+        assert cursor.fetchone()[0] == "0"

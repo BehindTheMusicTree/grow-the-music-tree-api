@@ -1,15 +1,18 @@
 import logging
+from datetime import timedelta
 from typing import Any
 
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 from django_q.models import Task
+from django_q.status import Stat
 
-from grow.bulk_import.BulkImportRun import BulkImportRun
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.lifecycle import queue_attempt
 from grow.bulk_import.merge_lock import IMPORT_LOCK_KEY
 from grow.bulk_import.progress import TERMINAL_STATES
+from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,7 @@ def progress_payload(attempt: ImportAttempt):
         "heartbeat_at",
         "completed_steps",
         "data_applied",
+        "worker_absent_since",
     )
     payload = {field: getattr(attempt, field) for field in fields}
     payload["sql"] = sql_activity(attempt) if attempt.state not in TERMINAL_STATES else {"availability": "unavailable"}
@@ -85,8 +89,50 @@ def _can_resume_finalization(attempt: ImportAttempt) -> bool:
     )
 
 
+# A redeploy restarts the worker within about a minute; this long without one, nothing will pick the attempt up.
+WORKER_ABSENT_GRACE_SECONDS = 600
+
+
+def _abandon_if_no_worker(attempt: ImportAttempt) -> bool:
+    """
+    Fails a queued attempt once no django-q cluster has been alive for WORKER_ABSENT_GRACE_SECONDS, else it would stay
+    queued forever. True if it did. Not retried: the operator restarts the run once a worker is back, and the atomic
+    claim in `execute_merge` stops a late worker from merging it anyway.
+    """
+    if ImportReceipt.objects.filter(pk=attempt.run_id).exists():
+        return False  # data is committed: a finalize-only attempt must wait for a worker, failing it would skip cleanup
+    task = Task.objects.filter(group=attempt.task_id).order_by("-stopped").first()
+    if task is not None and (task.kwargs or {}).get("attempt_id") == attempt.pk:
+        return False  # the worker already ran it; the lock path below records its outcome
+    now = timezone.now()
+    queued = ImportAttempt.objects.filter(pk=attempt.pk, state=ImportAttempt.State.QUEUED)
+    # Cluster stat keys expire 3 s after the cluster's last guard cycle, so an empty list means no cluster runs.
+    try:
+        worker_alive = bool(Stat.get_all())
+    except Exception:  # Redis unreachable: unknown, not absent; the status read must not fail nor abandon on it
+        logger.warning("could not read django-q cluster stats", exc_info=True)
+        return False
+    if worker_alive:
+        queued.filter(worker_absent_since__isnull=False).update(worker_absent_since=None)
+        return False
+    queued.filter(worker_absent_since__isnull=True).update(worker_absent_since=now)
+    with transaction.atomic():
+        abandoned = queued.filter(worker_absent_since__lte=now - timedelta(seconds=WORKER_ABSENT_GRACE_SECONDS)).update(
+            state=ImportAttempt.State.FAILED,
+            finished_at=now,
+            error=f"No import worker running for {WORKER_ABSENT_GRACE_SECONDS} s; the queued import was abandoned",
+        )
+        if abandoned and attempt.kind == GENRE_GRAPH_KIND:
+            # Like a failed graph merge, release the single-run slot: a new graph import answers 409 while a run exists.
+            GenreGraphImportPayload.objects.filter(run_id=attempt.run_id).delete()
+            BulkImportRun.objects.filter(pk=attempt.run_id).delete()
+    return bool(abandoned)
+
+
 def reconcile(attempt: ImportAttempt) -> ImportAttempt | None:
     """Only disappearance of the session lock permits recovery; heartbeat age is never evidence of death."""
+    if attempt.state == ImportAttempt.State.QUEUED and _abandon_if_no_worker(attempt):
+        return None
     resume = False
     if attempt.state in TERMINAL_STATES:
         receipt = ImportReceipt.objects.filter(pk=attempt.run_id).first()
