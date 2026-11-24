@@ -12,7 +12,12 @@ class SongImportExpectedPartsSerializer(serializers.Serializer):
 class SongImportRunCreateRequestSerializer(ImportRunCreateRequestSerializer):
     graph_revision = serializers.UUIDField(help_text="Reviewed reference graph revision.")
     membership_revision = serializers.UUIDField(help_text="Reviewed genre membership revision.")
-    expected_parts = SongImportExpectedPartsSerializer()
+    expected_parts = SongImportExpectedPartsSerializer(
+        help_text=(
+            "Exactly `songs` and `assignments` for a `full` run (with `songs` at least 1), plus `deletions` for a"
+            " `delta` run; any other key set is rejected."
+        )
+    )
 
 
 class SongPreviousGenreSerializer(serializers.Serializer):

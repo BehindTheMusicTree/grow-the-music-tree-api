@@ -33,6 +33,7 @@ from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
 from grow.serializer.schema.common import (
     CountSerializer,
+    FullImportRunCreateRequestSerializer,
     ImportRunCreatedSerializer,
     ImportRunCreateRequestSerializer,
     ImportRunStatusSerializer,
@@ -207,9 +208,12 @@ def bulk_import_run_actions(
     `{deletion_key: <uuid>}` per line) to `deletions/`.
     """
     runs = f"{url_prefix}import-runs"
-    create_request = (
-        SongImportRunCreateRequestSerializer if kind == ImportRun.Kind.SONGS else ImportRunCreateRequestSerializer
-    )
+    if kind == ImportRun.Kind.SONGS:
+        create_request: type = SongImportRunCreateRequestSerializer
+    elif BulkImportRun.Mode.DELTA in modes:
+        create_request = ImportRunCreateRequestSerializer
+    else:
+        create_request = FullImportRunCreateRequestSerializer
 
     def deletion_row(line_number: int, line: bytes) -> tuple:
         try:

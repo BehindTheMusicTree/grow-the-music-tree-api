@@ -2,6 +2,8 @@
 
 from rest_framework import serializers
 
+from grow.bulk_import.BulkImportRun import BulkImportRun
+
 
 class TaskIdSerializer(serializers.Serializer):
     task_id = serializers.CharField()
@@ -20,9 +22,15 @@ class DetailSerializer(serializers.Serializer):
 
 class ImportRunCreateRequestSerializer(serializers.Serializer):
     mode = serializers.ChoiceField(
-        choices=["full", "delta"],
+        choices=BulkImportRun.Mode.choices,
         required=False,
         help_text="Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.",
+    )
+
+
+class FullImportRunCreateRequestSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(
+        choices=[BulkImportRun.Mode.FULL], required=False, help_text="Only `full` runs are accepted."
     )
 
 

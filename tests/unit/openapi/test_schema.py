@@ -43,7 +43,7 @@ def test_unpaginated_actions_are_documented_as_arrays(schema, path):
     """These actions answer a bare list: neither the pagination envelope nor the list filters apply."""
     assert _ok_body(schema, path)["type"] == "array"
     names = {p["name"] for p in schema["paths"][path]["get"].get("parameters", [])}
-    assert not names & {"page", "page_size", "ordering", "created_on"}
+    assert not names & {"page", "page_size", "with_total", "cursor", "ordering", "created_on"}
 
 
 def test_unimplemented_model_actions_are_not_documented(schema):
@@ -87,7 +87,7 @@ def test_library_viewsets_generate_without_errors():
     with GENERATOR_STATS.silence():
         SchemaGenerator().get_schema(request=None, public=True)
     views = ("SongViewSet", "ArtistViewSet", "AlbumViewSet", "RegionMapViewSet")
-    errors = [message for message in GENERATOR_STATS._error_cache if any(f"[{view}]" in message for view in views)]
+    errors = [message for message in GENERATOR_STATS._error_cache if any(f"[{view}" in message for view in views)]
     GENERATOR_STATS.reset()
     assert errors == []
 
@@ -106,6 +106,14 @@ def test_import_run_protocol_is_typed(schema, runs):
     assert {p["name"]: p["schema"]["type"] for p in part["parameters"]} == {"run_id": "integer", "part": "integer"}
     assert set(paths[f"{runs}{{run_id}}/deletions/"]["put"]["responses"]) == {"200"}
     assert set(paths[f"{runs}{{run_id}}/commit/"]["post"]["responses"]) == {"202"}
+
+
+def test_region_map_import_run_accepts_only_full_mode(schema):
+    create = schema["paths"]["/v1/regions/map/import-runs/"]["post"]
+    request = create["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
+    mode = schema["components"]["schemas"][request]["properties"]["mode"]
+    ref = mode.get("$ref") or mode["allOf"][0]["$ref"]
+    assert schema["components"]["schemas"][ref.rsplit("/", 1)[-1]]["enum"] == ["full"]
 
 
 def test_song_import_run_declares_its_reviewed_revisions(schema):

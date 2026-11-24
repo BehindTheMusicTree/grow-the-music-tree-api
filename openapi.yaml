@@ -3368,13 +3368,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
       security:
       - googleIdToken: []
       - apiKey: []
@@ -4954,6 +4954,21 @@ components:
           type: string
       required:
       - detail
+    FullImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/FullImportRunCreateRequestModeEnum'
+          description: |-
+            Only `full` runs are accepted.
+
+            * `full` - full
+    FullImportRunCreateRequestModeEnum:
+      enum:
+      - full
+      type: string
+      description: '* `full` - full'
     GenealogyImportResult:
       type: object
       properties:
@@ -5694,12 +5709,12 @@ components:
       properties:
         mode:
           allOf:
-          - $ref: '#/components/schemas/ModeEnum'
+          - $ref: '#/components/schemas/ImportRunModeEnum'
           description: |-
             Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
 
-            * `full` - full
-            * `delta` - delta
+            * `full` - Full
+            * `delta` - Delta
     ImportRunCreated:
       type: object
       properties:
@@ -5707,6 +5722,14 @@ components:
           type: integer
       required:
       - runId
+    ImportRunModeEnum:
+      enum:
+      - full
+      - delta
+      type: string
+      description: |-
+        * `full` - Full
+        * `delta` - Delta
     ImportRunStatus:
       type: object
       properties:
@@ -5858,14 +5881,6 @@ components:
       - name
       - tracksCount
       - uuid
-    ModeEnum:
-      enum:
-      - full
-      - delta
-      type: string
-      description: |-
-        * `full` - full
-        * `delta` - delta
     NullEnum:
       enum:
       - null
@@ -6679,12 +6694,12 @@ components:
       properties:
         mode:
           allOf:
-          - $ref: '#/components/schemas/ModeEnum'
+          - $ref: '#/components/schemas/ImportRunModeEnum'
           description: |-
             Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
 
-            * `full` - full
-            * `delta` - delta
+            * `full` - Full
+            * `delta` - Delta
         graphRevision:
           type: string
           format: uuid
@@ -6694,7 +6709,11 @@ components:
           format: uuid
           description: Reviewed genre membership revision.
         expectedParts:
-          $ref: '#/components/schemas/SongImportExpectedParts'
+          allOf:
+          - $ref: '#/components/schemas/SongImportExpectedParts'
+          description: Exactly `songs` and `assignments` for a `full` run (with `songs`
+            at least 1), plus `deletions` for a `delta` run; any other key set is
+            rejected.
       required:
       - expectedParts
       - graphRevision
