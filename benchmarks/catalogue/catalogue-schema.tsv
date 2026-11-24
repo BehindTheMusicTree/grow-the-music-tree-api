@@ -289,6 +289,7 @@ grow_import_attempt|backend_start|timestamp with time zone|YES
 grow_import_attempt|error|text|YES
 grow_import_attempt|result|jsonb|YES
 grow_import_attempt|data_applied|boolean|NO
+grow_import_attempt|worker_absent_since|timestamp with time zone|YES
 grow_import_part|id|bigint|NO
 grow_import_part|stream|text|NO
 grow_import_part|part|integer|NO

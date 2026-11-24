@@ -78,6 +78,13 @@ def execute_merge(
         latest = ImportAttempt.objects.filter(run_id=run_id).order_by("-attempt").first()
         if latest is None or latest.pk != attempt.pk:
             raise ValueError(f"import run {run_id} attempt {attempt.attempt} is superseded")
+        # Atomic claim: reconcile may have failed this queued attempt (no worker) since the task was enqueued.
+        claimed_at = timezone.now()
+        if not ImportAttempt.objects.filter(pk=attempt.pk, state=ImportAttempt.State.QUEUED).update(
+            state=ImportAttempt.State.RUNNING, started_at=claimed_at, worker_absent_since=None
+        ):
+            attempt.refresh_from_db(fields=["state"])
+            raise ValueError(f"import run {run_id} attempt {attempt.attempt} is already {attempt.state}")
         BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
         reporter = ProgressReporter(attempt)
         reporter.start()
@@ -91,7 +98,7 @@ def execute_merge(
                     cursor.execute("SELECT pid, backend_start FROM pg_stat_activity WHERE pid = pg_backend_pid()")
                     pid, backend_start = cursor.fetchone()
                 backend = {"backend_pid": pid, "backend_start": backend_start}
-            reporter.publish(state=ImportAttempt.State.RUNNING, started_at=timezone.now(), **backend)
+            reporter.publish(state=ImportAttempt.State.RUNNING, started_at=claimed_at, **backend)
             if receipt is not None:
                 reporter.publish(data_applied=True, result=result)
             else:

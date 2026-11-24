@@ -69,6 +69,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Import robustness: a `queued` import attempt with no live django-q cluster for 10 minutes now fails with "No import worker running" instead of staying queued (`progress.workerAbsentSince` shows the wait; migration `0161`), and the worker claims its attempt atomically so a late worker cannot merge an abandoned one. The merge session sets `client_connection_check_interval = '10s'` so a merge killed by django-q's timeout releases its advisory lock. Known residue: a task lost in Redis while the worker lives stays `queued`. Tests cover the absence rule, the claim, the timeout and the setting.
+
 - Pipeline runs can report a terminal Geohistory ingestion failure with its stage and diagnostic after foreground work finishes.
 
 - Reference graph publication updates song genres from the final assignments in one pass. Later revisions limit the update to affected songs. Merge revisions can be restored from their archives, and direct evidence writes follow the catalogue lock order.
