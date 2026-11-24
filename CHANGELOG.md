@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- Docs: README, CONTRIBUTING and the code-review skill describe `Perf` routing (skipped for non-runtime PRs, `Perf route` not required), and the README states that `Perf` is required on `main` too.
 - `Perf` is skipped for PRs that only change non-runtime files (docs, `*.md`, agent config, unrelated workflows): a `Perf route` job classifies the diff with `scripts/perf_route.py` and any unknown path, mixed diff or routing failure runs the full A/B. Covered by `tests/unit/ci/test_perf_route.py`.
 
 - First reference graph publication (#562) publishes 31 M song assignments feasibly: songs without a genre are left out of the initial population, the kit publishes in chunks of 1 000 000 with per-step progress (also for song bulk imports), and the cutover transaction raises `work_mem` to 256 MB, `maintenance_work_mem` to 512 MB and `temp_file_limit` to 60 GB (the server's 1 GB cap would fail the sorts of ~16 M rows; the app role is superuser). Requires the genre kit v0.72.3. A Postgres test checks the three limits.
