@@ -586,6 +586,17 @@ paths:
       responses:
         '200':
           description: No response body
+  /v1/curation/genre-alias-targets/:
+    get:
+      operationId: v1_curation_genre_alias_targets_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          description: No response body
   /v1/curation/history/:
     get:
       operationId: v1_curation_history_retrieve
