@@ -69,6 +69,7 @@ from grow.serializer.schema.genre import (
     GenreAliasConflictSerializer,
     GenreAliasCountsSerializer,
     GenreLinkSuggestionSerializer,
+    GenreTreeImportFileSerializer,
     GenreTreeNodeSerializer,
 )
 from grow.view.permission.IsAdmin import IsAdmin
@@ -108,12 +109,12 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
     overview=extend_schema(responses=CriteriaOverviewSerializer),
     search=extend_schema(parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True)),
     import_tree=extend_schema(
-        request=CriteriaTreeImportSerializer,
+        request=GenreTreeImportFileSerializer,
         responses={status.HTTP_201_CREATED: OpenApiTypes.OBJECT},
         description="Paginated simple genres of the imported tree.",
     ),
     import_trees=extend_schema(
-        request=inline_serializer("GenreTreesImportRequest", {"trees": CriteriaTreeImportSerializer(many=True)}),
+        request=inline_serializer("GenreTreesImportRequest", {"trees": GenreTreeImportFileSerializer(many=True)}),
         responses=_TASK_ID_BODY,
     ),
     exclude=extend_schema(request=GenreExcludeSerializer, responses=GenreDetailedSerializer),

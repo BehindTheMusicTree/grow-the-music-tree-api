@@ -1108,7 +1108,23 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedCriteriaPlaylistSimpleList'
+                $ref: '#/components/schemas/PaginatedGenrePlaylistTreeRowList'
+          description: ''
+        '304':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
           description: ''
   /v1/genres/:
     get:
@@ -2241,13 +2257,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
+              $ref: '#/components/schemas/GenreTreeImportFile'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
+              $ref: '#/components/schemas/GenreTreeImportFile'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/CriteriaTreeImport'
+              $ref: '#/components/schemas/GenreTreeImportFile'
         required: true
       security:
       - googleIdToken: []
@@ -5460,6 +5476,65 @@ components:
             $ref: '#/components/schemas/GenreNameConflictName'
       required:
       - genres
+    GenrePlaylistTreeRow:
+      type: object
+      description: '`genre-playlists/tree/` rows are built from `.values()`: counts
+        the list serializer lacks, no `views_count` with `artist`.'
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        criteria:
+          $ref: '#/components/schemas/CriteriaSimple'
+        parent:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        root:
+          $ref: '#/components/schemas/CriteriaPlaylistMinimum'
+        tracksCount:
+          type: integer
+        viewsCount:
+          type: integer
+        isUnacceptedRoot:
+          type: boolean
+          readOnly: true
+        isUmbrella:
+          type: boolean
+          readOnly: true
+        scene:
+          type: string
+          nullable: true
+          readOnly: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+        songsCount:
+          type: integer
+        catalogue:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - catalogue
+      - createdOn
+      - criteria
+      - isUmbrella
+      - isUnacceptedRoot
+      - name
+      - parent
+      - root
+      - scene
+      - songsCount
+      - tracksCount
+      - uuid
     GenrePost:
       type: object
       properties:
@@ -5629,6 +5704,27 @@ components:
       - primaryParents
       - secondaryParents
       - uuid
+    GenreTreeImportFile:
+      type: object
+      description: 'A Gold tree file: the import pops `curationExportedOn` before
+        the tree serializer validates the rest.'
+      properties:
+        treeName:
+          $ref: '#/components/schemas/TreeNameEnum'
+        tree:
+          type: array
+          items:
+            $ref: '#/components/schemas/CriteriaTreeNode'
+        crossTreeSecondaryParents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CrossTreeSecondaryParents'
+        curationExportedOn:
+          type: string
+          format: date-time
+      required:
+      - tree
+      - treeName
     GenreTreeNode:
       type: object
       properties:
@@ -5649,7 +5745,7 @@ components:
         trees:
           type: array
           items:
-            $ref: '#/components/schemas/CriteriaTreeImport'
+            $ref: '#/components/schemas/GenreTreeImportFile'
       required:
       - trees
     GenreUnacceptedRootAccept:
@@ -6092,6 +6188,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GenreNameConflictGroup'
+    PaginatedGenrePlaylistTreeRowList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenrePlaylistTreeRow'
     PaginatedGenreSearchResultList:
       type: object
       required:

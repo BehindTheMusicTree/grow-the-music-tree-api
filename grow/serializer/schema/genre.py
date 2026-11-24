@@ -1,6 +1,8 @@
 from rest_framework import serializers
+from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
 
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
+from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
 
 
@@ -40,3 +42,20 @@ class GenreCataloguePlaylistSerializer(CriteriaPlaylistMinimumSerializer):
             "genre_only_tracks_count",
             "genre_and_subgenres_tracks_count",
         ]
+
+
+class GenreTreeImportFileSerializer(CriteriaTreeImportSerializer):
+    """A Gold tree file: the import pops `curationExportedOn` before the tree serializer validates the rest."""
+
+    curation_exported_on = serializers.DateTimeField(required=False)
+
+
+class GenrePlaylistTreeRowSerializer(CriteriaPlaylistSimpleSerializer):
+    """`genre-playlists/tree/` rows are built from `.values()`: counts the list serializer lacks, no `views_count` with `artist`."""
+
+    songs_count = serializers.IntegerField()
+    catalogue = serializers.DictField(child=serializers.IntegerField())
+    views_count = serializers.IntegerField(required=False)
+
+    class Meta(CriteriaPlaylistSimpleSerializer.Meta):
+        fields = [*CriteriaPlaylistSimpleSerializer.Meta.fields, "songs_count", "catalogue"]

@@ -45,6 +45,7 @@ from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.query_expressions import InSubquery
 from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
 from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
+from grow.serializer.schema.genre import GenrePlaylistTreeRowSerializer
 from grow.view.pagination.PlaylistTracksPagination import PlaylistTracksPagination
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
 from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import blocked_restricted_songs
@@ -196,7 +197,12 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
             OpenApiParameter("tree_name", str, required=True, enum=list(CriteriaTreeName.values)),
             OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
         ],
-        responses=CriteriaPlaylistSimpleSerializer(many=True),
+        responses={
+            200: GenrePlaylistTreeRowSerializer(many=True),
+            304: None,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
     ),
 )
 class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
