@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Task
 from django_q.tasks import async_task
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
@@ -30,7 +31,15 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
-from grow.serializer.schema.common import ImportRunStatusSerializer
+from grow.serializer.schema.common import (
+    CountSerializer,
+    FullImportRunCreateRequestSerializer,
+    ImportRunCreatedSerializer,
+    ImportRunCreateRequestSerializer,
+    ImportRunStatusSerializer,
+    TaskIdSerializer,
+)
+from grow.serializer.schema.song import SongImportRunCreateRequestSerializer
 from grow.track.bulk_import.assignment_part_loader import load_part as load_assignment_part
 from grow.track.bulk_import.contract import (
     require_complete_run,
@@ -43,8 +52,21 @@ from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 GROUP_PREFIX = "import-run-"
 SPOOL_MEMORY_BYTES = 8 * 1024 * 1024
 
+_RUN_ID_PARAM = OpenApiParameter("run_id", int, OpenApiParameter.PATH)
+_PART_PARAM = OpenApiParameter("part", int, OpenApiParameter.PATH)
+
+
+def _upload_schema(description: str, parameters: list[OpenApiParameter]) -> Callable:
+    return extend_schema(
+        request={"application/x-ndjson": OpenApiTypes.BINARY},
+        parameters=parameters,
+        responses=CountSerializer,
+        description=description,
+    )
+
 
 def assignment_part_upload_action(url_prefix: str) -> Callable:
+    @_upload_schema("One gzip NDJSON part of the run's genre assignments.", [_RUN_ID_PARAM, _PART_PARAM])
     @action(
         detail=False,
         methods=["put"],
@@ -186,6 +208,12 @@ def bulk_import_run_actions(
     `{deletion_key: <uuid>}` per line) to `deletions/`.
     """
     runs = f"{url_prefix}import-runs"
+    if kind == ImportRun.Kind.SONGS:
+        create_request: type = SongImportRunCreateRequestSerializer
+    elif BulkImportRun.Mode.DELTA in modes:
+        create_request = ImportRunCreateRequestSerializer
+    else:
+        create_request = FullImportRunCreateRequestSerializer
 
     def deletion_row(line_number: int, line: bytes) -> tuple:
         try:
@@ -200,6 +228,11 @@ def bulk_import_run_actions(
             raise ValidationError("import run is already committed")
         return run
 
+    @extend_schema(
+        request=create_request,
+        responses={status.HTTP_201_CREATED: ImportRunCreatedSerializer},
+        description=f"Accepted modes: {', '.join(modes)}. Abandons every uncommitted run of the same kind.",
+    )
     @action(detail=False, methods=["post"], url_path=runs, permission_classes=[IsPipelineOrAdmin])
     def create_import_run(self, request):
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
@@ -228,6 +261,7 @@ def bulk_import_run_actions(
             run = BulkImportRun.objects.create(kind=kind, mode=mode, **metadata)
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 
+    @_upload_schema("One gzip NDJSON part of the run's rows.", [_RUN_ID_PARAM, _PART_PARAM])
     @action(
         detail=False,
         methods=["put"],
@@ -244,6 +278,10 @@ def bulk_import_run_actions(
                 record_part(run=run, stream="songs", part=int(part), count=count, body=body)
         return Response({"count": count})
 
+    @_upload_schema(
+        f'Delta runs only: the deleted ids, gzip NDJSON with one `{{"{deletion_key}": <uuid>}}` per line.',
+        [_RUN_ID_PARAM],
+    )
     @action(
         detail=False,
         methods=["put"],
@@ -262,6 +300,12 @@ def bulk_import_run_actions(
                 record_part(run=run, stream="deletions", part=0, count=count, body=body)
         return Response({"count": count})
 
+    @extend_schema(
+        request=None,
+        parameters=[_RUN_ID_PARAM],
+        responses={status.HTTP_202_ACCEPTED: TaskIdSerializer},
+        description="Queues the merge; poll its status with the returned task id.",
+    )
     @action(
         detail=False,
         methods=["post"],

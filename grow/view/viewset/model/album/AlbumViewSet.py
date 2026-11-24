@@ -1,3 +1,6 @@
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status
+
 from grow.filtering.set.album.AlbumFilterSet import AlbumFilterSet
 from grow.model.album.Album import Album
 from grow.serializer.model.album.detailed import AlbumDetailedSerializer
@@ -5,6 +8,7 @@ from grow.serializer.model.album.simple import AlbumSimpleSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
+@extend_schema_view(destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}))
 class AlbumViewSet(GrowModelViewSet[Album]):
     def __init__(self, **kwargs):
         super().__init__(

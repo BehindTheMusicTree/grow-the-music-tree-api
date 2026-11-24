@@ -9,8 +9,8 @@ from grow.serializer.model.history.output.detailed import HistoryEntryDetailedSe
 
 
 class HistoryActionMixin:
-    @extend_schema(responses=HistoryEntryDetailedSerializer(many=True))
-    @action(detail=True, methods=["get"])
+    @extend_schema(responses=HistoryEntryDetailedSerializer(many=True), filters=False)
+    @action(detail=True, methods=["get"], pagination_class=None)
     def history(self, request: Request, *args, **kwargs) -> Response:
         instance = self.get_object()
         queryset = (

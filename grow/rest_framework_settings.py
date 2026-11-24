@@ -21,6 +21,7 @@ SPECTACULAR_SETTINGS = {
     "PREPROCESSING_HOOKS": ["grow.openapi.hooks.drop_unimplemented_actions"],
     "ENUM_NAME_OVERRIDES": {
         "HistoryAction": "grow.model.history.HistoryAction.HistoryAction",
+        "ImportRunModeEnum": "grow.bulk_import.BulkImportRun.BulkImportRun.Mode",
     },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": [
