@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Improved
 
+- Agent rule `curation-export` documents how to change the curation export format (coordinated grow-then-pipelines release; legacy projections need a removal condition and a follow-up issue). The legacy `genre_alias` export is marked for removal (#582).
 - Docs: README, CONTRIBUTING and the code-review skill describe `Perf` routing (skipped for non-runtime PRs, `Perf route` not required), and the README states that `Perf` is required on `main` too.
 - `Perf` is skipped for PRs that only change non-runtime files (docs, `*.md`, agent config, unrelated workflows): a `Perf route` job classifies the diff with `scripts/perf_route.py` and any unknown path, mixed diff or routing failure runs the full A/B. Covered by `tests/unit/ci/test_perf_route.py`.
 
