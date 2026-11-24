@@ -69,6 +69,9 @@ OPTIONAL_COLUMNS = frozenset(
     }
 )
 GENRE_ALIAS_LIST = "genre_alias"
+# Legacy v1 export for pipelines that predate `target_item_id`. Drop it (v1 export, `genre_alias_version`, the legacy
+# CSV header in rows.py, label resolution in genre_aliases.py) once pipelines #483 is in prod and stable and no
+# `alias_legacy_unmigrated` remains in prod: see issue #582.
 LEGACY_GENRE_ALIAS_COLUMNS = ("musicbrainz_genre_name", "wikidata_genre_name", "reason")
 GENRE_ALIAS_COLUMNS = (*LEGACY_GENRE_ALIAS_COLUMNS[:2], "target_item_id", "reason")
 

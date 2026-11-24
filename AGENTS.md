@@ -66,6 +66,7 @@ uv run manage.py runserver
 - **Commits and PR titles:** `<type>(<scope>): <summary>` — `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `style`, `perf`, `ci`. Imperative mood, under ~70 chars.
 - **Before opening a PR:** all four commands in "Commands" above pass; new features/fixes have tests; `CHANGELOG.md` updated under `[Unreleased]`; `README.md` updated if endpoints/env vars/setup changed; no secrets.
 - Before working on `grow/model/**/*.py` or `grow/migrations/*.py`, read `.agents/rules/migrations.md`. Claude `paths:` metadata is not a Codex loader.
+- Before changing the curation export format (`grow/curation/**/*.py`, `grow/view/curation.py`, `grow/model/curation/**/*.py`), read `.agents/rules/curation-export.md`.
 
 ## Optional tooling
 
