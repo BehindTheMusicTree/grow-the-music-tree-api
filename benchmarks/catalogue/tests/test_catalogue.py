@@ -57,7 +57,7 @@ def insert(table, **values):
 class CataloguePolicyTest(unittest.TestCase):
     def test_inventory_and_dispositions_are_exhaustive(self):
         self.assertEqual(len(TABLES), 76)
-        self.assertEqual(sum(map(len, TABLES.values())), 473)
+        self.assertEqual(sum(map(len, TABLES.values())), 475)
         self.assertEqual(TABLES.keys(), catalogue.RETAIN | catalogue.DERIVED | catalogue.EMPTY | catalogue.REBUILD)
 
     def test_verifications_aggregate_instead_of_probing_for_a_first_row(self):
