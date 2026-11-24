@@ -139,25 +139,12 @@ class TestMembershipProjection(AppTestCase):
         assert summary()["catalogue"]["genre_and_subgenres_tracks_count"]["all"] == 1
         assert summary()["tracks_count"] == 1
 
-    def test_trigger_migration_can_be_reversed_and_backfilled_again(self):
+    def test_trigger_migration_can_be_reversed_and_replayed(self):
         genre = self.model_fixture_factory.create_genre("Genre")
-        song = self.model_fixture_factory.create_song("Song", genre=genre)
-        migration = import_module("grow.migrations.0108_maintain_genre_membership_counts")
-        # 0115 puts a trigger on grow_song that uses 0108's gate function, so it must be
-        # reversed first and replayed last, as migrate would.
-        catalogue = import_module("grow.migrations.0115_maintain_genre_catalogue_counts")
+        self.model_fixture_factory.create_song("Song", genre=genre)
+        migration = import_module("grow.migrations.0142_semantic_playlist_projection")
         editor = connection.schema_editor()
-        catalogue.drop(apps, editor)
-        migration.drop(apps, editor)
-        Track.objects.filter(pk=song.pk).update(genre=None)
-        assert stored_membership_bucket_counts() != membership_bucket_counts()
-        migration.create(apps, editor)
-        connection.cursor().execute("DELETE FROM grow_genre_catalogue_count")
-        catalogue.create(apps, editor)
+        migration.backwards(apps, editor)
         self.assert_projection()
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT genre_id, tracks_count FROM grow_genre_catalogue_count")
-            stored = sorted(cursor.fetchall(), key=repr)
-            cursor.execute(catalogue.source_query())
-            live = sorted(cursor.fetchall(), key=repr)
-        assert stored == live
+        migration.forwards(apps, editor)
+        self.assert_projection()

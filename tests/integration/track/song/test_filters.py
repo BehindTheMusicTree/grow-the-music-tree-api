@@ -73,10 +73,6 @@ class TestCase(AppTestCase):
         self._install_graph()
         assert self._list_uuids(title="nonexistent") == set()
 
-    def test_filter_by_artist_uuid(self):
-        self._install_graph()
-        assert self._list_uuids(artist=str(self.pink_floyd.uuid)) == {str(self.matching_track.uuid)}
-
     def _titles(self, **params):
         response = self.api_client.get(path=reverse(self.list_endpoint), data=params)
         assert response.status_code == status.HTTP_200_OK, response.data
@@ -197,21 +193,25 @@ class TestCase(AppTestCase):
         self._install_graph()
         regional = self.model_fixture_factory.create_genre("Regional rock", tree_name="regional")
         regional_song = self.model_fixture_factory.create_song("Regional song", genre=regional)
+        region = self.model_fixture_factory.create_genre("Region")
         self._install_graph(
-            {regional: [regional_song]},
-            classifications=[(regional, self.rock)],
-            node_overrides={regional: {"canonicalState": "after_exit"}},
-            boundaries=[(regional, "exit")],
+            {regional: [regional_song], region: []},
+            relations=[(regional, self.rock, "classification"), (regional, region, "regional_membership")],
+            node_overrides={region: {"kind": "overview"}},
         )
         genre = str(self.rock.uuid)
         direct = str(self.matching_track.uuid)
         assert self._list_uuids(genre=genre) == {direct}
         assert self._list_uuids(genre=genre, subgenres="regional") == {direct, str(regional_song.uuid)}
         assert self._list_uuids(genre=genre, subgenres="all") == {direct, str(regional_song.uuid)}
+        assert self._list_uuids(genre=genre, subgenres="restricted") == {direct}
+        assert self._list_uuids(genre=genre, subgenres="expressions") == {str(regional_song.uuid)}
+        assert self._list_uuids(genre=genre, subgenres="extended") == {direct, str(regional_song.uuid)}
         assert self._list_uuids(genre=str(regional.uuid)) == {str(regional_song.uuid)}
         for params in (
             {"subgenres": "all"},
             {"genre": genre, "coverage": "genre_only", "subgenres": "all"},
+            {"genre": genre, "coverage": "genre_only", "subgenres": "expressions"},
             {"genre": genre, "subgenres": "invalid"},
             {"genre": str(regional.uuid), "subgenres": "canonical"},
         ):

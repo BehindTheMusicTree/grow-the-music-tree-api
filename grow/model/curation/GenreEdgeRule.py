@@ -15,8 +15,8 @@ PRIMARY_RELATIONS = ("canonical_parent", "regional_genre_parent")
 class GenreEdgeRule(PrivateUniqueResource):
     """One curated edge between two genre items (Wikidata QIDs or `LOCAL:` ids), read by the pipeline.
 
-    Replaces the `canonical_parent`, `accepted_canonical_roots`, `regional_genre_parent`, `regional_overviews` and
-    `secondary_parents` curation lists. A null `parent_item_id` is an accepted canonical root."""
+    Replaces the `canonical_parent`, `regional_genre_parent`, `regional_overviews` and `secondary_parents` curation
+    lists. Accepted canonical roots are the `canonical_roots` curation list, not edges."""
 
     class Relation(models.TextChoices):
         CANONICAL_PARENT = "canonical_parent"
@@ -61,14 +61,9 @@ class GenreEdgeRule(PrivateUniqueResource):
                 violation_error_message="An item can't be its own parent",
             ),
             models.CheckConstraint(
-                condition=Q(parent_item_id__isnull=False) | Q(relation="canonical_parent"),
-                name="genre_edge_rule_root_is_canonical",
-                violation_error_message="Only a canonical_parent rule can be a root (no parent)",
-            ),
-            models.CheckConstraint(
-                condition=Q(parent_item_id__isnull=False) | Q(exclude_other_parents=True),
-                name="genre_edge_rule_root_excludes_parents",
-                violation_error_message="A root must exclude other parents",
+                condition=Q(parent_item_id__isnull=False),
+                name="genre_edge_rule_parent_required",
+                violation_error_message="An edge needs a parent: accepted roots live in the canonical_roots list",
             ),
             models.CheckConstraint(
                 condition=(Q(relation="secondary_parent") & Q(action__isnull=False))

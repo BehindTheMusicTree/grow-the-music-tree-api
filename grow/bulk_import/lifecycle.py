@@ -55,6 +55,7 @@ def execute_merge(
     invalidate: Callable[[], Any] | None = None,
     *,
     extra_staging_models: tuple[type[models.Model], ...] = (),
+    public_errors: tuple[type[BaseException], ...] = (),
 ) -> dict[str, Any]:
     staging_models = (staging_model, *extra_staging_models)
     with hold_merge_lock(run_id):
@@ -77,6 +78,13 @@ def execute_merge(
         latest = ImportAttempt.objects.filter(run_id=run_id).order_by("-attempt").first()
         if latest is None or latest.pk != attempt.pk:
             raise ValueError(f"import run {run_id} attempt {attempt.attempt} is superseded")
+        # Atomic claim: reconcile may have failed this queued attempt (no worker) since the task was enqueued.
+        claimed_at = timezone.now()
+        if not ImportAttempt.objects.filter(pk=attempt.pk, state=ImportAttempt.State.QUEUED).update(
+            state=ImportAttempt.State.RUNNING, started_at=claimed_at, worker_absent_since=None
+        ):
+            attempt.refresh_from_db(fields=["state"])
+            raise ValueError(f"import run {run_id} attempt {attempt.attempt} is already {attempt.state}")
         BulkImportRun.objects.filter(pk=run_id).update(started_on=timezone.now())
         reporter = ProgressReporter(attempt)
         reporter.start()
@@ -90,7 +98,7 @@ def execute_merge(
                     cursor.execute("SELECT pid, backend_start FROM pg_stat_activity WHERE pid = pg_backend_pid()")
                     pid, backend_start = cursor.fetchone()
                 backend = {"backend_pid": pid, "backend_start": backend_start}
-            reporter.publish(state=ImportAttempt.State.RUNNING, started_at=timezone.now(), **backend)
+            reporter.publish(state=ImportAttempt.State.RUNNING, started_at=claimed_at, **backend)
             if receipt is not None:
                 reporter.publish(data_applied=True, result=result)
             else:
@@ -113,11 +121,16 @@ def execute_merge(
         except BaseException as exc:
             # Do not expose database exceptions (which can include SQL and input values) through the status endpoint.
             logger.exception("import run %s attempt %s failed (data_applied=%s)", run_id, attempt.attempt, applied)
+            # `public_errors` are validation errors whose message holds no SQL nor input values, which the caller needs.
+            if not applied and isinstance(exc, public_errors):
+                error = f"{type(exc).__name__}: {exc}"
+            else:
+                error = f"{type(exc).__name__}: import {'post-commit processing' if applied else 'merge'} failed; see worker logs"
             reporter.publish(
                 state=ImportAttempt.State.FAILED,
                 data_applied=applied,
                 result=result if applied else None,
-                error=f"{type(exc).__name__}: import {'post-commit processing' if applied else 'merge'} failed; see worker logs",
+                error=error,
                 finished_at=timezone.now(),
             )
             raise

@@ -1,18 +1,21 @@
 import json
 from copy import deepcopy
+from datetime import timedelta
 from importlib import import_module
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from django.apps import apps
-from django.db import IntegrityError, connection, transaction
+from django.contrib.auth.models import User
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage
+from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot
 from the_music_tree_genre_kit.genre_graph.models import (
@@ -21,6 +24,7 @@ from the_music_tree_genre_kit.genre_graph.models import (
     GenreGraphAttributionRevision,
     GenreGraphDataset,
     GenreGraphNode,
+    GenreGraphRevision,
 )
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict, select_tracks
 
@@ -38,12 +42,16 @@ from grow.genre_graph.service import (
     restore_song_attributions,
     write_song_attributions,
 )
+from grow.genre_music.catalogue_verification import derived_song_genres, verify_catalogue_counts
+from grow.genre_music.membership import verify_membership_counts
 from grow.model.criteria.children.genre.Genre import Genre
-from grow.model.curation.CurationSyncState import CurationSyncState
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
+from tests.utils.curation_export import record_export, record_graph_export
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.song_graph import reject_scalar_genre_projection
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -67,13 +75,11 @@ def assignment_revision(song_id):
 
 @pytest.fixture
 def payload():
-    return json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v2.json").read_text())
+    return json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
 
 
 def import_graph(payload, mapping=None, revision=None):
-    CurationSyncState.objects.update_or_create(
-        pk=1, defaults={"exported_on": parse_datetime(payload["curationExportedOn"])}
-    )
+    record_graph_export(payload)
     return import_reference_graph(
         payload=payload,
         mapping=mapping if mapping is not None else {node["id"]: None for node in payload["nodes"]},
@@ -98,8 +104,42 @@ def test_e03_preserves_bindings_songs_duplicate_labels_and_retry(payload):
     assert GenreGraphAssignmentBackup.objects.count() == 2
     assert import_graph(payload, mapping, dataset.revision).revision == dataset.revision
     assert GenreGraphImport.objects.count() == 1
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
-    assert not select_tracks(Song.objects.all(), key="grow", identity="LOCAL:jamaica").exists()
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
+    assert not select_tracks(Song.objects.all(), node=_node("LOCAL:jamaica")).exists()
+
+
+def test_null_mapping_adopts_the_legacy_genre_with_that_wikidata_id(payload):
+    factory = ModelFixtureFactory(None)
+    dub = factory.create_genre("Dub", wikidata_id="LOCAL:dub")
+    song = factory.create_song("Assigned", dub)
+    dataset = import_graph(payload)
+    dub.refresh_from_db()
+    assert dub.graph_node.identity == "LOCAL:dub"
+    assert Genre.objects.filter(_name="Dub").count() == 4
+    assert list(GenreGraphAttribution.objects.values_list("track_id", "node__identity")) == [(song.pk, "LOCAL:dub")]
+    assert import_graph(payload, None, dataset.revision).revision == dataset.revision
+    assert Genre.objects.get(pk=dub.pk).graph_node.identity == "LOCAL:dub"
+
+
+def test_null_mapping_without_a_legacy_genre_creates_a_new_node(payload):
+    dataset = import_graph(payload)
+    assert Genre.objects.filter(graph_node__dataset=dataset).count() == len(payload["nodes"])
+
+
+def test_null_mapping_refuses_ambiguous_or_owned_wikidata_ids(payload):
+    factory = ModelFixtureFactory(None)
+    factory.create_genre("Dub", wikidata_id="LOCAL:dub")
+    factory.create_genre("Dub bis", wikidata_id="LOCAL:dub")
+    with pytest.raises(GraphValidationError, match="Several genres share"):
+        import_graph(payload)
+    assert GenreGraphImport.objects.count() == 0
+
+
+def test_null_mapping_refuses_a_genre_owned_by_another_identity(payload):
+    import_graph(payload)
+    Genre.objects.filter(graph_node__identity="LOCAL:roots").update(wikidata_id="LOCAL:new")
+    with pytest.raises(GraphValidationError, match="already belongs to identity LOCAL:roots"):
+        service._legacy_genres(["LOCAL:new"])
 
 
 def test_e02_missing_mapping_and_revision_rejected_atomically(payload):
@@ -136,7 +176,7 @@ def test_e02_invalid_graph_keeps_original(payload):
 def test_e03_input_order_does_not_create_revision(payload):
     dataset = import_graph(payload)
     shuffled = deepcopy(payload)
-    for field in ("nodes", "relations", "boundaries"):
+    for field in ("nodes", "relations", "canonicalRoots"):
         shuffled[field].reverse()
     mapping = GenreGraphImport.objects.get(pk=dataset.revision).mapping
     replay = import_graph(shuffled, mapping, dataset.revision)
@@ -169,18 +209,19 @@ def test_e03_restore_updates_projection_and_keeps_songs(payload):
     assert dub.name == "Dub"
     assert dub.parent_id is None
     assert dub.root_id == dub.pk
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
     with pytest.raises(GraphRevisionConflict):
         restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
 
 
 def test_e02_requires_singletons_and_matching_provenance(payload):
-    CurationSyncState.objects.filter(pk=1).delete()
+    CurationExport.objects.all().delete()
     with pytest.raises(GraphValidationError, match="singletons"):
         import_reference_graph(
             payload=payload, mapping={}, expected_revision=None, curation_exported_on=payload["curationExportedOn"]
         )
-    CurationSyncState.objects.create(pk=1, exported_on=parse_datetime(payload["curationExportedOn"]))
+    record_graph_export(payload)
+    record_export("2026-11-13T00:00:00Z", [root["nodeId"] for root in payload["canonicalRoots"]])
     with pytest.raises(GraphValidationError, match="provenance"):
         import_reference_graph(
             payload=payload, mapping={}, expected_revision=None, curation_exported_on="2026-11-13T00:00:00Z"
@@ -209,7 +250,7 @@ def test_e04_membership_tokens_prevent_lost_attribution_edits(payload):
             expected_membership_revision=dataset.membership_revision,
             expected_assignment_revision=assignment_revision(song.pk),
         )
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
     with pytest.raises(GraphValidationError, match="Evidence"):
         write_song_attributions(
             song_id=song.pk,
@@ -228,9 +269,7 @@ def graph_client(role):
 
 
 def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
-    CurationSyncState.objects.update_or_create(
-        pk=1, defaults={"exported_on": parse_datetime(payload["curationExportedOn"])}
-    )
+    record_graph_export(payload)
     url = reverse("reference-graph")
     body = {"graph": payload, "mapping": {node["id"]: None for node in payload["nodes"]}, "expectedRevision": None}
     assert APIClient().put(url, body, format="json").status_code == 401
@@ -242,13 +281,126 @@ def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
     assert loaded.status_code == 200
     result = loaded.json()
     assert result["revision"] == response.json()["revision"]
-    assert result["graph"]["contractVersion"] == 2
+    assert result["graph"]["contractVersion"] == 4
     assert {node["id"] for node in result["graph"]["nodes"]} == set(body["mapping"])
     assert all(result["mapping"].values())
     assert graph_client("pipeline").put(url, body, format="json").status_code == 409
     body["expectedRevision"] = result["revision"]
     body["mapping"] = result["mapping"]
     assert graph_client("pipeline").put(url, body, format="json").json() == response.json()
+
+
+def _relation(child, parent, kind):
+    return {
+        "childId": child,
+        "parentId": parent,
+        "type": kind,
+        "provenance": {
+            "decisionId": f"{kind}-{child}-{parent}",
+            "source": "synthetic fixture",
+            "rationale": f"Synthetic {kind} relation.",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "child,kind,expected",
+    [
+        ("LOCAL:reggae-fusion", "derivation", {"classification", "derivation"}),
+        ("LOCAL:french-reggae", "derivation", {"classification", "derivation"}),
+        ("LOCAL:country", "derivation", {"derivation"}),
+        ("LOCAL:country", "influence", {"influence"}),
+    ],
+)
+def test_graph_publication_and_restore_preserve_direct_relation_types(payload, child, kind, expected):
+    parent = "LOCAL:reggae"
+    genre = ModelFixtureFactory(None).create_genre("Test genre", wikidata_id=child)
+    song = ModelFixtureFactory(None).create_song("Direct assignment", genre)
+    initial = import_graph(payload)
+    payload["relations"].append(_relation(child, parent, kind))
+    url = reverse("reference-graph")
+    body = {
+        "graph": payload,
+        "mapping": {node["id"]: None for node in payload["nodes"]},
+        "expectedRevision": str(initial.revision),
+    }
+    response = graph_client("pipeline").put(url, body, format="json")
+    assert response.status_code == 200, response.data
+    published = response.json()["revision"]
+
+    def assert_published_pair():
+        loaded = APIClient().get(url).json()
+        assert {
+            relation["type"]
+            for relation in loaded["graph"]["relations"]
+            if (relation["childId"], relation["parentId"]) == (child, parent)
+        } == expected
+        assert select_tracks(Song.objects.filter(pk=song.pk), node=_node(parent)).exists() == (
+            "classification" in expected
+        )
+
+    assert_published_pair()
+    payload["relations"].pop()
+    reverted = import_graph(payload, revision=reference_dataset().revision)
+    response = graph_client("curator").post(
+        reverse("reference-graph-restore"),
+        {"revision": published, "expectedRevision": str(reverted.revision)},
+        format="json",
+    )
+    assert response.status_code == 200, response.data
+    assert_published_pair()
+
+
+@pytest.mark.parametrize("operation", ["import", "restore"])
+@pytest.mark.parametrize(
+    "child,add_derivation",
+    [
+        ("LOCAL:reggae-fusion", False),
+        ("LOCAL:french-reggae", False),
+        ("LOCAL:country", True),
+        ("LOCAL:reggae-fusion", True),
+        ("LOCAL:french-reggae", True),
+    ],
+)
+def test_graph_rejects_implied_influence_without_publication(payload, operation, child, add_derivation):
+    import_graph(payload)
+    payload["nodes"][0]["name"] += " (unpublished)"
+    parent = "LOCAL:reggae"
+    payload["relations"].insert(0, _relation(child, parent, "influence"))
+    if add_derivation:
+        payload["relations"].append(_relation(child, parent, "derivation"))
+    url = reverse("reference-graph")
+    reader = APIClient()
+    before = reader.get(url).json()
+    version = GenreTreeVersion.objects.get(pk=1).token
+    if operation == "import":
+        response = graph_client("pipeline").put(
+            url, {"graph": payload, "mapping": before["mapping"], "expectedRevision": before["revision"]}, format="json"
+        )
+    else:
+        # Simulate an incompatible archived payload while leaving the live revision intact.
+        archived = GenreGraphRevision.objects.create(revision=uuid4(), dataset_id="grow", payload=payload)
+        live_receipt = GenreGraphImport.objects.get(pk=before["revision"])
+        GenreGraphImport.objects.create(
+            revision=archived.revision,
+            mapping=live_receipt.mapping,
+            curation_exported_on=live_receipt.curation_exported_on,
+        )
+        response = graph_client("curator").post(
+            reverse("reference-graph-restore"),
+            {"revision": str(archived.revision), "expectedRevision": before["revision"]},
+            format="json",
+        )
+    assert response.status_code == 400, response.data
+    assert (
+        f"Influence is already implied by classification or derivation: {child} -> {parent}"
+        in response.json()["detail"]
+    )
+    assert reader.get(url).json() == before
+    assert (
+        GenreGraphImport.objects.count() == GenreGraphRevision.objects.count() == (2 if operation == "restore" else 1)
+    )
+    assert GenreTreeVersion.objects.get(pk=1).token == version
 
 
 def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(payload):
@@ -271,9 +423,7 @@ def test_e01_attributions_endpoint_reduction_refinement_restore_and_permissions(
     assert APIClient().get(url).json()["effectiveAttributions"] == ["LOCAL:french-dub"]
     assert not APIClient().get(url).json()["needsRefinement"]
     assert curator.put(url, body, format="json").status_code == 409
-    archived = GenreGraphAttributionRevision.objects.get(
-        track_id=song.pk, revision=original.json()["assignmentRevision"], attributions={}
-    )
+    archived = GenreGraphAttributionRevision.objects.get(track_id=song.pk, attributions={})
     restore_url = reverse("song-attributions-restore", kwargs={"song_id": song.pk})
     restore_body = {
         "revision": str(archived.revision),
@@ -382,9 +532,12 @@ def test_song_assignment_rejects_multiple_direct_genres_without_mutation(payload
 @pytest.mark.parametrize(
     "scope,expected",
     [
-        ("canonical", {"style", "scoped", "overlap"}),
+        ("canonical", {"style"}),
+        ("restricted", {"style"}),
         ("regional", {"scoped", "overlap", "exited"}),
+        ("expressions", {"scoped", "overlap", "exited"}),
         ("all", {"style", "scoped", "overlap", "exited"}),
+        ("extended", {"style", "scoped", "overlap", "exited"}),
     ],
 )
 def test_song_filter_uses_semantic_memberships_without_display_edges(payload, scope, expected):
@@ -423,6 +576,27 @@ def test_song_selection_requires_graph_and_identity_mapping(payload):
     with pytest.raises(IntegrityError, match="Permanent graph binding"), transaction.atomic():
         Genre.objects.filter(pk=genre.pk).update(graph_node=None)
     assert not select_songs(Song.objects.all(), genre_id=genre.pk, coverage=CriteriaCoverage.ONLY).exists()
+
+
+def test_pre_contract_4_dataset_requires_reimport_before_graph_selection(payload):
+    dataset = import_graph(payload)
+    GenreGraphDataset.objects.filter(pk=dataset.pk).update(payload={**dataset.payload, "contractVersion": 3})
+    genre = Genre.objects.get(graph_node__identity="LOCAL:reggae")
+    with pytest.raises(ValidationError, match="re-import required"):
+        select_songs(Song.objects.all(), genre_id=genre.pk, coverage=CriteriaCoverage.AND_DESCENDANTS)
+    response = APIClient().get(reverse("reference-graph"))
+    assert response.status_code == 400
+    assert "re-import required" in response.json()["detail"]
+
+
+def test_song_list_keeps_unassigned_and_unplayable_songs(payload):
+    factory = ModelFixtureFactory(None)
+    songs = [factory.create_song(f"Unassigned {index}", None, youtube_video_id=None) for index in range(2)]
+    dataset = import_graph(payload)
+    response = APIClient().get(reverse("song-list") + "?with_total=false&page=1")
+    assert response.status_code == 200, response.content
+    assert {row["uuid"] for row in response.json()["results"]} == {str(song.pk) for song in songs}
+    assert response["X-Genre-Membership-Revision"] == str(dataset.membership_revision)
 
 
 def test_song_list_and_cursor_include_graph_only_assignments(payload):
@@ -469,14 +643,32 @@ def test_graph_import_preserves_existing_pop_child(payload):
     assert child.side == "pop"
     assert child.parent_id == parent.pk
     assert child.root_id == parent.pk
-    assert list(select_tracks(Song.objects.all(), key="grow", identity="LOCAL:dub")) == [song]
+    assert list(select_tracks(Song.objects.all(), node=_node("LOCAL:dub"))) == [song]
+
+
+def _node(identity):
+    return GenreGraphNode.objects.get(dataset_id="grow", identity=identity)
+
+
+def _canonical_root(identity):
+    return {
+        "nodeId": identity,
+        "provenance": {"decisionId": f"root-{identity}", "source": "test", "rationale": "Synthetic canonical root."},
+    }
 
 
 def _without_identity(payload, identity):
     changed = deepcopy(payload)
     changed["nodes"] = [node for node in changed["nodes"] if node["id"] != identity]
     changed["relations"] = [row for row in changed["relations"] if identity not in (row["childId"], row["parentId"])]
-    changed["boundaries"] = [row for row in changed["boundaries"] if row["nodeId"] != identity]
+    changed["canonicalRoots"] = [row for row in changed["canonicalRoots"] if row["nodeId"] != identity]
+    return _with_own_export(changed)
+
+
+def _with_own_export(changed):
+    """A graph with other roots comes from another export; reusing the date would overwrite the original's snapshot."""
+    changed["curationExportedOn"] = (parse_datetime(changed["curationExportedOn"]) + timedelta(days=1)).isoformat()
+    record_graph_export(changed)
     return changed
 
 
@@ -505,6 +697,8 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
         expected_membership_revision=original.membership_revision,
         expected_assignment_revision=assignment_revision(song.pk),
     )
+    relation = TrackPlaylistRel.objects.create(track=song, playlist=retained.criteria_playlist)
+    untouched = ModelFixtureFactory(None).create_song("Unaffected", None)
     changed = _without_identity(payload, "LOCAL:french-dub")
     mapping = dict(GenreGraphImport.objects.get(pk=original.revision).mapping)
     del mapping["LOCAL:french-dub"]
@@ -522,6 +716,16 @@ def test_retirement_snapshots_and_reactivation_preserve_duplicate_label_uuid(pay
     assert Genre.objects.get(pk=retained.pk).name == retired.name == "Dub"
     expected = {target} if target else set()
     assert set(song.graph_attributions.values_list("node__identity", flat=True)) == expected
+    song.refresh_from_db()
+    relation.refresh_from_db()
+    expected_genre = mapping[target] if target else None
+    assert (str(song.membership_genre_id) if song.membership_genre_id else None) == expected_genre
+    assert relation.genre_id == song.membership_genre_id
+    assert Song.objects.get(pk=untouched.pk).membership_genre_id is None
+    assert derived_song_genres() == {song.pk: song.membership_genre_id, untouched.pk: None}
+    assert verify_catalogue_counts()["catalogue"].valid
+    expected_counts, stored_counts = verify_membership_counts()
+    assert expected_counts == stored_counts
     snapshot = GenreGraphAttributionRevision.objects.filter(
         track_id=song.pk, attributions__has_key="LOCAL:french-dub"
     ).latest("created_at")
@@ -566,7 +770,9 @@ def test_retirement_requires_complete_valid_decisions_atomically(payload, decisi
 def test_restore_older_graph_requires_decision_for_added_concept(payload):
     original = import_graph(payload)
     changed = deepcopy(payload)
-    changed["nodes"].append({"id": "LOCAL:added", "name": "Dub", "kind": "genre", "canonicalState": "before_entry"})
+    changed["nodes"].append({"id": "LOCAL:added", "name": "Dub", "kind": "genre"})
+    changed["canonicalRoots"].append(_canonical_root("LOCAL:added"))
+    _with_own_export(changed)
     mapping = {**GenreGraphImport.objects.get(pk=original.revision).mapping, "LOCAL:added": None}
     updated = import_graph(changed, mapping, original.revision)
     added = Genre.objects.get(semantic_identity="LOCAL:added")
@@ -670,8 +876,11 @@ def test_retirement_failure_rolls_back_attributions_history_and_bindings(payload
 def test_reference_graph_identity_binding_at_canonical_tree_scale(payload):
     large = deepcopy(payload)
     large["nodes"].extend(
-        {"id": f"LOCAL:scale-{index}", "name": f"Scale {index}", "kind": "genre", "canonicalState": "before_entry"}
+        {"id": f"LOCAL:scale-{index}", "name": f"Scale {index}", "kind": "genre"}
         for index in range(1710 - len(large["nodes"]))
+    )
+    large["canonicalRoots"].extend(
+        _canonical_root(f"LOCAL:scale-{index}") for index in range(1710 - len(payload["nodes"]))
     )
     original = import_graph(large)
     assert Genre.objects.filter(graph_node__dataset_id="grow").count() == 1710
@@ -906,3 +1115,152 @@ def test_empty_initial_assignment_archive_is_valid_and_preserves_later_songs(pay
     )
     assert restored.membership_revision == current.membership_revision
     assert assignment_snapshot(dataset=restored, track_id=song.pk) == {"LOCAL:dub": [provenance]}
+
+
+def test_graph_import_rejects_roots_differing_from_the_export(payload):
+    record_export(payload["curationExportedOn"], ["Q1"])
+    with pytest.raises(GraphValidationError, match="canonicalRoots differ"):
+        import_reference_graph(
+            payload=payload,
+            mapping={node["id"]: None for node in payload["nodes"]},
+            expected_revision=None,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+
+def test_graph_import_rejects_an_export_without_snapshot(payload):
+    record_graph_export(payload)
+    CurationExport.objects.update(snapshot=None)
+    with pytest.raises(GraphValidationError, match="predates snapshots"):
+        import_reference_graph(
+            payload=payload,
+            mapping={node["id"]: None for node in payload["nodes"]},
+            expected_revision=None,
+            curation_exported_on=payload["curationExportedOn"],
+        )
+
+
+def test_restore_does_not_need_the_original_export_to_be_kept(payload):
+    original = import_graph(payload)
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] = "Renamed"
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    updated = import_graph(changed, mapping, original.revision)
+    CurationExport.objects.all().delete()
+    restored = restore_reference_graph(revision=original.revision, expected_revision=updated.revision)
+    assert restored.payload == original.payload
+
+
+@pytest.mark.postgres
+@pytest.mark.parametrize("previous", [None, "off", "on"])
+def test_managed_graph_cutover_uses_final_projection_and_restores_setting(payload, previous):
+    canonical = ModelFixtureFactory(None).create_song("Assigned", None)
+    unassigned = ModelFixtureFactory(None).create_song("Unassigned", None)
+    genre = ModelFixtureFactory(None).create_genre("Existing")
+    canonical.genre = genre
+    canonical.save(update_fields=["genre"])
+    private = ModelFixtureFactory(User.objects.create(username="private")).create_song("Private", genre)
+    assert Song.objects.get(pk=private.pk).membership_genre_id == genre.pk
+    mapping = {node["id"]: None for node in payload["nodes"]}
+    mapping["LOCAL:french-dub"] = str(genre.pk)
+    record_graph_export(payload)
+
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        if previous is not None:
+            cursor.execute("SELECT set_config('grow.membership_maintenance', %s, true)", [previous])
+        else:
+            assert cursor.fetchone()[0] in (None, "")
+        cursor.execute(
+            "CREATE TEMP TABLE song_genre_trace (track_id uuid, old_genre uuid, new_genre uuid) ON COMMIT DROP"
+        )
+        cursor.execute(
+            """CREATE FUNCTION pg_temp.trace_song_genre() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN
+                INSERT INTO song_genre_trace VALUES (NEW.track_id, OLD.genre_id, NEW.genre_id);
+                RETURN NEW;
+            END $$"""
+        )
+        cursor.execute(
+            """CREATE TRIGGER trace_song_genre AFTER UPDATE OF genre_id ON grow_song
+            FOR EACH ROW WHEN (OLD.genre_id IS DISTINCT FROM NEW.genre_id)
+            EXECUTE FUNCTION pg_temp.trace_song_genre()"""
+        )
+        with reject_scalar_genre_projection():
+            current = import_graph(payload, mapping)
+            replay = import_graph(payload, mapping, current.revision)
+            cursor.execute("SELECT * FROM song_genre_trace")
+            assert cursor.fetchall() == [(private.pk, genre.pk, None)]
+            cursor.execute("TRUNCATE song_genre_trace")
+            changed = _without_identity(payload, "LOCAL:french-dub")
+            receipt = GenreGraphImport.objects.get(pk=current.revision)
+            del receipt.mapping["LOCAL:french-dub"]
+            import_reference_graph(
+                payload=changed,
+                mapping=receipt.mapping,
+                expected_revision=current.revision,
+                curation_exported_on=changed["curationExportedOn"],
+                retirements={"LOCAL:french-dub": _retirement("LOCAL:reggae")},
+            )
+            target = Genre.objects.get(semantic_identity="LOCAL:reggae")
+            cursor.execute("SELECT * FROM song_genre_trace")
+            assert cursor.fetchall() == [(canonical.pk, genre.pk, target.pk)]
+        assert (replay.revision, replay.membership_revision) == (current.revision, current.membership_revision)
+        assert (
+            dict(Song.objects.values_list("pk", "membership_genre_id"))
+            == derived_song_genres()
+            == {
+                canonical.pk: target.pk,
+                unassigned.pk: None,
+                private.pk: None,
+            }
+        )
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        assert cursor.fetchone()[0] == (previous or "")
+        cursor.execute("DROP TRIGGER trace_song_genre ON grow_song")
+        cursor.execute("DROP FUNCTION pg_temp.trace_song_genre()")
+
+
+@pytest.mark.postgres
+def test_error_after_final_projection_rolls_back_and_restores_setting(payload, monkeypatch):
+    original = import_graph(payload)
+    genre = Genre.objects.get(semantic_identity="LOCAL:french-dub")
+    song = ModelFixtureFactory(None).create_song("Affected", genre)
+    write_song_attributions(
+        song_id=song.pk,
+        attributions={"LOCAL:french-dub": [_retirement(None)["provenance"]]},
+        expected_revision=original.revision,
+        expected_membership_revision=original.membership_revision,
+        expected_assignment_revision=assignment_revision(song.pk),
+    )
+    relation, _ = TrackPlaylistRel.objects.get_or_create(track=song, playlist=genre.criteria_playlist)
+    mapping = GenreGraphImport.objects.get(pk=original.revision).mapping
+    del mapping["LOCAL:french-dub"]
+    changed = _without_identity(payload, "LOCAL:french-dub")
+    finish = service.SongMaterialization.finish
+
+    def fail_after_update(materialization):
+        assert finish(materialization) == 1
+        assert Song.objects.get(pk=song.pk).membership_genre_id is None
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1 / 0")
+
+    monkeypatch.setattr(service.SongMaterialization, "finish", fail_after_update)
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('grow.membership_maintenance', 'off', true)")
+        with pytest.raises(DatabaseError, match="division by zero"):
+            import_reference_graph(
+                payload=changed,
+                mapping=mapping,
+                expected_revision=original.revision,
+                curation_exported_on=changed["curationExportedOn"],
+                retirements={"LOCAL:french-dub": _retirement(None)},
+            )
+        cursor.execute("SELECT current_setting('grow.membership_maintenance', true)")
+        assert cursor.fetchone()[0] == "off"
+        assert reference_dataset().revision == original.revision
+        assert Song.objects.get(pk=song.pk).membership_genre_id == genre.pk
+        assert TrackPlaylistRel.objects.get(pk=relation.pk).genre_id == genre.pk
+        assert verify_catalogue_counts()["catalogue"].valid
+        expected, actual = verify_membership_counts()
+        assert expected == actual

@@ -5,8 +5,9 @@ from django.utils import timezone
 from django_q.tasks import async_task
 
 from grow.model.song_search.SongSearchState import SongSearchState
+from grow.projection.fingerprint import fingerprint
 from grow.search.cache import SearchCache, invalidate_search_cache
-from grow.song_search.projection import COLUMNS, PROJECTION, TABLE
+from grow.song_search.projection import COLUMNS, FUNCTIONS, PROJECTION, TABLE
 from grow.workload.admission import admitted
 
 NEW_TABLE = f"{TABLE}_new"
@@ -58,11 +59,37 @@ def rebuild_song_search(*, only_if_not_ready: bool = False) -> int | None:
         for name, _ in indexes:
             cursor.execute(f"ALTER INDEX {name}{NEW_SUFFIX} RENAME TO {name}")
 
-        SongSearchState.objects.update_or_create(pk=1, defaults={"ready": True, "rebuilt_on": timezone.now()})
+        SongSearchState.objects.update_or_create(
+            pk=1,
+            defaults={
+                "ready": True,
+                "rebuilt_on": timezone.now(),
+                "fingerprint": current_fingerprint(cursor),
+            },
+        )
         transaction.on_commit(lambda: invalidate_search_cache(SearchCache.SONGS))
     with connection.cursor() as cursor:
         cursor.execute(f"ANALYZE {TABLE}")
     return rows
+
+
+def current_fingerprint(cursor) -> str:
+    return fingerprint(cursor, columns=COLUMNS, projection=PROJECTION, functions=FUNCTIONS)
+
+
+def is_current() -> bool:
+    """Whether the projection is built and its stored fingerprint matches the deployed definition."""
+    state = SongSearchState.load()
+    with connection.cursor() as cursor:
+        return state.ready and state.fingerprint == current_fingerprint(cursor)
+
+
+def stamp_current() -> str:
+    """Records the deployed definition's fingerprint, for a projection a clean drift check just proved equal to it."""
+    with connection.cursor() as cursor:
+        value = current_fingerprint(cursor)
+    SongSearchState.objects.update_or_create(pk=1, defaults={"fingerprint": value})
+    return value
 
 
 def _retarget(definition: str, name: str) -> str:

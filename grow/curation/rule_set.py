@@ -6,12 +6,21 @@ refuses any."""
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Any
 
 from django.db import models
 
 from grow.curation.edges import Relation
-from grow.curation.lists import ADDITION_LISTS, EXCLUSIVE_LISTS
+from grow.curation.lists import (
+    ADDITION_LISTS,
+    CURATION_LISTS,
+    DECISION_ID_COLUMN,
+    EXCLUSIVE_LISTS,
+    GRAPH_LISTS,
+    ITEM_ID_COLUMNS,
+)
 from grow.curation.rows import (
+    KEY_SEPARATOR,
     POP_SIDE_LIST,
     SCENE_LIST,
     find_exclusivity_conflict,
@@ -32,15 +41,26 @@ class Violation:
     items: frozenset[str]
 
 
-def find_root_regional_conflicts(edges: Iterable[GenreEdgeRule]) -> list[Violation]:
+def canonical_root_items(entries: models.QuerySet) -> set[str]:
+    return set(entries.filter(list_name="canonical_roots").values_list("key", flat=True))
+
+
+def find_root_regional_conflicts(roots: set[str], edges: Iterable[GenreEdgeRule]) -> list[Violation]:
     """An accepted canonical root that also has a regional parent or overview rule: the root pins it out of the
     regional axis the rule places it in."""
-    edges = list(edges)
-    roots = {e.item_id for e in edges if e.relation == Relation.CANONICAL_PARENT and e.parent_item_id is None}
     regional = sorted({e.item_id for e in edges if e.relation in REGIONAL_RELATIONS} & roots)
     return [
         Violation("root_regional", f"{item} is an accepted canonical root and also has a regional rule", {item})
         for item in regional
+    ]
+
+
+def find_root_parent_conflicts(roots: set[str], edges: Iterable[GenreEdgeRule]) -> list[Violation]:
+    """An accepted root that also has a curated canonical parent: it is a root or a child, not both."""
+    parented = sorted({e.item_id for e in edges if e.relation == Relation.CANONICAL_PARENT} & roots)
+    return [
+        Violation("root_parent", f"{item} is an accepted canonical root and also has a canonical parent", {item})
+        for item in parented
     ]
 
 
@@ -76,6 +96,150 @@ def find_undeclared_local_edges(declared: set[str], edges: Iterable[GenreEdgeRul
     return [
         Violation("undeclared_local", f"{item} is used in an edge but declared in no addition list", {item})
         for item in sorted(used - declared)
+    ]
+
+
+GraphRow = tuple[str, str, dict[str, Any]]
+"""A regional graph entry: its list, key and values."""
+
+LOCAL_PREFIX = "LOCAL:"
+MEMBERSHIP_LIST = "regional_memberships"
+MERGE_LIST = "genre_merges"
+DERIVATION_LIST = "genre_derivations"
+OVERVIEW_COLUMNS = {
+    "regional_anchorings": "overview_item_id",
+    "regional_overview_types": "item_id",
+    MEMBERSHIP_LIST: "parent_item_id",
+}
+
+
+def graph_row_items(list_name: str, key: str, values: dict[str, Any]) -> dict[str, str]:
+    """The item ids of a graph row by column, key columns included."""
+    fields = {**dict(zip(CURATION_LISTS[list_name].key, key.split(KEY_SEPARATOR), strict=True)), **values}
+    return {c: v for c, v in fields.items() if c in ITEM_ID_COLUMNS and v}
+
+
+def _find_duplicate_decisions(rows: list[GraphRow]) -> list[Violation]:
+    by_decision: dict[str, list[GraphRow]] = {}
+    for row in rows:
+        by_decision.setdefault(row[2].get(DECISION_ID_COLUMN, ""), []).append(row)
+    return [
+        Violation(
+            "duplicate_decision",
+            f"decision {decision} is used by {len(group)} entries: " + ", ".join(f"{n} {k}" for n, k, _ in group),
+            frozenset(i for n, k, v in group for i in graph_row_items(n, k, v).values()),
+        )
+        for decision, group in sorted(by_decision.items())
+        if decision and len(group) > 1
+    ]
+
+
+def _find_undeclared_graph_locals(rows: list[GraphRow], kinds: dict[str, str], additions: set[str]) -> list[Violation]:
+    def local_items(list_name: str) -> set[str]:
+        return {
+            i
+            for n, k, v in rows
+            if n == list_name
+            for i in graph_row_items(n, k, v).values()
+            if i.startswith(LOCAL_PREFIX)
+        }
+
+    used = {
+        i
+        for n, k, v in rows
+        if n not in ("local_identities", MERGE_LIST, DERIVATION_LIST, "canonical_roots")
+        for i in graph_row_items(n, k, v).values()
+        if i.startswith(LOCAL_PREFIX)
+    }
+    violations = [
+        Violation(
+            "undeclared_local", f"{item} is used in a regional graph entry but declared in no local identity", {item}
+        )
+        for item in sorted(used - kinds.keys())
+    ]
+    # A merge, a derivation or a root names canonical nodes, which an addition list declares as often as a local
+    # identity does.
+    for list_name, usage in (
+        (MERGE_LIST, "a genre merge"),
+        (DERIVATION_LIST, "a genre derivation"),
+        ("canonical_roots", "the canonical roots"),
+    ):
+        violations += [
+            Violation(
+                "undeclared_local",
+                f"{item} is used in {usage} but declared in no local identity nor addition list",
+                {item},
+            )
+            for item in sorted(local_items(list_name) - kinds.keys() - additions)
+        ]
+    return violations
+
+
+def _find_local_kind_violations(rows: list[GraphRow], kinds: dict[str, str]) -> list[Violation]:
+    violations = []
+    for list_name, key, values in rows:
+        items = graph_row_items(list_name, key, values)
+        column = OVERVIEW_COLUMNS.get(list_name)
+        if column and (list_name != MEMBERSHIP_LIST or values.get("action") == "add"):
+            item = items.get(column)
+            if item in kinds and kinds[item] != "overview":
+                violations.append(
+                    Violation(
+                        "local_kind",
+                        f"{item} is declared as a {kinds[item]} but is the {column} of {list_name} {key}: "
+                        "it must be an overview",
+                        {item},
+                    )
+                )
+        if list_name == DERIVATION_LIST:
+            violations.extend(
+                Violation("local_kind", f"{item} is an overview, so it can't be an end of the derivation {key}", {item})
+                for item in items.values()
+                if kinds.get(item) == "overview"
+            )
+    return violations
+
+
+def _find_membership_cycles(rows: list[GraphRow]) -> list[Violation]:
+    parents: dict[str, list[str]] = {}
+    for list_name, key, values in rows:
+        if list_name == MEMBERSHIP_LIST and values.get("action") == "add":
+            child, parent = key.split(KEY_SEPARATOR)
+            parents.setdefault(child, []).append(parent)
+    violations, done = [], set()
+
+    def visit(node: str, path: list[str]) -> None:
+        if node in path:
+            cycle = path[path.index(node) :]
+            violations.append(
+                Violation(
+                    "membership_cycle",
+                    "Regional memberships form the cycle " + " -> ".join([*cycle, node]),
+                    frozenset(cycle),
+                )
+            )
+            return
+        if node in done:
+            return
+        for parent in sorted(parents.get(node, [])):
+            visit(parent, [*path, node])
+        done.add(node)
+
+    for child in sorted(parents):
+        visit(child, [])
+    return violations
+
+
+def find_graph_violations(rows: list[GraphRow], additions: set[str]) -> list[Violation]:
+    """Invariants of the regional graph decisions together. Grow can't check that a QID exists nor the canonical
+    state, which the pipeline computes: the pipeline and the genre kit's `GenreGraph` reject unknown QIDs and
+    classification cycles. `additions` are the items the addition lists declare."""
+    kinds = {k: v.get("kind", "") for n, k, v in rows if n == "local_identities"}
+    return [
+        *_find_duplicate_decisions(rows),
+        *_find_undeclared_graph_locals(rows, kinds, additions),
+        *_find_local_kind_violations(rows, kinds),
+        *_find_membership_cycles(rows),
     ]
 
 
@@ -121,9 +285,14 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
         if message:
             violations.append(Violation("pop_child", message, set(key.split("\t"))))
     violations += find_scene_split_violations(entries, edges)
-    violations += find_root_regional_conflicts(edges)
+    violations += find_root_regional_conflicts(canonical_root_items(entries), edges)
+    violations += find_root_parent_conflicts(canonical_root_items(entries), edges)
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
     violations += find_undeclared_local_edges(declared_additions(entries), edges)
+    graph_rows = entries.filter(list_name__in=GRAPH_LISTS).order_by("list_name", "key")
+    violations += find_graph_violations(
+        [(e.list_name, e.key, e.values) for e in graph_rows], declared_additions(entries)
+    )
     return [Violation(v.kind, v.message, frozenset(v.items)) for v in violations]
 
 

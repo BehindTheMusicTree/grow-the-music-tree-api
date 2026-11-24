@@ -8,6 +8,8 @@ from django.db.models import Count, F, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, HttpResponseNotModified
 from django.utils.http import parse_etags
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from redis.exceptions import RedisError
 from rest_framework import serializers
 from rest_framework.decorators import action
@@ -41,6 +43,9 @@ from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.query_expressions import InSubquery
+from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
+from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
+from grow.serializer.schema.genre import GenrePlaylistTreeRowSerializer
 from grow.view.pagination.PlaylistTracksPagination import PlaylistTracksPagination
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
 from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import blocked_restricted_songs
@@ -177,6 +182,30 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
     return rows
 
 
+@extend_schema_view(
+    tracks=extend_schema(
+        parameters=[
+            OpenApiParameter("coverage", str, required=False),
+            OpenApiParameter("subgenres", bool, required=False),
+            OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
+            OpenApiParameter(FROM_QUERY_PARAM, str, required=False),
+        ],
+        responses=TrackPlaylistRelInPageSerializer(many=True),
+    ),
+    tree=extend_schema(
+        filters=False,
+        parameters=[
+            OpenApiParameter("tree_name", str, required=True, enum=list(CriteriaTreeName.values)),
+            OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
+        ],
+        responses={
+            200: GenrePlaylistTreeRowSerializer(many=True),
+            304: None,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+    ),
+)
 class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
     def __init__(self, **kwargs):
         super().__init__(model_class=GenrePlaylist, **kwargs)
@@ -260,7 +289,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
             Coalesce(Subquery(in_buckets), 0) - Coalesce(Subquery(blocked), 0), flat=True
         )[0]
 
-    @action(detail=False, methods=["get"], url_path="tree")
+    @action(detail=False, methods=["get"], url_path="tree", pagination_class=None)
     @graph_snapshot
     def tree(self, request: Request) -> HttpResponse:
         """Whole genre tree, unpaginated, cached under the DB-trigger-maintained GenreTreeVersion token."""

@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_q.models import Task
 from django_q.tasks import async_task
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
@@ -29,11 +30,11 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.serializer.schema.common import ImportRunStatusSerializer
 from grow.track.bulk_import.assignment_part_loader import load_part as load_assignment_part
 from grow.track.bulk_import.contract import (
     require_complete_run,
     require_declared_part,
-    require_legacy_import_contract,
     require_reviewed_contract,
     run_metadata,
 )
@@ -108,10 +109,14 @@ def enqueue_merge(merge: Callable[..., dict[str, int]], run: BulkImportRun, atte
         raise
 
 
-def import_run_status_action(url_prefix: str, kind: str, merge: Callable[..., dict[str, int]]) -> Callable:
-    """The poll action of a `kind`'s import runs: the latest attempt's state, or the legacy django-q task of `merge`."""
+def import_run_status_action(
+    url_prefix: str, kind: str, merge: Callable[..., dict[str, int]], name: str = "import_run_status"
+) -> Callable:
+    """
+    The poll action of a `kind`'s import runs: the latest attempt's state, or the legacy django-q task of `merge`.
+    `name` must be the attribute it is bound to on the viewset: DRF reads the handler name when `@action` runs.
+    """
 
-    @action(detail=False, methods=["get"], url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status")
     def import_run_status(self, request, task_id=None):
         privileged = request.auth is not None and request.auth.role in {"admin", "pipeline"}
         attempt = ImportAttempt.objects.filter(task_id=task_id, kind=kind, user_id=None).order_by("-attempt").first()
@@ -151,7 +156,16 @@ def import_run_status_action(url_prefix: str, kind: str, merge: Callable[..., di
             return Response({"status": "success", "result": task.result})
         return Response({"status": "failed", "error": str(task.result) if privileged else "Import failed"})
 
-    return import_run_status
+    import_run_status.__name__ = name
+    bound = action(
+        detail=False,
+        methods=["get"],
+        url_path=url_prefix + r"import/(?P<task_id>[^/.]+)/status",
+        url_name=name.replace("_", "-"),
+    )(import_run_status)
+    return extend_schema(
+        parameters=[OpenApiParameter("task_id", str, OpenApiParameter.PATH)], responses=ImportRunStatusSerializer
+    )(bound)
 
 
 def bulk_import_run_actions(
@@ -263,12 +277,9 @@ def bulk_import_run_actions(
             run = uncommitted_run(run_id, lock=True)
             require_complete_run(run)
             if kind == ImportRun.Kind.SONGS:
-                if run.expected_parts is not None:
-                    require_reviewed_contract(
-                        {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
-                    )
-                # Keep activation closed until all catalogue consumers share the assignment authority.
-                require_legacy_import_contract()
+                require_reviewed_contract(
+                    {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
+                )
             if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
                 committed_on=timezone.now(), user_id=user_id, record=record
             ):

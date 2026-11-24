@@ -24,7 +24,6 @@ class TestCase(AppTestCase):
     def _legacy_entries(self):
         self._entry("canonical_parent", "Q1", parent_item_id="Q2", exclude_other_parents=True)
         self._entry("canonical_parent", "Q3", parent_item_id="Q4", exclude_other_parents="false")
-        self._entry("accepted_canonical_roots", "Q5")
         self._entry("regional_genre_parent", "Q6", parent_item_id="Q7", exclude_other_parents=False)
         self._entry("regional_overviews", f"Q8{SEP}Q9", exclude_other_parents=True)
         self._entry("secondary_parents", f"Q10{SEP}Q11", action="remove")
@@ -43,7 +42,6 @@ class TestCase(AppTestCase):
         assert self._rules() == {
             ("canonical_parent", "Q1", "Q2", None, True),
             ("canonical_parent", "Q3", "Q4", None, False),
-            ("canonical_parent", "Q5", None, None, True),
             ("regional_genre_parent", "Q6", "Q7", None, False),
             ("regional_overview", "Q8", "Q9", None, True),
             ("secondary_parent", "Q10", "Q11", "remove", None),
@@ -75,7 +73,6 @@ class TestCase(AppTestCase):
         assert restored == {
             ("canonical_parent", "Q1"): {"parent_item_id": "Q2", "exclude_other_parents": True},
             ("canonical_parent", "Q3"): {"parent_item_id": "Q4", "exclude_other_parents": False},
-            ("accepted_canonical_roots", "Q5"): {},
             ("regional_genre_parent", "Q6"): {"parent_item_id": "Q7", "exclude_other_parents": False},
             ("regional_overviews", f"Q8{SEP}Q9"): {"exclude_other_parents": True},
             ("secondary_parents", f"Q10{SEP}Q11"): {"action": "remove"},

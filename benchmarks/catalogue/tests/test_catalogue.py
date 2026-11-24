@@ -16,6 +16,7 @@ SQL = catalogue.projection_sql(TSV)
 TRACK = catalogue.TRACK
 PLAYLIST = catalogue.PLAYLIST
 REL = f"{TRACK}_playlist_rel"
+GRAPH = catalogue.GRAPH
 
 
 def uid(number):
@@ -55,9 +56,9 @@ def insert(table, **values):
 
 class CataloguePolicyTest(unittest.TestCase):
     def test_inventory_and_dispositions_are_exhaustive(self):
-        self.assertEqual(len(TABLES), 58)
-        self.assertEqual(sum(map(len, TABLES.values())), 385)
-        self.assertEqual(TABLES.keys(), catalogue.RETAIN | catalogue.EMPTY | catalogue.REBUILD)
+        self.assertEqual(len(TABLES), 76)
+        self.assertEqual(sum(map(len, TABLES.values())), 475)
+        self.assertEqual(TABLES.keys(), catalogue.RETAIN | catalogue.DERIVED | catalogue.EMPTY | catalogue.REBUILD)
 
     def test_verifications_aggregate_instead_of_probing_for_a_first_row(self):
         # EXISTS plans for the first row; on tables restored without statistics that picks a
@@ -95,7 +96,7 @@ class CataloguePolicyTest(unittest.TestCase):
             {key: value for key, value in counts.items() if key != "auth_user"},
             {**counts, "unknown": 0},
             {**counts, "auth_user": 1},
-            {**counts, "grow_song_search": 1},
+            {**counts, "grow_genre_tree_version": 0},
             {**counts, "grow_song": 29_999_999},
         ):
             with self.subTest(counts=changed), self.assertRaises(ValueError):
@@ -213,6 +214,18 @@ class CataloguePostgresFixture(unittest.TestCase):
                 )
             )
             statements.append(insert("grow_song", track_id=uid(number)))
+        # Derived projections: a row per kind of dangling reference, and the state singletons.
+        for track in (1, 2, 3, 99_999):
+            statements.append(insert("grow_song_search", track_id=uid(track)))
+        for artist, song in ((1, 1), (3, 1), (1, 3), (1, 99_999)):
+            statements.append(insert("grow_artist_song", artist_id=uid(artist), song_id=uid(song)))
+        statements.extend(
+            [
+                insert("grow_song_search_state", id=1, ready=True, fingerprint="a" * 64),
+                insert("grow_artist_song_state", id=1, ready=True, fingerprint="b" * 64),
+                insert("grow_genre_tree_version", id=1),
+            ]
+        )
         # Track without a Grow song and song without any track.
         statements.extend([insert(TRACK, uuid=uid(99)), insert("grow_song", track_id=uid(99_999))])
         for number in (1, 2, 3, 4, 5, 6, 7):
@@ -275,6 +288,12 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             "grow_criteria_additional_primary_parents": 2,
             "grow_criteria_secondary_parents": 2,
             "grow_genre_essential_songs": 1,
+            # Derived rows of user songs, private artists and missing songs are pruned, the state rows survive.
+            "grow_song_search": 2,
+            "grow_artist_song": 1,
+            "grow_song_search_state": 1,
+            "grow_artist_song_state": 1,
+            "grow_genre_tree_version": 1,
         }.items():
             self.assertEqual(self.count(table), expected, table)
         self.assertEqual(self.sql("SELECT count(*) FROM public.grow_genre WHERE last_seen_run_id IS NOT NULL"), "0")
@@ -297,6 +316,7 @@ class CataloguePostgresTest(CataloguePostgresFixture):
             f"UPDATE public.grow_criteria SET parent_id='{uid(4)}' WHERE uuid='{uid(2)}';",
             f"UPDATE public.\"{TRACK}\" SET album_id='{uid(3)}' WHERE uuid='{uid(1)}';",
             f"UPDATE public.\"{TRACK}\" SET genre_id='{uid(4)}' WHERE uuid='{uid(1)}';",
+            f"UPDATE public.grow_song SET genre_id='{uid(4)}' WHERE track_id='{uid(1)}';",
         ):
             with self.subTest(mutation=mutation):
                 self.sql(mutation)
@@ -368,6 +388,31 @@ class CataloguePostgresTest(CataloguePostgresFixture):
                 self.sql(SQL, success=False)
                 self.assertEqual(self.count(TRACK), 4)
                 self.setUp()
+
+    def test_unlogged_only_allowed_for_empty_tables(self):
+        self.sql("ALTER TABLE public.grow_song_import_staging SET UNLOGGED;")
+        self.sql(SQL)
+        self.assertEqual(self.count(TRACK), 2)
+        self.setUp()
+        for table in ("grow_song", "grow_criteria"):
+            with self.subTest(table=table):
+                self.sql(f'ALTER TABLE public."{table}" SET UNLOGGED;')
+                self.sql(SQL, success=False)
+                self.assertEqual(self.count(TRACK), 4)
+                self.setUp()
+
+    def test_genre_graph_payload_is_refused(self):
+        self.sql(
+            f'INSERT INTO public."{GRAPH}dataset" (key, revision, membership_revision, payload) VALUES '
+            f"('k', '{uid(1)}', '{uid(1)}', '{{}}');"
+        )
+        self.assertIn(f"catalogue verification failed: {GRAPH}dataset", self.sql(SQL, success=False))
+        self.assertEqual(self.count(TRACK), 4)
+
+    def test_retained_criteria_cannot_reference_the_graph(self):
+        self.sql("UPDATE public.grow_criteria SET graph_node_id = 1 WHERE user_id IS NULL;")
+        self.assertIn("catalogue verification failed: grow_criteria", self.sql(SQL, success=False))
+        self.assertEqual(self.count(TRACK), 4)
 
     def test_hostile_search_path_does_not_redirect_projection(self):
         self.sql("CREATE SCHEMA hostile; CREATE TABLE hostile.grow_song (private_payload text);")

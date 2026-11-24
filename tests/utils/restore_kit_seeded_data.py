@@ -1,6 +1,7 @@
 from django.contrib.auth.models import User
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 
+from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 
 
@@ -27,6 +28,7 @@ def snapshot_kit_seeded_data():
         "criterialess_playlists": list(
             CriteriaPlaylist.objects.filter(criteria=None).values("pk", "uuid", "user_id", "type_id")
         ),
+        "genre_tree_versions": list(GenreTreeVersion.objects.values("pk", "token")),
     }
 
 
@@ -44,3 +46,6 @@ def restore_kit_seeded_data(snapshot):
         playlist.pk = row["pk"]
         playlist.uuid = row["uuid"]
         playlist.save()
+
+    for row in snapshot["genre_tree_versions"]:
+        GenreTreeVersion.objects.get_or_create(pk=row["pk"], defaults={"token": row["token"]})

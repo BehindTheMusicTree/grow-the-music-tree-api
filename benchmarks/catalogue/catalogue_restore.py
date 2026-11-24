@@ -15,11 +15,14 @@ from .sanitization import IDENTIFIER, Policy
 
 TRACK = "the_music_tree_genre_kit_track"
 PLAYLIST = "the_music_tree_genre_kit_playlist"
+GRAPH = "the_music_tree_genre_kit_genregraph"
 TYPES = "the_music_tree_genre_kit_criteriatype"
 SCHEMA = Path(__file__).with_name("catalogue-schema.tsv")
 
 # Every new table requires a reviewed decision, including tables whose data is
-# excluded. Opaque snapshots can embed private objects, so are never copied.
+# excluded. Opaque snapshots can embed private objects, so are never copied. The whole genre graph is schema-only:
+# its payloads and curation rationales are not reference catalogue, and every graph table has a dataset foreign key,
+# so keeping nodes without their dataset is impossible.
 EMPTY = frozenset(
     [
         "auth_group",
@@ -37,13 +40,18 @@ EMPTY = frozenset(
         "grow_bulk_import_deletion",
         "grow_bulk_import_run",
         "grow_curation_entry",
+        "grow_curation_export",
         "grow_curation_review_item",
         "grow_curation_sync_state",
         "grow_genealogy_snapshot",
         "grow_genre_edge_rule",
+        "grow_genre_graph_import_payload",
         "grow_genre_tree_import_payload",
+        "grow_genregraphassignmentbackup",
+        "grow_genregraphimport",
         "grow_history_entry",
         "grow_import_attempt",
+        "grow_import_part",
         "grow_import_receipt",
         "grow_import_run",
         "grow_manual_playlist",
@@ -52,16 +60,35 @@ EMPTY = frozenset(
         "grow_region_map_file",
         "grow_region_map_file_staging",
         "grow_region_map_snapshot",
+        "grow_song_assignment_staging",
+        "grow_song_genre_undo",
         "grow_song_import_staging",
         "grow_user_profile",
         "the_music_tree_genre_kit_importrun",
+        f"{GRAPH}access",
+        f"{GRAPH}assignmentstate",
+        f"{GRAPH}attribution",
+        f"{GRAPH}attributionevidence",
+        f"{GRAPH}attributionrevision",
+        f"{GRAPH}dataset",
+        f"{GRAPH}evidence",
+        f"{GRAPH}node",
+        f"{GRAPH}revision",
     ]
 )
 REBUILD = frozenset(
     [
         "grow_genre_catalogue_count",
         "grow_genre_membership_count",
-        "grow_genre_tree_version",
+    ]
+)
+# Projections whose data is retained: expensive to rebuild (song search takes hours at catalogue scale), pruned to the
+# retained songs and artists, and revalidated by preparation (`rebuild_* --if-stale`, which compares the fingerprint
+# of the definition that built them).
+DERIVED = frozenset(
+    [
+        "grow_artist_song",
+        "grow_artist_song_state",
         "grow_song_search",
         "grow_song_search_state",
     ]
@@ -126,10 +153,24 @@ DEPENDENTS = {
         missing_reference("track_id", TRACK),
         missing_reference("playlist_id", PLAYLIST),
     ),
+    # Derived rows carry titles and names: pruning them with their sources is a privacy requirement too. The state
+    # tables are singletons without references.
+    "grow_song_search": (missing_reference("track_id", "grow_song", "track_id"),),
+    "grow_artist_song": (
+        missing_reference("song_id", "grow_song", "track_id"),
+        missing_reference("artist_id", "grow_artist"),
+    ),
 }
 
 
-RETAIN = frozenset(ROOTS) | frozenset(DEPENDENTS) | {TYPES, "grow_wikidata_item"}
+TREE_VERSION = "grow_genre_tree_version"
+RETAIN = (
+    frozenset(ROOTS)
+    | (frozenset(DEPENDENTS) - DERIVED)
+    # The tree-version singleton is one token row without private data; migrate does not recreate it and the count
+    # verifications refuse to.
+    | {TYPES, "grow_wikidata_item", TREE_VERSION}
+)
 
 # Missing public references must fail instead of silently changing catalogue
 # semantics by dropping additional public songs or tree branches.
@@ -140,8 +181,19 @@ REFERENCES = (
     ("grow_criteria_playlist", "type_id", TYPES, "id"),
     (TRACK, "album_id", "grow_album", "uuid"),
     (TRACK, "genre_id", "grow_criteria", "uuid"),
+    # Derived from Track.genre_id or the graph attribution (migration 0140). Its
+    # derivation is verified after restore, not re-implemented here.
+    ("grow_song", "genre_id", "grow_genre", "criteria_ptr_id"),
     (f"{TRACK}_playlist_rel", "genre_id", "grow_criteria", "uuid"),
 )
+
+
+def inventory_sql() -> str:
+    return (
+        "SELECT table_name || '|' || column_name || '|' || data_type || '|' || is_nullable "
+        "FROM information_schema.columns WHERE table_schema='public' "
+        'ORDER BY table_name COLLATE "C", ordinal_position;'
+    )
 
 
 def inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
@@ -166,7 +218,9 @@ def inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
 
 def verify_inventory(tsv: str) -> dict[str, list[tuple[str, str, str]]]:
     expected = inventory(SCHEMA.read_text())
-    if (RETAIN & EMPTY) or (RETAIN & REBUILD) or (EMPTY & REBUILD) or expected.keys() != RETAIN | EMPTY | REBUILD:
+    groups = (RETAIN, DERIVED, EMPTY, REBUILD)
+    disjoint = sum(len(group) for group in groups) == len(RETAIN | DERIVED | EMPTY | REBUILD)
+    if not disjoint or expected.keys() != RETAIN | DERIVED | EMPTY | REBUILD:
         raise ValueError("catalogue dispositions do not cover the exact reviewed schema")
     observed = inventory(tsv)
     if observed != expected:
@@ -188,9 +242,12 @@ def data_policy(tsv: str, schema_sql: bytes) -> Policy:
                 name: {
                     "columns": [entry[0] for entry in tables[name]],
                     "null_columns": [entry[0] for entry in tables[name] if entry[0] in {"user_id", "last_seen_run_id"}],
-                    "minimum_rows": 30_000_000 if name in {TRACK, "grow_song"} else (1 if name == TYPES else 0),
+                    # An emptied projection must not pass: `--if-stale` would trust its state row and skip the rebuild.
+                    "minimum_rows": 30_000_000
+                    if name in {TRACK, "grow_song", "grow_song_search"}
+                    else (1 if name in {TYPES, TREE_VERSION, "grow_artist_song"} else 0),
                 }
-                for name in sorted(RETAIN)
+                for name in sorted(RETAIN | DERIVED)
             },
         }
     )
@@ -211,15 +268,20 @@ def relation_inventory_sql() -> str:
     """Refuse missing, additional or non-table catalogue relations."""
     # information_schema.columns omits zero-column tables and materialized
     # views, and does not distinguish an updatable view from a base table.
-    expected_tables = ",".join(sorted(RETAIN | EMPTY | REBUILD))
+    expected_tables = ",".join(sorted(RETAIN | DERIVED | EMPTY | REBUILD))
+    # Staging tables are UNLOGGED; pg_dump skips their data, so only EMPTY ones
+    # may be. An UNLOGGED retained table would silently lose its rows.
+    unlogged_ok = ",".join(f"'{name}'" for name in sorted(EMPTY))
     return (
         "DO $$ DECLARE observed text; BEGIN SELECT string_agg(c.relname, ',' ORDER BY c.relname COLLATE \"C\") "
         "INTO observed FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
-        "WHERE n.nspname='public' AND c.relkind='r' AND c.relpersistence='p'; "
+        "WHERE n.nspname='public' AND c.relkind='r' AND (c.relpersistence='p' "
+        f"OR (c.relpersistence='u' AND c.relname IN ({unlogged_ok}))); "
         f"IF observed IS DISTINCT FROM '{expected_tables}' OR EXISTS "
         "(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
         "WHERE n.nspname='public' AND (c.relkind NOT IN ('r', 'i', 'S') "
-        "OR (c.relkind='r' AND c.relpersistence<>'p'))) THEN "
+        "OR (c.relkind='r' AND (c.relpersistence='t' "
+        f"OR (c.relpersistence='u' AND c.relname NOT IN ({unlogged_ok})))))) THEN "
         "RAISE EXCEPTION 'catalogue relation inventory drift'; END IF; END $$;"
     )
 
@@ -271,6 +333,8 @@ def projection_sql(tsv: str) -> str:
         _require_empty(table, f'"{column}" IS NOT NULL AND {missing_reference(column, target, key)}')
         for table, column, target, key in REFERENCES
     ]
+    # The graph is schema-only, so no retained criterion may point into it.
+    checks.append(_require_empty("grow_criteria", '"graph_node_id" IS NOT NULL'))
     checks.append(
         f'IF (SELECT count(*) FROM "public"."{rel}" AS candidate '
         f'JOIN "public"."{TRACK}" AS retained ON retained."uuid"=candidate."track_id" '

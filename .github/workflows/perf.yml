@@ -1,7 +1,10 @@
 name: Perf
 
-# Separate from validate.yml so (un)labeling a PR reruns only this job. Keep the job name `Perf` and never add a paths
-# filter: `Perf` is a required check on develop, so PRs that skip it would wait forever.
+# Separate from validate.yml so (un)labeling a PR reruns only this job. Keep the job name `Perf` and never add a
+# workflow-level paths filter: `Perf` is a required check on develop, and a workflow that never triggers leaves it
+# pending forever. Routing is job-level instead (#543, github-config#85): `route` classifies the PR's changed files
+# (scripts/perf_route.py) and `Perf` is skipped when only non-runtime files changed; a skipped job counts as passing.
+# `!cancelled()` makes a failed `route` run the full job rather than skip it (a skipped required check passes).
 on:
   push:
     branches: [main, develop]
@@ -11,15 +14,46 @@ on:
   # Calibration: compares the selected ref with itself, so any flagged scenario is a false positive.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: perf-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  route:
+    name: Perf route
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.route.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v5.0.1
+        with:
+          fetch-depth: 2
+      - name: Classify changed files
+        id: route
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" != pull_request ]]; then echo mode=full >>"$GITHUB_OUTPUT"; exit 0; fi
+          # --no-renames lists both names of a rename; HEAD^1 is the base tip the PR was merged onto.
+          # A file, not $(...): command substitution drops the NUL separators.
+          diff_file="$RUNNER_TEMP/changed-files"
+          if git diff --no-renames -z --name-only HEAD^1 HEAD >"$diff_file" && [[ -s $diff_file ]]; then
+            python3 scripts/perf_route.py <"$diff_file" >>"$GITHUB_OUTPUT"
+          else
+            echo mode=full >>"$GITHUB_OUTPUT"
+          fi
+      - name: Summary
+        run: echo "Perf route is ${{ steps.route.outputs.mode }}" >>"$GITHUB_STEP_SUMMARY"
+
   perf:
     name: Perf
+    needs: route
+    if: ${{ !cancelled() && needs.route.outputs.mode != 'skip' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Two seeds plus the 8 rounds of a suspected regression take about 27 minutes.
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16-alpine

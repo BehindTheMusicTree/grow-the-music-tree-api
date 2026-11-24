@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Any
 from django.db import transaction
 from the_music_tree_api_kit.public_standard_resource.StandardResourceManager import StandardResourceManager
 
-from grow.curation.rows import UpsertResult, check_upsert
+from grow.curation.lists import GENRE_ALIAS_LIST
+from grow.curation.rows import UpsertResult, check_upsert, lock_writes
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 
@@ -35,8 +36,18 @@ class CurationEntryManager(StandardResourceManager):
         )
         return instance
 
+    def _clear_alias_review(self, instance: CurationEntry) -> None:
+        if instance.list_name == GENRE_ALIAS_LIST and instance.user_id is None:
+            from grow.model.curation.CurationReviewItem import CurationReviewItem
+
+            lock_writes(self.filter(user=None))
+            CurationReviewItem.objects.filter(
+                list_name=GENRE_ALIAS_LIST, key=instance.key, reason__in=CurationReviewItem.GENRE_ALIAS_REASONS
+            ).delete()
+
     @transaction.atomic
     def update_instance(self, instance: CurationEntry, actor: Any = None, **kwargs) -> CurationEntry:
+        self._clear_alias_review(instance)
         old_value = self._snapshot(instance)
         instance = super().update_instance(instance, **kwargs)
         HistoryEntry.objects.record(
@@ -50,6 +61,7 @@ class CurationEntryManager(StandardResourceManager):
 
     @transaction.atomic
     def delete_instance(self, instance: CurationEntry, actor: Any = None) -> None:
+        self._clear_alias_review(instance)
         HistoryEntry.objects.record(
             instance, action=HistoryAction.DELETED, actor=actor, old_value=self._snapshot(instance)
         )

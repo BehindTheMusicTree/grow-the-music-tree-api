@@ -183,6 +183,25 @@ class TestWikidataResolutions(AppTestCase):
         assert self._report([], [item]).status_code == status.HTTP_200_OK
         assert self._review()[0]["evidence"] == {"detail": "parent is regional, expected canonical"}
 
+    def test_unreached_genre_then_stored_in_regional_memberships_with_detail(self):
+        item = {
+            "list": "regional_memberships",
+            "key": "LOCAL:orphan-genre\tQ999999902",
+            "column": "child_item_id",
+            "itemId": "LOCAL:orphan-genre",
+            "reason": "unreached_genre",
+            "evidence": {"detail": "reaches no overview nor canonical root"},
+        }
+
+        response = self._report([], [item])
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        stored = CurationReviewItem.objects.get(reason="unreached_genre")
+        assert stored.list_name == "regional_memberships"
+        [shown] = self._review()
+        assert shown["reason"] == "unreached_genre"
+        assert shown["evidence"] == {"detail": "reaches no overview nor canonical root"}
+
     def test_review_evidence_then_round_trips(self):
         evidence = {
             "label": "Foo rock",

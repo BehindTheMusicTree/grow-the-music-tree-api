@@ -36,6 +36,7 @@ from .database_handoff import (
     ROLE_PROOF_SQL,
 )
 from .manifest import RUNNER_PROFILES, Candidate, HostedSession, exact_keys, matching, positive_integer, trusted_json
+from .reflink import clone_directory, require_reflink
 from .restore_bundle import restore_approved, schema_bytes
 from .scenario_execution import UnixHTTPConnection
 
@@ -79,12 +80,15 @@ class HostedRuntime:
         *,
         docker: Docker = system_docker,
         namespace: Callable[[int], int] = process_namespace,
+        probe: Callable[[Path], None] = require_reflink,
+        clone: Callable[[Path, Path, str], Path] = clone_directory,
     ):
         if not isinstance(session, HostedSession):
             raise ValueError("hosted runtime requires a hosted session")
         self.session, self.bundle, self.workspace, self.check = session, bundle, workspace, check
         self.invocation = matching(invocation, r"[0-9a-f]{32}", "controller invocation")
         self.docker_binary, self.namespace = docker, namespace
+        self.probe, self.clone = probe, clone
         for path in (bundle, workspace):
             if any(character in str(path) for character in (",", "\n", "\r")):
                 raise ValueError("Docker-safe paths required")
@@ -275,6 +279,7 @@ class HostedRuntime:
         """Poll so the run deadline is checked while a job executes."""
         deadline = time.monotonic() + timeout
         while self.docker("inspect", "--format={{.State.Running}}", identity) == "true":
+            self.check()
             if time.monotonic() >= deadline:
                 raise RuntimeError("container job timed out")
             time.sleep(0.5)
@@ -359,7 +364,7 @@ class HostedRuntime:
             return False
 
     @contextmanager
-    def database(self, data: Path, authentication: str, user: str):
+    def database(self, data: Path, authentication: str, user: str, *, graceful: bool = False):
         if authentication not in {OWNER_HBA, PREPARATION_HBA, CANDIDATE_HBA}:
             raise ValueError("approved database authentication required")
         directory = self.make_directory(data.parent, "socket", self.postgres.uid, 0o755)
@@ -389,6 +394,11 @@ class HostedRuntime:
         with self.container(self.postgres, arguments, mounts) as identity:
             self.wait(identity, lambda: self.database_ready(identity, user))
             yield directory, identity
+            if graceful:
+                # `docker rm --force` kills the server mid-state; a clone needs a checkpointed, pid-free directory.
+                self.docker("stop", "--time", "60", identity, timeout=90)
+                if self.finish(identity, 60) != 0:
+                    raise RuntimeError("prepared database did not shut down cleanly")
 
     def prepare_application(self, candidate: Candidate, socket: Path, scripts: Path) -> None:
         mounts = [
@@ -401,7 +411,8 @@ class HostedRuntime:
         ]
         arguments = [*self.environment("grow_perf_owner"), "python3", "/approved/prepare.py"]
         with self.container(self.images[candidate], arguments, mounts) as identity:
-            if self.finish(identity, 2 * 60 * 60) != 0:
+            # A stale projection is rebuilt for hours: only the manifest deadline bounds the job (cause "deadline").
+            if self.finish(identity, max(self.session.deadline_timestamp - time.time(), 0)) != 0:
                 raise RuntimeError("approved migration/rebuild preparation failed")
 
     def approve_routines(self, identity: str) -> None:
@@ -419,6 +430,7 @@ class HostedRuntime:
             )
 
     def prepare_side(self, candidate: Candidate) -> tuple[Path, Path]:
+        self.probe(self.workspace)
         root = self.workspace / ("s-" + uuid.uuid4().hex[:8])
         root.mkdir(mode=0o700)
         data = self.restore(candidate, root)
@@ -429,7 +441,7 @@ class HostedRuntime:
         # Preparation code from the side's own image never sees postgres or the archive.
         with self.database(data, OWNER_HBA, "grow_perf_owner") as (socket, _identity):
             self.prepare_application(candidate, socket, scripts)
-        with self.database(data, PREPARATION_HBA, "postgres") as (_socket, identity):
+        with self.database(data, PREPARATION_HBA, "postgres", graceful=True) as (_socket, identity):
             self.sql(identity, "postgres", "btmt_grow_perf", OWNER_LOCK_SQL)
             self.sql(identity, "postgres", "btmt_grow_perf", HANDOFF_SQL)
             self.approve_routines(identity)
@@ -446,11 +458,20 @@ class HostedRuntime:
         try:
             if candidate not in self.sides:
                 self.sides[candidate] = self.prepare_side(candidate)
-            data, scripts = self.sides[candidate]
-            # A fresh server parses the restrictive HBA before the API gets its socket.
-            with self.database(data, CANDIDATE_HBA, "grow_perf_app") as (socket, identity):
-                self.verify_handoff(identity)
-                yield from self.serve(candidate, socket, scripts)
+            pristine, scripts = self.sides[candidate]
+            # Every round runs on its own clone, so earlier rounds' writes and caches never leak into this one.
+            data = self.clone(pristine, scripts.parent, "round")
+            try:
+                # A fresh server parses the restrictive HBA before the API gets its socket.
+                with self.database(data, CANDIDATE_HBA, "grow_perf_app") as (socket, identity):
+                    self.verify_handoff(identity)
+                    yield from self.serve(candidate, socket, scripts)
+            finally:
+                try:
+                    shutil.rmtree(data)
+                except OSError:
+                    self.cleanup_uncertain = True
+                    raise
         finally:
             self.active = False
 

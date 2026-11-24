@@ -1,6 +1,7 @@
 from importlib import import_module
 from types import SimpleNamespace
 
+from django.apps import apps
 from django.db import connection
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 from the_music_tree_genre_kit.track.Track import Track
@@ -64,6 +65,8 @@ class TestRelGenreDenormalization(AppTestCase):
         song = factory.create_song("Song", genre=genre)
         migration = import_module("grow.migrations.0118_maintain_track_playlist_rel_genre")
         editor = SimpleNamespace(connection=connection, execute=lambda sql: connection.cursor().execute(sql))
+        # The semantic projection owns `genre_id` now; step back to the legacy triggers this migration installs.
+        import_module("grow.migrations.0142_semantic_playlist_projection").backwards(apps, editor)
         migration.backwards(None, editor)
         Track.objects.filter(pk=song.pk).update(genre=other)
         assert TrackPlaylistRel.objects.filter(track=song).exclude(genre_id=other.pk).exists()

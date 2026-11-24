@@ -1,3 +1,4 @@
+from io import StringIO
 from unittest.mock import patch
 
 import pytest
@@ -17,8 +18,9 @@ from grow.model.song.Song import Song
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.serializer.model.song.search import SEARCH_LIMIT_MAX
-from grow.song_search.rebuild import queue_song_search_build, rebuild_song_search
+from grow.song_search.rebuild import is_current, queue_song_search_build, rebuild_song_search
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.song_graph import install_song_graph
 
 
 class TestSongSearchValidation(AppTestCase):
@@ -56,12 +58,19 @@ class TestSongSearch(AppTestCase):
         self.api_client.credentials()
         self.factory = self.model_fixture_factory
         self.rock = self.factory.create_genre("Rock")
+        self.assigned: dict = {self.rock: []}
 
     def song(self, title: str, *artists: str, genre=..., **kwargs) -> Song:
-        song = self.factory.create_song(title, self.rock if genre is ... else genre, **kwargs)
+        genre = self.rock if genre is ... else genre
+        song = self.factory.create_song(title, genre, **kwargs)
+        if genre is not None:
+            self.assigned.setdefault(genre, []).append(song)
         for name in artists:
             song.artists.add(self.factory.create_artist(name))
         return song
+
+    def assign_genres(self) -> None:
+        install_song_graph(self.assigned)
 
     def search(self, q: str, **params):
         return self.api_client.get(path=reverse("song-search"), data={"q": q, **params})
@@ -88,6 +97,7 @@ class TestSongSearch(AppTestCase):
 
     def test_anonymous_search_then_result_shape(self):
         song = self.song("Comfortably Numb", "Pink Floyd", first_release_year=1979)
+        self.assign_genres()
         rebuild_song_search()
 
         (item,) = self.search("numb").json()
@@ -171,6 +181,7 @@ class TestSongSearch(AppTestCase):
         self.song("Lithium Unplayable", youtube_video_id=None)
         self.song("Lithium Both")
         self.song("Lithium Neither", genre=None, youtube_video_id=None)
+        self.assign_genres()
         rebuild_song_search()
 
         assert self.titles("lithium") == [
@@ -191,6 +202,7 @@ class TestSongSearch(AppTestCase):
         self.song("Heart Genre")
         self.song("Heart Genreless", genre=None)
         self.song("Heart Unplayable", youtube_video_id=None)
+        self.assign_genres()
         rebuild_song_search()
 
         assert self.titles("heart", genre="without") == ["Heart Genreless"]
@@ -274,6 +286,18 @@ class TestSongSearch(AppTestCase):
         assert SongSearch.objects.get(pk=song.pk).has_genre is False
         assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
 
+    def test_dataset_assignment_decides_has_genre_not_the_column(self):
+        legacy = self.factory.create_genre("Legacy Genre")
+        rock = self.factory.create_genre("Assigned Genre")
+        assigned = self.song("Assigned", genre=legacy)
+        unassigned = self.song("Unassigned", genre=legacy)
+        install_song_graph({legacy: [], rock: [assigned]})
+        rebuild_song_search()
+
+        assert SongSearch.objects.get(pk=assigned.pk).has_genre is True
+        assert SongSearch.objects.get(pk=unassigned.pk).has_genre is False
+        assert SongSearch.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+
     def test_rebuild_swaps_table_keeping_indexes_and_marks_ready(self):
         self.song("Comfortably Numb")
         with connection.cursor() as cursor:
@@ -309,3 +333,54 @@ class TestQueueSongSearchBuild(AppTestCase):
             self.assertLogs("grow.bulk_import", level="ERROR"),
         ):
             queue_song_search_build()
+
+
+@pytest.mark.postgres
+class TestSongSearchFingerprint(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self.factory = self.model_fixture_factory
+        self.factory.create_song("Comfortably Numb", self.factory.create_genre("Rock"))
+
+    def test_fingerprint_is_stamped_by_rebuild_and_clean_check_only(self):
+        assert SongSearchState.load().fingerprint is None
+        rebuild_song_search()
+        stamped = SongSearchState.load().fingerprint
+        assert stamped and len(stamped) == 64
+
+        SongSearchState.objects.update(fingerprint=None)
+        call_command("rebuild_song_search", "--check")
+        assert SongSearchState.load().fingerprint == stamped
+
+        SongSearchState.objects.update(fingerprint=None)
+        with connection.cursor() as cursor:
+            cursor.execute("UPDATE grow_song_search SET rank_score = -1")
+        with pytest.raises(CommandError):
+            call_command("rebuild_song_search", "--check")
+        assert SongSearchState.load().fingerprint is None
+
+    def test_if_stale_skips_a_current_projection_and_rebuilds_a_stale_one(self):
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "current" in out.getvalue()
+
+        SongSearchState.objects.update(fingerprint="0" * 64)
+        out = StringIO()
+        call_command("rebuild_song_search", "--if-stale", stdout=out)
+        assert "rebuilt" in out.getvalue()
+
+    def test_redefining_the_routine_changes_the_fingerprint(self):
+        rebuild_song_search()
+        assert is_current()
+        with connection.cursor() as cursor:
+            # The cost shows in the stored definition, so changing it stands for a migration redefining the routine.
+            cursor.execute("ALTER FUNCTION public.grow_search_norm(text) COST 12345")
+        assert not is_current()
+
+    def test_check_and_if_stale_are_mutually_exclusive(self):
+        with pytest.raises(CommandError):
+            call_command("rebuild_song_search", "--check", "--if-stale")

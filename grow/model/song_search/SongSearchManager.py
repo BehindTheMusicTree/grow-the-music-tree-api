@@ -90,7 +90,7 @@ class SongSearchManager(models.Manager["SongSearch"]):
                 },
             )
             track_ids = [row[0] for row in cursor.fetchall()]
-            songs = Song.objects.select_related("genre").prefetch_related("artists").in_bulk(track_ids)
+            songs = Song.objects.select_related("membership_genre").prefetch_related("artists").in_bulk(track_ids)
         return [songs[track_id] for track_id in track_ids if track_id in songs]
 
     @staticmethod

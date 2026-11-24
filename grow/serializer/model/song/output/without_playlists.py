@@ -14,12 +14,14 @@ from .youtube_video import SongYoutubeVideoSerializer
 class SongWithoutPlaylistsSerializer(EagerLoadingMixin, AppInputSerializer, serializers.ModelSerializer):
     artists = ArtistMinimumSerializer(many=True)
     album = AlbumMinimumSerializer()
-    genre = CriteriaMinimumSerializer()
+    genre = CriteriaMinimumSerializer(source="membership_genre", allow_null=True)
     youtube_video = SongYoutubeVideoSerializer(source="*")
 
     @classmethod
     def setup_queryset(cls, queryset, prefix=""):
-        return queryset.select_related(f"{prefix}album", f"{prefix}genre").prefetch_related(f"{prefix}artists")
+        return queryset.select_related(f"{prefix}album", f"{prefix}membership_genre").prefetch_related(
+            f"{prefix}artists"
+        )
 
     class Meta:
         model = Song

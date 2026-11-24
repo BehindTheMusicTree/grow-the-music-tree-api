@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 import pytest
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
+from django_q.exceptions import TimeoutException
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
@@ -194,3 +195,27 @@ def test_all_song_staging_is_cleaned_on_completion_failure_and_receipt_recovery(
 
     assert not ImportPart.objects.filter(run_id=run.pk).exists()
     assert ImportPart.objects.filter(run_id=other.pk).count() == 1
+
+
+def test_attempt_failed_while_queued_is_not_merged():
+    run, attempt = make_attempt()
+    ImportAttempt.objects.filter(pk=attempt.pk).update(state="failed", error="No import worker running")
+    with pytest.raises(ValueError, match="already failed"):
+        execute_merge(run.pk, attempt.pk, SongImportStaging, write_data)
+    assert not ImportRun.objects.exists()
+    assert not ImportReceipt.objects.exists()
+
+
+def test_django_q_timeout_fails_the_attempt_and_releases_the_data():
+    run, attempt = make_attempt()
+
+    def killed():
+        write_data()
+        raise TimeoutException
+
+    with pytest.raises(TimeoutException):
+        execute_merge(run.pk, attempt.pk, SongImportStaging, killed)
+    attempt.refresh_from_db()
+    assert attempt.state == "failed"
+    assert not attempt.data_applied
+    assert not ImportRun.objects.exists()

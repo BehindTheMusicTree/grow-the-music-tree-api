@@ -76,6 +76,7 @@ class TestPipelineRun(AppTestCase):
             "stage",
             "stageCurrent",
             "stageTotal",
+            "stepTelemetry",
             "error",
             "requestedOn",
             "startedOn",
@@ -110,6 +111,112 @@ class TestPipelineRun(AppTestCase):
 
         assert self._latest().json() == done
         assert self.api_client.get(path=reverse("pipeline-runs-latest")).json() == done
+
+    def test_background_geohistory_failure_replaces_foreground_stage(self):
+        uuid = self._request("full")["uuid"]
+        assert self._claim().status_code == status.HTTP_200_OK
+        assert self._patch(uuid, {"stage": "building_songs"}).status_code == status.HTTP_200_OK
+
+        error = "source=overpass snapshot=2026-11-20T16:00:00Z relation=123 HTTP 403"
+        failed = self._patch(uuid, {"status": "failed", "stage": "ingesting_geohistory", "error": error})
+        assert failed.status_code == status.HTTP_200_OK, failed.content
+        result = failed.json()
+        assert (result["status"], result["stage"], result["error"]) == ("failed", "ingesting_geohistory", error)
+        assert result["finishedOn"] is not None
+        assert self._latest().json() == result
+
+    def test_full_step_telemetry_survives_independent_progress_and_terminal_updates(self):
+        uuid = self._request("full")["uuid"]
+        assert self._claim().json()["stepTelemetry"] is None
+        wikidata = {
+            "stage": "ingesting_wikidata",
+            "startedAt": "2026-11-20T12:00:00Z",
+            "finishedAt": None,
+            "state": "running",
+        }
+        foreground = {**wikidata, "stage": "ingesting_musicbrainz"}
+        retry = {"attempt": 3, "reason": "http", "httpStatus": 503}
+        started = self._patch(
+            uuid, {"stepTelemetry": {"variant": "bronze_only", "wikidata": [wikidata], "wikidataRetry": retry}}
+        )
+        assert started.status_code == status.HTTP_200_OK, started.content
+        update = {"stage": "ingesting_musicbrainz", "stepTelemetry": {"foreground": [foreground]}}
+        for payload in (update, update, {}):
+            beat = self._patch(uuid, payload)
+            assert beat.status_code == status.HTTP_200_OK, beat.content
+            assert beat.json()["stage"] == "ingesting_musicbrainz"
+            assert beat.json()["stepTelemetry"] == {
+                "variant": "bronze_only",
+                "wikidata": [wikidata],
+                "foreground": [foreground],
+                "wikidataRetry": retry,
+            }
+
+        finished = {**wikidata, "state": "succeeded", "finishedAt": "2026-11-20T12:05:00Z"}
+        finished_foreground = {**finished, "stage": foreground["stage"]}
+        done = self._patch(
+            uuid,
+            {
+                "status": "succeeded",
+                "stepTelemetry": {"wikidata": [finished], "foreground": [finished_foreground], "wikidataRetry": None},
+            },
+        )
+        assert done.status_code == status.HTTP_200_OK, done.content
+        assert done.json()["stepTelemetry"]["wikidata"] == [finished]
+        assert done.json()["stepTelemetry"]["wikidataRetry"] is None
+        assert self._latest().json() == done.json()
+        assert self.api_client.get(reverse("pipeline-runs")).json()["results"][0] == done.json()
+
+    def test_rejects_invalid_step_telemetry(self):
+        uuid = self._request("full")["uuid"]
+        self._claim()
+        step = {
+            "stage": "ingesting_wikidata",
+            "startedAt": "2026-11-20T12:00:00Z",
+            "finishedAt": None,
+            "state": "running",
+        }
+        for patch in (
+            {"wikidata": [step]},
+            {"variant": "bronze_only", "wikidata": [step, step]},
+            {"variant": "bronze_only", "wikidata": [step, {**step, "stage": "ingesting_geohistory"}]},
+            {"variant": "bronze_only", "foreground": [{**step, "stage": "unknown"}]},
+            {"variant": "bronze_only", "wikidataRetry": {"attempt": 3, "reason": "timeout", "httpStatus": 503}},
+        ):
+            response = self._patch(uuid, {"stepTelemetry": patch})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        assert self._latest().json()["stepTelemetry"] is None
+
+    def test_rejects_step_telemetry_that_drops_or_rewrites_earlier_steps(self):
+        uuid = self._request("full")["uuid"]
+        self._claim()
+        done = {
+            "stage": "ingesting_wikidata",
+            "startedAt": "2026-11-20T12:00:00Z",
+            "finishedAt": "2026-11-20T12:01:00Z",
+            "state": "succeeded",
+        }
+        second = {**done, "stage": "ingesting_geohistory", "startedAt": "2026-11-20T12:02:00Z", "finishedAt": None}
+        second["state"] = "running"
+        ok = self._patch(uuid, {"stepTelemetry": {"variant": "bronze_only", "wikidata": [done, second]}})
+        assert ok.status_code == status.HTTP_200_OK, ok.content
+        for wikidata in (
+            [done],
+            [{**done, "finishedAt": "2026-11-20T12:01:30Z"}, second],
+            [done, {**second, "startedAt": "2026-11-20T12:03:00Z"}],
+        ):
+            response = self._patch(uuid, {"stepTelemetry": {"wikidata": wikidata}})
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
+        finished = {**second, "state": "succeeded", "finishedAt": "2026-11-20T12:04:00Z"}
+        assert self._patch(uuid, {"stepTelemetry": {"wikidata": [done, finished]}}).status_code == status.HTTP_200_OK
+
+    def test_step_telemetry_is_rejected_on_a_curation_run(self):
+        uuid = self._request("curation")["uuid"]
+        self._claim()
+
+        response = self._patch(uuid, {"stepTelemetry": {"variant": "bronze_only"}})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST, response.content
 
     def test_empty_patch_is_a_heartbeat(self):
         uuid = self._request("full")["uuid"]

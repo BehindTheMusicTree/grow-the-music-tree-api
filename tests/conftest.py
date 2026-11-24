@@ -1,8 +1,11 @@
 import unicodedata
+from unittest.mock import patch
 
 import pytest
 from django.db import connection
 from django.db.backends.signals import connection_created
+
+from tests.utils.restore_kit_seeded_data import restore_kit_seeded_data, snapshot_kit_seeded_data
 
 
 def _grow_search_norm(value: str | None) -> str | None:
@@ -17,6 +20,33 @@ def _register_search_norm(sender, connection, **kwargs):
 
 
 connection_created.connect(_register_search_norm)
+
+
+@pytest.fixture(scope="session")
+def migration_seed_snapshot(django_db_setup, django_db_blocker):
+    with django_db_blocker.unblock():
+        return snapshot_kit_seeded_data()
+
+
+@pytest.fixture(autouse=True)
+def restore_flushed_migration_seeds(request):
+    """A transactional test flushes every table on teardown, migration seeds included: restore them first."""
+    django_test_case = request.instance is not None and hasattr(request.instance, "_fixture_setup")
+    marker = request.node.get_closest_marker("django_db")
+    uses_db = django_test_case or marker is not None or {"db", "transactional_db"} & set(request.fixturenames)
+    if not uses_db:
+        return
+    # Snapshot at the first database test, before any flush can have emptied the seeds.
+    snapshot = request.getfixturevalue("migration_seed_snapshot")
+    if django_test_case:
+        return  # Django TestCase classes manage their own database state in setUp.
+    transactional = "transactional_db" in request.fixturenames or (
+        marker is not None and marker.kwargs.get("transaction", False)
+    )
+    if not transactional:
+        return
+    request.getfixturevalue("_django_db_helper")
+    restore_kit_seeded_data(snapshot)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -39,3 +69,10 @@ def sqlite_flush_graph_guards(django_db_setup):
         yield
     finally:
         connection.ops.sql_flush = original
+
+
+@pytest.fixture(autouse=True)
+def django_q_cluster_alive():
+    """Privileged status reads ask Redis for live django-q clusters; tests report one alive unless they override it."""
+    with patch("grow.bulk_import.status.Stat.get_all", return_value=[object()]) as get_all:
+        yield get_all

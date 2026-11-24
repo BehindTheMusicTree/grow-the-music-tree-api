@@ -16,6 +16,7 @@ from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 from grow.view.curation import CurationView
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
+from grow.view.pipeline_step_telemetry import StepTelemetrySerializer, check_chains_extend
 
 Status = PipelineRunRequest.Status
 Kind = PipelineRunRequest.Kind
@@ -34,6 +35,7 @@ def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
                 "stage",
                 "stage_current",
                 "stage_total",
+                "step_telemetry",
                 "error",
                 "requested_on",
                 "started_on",
@@ -125,6 +127,7 @@ class PipelineRunProgressSerializer(serializers.Serializer):
     stage = serializers.ChoiceField(choices=PipelineRunRequest.Stage.choices, required=False)
     stage_current = serializers.IntegerField(min_value=0, allow_null=True, required=False)
     stage_total = serializers.IntegerField(min_value=0, allow_null=True, required=False)
+    step_telemetry = StepTelemetrySerializer(required=False)
     status = serializers.ChoiceField(choices=[Status.SUCCEEDED, Status.FAILED, Status.CANCELLED], required=False)
     error = serializers.CharField(allow_null=True, allow_blank=True, required=False)
 
@@ -146,11 +149,28 @@ class PipelineRunView(CurationView):
         serializer = PipelineRunProgressSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        if "step_telemetry" in data:
+            if run.kind != Kind.FULL:
+                raise ValidationError({"step_telemetry": "Step telemetry is only available for full runs"})
+            update = data["step_telemetry"]
+            telemetry = StepTelemetrySerializer(update).data
+            check_chains_extend(run.step_telemetry, telemetry)
+            run.step_telemetry = {
+                "variant": None,
+                "foreground": [],
+                "wikidata": [],
+                "wikidata_retry": None,
+                **(run.step_telemetry or {}),
+                **{key: telemetry[key] for key in update},
+            }
+            if run.step_telemetry["variant"] is None:
+                raise ValidationError({"step_telemetry": "The first snapshot must specify the execution variant"})
         if "stage" in data:
             # A new stage starts with no progress unless the report carries it.
             run.stage_current = run.stage_total = None
         for field, value in data.items():
-            setattr(run, field, value)
+            if field != "step_telemetry":
+                setattr(run, field, value)
         run.heartbeat_on = timezone.now()
         if "status" in data:
             run.finished_on = run.heartbeat_on

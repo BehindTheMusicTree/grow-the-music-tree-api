@@ -8,7 +8,7 @@ from grow.serializer.model.track.output.TrackOutputFieldKey import TrackOutputFi
 
 class TrackSimpleWithoutPlaylistAndArtistSerializer(serializers.ModelSerializer):
     album = AlbumMinimumSerializer()
-    genre = CriteriaMinimumSerializer()
+    genre = CriteriaMinimumSerializer(source="song.membership_genre", allow_null=True)
 
     class Meta:
         model = Track

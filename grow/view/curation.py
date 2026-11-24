@@ -31,14 +31,18 @@ from grow.curation.edges import (
 )
 from grow.curation.essential_songs import LIST_NAME as ESSENTIAL_SONGS_LIST
 from grow.curation.essential_songs import apply_essential_songs
+from grow.curation.genre_aliases import alias_revision, prepare_alias_write, search_alias_targets
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
 from grow.curation.lists import (
     ADDITION_LISTS,
     CURATION_LISTS,
     EDGE_PROJECTION_LISTS,
+    GENRE_ALIAS_LIST,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
+    LEGACY_GENRE_ALIAS_COLUMNS,
+    RETIRED_HISTORY_LISTS,
 )
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import (
@@ -47,12 +51,14 @@ from grow.curation.rows import (
     ParsedRow,
     RowConflict,
     check_edit,
+    find_graph_removal_error,
     find_item_rules,
     lock_writes,
 )
 from grow.curation.rule_set import Violation, find_stored_violations
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -151,7 +157,7 @@ class CurationListsView(CurationView):
                     "name": name,
                     "key_columns": c.key,
                     "columns": c.columns,
-                    "column_specs": c.column_specs,
+                    "column_specs": c.column_specs(name),
                     "description": c.description,
                     "count": counts.get(name, 0),
                 }
@@ -183,7 +189,10 @@ class CurationEntriesView(CurationView):
     @transaction.atomic
     def post(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
-        parsed = _validate(list_name, _row(request))
+        row = _row(request)
+        if list_name == GENRE_ALIAS_LIST:
+            row = prepare_alias_write(row)
+        parsed = _validate(list_name, row)
         entry = CurationEntry.objects.create(
             actor=request.user,
             user=None,
@@ -204,11 +213,19 @@ class CurationEntryView(CurationView):
         lock_writes(_entries())
         return get_object_or_404(_entries(), list_name=list_name, uuid=uuid)
 
+    def get(self, request: Request, list_name: str, uuid: str) -> Response:
+        _check_list(list_name)
+        return Response(_serialize(get_object_or_404(_entries(), list_name=list_name, uuid=uuid)))
+
     @transaction.atomic
     def patch(self, request: Request, list_name: str, uuid: str) -> Response:
+        if list_name == GENRE_ALIAS_LIST:
+            lock_writes(_entries())
         entry = self._get(list_name, uuid)
         old_item_id = entry.row.get("item_id")
-        parsed = _validate(list_name, {**entry.row, **_row(request)}, exclude_pk=entry.pk)
+        row = _row(request)
+        row = prepare_alias_write(row, entry) if list_name == GENRE_ALIAS_LIST else {**entry.row, **row}
+        parsed = _validate(list_name, row, exclude_pk=entry.pk)
         entry = CurationEntry.objects.update_instance(
             entry, actor=request.user, key=parsed.key, values=parsed.values, reason=parsed.reason
         )
@@ -217,8 +234,13 @@ class CurationEntryView(CurationView):
 
     @transaction.atomic
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
+        if list_name == GENRE_ALIAS_LIST:
+            lock_writes(_entries())
         entry = self._get(list_name, uuid)
         item_id = entry.row.get("item_id")
+        graph_error = find_graph_removal_error(_entries(), entry)
+        if graph_error:
+            raise ValidationError({"row": graph_error})
         CurationEntry.objects.delete_instance(entry, actor=request.user)
         _apply_essential_songs(list_name, item_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -320,6 +342,9 @@ class CurationEdgeView(CurationView):
         lock_writes(edge_rules())
         return get_object_or_404(edge_rules(), uuid=uuid)
 
+    def get(self, request: Request, uuid: str) -> Response:
+        return Response(_serialize_edge(get_object_or_404(edge_rules(), uuid=uuid)))
+
     @transaction.atomic
     def patch(self, request: Request, uuid: str) -> Response:
         rule = self._get(uuid)
@@ -361,7 +386,7 @@ class CurationHistoryView(CurationView):
         content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
         queryset = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if "list" in params:
-            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS):
+            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS, *RETIRED_HISTORY_LISTS):
                 raise ValidationError({"list": "Unknown curation list"})
             # Edits made before migration 0112 stay under the entry content type with a `list_name`; later ones are
             # edge snapshots carrying a `relation`.
@@ -414,7 +439,13 @@ class CurationExportView(CurationView):
     permission_classes = [IsPipelineOrAdmin]
     renderer_classes = [JSONRenderer]
 
+    @transaction.atomic
     def get(self, request: Request) -> Response:
+        version = request.query_params.get("genre_alias_version", "1")
+        if version not in {"1", "2"}:
+            raise ValidationError({"genre_alias_version": "Expected 1 or 2"})
+        lock_writes(_entries())
+        revisions = {} if version == "2" else None
         violations = find_stored_violations()
         if violations:
             return Response(
@@ -425,15 +456,30 @@ class CurationExportView(CurationView):
                 status=status.HTTP_409_CONFLICT,
             )
         exported_on = timezone.now()
-        if request.auth.role == "pipeline":
-            CurationSyncState.objects.update_or_create(pk=1, defaults={"exported_on": exported_on})
         export: dict[str, Any] = {name: [] for name in CURATION_LISTS}
         for entry in _entries().order_by("list_name", "key"):
-            export[entry.list_name].append(entry.csv_row)
+            row = entry.csv_row
+            if entry.list_name == GENRE_ALIAS_LIST:
+                if revisions is None:
+                    row = {column: row[column] for column in LEGACY_GENRE_ALIAS_COLUMNS}
+                else:
+                    revisions[entry.key] = alias_revision(entry)
+            export[entry.list_name].append(row)
+        if revisions is not None:
+            export["genre_alias_version"] = 2
+        # Deprecated projection for pipelines that still read `overview_status_overrides`: dropped once they read
+        # `regional_overview_types`.
+        export["overview_status_overrides"] = [
+            {"item_id": row["item_id"], "status": row["overview_type"], "reason": row["reason"]}
+            for row in export["regional_overview_types"]
+        ]
         export["edges"] = [
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]
         export["exported_on"] = exported_on.isoformat()
+        if request.auth.role == "pipeline":
+            # The pipeline's copy, kept whole: a later import checks what it was built from against it.
+            CurationExport.record(exported_on, export, CurationSyncState.load().applied_export_on, revisions)
         return Response(export)
 
 
@@ -454,6 +500,8 @@ class _CurationItemSerializer(serializers.Serializer):
             return attrs
         if "list" not in attrs or "key" not in attrs:
             raise ValidationError({"rule_id": "Required unless list and key are given"})
+        if attrs["list"] == GENRE_ALIAS_LIST:
+            raise ValidationError({"list": "Genre aliases are reviewed through the Gold match report"})
         columns = {**CURATION_LISTS, **EDGE_PROJECTION_LISTS}[attrs["list"]].columns
         if attrs["column"] not in columns:
             raise ValidationError({"column": f"Not a column of {attrs['list']}"})
@@ -494,7 +542,8 @@ class _ReviewItemSerializer(_CurationItemSerializer):
         choices=[
             choice
             for choice in CurationReviewItem.Reason.choices
-            if choice[0] not in CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS
+            if choice[0]
+            not in (*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
         ]
     )
     target = _item_id_field(required=False, allow_null=True)
@@ -578,6 +627,16 @@ class CurationItemsView(CurationView):
         return Response({"results": results[:ITEM_SEARCH_LIMIT]})
 
 
+class GenreAliasTargetsView(CurationView):
+    permission_classes = [IsCuratorOrAdmin]
+
+    def get(self, request: Request) -> Response:
+        q = request.query_params.get("q", "").strip()
+        if not q:
+            raise ValidationError({"q": "Required"})
+        return Response(search_alias_targets(q, ITEM_SEARCH_LIMIT))
+
+
 def _review_list(item: CurationReviewItem) -> str | None:
     """None for a synthetic overview alert, which concerns no list or rule."""
     return item.list_name or (legacy_list_name(item.rule) if item.rule else None)
@@ -591,8 +650,11 @@ class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
     def get(self, request: Request) -> Response:
+        items_query = CurationReviewItem.objects.select_related("rule")
+        if request.query_params.get("genre_alias_version") != "2":
+            items_query = items_query.exclude(reason__in=CurationReviewItem.GENRE_ALIAS_REASONS)
         items = sorted(
-            CurationReviewItem.objects.select_related("rule"),
+            items_query,
             key=lambda i: (_review_list(i) or "", _review_key(i) or "", i.column, i.item_id),
         )
         return Response(
