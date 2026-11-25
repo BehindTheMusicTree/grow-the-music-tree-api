@@ -32,13 +32,11 @@ class CurationReviewItem(models.Model):
         ALIAS_TARGET_MISSING = "alias_target_missing"
         ALIAS_TARGET_INELIGIBLE = "alias_target_ineligible"
         ALIAS_SOURCE_AUTO_RESOLVED = "alias_source_auto_resolved"
-        ALIAS_LEGACY_UNMIGRATED = "alias_legacy_unmigrated"
 
     GENRE_ALIAS_REASONS = (
         Reason.ALIAS_TARGET_MISSING,
         Reason.ALIAS_TARGET_INELIGIBLE,
         Reason.ALIAS_SOURCE_AUTO_RESOLVED,
-        Reason.ALIAS_LEGACY_UNMIGRATED,
     )
     SYNTHETIC_OVERVIEW_REASONS = (
         Reason.SYNTHETIC_OVERVIEW_SUPERSEDED,

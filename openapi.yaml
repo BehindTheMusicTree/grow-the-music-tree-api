@@ -802,15 +802,6 @@ paths:
 
         `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
         knows which export the imported tree was built from.
-      parameters:
-      - in: query
-        name: genre_alias_version
-        schema:
-          type: string
-          enum:
-          - '1'
-          - '2'
-        description: Defaults to 1.
       tags:
       - v1
       security:
@@ -1341,16 +1332,16 @@ paths:
                           minLength: 1
                         target_item_id:
                           type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)?$
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
                         reason:
                           type: string
                           minLength: 1
                       required:
                       - musicbrainz_genre_name
                       - wikidata_genre_name
+                      - target_item_id
                       - reason
                       additionalProperties: false
-                      description: '`target_item_id` is present only with `genre_alias_version=2`.'
                   genre_disambiguation:
                     type: array
                     items:
@@ -1879,28 +1870,6 @@ paths:
                   exported_on:
                     type: string
                     format: date-time
-                  genre_alias_version:
-                    enum:
-                    - 2
-                    description: Present only with `genre_alias_version=2`.
-                  overview_status_overrides:
-                    type: array
-                    deprecated: true
-                    description: Legacy projection of `regional_overview_types`.
-                    items:
-                      type: object
-                      properties:
-                        item_id:
-                          type: string
-                        status:
-                          type: string
-                        reason:
-                          type: string
-                      required:
-                      - item_id
-                      - status
-                      - reason
-                      additionalProperties: false
                 required:
                 - canonical_parent_additions
                 - capitalized_words
@@ -1952,7 +1921,6 @@ paths:
                 - tradition_link_overrides
                 - edges
                 - exported_on
-                - overview_status_overrides
                 additionalProperties: false
           description: ''
         '409':
@@ -2075,15 +2043,6 @@ paths:
       operationId: v1_curation_review_list
       description: The curation item ids the pipeline's last report couldn't resolve,
         for an admin to fix.
-      parameters:
-      - in: query
-        name: genre_alias_version
-        schema:
-          type: string
-          enum:
-          - '1'
-          - '2'
-        description: 2 includes the genre alias reviews.
       tags:
       - v1
       security:
@@ -5666,15 +5625,8 @@ components:
         automaticItemId:
           type: string
           pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-        candidateItemIds:
-          type: array
-          items:
-            type: string
-            pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
         currentLabel:
           type: string
-        legacyStatus:
-          $ref: '#/components/schemas/LegacyStatusEnum'
     AliasExposure:
       type: object
       properties:
@@ -5702,11 +5654,9 @@ components:
           type: string
         targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
         lastKnownLabel:
           type: string
-          nullable: true
         reason:
           $ref: '#/components/schemas/AliasIssueReasonEnum'
         exposure:
@@ -5725,13 +5675,11 @@ components:
       - alias_target_missing
       - alias_target_ineligible
       - alias_source_auto_resolved
-      - alias_legacy_unmigrated
       type: string
       description: |-
         * `alias_target_missing` - alias_target_missing
         * `alias_target_ineligible` - alias_target_ineligible
         * `alias_source_auto_resolved` - alias_source_auto_resolved
-        * `alias_legacy_unmigrated` - alias_legacy_unmigrated
     AliasReview:
       type: object
       properties:
@@ -8262,16 +8210,6 @@ components:
       - expectedRevision
       - provenance
       - revision
-    LegacyStatusEnum:
-      enum:
-      - unique
-      - ambiguous
-      - missing
-      type: string
-      description: |-
-        * `unique` - unique
-        * `ambiguous` - ambiguous
-        * `missing` - missing
     ManualPlaylistDetailed:
       type: object
       properties:

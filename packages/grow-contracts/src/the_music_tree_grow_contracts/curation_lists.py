@@ -71,15 +71,11 @@ OPTIONAL_COLUMNS = frozenset(
     }
 )
 GENRE_ALIAS_LIST = "genre_alias"
-# Legacy v1 export for pipelines that predate `target_item_id`. Drop it (v1 export, `genre_alias_version`, the legacy
-# CSV header in rows.py, label resolution in genre_aliases.py) once pipelines #483 is in prod and stable and no
-# `alias_legacy_unmigrated` remains in prod: see issue #582.
-LEGACY_GENRE_ALIAS_COLUMNS = ("musicbrainz_genre_name", "wikidata_genre_name", "reason")
-GENRE_ALIAS_COLUMNS = (*LEGACY_GENRE_ALIAS_COLUMNS[:2], "target_item_id", "reason")
+GENRE_ALIAS_COLUMNS = ("musicbrainz_genre_name", "wikidata_genre_name", "target_item_id", "reason")
 
 
-def is_optional_column(list_name: str, column: str) -> bool:
-    return column in OPTIONAL_COLUMNS or (list_name == GENRE_ALIAS_LIST and column == "target_item_id")
+def is_optional_column(column: str) -> bool:
+    return column in OPTIONAL_COLUMNS
 
 
 REASON_COLUMN = "reason"
@@ -126,7 +122,7 @@ class CurationList:
                 else "bool"
                 if c in BOOL_COLUMNS
                 else "text",
-                "optional": is_optional_column(list_name, c) and c not in self.key,
+                "optional": is_optional_column(c) and c not in self.key,
             }
             for c in self.columns
         )

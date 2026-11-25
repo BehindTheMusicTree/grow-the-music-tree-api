@@ -709,7 +709,7 @@
           },
           "target_item_id": {
             "type": "string",
-            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)?$"
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
           },
           "reason": {
             "type": "string",
@@ -1440,36 +1440,6 @@
     "exported_on": {
       "type": "string",
       "format": "date-time"
-    },
-    "genre_alias_version": {
-      "const": 2
-    },
-    "overview_status_overrides": {
-      "deprecated": true,
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "item_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "status": {
-            "type": "string",
-            "minLength": 1
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "item_id",
-          "status",
-          "reason"
-        ],
-        "additionalProperties": false
-      }
     }
   },
   "required": [
@@ -1522,8 +1492,7 @@
     "tradition_extra_places",
     "tradition_link_overrides",
     "edges",
-    "exported_on",
-    "genre_alias_version"
+    "exported_on"
   ],
   "additionalProperties": false
 }
