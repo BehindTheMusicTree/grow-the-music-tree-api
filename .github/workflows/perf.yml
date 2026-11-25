@@ -3,8 +3,9 @@ name: Perf
 # Separate from validate.yml so (un)labeling a PR reruns only this job. Keep the job name `Perf` and never add a
 # workflow-level paths filter: `Perf` is a required check on develop, and a workflow that never triggers leaves it
 # pending forever. Routing is job-level instead (#543, github-config#85): `route` classifies the PR's changed files
-# (scripts/perf_route.py) and `Perf` is skipped when only non-runtime files changed; a skipped job counts as passing.
-# `!cancelled()` makes a failed `route` run the full job rather than skip it (a skipped required check passes).
+# (scripts/perf_route.py) and `Perf run` is skipped when only non-runtime files changed. The required `Perf` check is
+# a scoped gate over `route` and `perf-run` (github-config#97): it passes when `route` succeeded and the run was
+# skipped (not applicable) or succeeded (applicable); a failed `route` or a skipped run on an applicable PR fails it.
 on:
   push:
     branches: [main, develop]
@@ -28,6 +29,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.route.outputs.mode }}
+      applicable: ${{ steps.applicable.outputs.applicable }}
     steps:
       - uses: actions/checkout@v5.0.1
         with:
@@ -44,13 +46,16 @@ jobs:
           else
             echo mode=full >>"$GITHUB_OUTPUT"
           fi
+      - name: Applicable unless every changed file is non-runtime
+        id: applicable
+        run: echo "applicable=$([[ '${{ steps.route.outputs.mode }}' == skip ]] && echo false || echo true)" >>"$GITHUB_OUTPUT"
       - name: Summary
         run: echo "Perf route is ${{ steps.route.outputs.mode }}" >>"$GITHUB_STEP_SUMMARY"
 
-  perf:
-    name: Perf
+  perf-run:
+    name: Perf run
     needs: route
-    if: ${{ !cancelled() && needs.route.outputs.mode != 'skip' }}
+    if: ${{ needs.route.outputs.applicable == 'true' }}
     runs-on: ubuntu-latest
     # Two seeds plus the 8 rounds of a suspected regression take about 27 minutes.
     timeout-minutes: 35
@@ -111,3 +116,17 @@ jobs:
           name: perf-results
           path: ${{ runner.temp }}/perf
           if-no-files-found: ignore
+
+  perf:
+    name: Perf
+    if: always()
+    needs: [route, perf-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the selected perf run to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: >-
+          jq -e --arg scope route
+          '.[$scope] as $s | del(.[$scope]) as $rest | $s.result == "success" and ($rest | length) > 0 and (if $s.outputs.applicable == "true" then all($rest[]; .result == "success") elif $s.outputs.applicable == "false" then all($rest[]; .result == "skipped") else false end)'
+          <<<"$NEEDS"

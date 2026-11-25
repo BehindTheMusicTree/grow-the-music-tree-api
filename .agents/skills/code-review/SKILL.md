@@ -32,7 +32,7 @@ Read `.agents/rules/migrations.md` before reviewing migration changes. Check mod
 
 ## Perf routing
 
-A PR that adds a path to `SKIP_FILES`, `SKIP_SUFFIXES` or `SKIP_PREFIXES` in `scripts/perf_route.py` must show that `perf/`, `scripts/perf_ab.sh` and what they import don't read that path. Otherwise flag it: that PR's own `Perf` would be skipped. New workflows and top-level paths run Perf in full until someone lists them, which is the intended safe default and not something to flag.
+A PR that adds a path to `SKIP_FILES`, `SKIP_SUFFIXES` or `SKIP_PREFIXES` in `scripts/perf_route.py` must show that `perf/`, `scripts/perf_ab.sh` and what they import don't read that path. Otherwise flag it: that PR's own `Perf run` would be skipped. New workflows and top-level paths run Perf in full until someone lists them, which is the intended safe default and not something to flag.
 
 ## Style and tooling
 

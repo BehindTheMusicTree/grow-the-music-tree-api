@@ -1,4 +1,4 @@
-"""Route a PR to the full `Perf` job or to a skip (#543, BehindTheMusicTree/github-config#85).
+"""Route a PR to the full `Perf run` job or to a skip (#543, BehindTheMusicTree/github-config#85).
 
 Reads NUL-separated changed paths on stdin (`git diff --no-renames -z --name-only`, so a rename lists both names)
 and prints `mode=skip` or `mode=full`. Skip only when every path is explicitly known to have no effect on the perf
