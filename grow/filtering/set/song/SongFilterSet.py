@@ -1,7 +1,7 @@
-from django.db.models import Case, F, IntegerField, Q, QuerySet, When
+from django.db.models import Case, F, IntegerField, QuerySet, When
 from django.db.models.functions import Cast, Coalesce
 from django_filters import BooleanFilter, CharFilter, ChoiceFilter, UUIDFilter
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, ParseError
 from the_music_tree_api_kit.filtering.filter.char.EmptiableCharFilter import EmptiableCharFilter
 from the_music_tree_api_kit.filtering.filter.char.RelatedObjectCharFilter import RelatedObjectCharFilter
 from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueResourceFilterSet import (
@@ -14,12 +14,13 @@ from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.song.Fields import Fields as ModelFields
 from grow.model.song.Song import Song
+from grow.view.pagination.keyset import SORT_KEY, seek
 from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_PARAM,
     NO_TOTAL_PARAM,
     PAGINATION_PARAM,
     wants_cursor,
-    wants_no_total,
+    wants_total,
 )
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
 
@@ -35,7 +36,6 @@ ORDERINGS = {
     ),
 }
 DEFAULT_ORDERING = F(ModelFields.CREATED_ON)  # the viewset's default, see AppModelViewSet.queryset
-SORT_KEY = "sort_key"
 
 
 class SongFilterSet(PrivateUniqueResourceFilterSet):
@@ -130,11 +130,14 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
             "-pk" if descending else "pk",
         )
 
-    def _pk_by_default(self) -> bool:
-        """Without `ordering`, no-total pages sort by pk: Postgres need not sort a genre's whole subtree. Cursor mode
-        keeps the viewset's own uuid order. The one place deciding the default for both ORDER BY and `from`."""
+    def _cursor_mode(self) -> bool:
         # The filterset is also built without a request (tests/integration/criteria/test_reference_graph.py).
-        return self.request is not None and wants_no_total(self.request) and not wants_cursor(self.request)
+        return self.request is not None and wants_cursor(self.request)
+
+    def _pk_by_default(self) -> bool:
+        """Without `ordering`, cursor and no-total pages sort by pk: Postgres need not sort a genre's whole subtree.
+        The one place deciding the default for both ORDER BY and `from`."""
+        return self.request is not None and (wants_cursor(self.request) or wants_total(self.request) is False)
 
     def filter_queryset(self, queryset: QuerySet[Song]) -> QuerySet[Song]:
         parse_coverage(self.data.get("coverage"), criteria_selected=bool(self.data.get("genre")))
@@ -148,12 +151,17 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         if by_pk:
             queryset = queryset.order_by("pk")
         anchor_uuid = self.form.cleaned_data.get(Fields.FROM)
-        if anchor_uuid is None:
+        cursor_mode = self._cursor_mode()
+        if anchor_uuid is not None and cursor_mode and CURSOR_PARAM in self.data:
+            raise ParseError(f"`{Fields.FROM}` and `{CURSOR_PARAM}` are mutually exclusive.")
+        # Cursor pages read the last row's key to build the next cursor.
+        if anchor_uuid is None and not (cursor_mode and ordering):
             return queryset
         key = ORDERINGS[ordering.lstrip("-")] if ordering else (F("pk") if by_pk else DEFAULT_ORDERING)
-        return self._at_or_after(
-            queryset.annotate(**{SORT_KEY: key}), anchor_uuid, bool(ordering and ordering[0] == "-")
-        )
+        queryset = queryset.annotate(**{SORT_KEY: key})
+        if anchor_uuid is None:
+            return queryset
+        return self._at_or_after(queryset, anchor_uuid, bool(ordering and ordering[0] == "-"))
 
     @staticmethod
     def _at_or_after(queryset: QuerySet[Song], anchor_uuid, descending: bool) -> QuerySet[Song]:
@@ -163,14 +171,7 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
         values = list(queryset.filter(pk=anchor_uuid).values_list(SORT_KEY, flat=True)[:1])
         if not values:
             raise NotFound(f"Song {anchor_uuid} is not in this list.")
-        value = values[0]
-        after, pk_from = ("lt", "lte") if descending else ("gt", "gte")
-        null_tail = Q(**{f"{SORT_KEY}__isnull": True})
-        if value is None:
-            return queryset.filter(null_tail, **{f"pk__{pk_from}": anchor_uuid})
-        return queryset.filter(
-            Q(**{f"{SORT_KEY}__{after}": value}) | Q(**{SORT_KEY: value, f"pk__{pk_from}": anchor_uuid}) | null_tail
-        )
+        return seek(queryset, values[0], anchor_uuid, descending=descending, inclusive=True, keyed=True)
 
 
 # `from` is a Python keyword, so it can't be declared as a class attribute.

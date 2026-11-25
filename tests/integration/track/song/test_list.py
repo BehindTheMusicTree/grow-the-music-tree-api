@@ -15,7 +15,7 @@ class TestCase(AppTestCase):
 
         install_song_graph({genre: [song]})
 
-        response = self.api_client.get(path=reverse(self.list_endpoint))
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "true"})
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["overallTotal"] == 1
@@ -30,7 +30,7 @@ class TestCase(AppTestCase):
 
         install_song_graph({})
 
-        response = self.api_client.get(path=reverse(self.list_endpoint))
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "true"})
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["overallTotal"] == 0
@@ -151,20 +151,22 @@ class TestCase(AppTestCase):
                 assert len(seen) == len(expected)
                 assert set(seen) == expected
 
-    def test_list_cursor_requires_genre(self):
-        response = self.api_client.get(path=reverse(self.list_endpoint), data={"pagination": "cursor"})
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_list_with_total_false_without_page_is_offset_not_cursor(self):
+    def test_list_defaults_to_cursor_pages_in_pk_order_without_genre(self):
         genre = self.model_fixture_factory.create_genre("Rock")
-        song = self.model_fixture_factory.create_song(title="T", genre=genre)
-        install_song_graph({genre: [song]})
+        songs = [self.model_fixture_factory.create_song(title=f"T{index}", genre=genre) for index in range(3)]
+        install_song_graph({genre: songs})
 
-        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "false"})
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"pageSize": 2})
+        seen = []
+        while True:
+            assert response.status_code == status.HTTP_200_OK, response.content
+            assert response.data["page"] is None
+            seen += [r["uuid"] for r in response.data["results"]]
+            if response.data["next"] is None:
+                break
+            response = self.api_client.get(response.data["next"])
 
-        assert response.status_code == status.HTTP_200_OK, response.content
-        assert response.data["page"] == 1
+        assert seen == [str(song.uuid) for song in sorted(songs, key=lambda song: song.pk)]
 
     def test_list_cursor_rejects_page(self):
         genre = self.model_fixture_factory.create_genre("Rock")
@@ -175,23 +177,13 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_list_rejects_cursor_without_cursor_mode(self):
-        response = self.api_client.get(path=reverse(self.list_endpoint), data={"cursor": "abc"})
+    def test_list_rejects_cursor_with_page(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"cursor": "abc", "page": 1})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_list_rejects_unknown_pagination_mode(self):
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"pagination": "offset"})
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-    def test_list_cursor_rejects_ordering(self):
-        genre = self.model_fixture_factory.create_genre("Rock")
-
-        response = self.api_client.get(
-            path=reverse(self.list_endpoint),
-            data={"genre": str(genre.uuid), "pagination": "cursor", "ordering": "title"},
-        )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 

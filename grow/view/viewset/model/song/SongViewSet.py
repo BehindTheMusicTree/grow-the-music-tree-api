@@ -38,18 +38,19 @@ from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
-    CURSOR_ORDERING,
     CURSOR_PARAM,
     OptionalTotalPagination,
     wants_cursor,
+    wants_total,
 )
+from grow.view.pagination.song_cursor import SongCursor
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
-ARTIST_CURSOR_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
+ARTIST_CURSOR_PARAMS = {"artist", "ordering", "cursor", "pagination", "page_size", "with_total"}
 ARTIST_PAGE_PARAMS = {"page", "playable", "genre", "from", "coverage", "subgenres"}
 
 
@@ -124,36 +125,39 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         queryset = self.get_queryset()
         params = self.request.query_params
         cursor_mode = wants_cursor(self.request)
-        # Artist-filtered genre panels use the genre catalogue's UUID cursor.
-        if "artist" in params and not (cursor_mode and "genre" in params):
+        if not cursor_mode and CURSOR_PARAM in params:
+            raise ParseError("`cursor` and `page` are mutually exclusive.")
+        if "artist" in params and not cursor_mode:
+            return self._list_numbered_artist_songs(queryset)
+        if self._reads_artist_index():
             return self._list_artist_songs(queryset)
-        if cursor_mode:
-            if "genre" not in params or {"ordering", "from", "page"} & params.keys():
-                raise ParseError(
-                    "Cursor pagination requires `genre` and supports none of `ordering`, `from` and `page`."
-                )
-            # UUID order also supports songs with no legacy genre assignment.
-            queryset = queryset.order_by(*CURSOR_ORDERING)
-        elif CURSOR_PARAM in self.request.query_params:
-            raise ParseError("`cursor` requires genre cursor pagination.")
         return self._get_paginated_list_response(queryset)
 
-    def _list_artist_songs(self, queryset):
-        """Read indexed cursor pages by default and preserve numbered pages for existing clients."""
+    def _reads_artist_index(self) -> bool:
+        """The `ArtistSong` index serves a plain artist list; any other filter or ordering takes the generic keyset."""
         params = self.request.query_params
-        if "page" in params:
-            unsupported = set(params) - ((ARTIST_CURSOR_PARAMS - {"cursor"}) | ARTIST_PAGE_PARAMS)
-            if unsupported:
-                raise ParseError(f"Unsupported artist song filters: {sorted(unsupported)}.")
-            response = self._get_paginated_list_response(queryset)
-            if response.data[PaginatedResponseFields.PAGE] == 2:
-                # DRF omits page=1 from the previous link, but here it selects numbered pagination.
-                previous_key = PaginatedResponseFields.PREVIOUS
-                response.data[previous_key] = replace_query_param(response.data[previous_key], "page", 1)
-            return response
-        unsupported = set(params) - ARTIST_CURSOR_PARAMS
+        return (
+            wants_cursor(self.request)
+            and "artist" in params
+            and set(params) <= ARTIST_CURSOR_PARAMS
+            and params.get("ordering", artist_song_page.DEFAULT_ORDERING) in artist_song_page.ORDERINGS
+        )
+
+    def _list_numbered_artist_songs(self, queryset):
+        unsupported = set(self.request.query_params) - ((ARTIST_CURSOR_PARAMS - {CURSOR_PARAM}) | ARTIST_PAGE_PARAMS)
         if unsupported:
-            raise ParseError(f"Unsupported artist cursor parameters: {sorted(unsupported)}.")
+            raise ParseError(f"Unsupported artist song filters: {sorted(unsupported)}.")
+        response = self._get_paginated_list_response(queryset)
+        if response.data[PaginatedResponseFields.PAGE] == 2:
+            # DRF omits page=1 from the previous link, but here it selects numbered pagination.
+            previous_key = PaginatedResponseFields.PREVIOUS
+            response.data[previous_key] = replace_query_param(response.data[previous_key], "page", 1)
+        return response
+
+    def _list_artist_songs(self, queryset):
+        """Read one indexed cursor page of an artist's songs."""
+        params = self.request.query_params
+        with_total = wants_total(self.request)
         ordering = params.get("ordering", artist_song_page.DEFAULT_ORDERING)
         if ordering not in artist_song_page.ORDERINGS:
             raise ParseError(f"`ordering` with `artist` must be one of {list(artist_song_page.ORDERINGS)}.")
@@ -162,8 +166,9 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         except ValueError as error:
             raise ParseError("Invalid artist.") from error
         raw_cursor = params.get("cursor")
-        cursor = artist_song_page.Cursor.decode(raw_cursor, ordering) if raw_cursor else None
+        cursor = SongCursor.decode(raw_cursor, ordering) if raw_cursor else None
         ArtistSong.objects.require_ready()
+        total = ArtistSong.objects.filter(artist_id=artist_id).count() if with_total else None
         size = self.paginator.get_page_size(self.request)
         found = artist_song_page.page(artist_id, ordering, cursor, size + 1)
         has_next = len(found) > size
@@ -185,7 +190,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         )
         return Response(
             {
-                PaginatedResponseFields.OVERALL_TOTAL: None,
+                PaginatedResponseFields.OVERALL_TOTAL: total,
                 PaginatedResponseFields.NEXT: next_link,
                 PaginatedResponseFields.PREVIOUS: None,
                 PaginatedResponseFields.RESULTS: data,

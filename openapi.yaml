@@ -3461,8 +3461,8 @@ paths:
       - name: cursor
         required: false
         in: query
-        description: Opaque cursor from the previous page's `next` link, in cursor
-          mode.
+        description: Opaque cursor from the previous page's `next` link; only valid
+          with the same `ordering`, and not with `page` or `from`.
         schema:
           type: string
       - in: query
@@ -3516,8 +3516,9 @@ paths:
       - name: pagination
         required: false
         in: query
-        description: '`cursor` switches to keyset pagination (no total, ordered by
-          `uuid`, requires `genre`; rejects `page`, `ordering` and `from`).'
+        description: 'Deprecated and without effect: requests without `page` use cursor
+          pagination.'
+        deprecated: true
         schema:
           type: string
           enum:
@@ -3562,8 +3563,8 @@ paths:
       - name: with_total
         required: false
         in: query
-        description: '`false` skips the total count. Genre requests without `page`,
-          `ordering` or `from` use the genre cursor for compatibility.'
+        description: With `page`, `false` skips the total count. Without `page` (cursor
+          mode) the total is only counted with `true`.
         schema:
           type: boolean
       tags:
@@ -8564,7 +8565,7 @@ components:
         overallTotal:
           type: integer
           nullable: true
-          description: Null with `with_total=false` and in cursor mode.
+          description: Null with `with_total=false`, and in cursor mode unless `with_total=true`.
         next:
           type: string
           format: uri

@@ -1,3 +1,6 @@
+from urllib.parse import parse_qs, urlparse
+
+from django.db import connection
 from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
@@ -131,15 +134,13 @@ class TestCase(AppTestCase):
         self._with_years()
         Song = type(self.matching_track)
 
-        for with_total in (None, "false"):
+        for mode in ({}, {"page": 1}, {"page": 1, "withTotal": "false"}):
             for ordering in ("title", "-title", "albumYear", "-albumYear", None):
-                params = {"ordering": ordering} if ordering else {}
-                if with_total:
-                    params["withTotal"] = with_total
+                params = {**mode, **({"ordering": ordering} if ordering else {})}
                 full = self._titles(**params)
                 for index, title in enumerate(full):
                     anchor = str(Song.objects.get(title=title).pk)
-                    assert self._titles(**params, **{"from": anchor}) == full[index:], (with_total, ordering, title)
+                    assert self._titles(**params, **{"from": anchor}) == full[index:], (mode, ordering, title)
 
     def test_without_total_defaults_to_pk_order(self):
         self._install_graph()
@@ -147,8 +148,74 @@ class TestCase(AppTestCase):
         Song = type(self.matching_track)
         expected = [song.title for song in Song.objects.order_by("pk")]
 
-        assert self._titles(withTotal="false") == expected
-        assert self._titles(withTotal="false", ordering="title") == sorted(expected)
+        for mode in ({}, {"page": 1, "withTotal": "false"}):
+            assert self._titles(**mode) == expected
+            assert self._titles(**mode, ordering="title") == sorted(expected)
+
+    def _walk(self, **params):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={**params, "pageSize": 2})
+        seen = []
+        while True:
+            assert response.status_code == status.HTTP_200_OK, response.data
+            seen += [track["title"] for track in response.data["results"]]
+            if response.data["next"] is None:
+                return seen
+            assert "from=" not in response.data["next"]
+            response = self.api_client.get(response.data["next"])
+
+    def test_cursor_pages_walk_every_ordering_without_gaps_or_repeats(self):
+        self._install_graph()
+        self._with_years()
+        Song = type(self.matching_track)
+
+        for ordering in ("title", "-title", "albumYear", "-albumYear", None):
+            params = {"ordering": ordering} if ordering else {}
+            full = self._titles(**params)
+            assert self._walk(**params) == full, ordering
+            anchor = str(Song.objects.get(title=full[2]).pk)
+            assert self._walk(**params, **{"from": anchor}) == full[2:], ordering
+
+    def test_cursor_total_is_counted_only_on_request(self):
+        self._install_graph()
+        path = reverse(self.list_endpoint)
+
+        statements: list[str] = []
+
+        def record(execute, sql, params, many, context):
+            statements.append(sql)
+            return execute(sql, params, many, context)
+
+        with connection.execute_wrapper(record):
+            uncounted = self.api_client.get(path=path, data={"pageSize": 1})
+        uncounted_queries = len(statements)
+        with connection.execute_wrapper(record):
+            counted = self.api_client.get(path=path, data={"pageSize": 1, "withTotal": "true"})
+        counted_queries = len(statements) - uncounted_queries
+        second = self.api_client.get(counted.data["next"])
+
+        assert uncounted.data["overallTotal"] is None
+        assert counted.data["overallTotal"] == second.data["overallTotal"] == 2
+        assert counted_queries == uncounted_queries + 1
+
+    def test_invalid_total_then_400(self):
+        self._install_graph()
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "maybe"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_cursor_with_from_or_another_ordering_then_400(self):
+        self._install_graph()
+        path = reverse(self.list_endpoint)
+        first = self.api_client.get(path=path, data={"ordering": "title", "pageSize": 1})
+        cursor = parse_qs(urlparse(first.data["next"]).query)["cursor"][0]
+
+        for params in (
+            {"ordering": "title", "cursor": cursor, "from": str(self.matching_track.pk)},
+            {"ordering": "-albumYear", "cursor": cursor},
+            {"cursor": cursor},
+        ):
+            response = self.api_client.get(path=path, data=params)
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, params
 
     def test_from_anchor_filtered_out_then_404(self):
         self._install_graph()

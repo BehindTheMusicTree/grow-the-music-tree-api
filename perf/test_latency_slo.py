@@ -83,19 +83,20 @@ def _largest_genre_uuid() -> str:
 
 
 def _songs_tracklist(ordering: str, page: int) -> tuple[str, dict]:
-    genre = _largest_genre_uuid()
-    if page > 1:
-        # Page N must exist, otherwise the scenario would time a 404.
-        needed = (page - 1) * SONGS_PAGE_SIZE + 1
-        listed = _songs_get({"genre": genre, "playable": "true", "page_size": 1, "page": needed})
-        assert listed["results"], f"largest genre has fewer than {needed} playable songs"
-    return reverse("song-list"), {
-        "genre": genre,
-        "playable": "true",
-        "ordering": ordering,
-        "page": page,
-        "page_size": SONGS_PAGE_SIZE,
-    }
+    params = {"genre": _largest_genre_uuid(), "playable": "true", "ordering": ordering, "page_size": SONGS_PAGE_SIZE}
+    if page == 1:
+        return reverse("song-list"), {**params, "with_total": "true"}
+    # Later pages are reached by cursor, without recounting; walking there is not timed.
+    cursor: dict = {}
+    for _ in range(page - 1):
+        next_url = _songs_get({**params, **cursor})["next"]
+        assert next_url, f"largest genre has fewer than {page} pages of playable songs"
+        cursor = _cursor_param(next_url)
+    return reverse("song-list"), {**params, **cursor}
+
+
+def _cursor_param(next_url: str) -> dict:
+    return {"cursor": parse_qs(urlparse(next_url).query)["cursor"][0]}
 
 
 def _songs_tracklist_from() -> tuple[str, dict]:
@@ -103,14 +104,14 @@ def _songs_tracklist_from() -> tuple[str, dict]:
     base = {"genre": genre, "playable": "true", "ordering": "-albumYear", "page_size": SONGS_PAGE_SIZE}
     anchor_page = _songs_get({**base, "page": 2})["results"]
     assert len(anchor_page) > 50, "largest genre has fewer than 150 playable songs"
-    return reverse("song-list"), {**base, "from": anchor_page[49]["uuid"], "page": 1}
+    return reverse("song-list"), {**base, "from": anchor_page[49]["uuid"], "with_total": "true"}
 
 
 def _songs_genre_panel_second_page() -> tuple[str, dict]:
     params = {"genre": _largest_genre_uuid(), "with_total": "false", "page_size": SONGS_PAGE_SIZE}
     next_url = _songs_get(params)["next"]
     assert next_url, "largest genre has a single page of songs"
-    return reverse("song-list"), {**params, "cursor": parse_qs(urlparse(next_url).query)["cursor"][0]}
+    return reverse("song-list"), {**params, **_cursor_param(next_url)}
 
 
 PATHS = {

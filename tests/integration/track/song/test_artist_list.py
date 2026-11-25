@@ -77,9 +77,6 @@ class TestCase(AppTestCase):
     def test_unsupported_ordering_and_filters_are_rejected(self):
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
         for extra in (
-            {"ordering": "-title"},
-            {"playable": "true"},
-            {"genre": str(uuid4())},
             {"page": 1, "cursor": "invalid"},
             {"page": 1, "unknown": "true"},
         ):
@@ -147,6 +144,36 @@ class TestCase(AppTestCase):
         assert second.data["next"] is None
         assert {item["title"] for item in response.data["results"] + second.data["results"]} == {"A", "B"}
 
+    def test_other_filters_and_orderings_take_the_generic_cursor(self):
+        artist, _ = self._artist_with_songs([("B", 2000), ("A", 2000), ("C", 2000)])
+
+        # The artist index is not ready here: the generic keyset does not read it.
+        for extra, expected in (
+            ({"ordering": "-title"}, ["C", "B", "A"]),
+            ({"ordering": "title", "playable": "true"}, ["A", "B", "C"]),
+        ):
+            response = self.api_client.get(
+                path=reverse(self.list_endpoint), data={"artist": str(artist.uuid), "pageSize": 2, **extra}
+            )
+            assert response.status_code == status.HTTP_200_OK, response.content
+            second = self.api_client.get(response.data["next"])
+            assert [r["title"] for r in response.data["results"] + second.data["results"]] == expected
+
+    def test_artist_index_pages_count_on_request_and_accept_legacy_cursors(self):
+        artist, songs = self._artist_with_songs([("B", 2000), ("A", 2000)])
+        ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
+        legacy = base64.urlsafe_b64encode(json.dumps(["A", str(songs[1].pk)]).encode()).decode()
+
+        counted = self.api_client.get(
+            path=reverse(self.list_endpoint), data={"artist": str(artist.uuid), "withTotal": "true"}
+        )
+        resumed = self.api_client.get(
+            path=reverse(self.list_endpoint), data={"artist": str(artist.uuid), "cursor": legacy}
+        )
+
+        assert counted.data["overallTotal"] == 2
+        assert [r["title"] for r in resumed.data["results"]] == ["B"]
+
     def test_invalid_cursor_is_rejected(self):
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
 
@@ -158,7 +185,12 @@ class TestCase(AppTestCase):
 
     def test_forged_cursors_are_rejected(self):
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
-        for payload in (["x", 5], ["x", [1]], ["\x00", str(uuid4())]):
+        for payload in (
+            ["x", 5],
+            ["x", [1]],
+            ["\x00", str(uuid4())],
+            [1, "-albumYear", 2000, str(uuid4())],
+        ):
             cursor = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
             response = self.api_client.get(
