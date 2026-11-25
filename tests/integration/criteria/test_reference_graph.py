@@ -614,7 +614,7 @@ def test_song_list_and_cursor_include_graph_only_assignments(payload):
         )
     genre = Genre.objects.get(graph_node__identity="LOCAL:france")
     client = APIClient()
-    url = reverse("song-list") + f"?genre={genre.pk}&with_total=false&page_size=1"
+    url = reverse("song-list") + f"?genre={genre.pk}&pagination=cursor&page_size=1"
     seen = []
     while url:
         response = client.get(url)

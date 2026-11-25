@@ -11,6 +11,8 @@ from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import Pagin
 
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
+PAGINATION_PARAM = "pagination"
+CURSOR_MODE = "cursor"
 CURSOR_ORDERING = ("uuid",)
 
 
@@ -19,8 +21,11 @@ def wants_no_total(request: Request) -> bool:
 
 
 def wants_cursor(request: Request) -> bool:
-    """Keyset mode: no total and no explicit page (a `page` param keeps the OFFSET path for older clients)."""
-    return wants_no_total(request) and "page" not in request.query_params
+    """Keyset mode is explicit: `?pagination=cursor`. Any other value is rejected rather than silently ignored."""
+    mode = request.query_params.get(PAGINATION_PARAM)
+    if mode is not None and mode != CURSOR_MODE:
+        raise ParseError(f"`{PAGINATION_PARAM}` only accepts `{CURSOR_MODE}`.")
+    return mode == CURSOR_MODE
 
 
 def _encode_cursor(uuid: UUID) -> str:
@@ -44,8 +49,8 @@ class OptionalTotalPagination(AppPagination):
     """`?withTotal=false` (seen as `with_total` after CamelToSnakeMiddleware) skips the COUNT(*): fetches one extra row to know whether a next page exists."""
 
     def paginate_queryset(self, queryset, request, view=None):
-        self._no_total = wants_no_total(request)
         self._cursor_mode = wants_cursor(request)
+        self._no_total = self._cursor_mode or wants_no_total(request)
         if not self._no_total:
             return super().paginate_queryset(queryset, request, view)
         self.request = request
@@ -149,8 +154,18 @@ class OptionalTotalPagination(AppPagination):
                 "name": NO_TOTAL_PARAM,
                 "required": False,
                 "in": "query",
-                "description": "`false` skips the total count; without `page` it also switches to cursor pagination.",
+                "description": "`false` skips the total count; pages stay numbered (see `pagination` for cursor mode).",
                 "schema": {"type": "boolean"},
+            },
+            {
+                "name": PAGINATION_PARAM,
+                "required": False,
+                "in": "query",
+                "description": (
+                    "`cursor` switches to keyset pagination (no total, ordered by `uuid`, requires `genre`; "
+                    "rejects `page`, `ordering` and `from`)."
+                ),
+                "schema": {"type": "string", "enum": [CURSOR_MODE]},
             },
             {
                 "name": CURSOR_PARAM,

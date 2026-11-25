@@ -39,6 +39,7 @@ from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_ORDERING,
+    CURSOR_PARAM,
     OptionalTotalPagination,
     wants_cursor,
     wants_no_total,
@@ -125,10 +126,14 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             return self._list_artist_songs(queryset)
         if wants_cursor(self.request):
             params = self.request.query_params
-            if "genre" not in params or "ordering" in params or "from" in params:
-                raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
+            if "genre" not in params or {"ordering", "from", "page"} & params.keys():
+                raise ParseError(
+                    "Cursor pagination requires `genre` and supports none of `ordering`, `from` and `page`."
+                )
             # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
+        elif CURSOR_PARAM in self.request.query_params:
+            raise ParseError("`cursor` requires `pagination=cursor`.")
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
