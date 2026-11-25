@@ -136,21 +136,52 @@ class TestCase(AppTestCase):
         install_song_graph(assignments, classifications=[(blues_rock, rock)])
         path = reverse(self.list_endpoint)
 
-        seen = []
-        response = self.api_client.get(path=path, data={"genre": str(rock.uuid), "pageSize": 2, "withTotal": "false"})
-        while True:
-            assert response.status_code == status.HTTP_200_OK, response.content
-            assert response.data["page"] is None
-            seen += [r["uuid"] for r in response.data["results"]]
-            if response.data["next"] is None:
-                break
-            response = self.api_client.get(response.data["next"])
+        for mode in ({"pagination": "cursor"}, {"withTotal": "false"}):
+            with self.subTest(mode=mode):
+                seen = []
+                response = self.api_client.get(path=path, data={"genre": str(rock.uuid), "pageSize": 2, **mode})
+                while True:
+                    assert response.status_code == status.HTTP_200_OK, response.content
+                    assert response.data["page"] is None
+                    seen += [r["uuid"] for r in response.data["results"]]
+                    if response.data["next"] is None:
+                        break
+                    response = self.api_client.get(response.data["next"])
 
-        assert len(seen) == len(expected)
-        assert set(seen) == expected
+                assert len(seen) == len(expected)
+                assert set(seen) == expected
 
     def test_list_cursor_requires_genre(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"pagination": "cursor"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_list_with_total_false_without_page_is_offset_not_cursor(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+        song = self.model_fixture_factory.create_song(title="T", genre=genre)
+        install_song_graph({genre: [song]})
+
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "false"})
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert response.data["page"] == 1
+
+    def test_list_cursor_rejects_page(self):
+        genre = self.model_fixture_factory.create_genre("Rock")
+
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint), data={"genre": str(genre.uuid), "pagination": "cursor", "page": 1}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_list_rejects_cursor_without_cursor_mode(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"cursor": "abc"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_list_rejects_unknown_pagination_mode(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"pagination": "offset"})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
@@ -159,7 +190,7 @@ class TestCase(AppTestCase):
 
         response = self.api_client.get(
             path=reverse(self.list_endpoint),
-            data={"genre": str(genre.uuid), "withTotal": "false", "ordering": "title"},
+            data={"genre": str(genre.uuid), "pagination": "cursor", "ordering": "title"},
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -169,7 +200,7 @@ class TestCase(AppTestCase):
 
         response = self.api_client.get(
             path=reverse(self.list_endpoint),
-            data={"genre": str(genre.uuid), "withTotal": "false", "cursor": "not-a-cursor"},
+            data={"genre": str(genre.uuid), "pagination": "cursor", "cursor": "not-a-cursor"},
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -185,10 +216,10 @@ class TestCase(AppTestCase):
         install_song_graph({genre: songs})
         path = reverse(self.list_endpoint)
 
-        first = self.api_client.get(path=path, data={"genre": str(genre.uuid), "pageSize": 2, "withTotal": "false"})
-        second = self.api_client.get(
-            path=path, data={"genre": str(genre.uuid), "pageSize": 2, "page": 2, "withTotal": "false"}
+        first = self.api_client.get(
+            path=path, data={"genre": str(genre.uuid), "pageSize": 2, "page": 1, "withTotal": "false"}
         )
+        second = self.api_client.get(first.data["next"])
 
         assert first.status_code == status.HTTP_200_OK, first.content
         assert first.data["overallTotal"] is None
@@ -197,3 +228,6 @@ class TestCase(AppTestCase):
         assert len(second.data["results"]) == 1
         assert second.data["next"] is None
         assert second.data["previous"] is not None
+        previous = self.api_client.get(second.data["previous"])
+        assert previous.data["page"] == 1
+        assert previous.data["results"] == first.data["results"]

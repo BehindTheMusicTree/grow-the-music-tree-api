@@ -39,6 +39,7 @@ from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_ORDERING,
+    CURSOR_PARAM,
     OptionalTotalPagination,
     wants_cursor,
     wants_no_total,
@@ -49,7 +50,8 @@ from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_ac
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
-ARTIST_LIST_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
+ARTIST_CURSOR_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
+ARTIST_PAGE_PARAMS = {"page", "playable", "genre", "from", "coverage", "subgenres"}
 
 
 @extend_schema_view(
@@ -121,24 +123,40 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
         queryset = self.get_queryset()
-        if "artist" in self.request.query_params:
+        params = self.request.query_params
+        cursor_mode = wants_cursor(self.request)
+        # Artist-filtered genre panels use the genre catalogue's UUID cursor.
+        if "artist" in params and not (cursor_mode and "genre" in params):
             return self._list_artist_songs(queryset)
-        if wants_cursor(self.request):
-            params = self.request.query_params
-            if "genre" not in params or "ordering" in params or "from" in params:
-                raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
+        if cursor_mode:
+            if "genre" not in params or {"ordering", "from", "page"} & params.keys():
+                raise ParseError(
+                    "Cursor pagination requires `genre` and supports none of `ordering`, `from` and `page`."
+                )
             # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
+        elif CURSOR_PARAM in self.request.query_params:
+            raise ParseError("`cursor` requires genre cursor pagination.")
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
 
     def _list_artist_songs(self, queryset):
-        """`?artist`: a keyset page read from `grow_artist_song`, whose cost doesn't grow with the artist's size."""
+        """Read indexed cursor pages by default and preserve numbered pages for existing clients."""
         params = self.request.query_params
-        unsupported = set(params) - ARTIST_LIST_PARAMS
+        if "page" in params:
+            unsupported = set(params) - ((ARTIST_CURSOR_PARAMS - {"cursor"}) | ARTIST_PAGE_PARAMS)
+            if unsupported:
+                raise ParseError(f"Unsupported artist song filters: {sorted(unsupported)}.")
+            response = self._get_paginated_list_response(queryset)
+            if response.data[PaginatedResponseFields.PAGE] == 2:
+                # DRF omits page=1 from the previous link, but here it selects numbered pagination.
+                previous_key = PaginatedResponseFields.PREVIOUS
+                response.data[previous_key] = replace_query_param(response.data[previous_key], "page", 1)
+            return response
+        unsupported = set(params) - ARTIST_CURSOR_PARAMS
         if unsupported:
-            raise ParseError(f"`artist` supports only {sorted(ARTIST_LIST_PARAMS)}, not {sorted(unsupported)}.")
+            raise ParseError(f"Unsupported artist cursor parameters: {sorted(unsupported)}.")
         ordering = params.get("ordering", artist_song_page.DEFAULT_ORDERING)
         if ordering not in artist_song_page.ORDERINGS:
             raise ParseError(f"`ordering` with `artist` must be one of {list(artist_song_page.ORDERINGS)}.")

@@ -14,7 +14,7 @@ from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.song.Fields import Fields as ModelFields
 from grow.model.song.Song import Song
-from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM
+from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM, PAGINATION_PARAM
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
 
 from .Fields import Fields
@@ -36,6 +36,7 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
     allowed_non_filter_params = PrivateUniqueResourceFilterSet.allowed_non_filter_params | {
         NO_TOTAL_PARAM,
         CURSOR_PARAM,
+        PAGINATION_PARAM,
     }
 
     title = CharFilter(field_name=ModelFields.TITLE, lookup_expr="icontains")
