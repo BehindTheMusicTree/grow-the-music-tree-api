@@ -89,19 +89,25 @@ Regional genres only accept `all` among the legacy values. Contract 4 scopes wor
 
 #### Pagination modes
 
-- Default: numbered pages (`page`, `page_size`) with a total. `with_total=false` skips the `COUNT(*)` and keeps numbered
-  pages (`count` and `totalPages` are null; `page` defaults to 1).
-- `pagination=cursor` switches to keyset pagination ordered by `uuid`: no total, `next` carries the `cursor` of the
-  following page. It requires `genre` and rejects `page`, `ordering` and `from` (400); `cursor` without it is a 400 too. Any other `pagination` value is a
-  400 too.
+- Numbered pages (`page`, `page_size`) include a total by default. Use `page` with `with_total=false` to skip the
+  count and keep numbered pages. Both `overallTotal` and `totalPages` are then null.
+- `pagination=cursor` with `genre` selects keyset pagination ordered by `uuid`. There is no total, and `next` carries the
+  following page's cursor. This mode rejects `page`, `ordering` and `from` with 400. Existing genre panels also select
+  this mode by sending `genre` and `with_total=false` without those three parameters.
+- An unknown `pagination` value or a cursor on a numbered request returns 400.
 
 #### List by artist
 
+An explicit `page` selects the numbered pagination used by existing artist panels and playback queues. This mode accepts
+`playable`, `genre`, `from`, `coverage` and `subgenres`, with the same filters as the general song list. Its response
+includes page numbers and, by default, the total. An artist filter can also narrow the genre catalogue cursor above.
+Use artist cursor pagination below for large unfiltered artist catalogues.
+
 `GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
 
-Only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
+For cursor pages, only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
 returns 400, as do an unknown ordering or an invalid cursor. Pages are keyset pages: `next` carries the `cursor` of the
-following page and is null on the last one. `count`, `page` and `totalPages` are null, `previous` is always null.
+following page and is null on the last one. `overallTotal`, `page`, `totalPages` and `previous` are null.
 Songs without an album year come last under `-albumYear`.
 
 The page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort

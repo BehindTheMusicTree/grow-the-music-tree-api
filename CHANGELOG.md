@@ -31,9 +31,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Breaking:** keyset pagination of `library/songs/` is now explicit: `?pagination=cursor` (requires `genre`, rejects `page`, `ordering` and `from`; another `pagination` value is a 400). `with_total=false` no longer switches to cursor mode: without `page` it returns numbered page 1 with no total. Clients that relied on `with_total=false` for cursors must send `pagination=cursor`. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
+- Genre song lists accept `pagination=cursor` for UUID keyset pages. Existing clients also get keyset pages when they send `genre` and `with_total=false` without `page`, `ordering` or `from`. On numbered pages, `with_total=false` skips the total count. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
 
 ### Fixed
+
+- Keep artist song browsing and playback compatible with existing numbered-page clients. Genre assignment responses retain `previous[].undoable=false` for those clients while the new frontend restores edits through the server's undo token.
 
 - Paginated lists reject `page_size` of 0, below 1 or non-integer with 400 (`page_size=0` used to return the whole table unpaginated), cap it at `PAGINATION_PAGE_SIZE_MAX`, and no longer read the `pageSize` query alias (api-kit v0.12.4 via genre-kit v0.72.5). `openapi.yaml` now documents the real list envelope (`overallTotal`, `page`, `pageSize`, `totalPages`) instead of DRF's `count`. Covered by `tests/integration/artist/test_artists.py`
 - `GET /v1/albums/{uuid}/` no longer answers 500: `AlbumDetailedSerializer` read fields the viewset does not annotate. Covered by `tests/integration/album/test_albums.py`.

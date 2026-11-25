@@ -5,7 +5,7 @@ from uuid import UUID
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.utils.urls import remove_query_param, replace_query_param
+from rest_framework.utils.urls import replace_query_param
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
@@ -21,11 +21,14 @@ def wants_no_total(request: Request) -> bool:
 
 
 def wants_cursor(request: Request) -> bool:
-    """Keyset mode is explicit: `?pagination=cursor`. Any other value is rejected rather than silently ignored."""
-    mode = request.query_params.get(PAGINATION_PARAM)
+    params = request.query_params
+    mode = params.get(PAGINATION_PARAM)
     if mode is not None and mode != CURSOR_MODE:
         raise ParseError(f"`{PAGINATION_PARAM}` only accepts `{CURSOR_MODE}`.")
-    return mode == CURSOR_MODE
+    # Released genre panels send withTotal=false and follow the cursor in next.
+    return mode == CURSOR_MODE or (
+        "genre" in params and wants_no_total(request) and not {"page", "ordering", "from"} & params.keys()
+    )
 
 
 def _encode_cursor(uuid: UUID) -> str:
@@ -97,13 +100,7 @@ class OptionalTotalPagination(AppPagination):
             )
         url = self.request.build_absolute_uri()
         next_link = replace_query_param(url, self.page_query_param, self._number + 1) if self._has_next else None
-        previous_link = None
-        if self._number > 1:
-            previous_link = (
-                remove_query_param(url, self.page_query_param)
-                if self._number == 2
-                else replace_query_param(url, self.page_query_param, self._number - 1)
-            )
+        previous_link = replace_query_param(url, self.page_query_param, self._number - 1) if self._number > 1 else None
         return Response(
             {
                 PaginatedResponseFields.OVERALL_TOTAL: None,
@@ -154,7 +151,10 @@ class OptionalTotalPagination(AppPagination):
                 "name": NO_TOTAL_PARAM,
                 "required": False,
                 "in": "query",
-                "description": "`false` skips the total count; pages stay numbered (see `pagination` for cursor mode).",
+                "description": (
+                    "`false` skips the total count. Genre requests without `page`, `ordering` or `from` "
+                    "use the genre cursor for compatibility."
+                ),
                 "schema": {"type": "boolean"},
             },
             {

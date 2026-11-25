@@ -3603,8 +3603,8 @@ paths:
       - name: with_total
         required: false
         in: query
-        description: '`false` skips the total count; pages stay numbered (see `pagination`
-          for cursor mode).'
+        description: '`false` skips the total count. Genre requests without `page`,
+          `ordering` or `from` use the genre cursor for compatibility.'
         schema:
           type: boolean
       tags:
@@ -9593,8 +9593,13 @@ components:
           type: string
           format: uuid
           nullable: true
+        undoable:
+          type: boolean
+          description: Always false. Use the response's undo token to restore the
+            edit.
       required:
       - genre
+      - undoable
       - uuid
     SongSearchResult:
       type: object

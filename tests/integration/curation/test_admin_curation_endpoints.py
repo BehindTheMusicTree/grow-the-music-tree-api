@@ -58,7 +58,7 @@ class TestCase(AppTestCase):
         response = self._assign([song], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None, "undoable": False}]
         song.refresh_from_db()
         assert song.genre.pk == rock.pk
         assert song.is_manually_edited
@@ -111,8 +111,8 @@ class TestCase(AppTestCase):
         response = self._assign([a, b], jazz)
 
         assert response.json()["previous"] == [
-            {"uuid": str(a.uuid), "genre": str(rock.uuid)},
-            {"uuid": str(b.uuid), "genre": None},
+            {"uuid": str(a.uuid), "genre": str(rock.uuid), "undoable": False},
+            {"uuid": str(b.uuid), "genre": None, "undoable": False},
         ]
         assert self._undo(response).status_code == status.HTTP_204_NO_CONTENT
         a.refresh_from_db()
@@ -126,7 +126,7 @@ class TestCase(AppTestCase):
 
         response = self._assign([song], self._rock())
 
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(local.uuid)}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(local.uuid), "undoable": False}]
         assert self._undo(response).status_code == status.HTTP_204_NO_CONTENT
         song.refresh_from_db()
         assert song.genre.pk == local.pk
