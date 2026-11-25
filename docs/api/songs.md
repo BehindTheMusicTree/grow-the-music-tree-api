@@ -91,6 +91,8 @@ Regional genres only accept `all` among the legacy values. Contract 4 scopes wor
 
 - Numbered pages (`page`, `page_size`) include a total by default. Use `page` with `with_total=false` to skip the
   count and keep numbered pages. Both `overallTotal` and `totalPages` are then null.
+  Without `ordering` these pages sort by `uuid`, not by creation date; `ordering` and `from` are honored, and `from`
+  starts at the anchor in that active order.
 - `pagination=cursor` with `genre` selects keyset pagination ordered by `uuid`. There is no total, and `next` carries the
   following page's cursor. This mode rejects `page`, `ordering` and `from` with 400. Existing genre panels also select
   this mode by sending `genre` and `with_total=false` without those three parameters.

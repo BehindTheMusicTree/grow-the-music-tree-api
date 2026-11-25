@@ -14,7 +14,13 @@ from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
 from grow.model.song.Fields import Fields as ModelFields
 from grow.model.song.Song import Song
-from grow.view.pagination.OptionalTotalPagination import CURSOR_PARAM, NO_TOTAL_PARAM, PAGINATION_PARAM
+from grow.view.pagination.OptionalTotalPagination import (
+    CURSOR_PARAM,
+    NO_TOTAL_PARAM,
+    PAGINATION_PARAM,
+    wants_cursor,
+    wants_no_total,
+)
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
 
 from .Fields import Fields
@@ -124,6 +130,12 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
             "-pk" if descending else "pk",
         )
 
+    def _pk_by_default(self) -> bool:
+        """Without `ordering`, no-total pages sort by pk: Postgres need not sort a genre's whole subtree. Cursor mode
+        keeps the viewset's own uuid order. The one place deciding the default for both ORDER BY and `from`."""
+        # The filterset is also built without a request (tests/integration/criteria/test_reference_graph.py).
+        return self.request is not None and wants_no_total(self.request) and not wants_cursor(self.request)
+
     def filter_queryset(self, queryset: QuerySet[Song]) -> QuerySet[Song]:
         parse_coverage(self.data.get("coverage"), criteria_selected=bool(self.data.get("genre")))
         if self.data.get("subgenres") is not None and not self.data.get("genre"):
@@ -131,11 +143,14 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
 
             raise ValidationError({"subgenres": "Subgenre scope requires a genre selection."})
         queryset = super().filter_queryset(queryset)
+        ordering = self.form.cleaned_data.get("ordering")
+        by_pk = not ordering and self._pk_by_default()
+        if by_pk:
+            queryset = queryset.order_by("pk")
         anchor_uuid = self.form.cleaned_data.get(Fields.FROM)
         if anchor_uuid is None:
             return queryset
-        ordering = self.form.cleaned_data.get("ordering")
-        key = ORDERINGS[ordering.lstrip("-")] if ordering else DEFAULT_ORDERING
+        key = ORDERINGS[ordering.lstrip("-")] if ordering else (F("pk") if by_pk else DEFAULT_ORDERING)
         return self._at_or_after(
             queryset.annotate(**{SORT_KEY: key}), anchor_uuid, bool(ordering and ordering[0] == "-")
         )
