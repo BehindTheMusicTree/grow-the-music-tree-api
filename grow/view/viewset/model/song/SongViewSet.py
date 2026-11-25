@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ParseError, ValidationError
@@ -31,6 +32,7 @@ from grow.serializer.model.song.input import (
 from grow.serializer.model.song.output.detailed import SongDetailedSerializer
 from grow.serializer.model.song.output.full import SongFullSerializer
 from grow.serializer.model.song.search import SongSearchQuerySerializer, SongSearchResultSerializer
+from grow.serializer.schema.song import SongAssignGenreResultSerializer
 from grow.track.bulk_import.merge import merge_song_import_run
 from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
@@ -50,6 +52,23 @@ from grow.youtube_regions import viewer_country
 ARTIST_LIST_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
 
 
+@extend_schema_view(
+    list=extend_schema(
+        responses=OpenApiResponse(
+            SongDetailedSerializer(many=True),
+            description="Headers `X-Genre-Graph-Revision` and `X-Genre-Membership-Revision` carry the graph read.",
+        )
+    ),
+    destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}),
+    partial_update=extend_schema(request=SongYoutubePatchSerializer, responses=SongFullSerializer),
+    assign_genre=extend_schema(request=SongAssignGenreSerializer, responses=SongAssignGenreResultSerializer),
+    undo_assign_genre=extend_schema(
+        request=SongAssignGenreUndoSerializer, responses={status.HTTP_204_NO_CONTENT: None}
+    ),
+    search=extend_schema(
+        parameters=[SongSearchQuerySerializer], responses=SongSearchResultSerializer(many=True), filters=False
+    ),
+)
 class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     pagination_class = OptionalTotalPagination
     throttle_scope = "song-search"
@@ -200,6 +219,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         authentication_classes=[],
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
+        pagination_class=None,
     )
     def search(self, request):
         query = SongSearchQuerySerializer(data=request.query_params)

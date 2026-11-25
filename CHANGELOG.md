@@ -20,9 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Genres domain in the OpenAPI contract: genre operations, the genre graph and song attributions, genealogy, the genre playlist `tracks` and `tree` actions and the import-run status helper now have typed requests and responses. Covered by `tests/unit/openapi/test_schema.py`.
 
+- Library domain in the OpenAPI contract: songs, artists and albums, plus the import-run protocol shared by songs, artists and the region map (create 201 `{runId}`, NDJSON part uploads 200 `{count}`, commit 202 `{taskId}`; the song run declares `graphRevision`, `membershipRevision` and `expectedParts`). The song list documents its real envelope (`overallTotal`, `page`, `pageSize`, `totalPages`, nullable without `with_total`) and its `with_total` and `cursor` parameters. Covered by `tests/unit/openapi/test_schema.py`.
+
 ### Fixed
 
 - `GET /v1/albums/{uuid}/` no longer answers 500: `AlbumDetailedSerializer` read fields the viewset does not annotate. Covered by `tests/integration/album/test_albums.py`.
+- OpenAPI: `history`, the song, artist and genre `search`, artist `genre-counts`, genre `name-conflicts` and `link-suggestions` are documented as the bare arrays they return, not as paginated filtered lists; `PATCH /v1/library/songs/{uuid}/` is no longer dropped from the schema (the 405 filter now keeps a `partial_update` implemented without `update`). Covered by `tests/unit/openapi/`.
 - `perf.yml` limits the `GITHUB_TOKEN` to `contents: read` for both jobs, closing the two CodeQL `actions/missing-workflow-permissions` alerts.
 
 ### Improved
@@ -115,6 +118,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### CI
 
 - Workflow `concurrency` groups follow the org convention (github-config#69): CI workflows (`validate`, `perf`, `catalogue-benchmark`, `agent-drift`) group by `head_ref || ref` and cancel superseded runs on pull requests only; `release-tag` runs once per pushed commit and is never cancelled.
+
+## [18.0.1] - 2026-11-24
+
+### Fixed
+
+- Align workflow concurrency and organization conformance checks while preserving deployment queues.
 
 ## [18.0.0] - 2026-11-18
 

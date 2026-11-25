@@ -265,7 +265,7 @@ paths:
           description: No response body
   /v1/artists/{uuid}/genre-counts/:
     get:
-      operationId: v1_artists_genre_counts_retrieve
+      operationId: v1_artists_genre_counts_list
       description: Sparse per-genre-playlist counts of the artist's songs, for pruning
         the genre tree to their footprint.
       parameters:
@@ -282,27 +282,50 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArtistGenreCount'
+          description: ''
   /v1/artists/import-runs/:
     post:
       operationId: v1_artists_import_runs_create
+      description: 'Accepted modes: full, delta. Abandons every uncommitted run of
+        the same kind.'
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRunCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImportRunCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ImportRunCreateRequest'
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunCreated'
+          description: ''
   /v1/artists/import-runs/{run_id}/commit/:
     post:
       operationId: v1_artists_import_runs_commit_create
+      description: Queues the merge; poll its status with the returned task id.
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
@@ -310,50 +333,74 @@ paths:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+          description: ''
   /v1/artists/import-runs/{run_id}/deletions/:
     put:
       operationId: v1_artists_import_runs_deletions_update
+      description: 'Delta runs only: the deleted ids, gzip NDJSON with one `{"musicbrainz_artist_id":
+        <uuid>}` per line.'
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/artists/import-runs/{run_id}/parts/{part}/:
     put:
       operationId: v1_artists_import_runs_parts_update
+      description: One gzip NDJSON part of the run's rows.
       parameters:
       - in: path
         name: part
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/artists/import/{task_id}/status/:
     get:
       operationId: v1_artists_import_status_retrieve
@@ -377,14 +424,35 @@ paths:
           description: ''
   /v1/artists/search/:
     get:
-      operationId: v1_artists_search_retrieve
+      operationId: v1_artists_search_list
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 25
+          minimum: 1
+          default: 10
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 2
+        required: true
       tags:
       - v1
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ArtistSearchResult'
+          description: ''
   /v1/auth/me/:
     get:
       operationId: v1_auth_me_retrieve
@@ -1427,99 +1495,6 @@ paths:
     get:
       operationId: v1_genres_history_list
       parameters:
-      - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: has_name_conflict
-        schema:
-          type: boolean
-      - in: query
-        name: is_umbrella
-        schema:
-          type: boolean
-      - in: query
-        name: is_unaccepted_root
-        schema:
-          type: boolean
-      - in: query
-        name: name
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
-        name: scene
-        schema:
-          type: string
-          nullable: true
-          enum:
-          - commercial
-          - underground
-        description: |-
-          * `commercial` - Commercial
-          * `underground` - Underground
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
       - in: path
         name: uuid
         schema:
@@ -1527,10 +1502,6 @@ paths:
           format: uuid
         description: A UUID string identifying this genre.
         required: true
-      - in: query
-        name: wikidata_id
-        schema:
-          type: string
       tags:
       - v1
       security:
@@ -1541,105 +1512,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedHistoryEntryDetailedList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEntryDetailed'
           description: ''
   /v1/genres/{uuid}/link-suggestions/:
     get:
       operationId: v1_genres_link_suggestions_list
       parameters:
-      - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: has_name_conflict
-        schema:
-          type: boolean
-      - in: query
-        name: is_umbrella
-        schema:
-          type: boolean
-      - in: query
-        name: is_unaccepted_root
-        schema:
-          type: boolean
-      - in: query
-        name: name
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
-        name: scene
-        schema:
-          type: string
-          nullable: true
-          enum:
-          - commercial
-          - underground
-        description: |-
-          * `commercial` - Commercial
-          * `underground` - Underground
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
       - in: path
         name: uuid
         schema:
@@ -1647,10 +1527,6 @@ paths:
           format: uuid
         description: A UUID string identifying this genre.
         required: true
-      - in: query
-        name: wikidata_id
-        schema:
-          type: string
       tags:
       - v1
       security:
@@ -1661,7 +1537,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedGenreLinkSuggestionList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenreLinkSuggestion'
           description: ''
   /v1/genres/{uuid}/overview/:
     get:
@@ -1872,104 +1750,6 @@ paths:
   /v1/genres/name-conflicts/:
     get:
       operationId: v1_genres_name_conflicts_list
-      parameters:
-      - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: has_name_conflict
-        schema:
-          type: boolean
-      - in: query
-        name: is_umbrella
-        schema:
-          type: boolean
-      - in: query
-        name: is_unaccepted_root
-        schema:
-          type: boolean
-      - in: query
-        name: name
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
-        name: scene
-        schema:
-          type: string
-          nullable: true
-          enum:
-          - commercial
-          - underground
-        description: |-
-          * `commercial` - Commercial
-          * `underground` - Underground
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: wikidata_id
-        schema:
-          type: string
       tags:
       - v1
       security:
@@ -1980,7 +1760,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedGenreNameConflictGroupList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenreNameConflictGroup'
           description: ''
   /v1/genres/name-conflicts/validate/:
     post:
@@ -2010,43 +1792,6 @@ paths:
       operationId: v1_genres_search_list
       parameters:
       - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: has_name_conflict
-        schema:
-          type: boolean
-      - in: query
-        name: is_umbrella
-        schema:
-          type: boolean
-      - in: query
-        name: is_unaccepted_root
-        schema:
-          type: boolean
-      - in: query
         name: limit
         schema:
           type: integer
@@ -2054,43 +1799,12 @@ paths:
           minimum: 1
           default: 8
       - in: query
-        name: name
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
         name: q
         schema:
           type: string
           maxLength: 100
           minLength: 2
         required: true
-      - in: query
-        name: scene
-        schema:
-          type: string
-          nullable: true
-          enum:
-          - commercial
-          - underground
-        description: |-
-          * `commercial` - Commercial
-          * `underground` - Underground
       - in: query
         name: tree_name
         schema:
@@ -2102,35 +1816,6 @@ paths:
         description: |-
           * `canonical` - Canonical
           * `regional` - Regional
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: wikidata_id
-        schema:
-          type: string
       tags:
       - v1
       security:
@@ -2140,7 +1825,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedGenreSearchResultList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenreSearchResult'
           description: ''
   /v1/genres/tree/:
     get:
@@ -2442,6 +2129,13 @@ paths:
         schema:
           type: string
           format: date-time
+      - name: cursor
+        required: false
+        in: query
+        description: Opaque cursor from the previous page's `next` link, in cursor
+          mode.
+        schema:
+          type: string
       - in: query
         name: from
         schema:
@@ -2527,6 +2221,13 @@ paths:
         schema:
           type: string
           format: date-time
+      - name: with_total
+        required: false
+        in: query
+        description: '`false` skips the total count; without `page` it also switches
+          to cursor pagination.'
+        schema:
+          type: boolean
       tags:
       - v1
       security:
@@ -2538,7 +2239,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginatedSongDetailedList'
-          description: ''
+          description: Headers `X-Genre-Graph-Revision` and `X-Genre-Membership-Revision`
+            carry the graph read.
   /v1/library/songs/{uuid}/:
     get:
       operationId: v1_library_songs_retrieve
@@ -2552,6 +2254,39 @@ paths:
         required: true
       tags:
       - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongFull'
+          description: ''
+    patch:
+      operationId: v1_library_songs_partial_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Song.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSongYoutubePatch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSongYoutubePatch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSongYoutubePatch'
       security:
       - googleIdToken: []
       - apiKey: []
@@ -2584,133 +2319,6 @@ paths:
     get:
       operationId: v1_library_songs_history_list
       parameters:
-      - in: query
-        name: album_name
-        schema:
-          type: string
-      - in: query
-        name: artist
-        schema:
-          type: string
-          format: uuid
-      - in: query
-        name: artists_name
-        schema:
-          type: string
-      - in: query
-        name: coverage
-        schema:
-          type: string
-      - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: from
-        schema:
-          type: string
-          format: uuid
-      - in: query
-        name: genre
-        schema:
-          type: string
-          format: uuid
-      - in: query
-        name: genre_is_umbrella
-        schema:
-          type: boolean
-      - in: query
-        name: genre_name
-        schema:
-          type: string
-      - in: query
-        name: language
-        schema:
-          type: string
-      - in: query
-        name: ordering
-        schema:
-          type: string
-          enum:
-          - -albumYear
-          - -title
-          - albumYear
-          - title
-        description: |-
-          * `title` - title
-          * `-title` - -title
-          * `albumYear` - albumYear
-          * `-albumYear` - -albumYear
-      - name: page
-        required: false
-        in: query
-        description: A page number within the paginated result set.
-        schema:
-          type: integer
-      - name: page_size
-        required: false
-        in: query
-        description: Number of results to return per page.
-        schema:
-          type: integer
-      - in: query
-        name: playable
-        schema:
-          type: boolean
-      - in: query
-        name: subgenres
-        schema:
-          type: string
-      - in: query
-        name: title
-        schema:
-          type: string
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
       - in: path
         name: uuid
         schema:
@@ -2728,7 +2336,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedHistoryEntryDetailedList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/HistoryEntryDetailed'
           description: ''
   /v1/library/songs/{song_id}/attributions/:
     get:
@@ -2813,77 +2423,172 @@ paths:
       operationId: v1_library_songs_assign_genre_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenre'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenre'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenre'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SongAssignGenreResult'
+          description: ''
   /v1/library/songs/assign-genre/undo/:
     post:
       operationId: v1_library_songs_assign_genre_undo_create
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenreUndo'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenreUndo'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SongAssignGenreUndo'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
+        '204':
           description: No response body
   /v1/library/songs/search/:
     get:
-      operationId: v1_library_songs_search_retrieve
+      operationId: v1_library_songs_search_list
+      parameters:
+      - in: query
+        name: genre
+        schema:
+          enum:
+          - any
+          - with
+          - without
+          type: string
+          default: any
+          minLength: 1
+        description: |-
+          * `any` - any
+          * `with` - with
+          * `without` - without
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 8
+      - in: query
+        name: playable
+        schema:
+          type: boolean
+          nullable: true
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 2
+        required: true
       tags:
       - v1
       security:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SongSearchResult'
+          description: ''
   /v1/library/songs/songs/import-runs/:
     post:
       operationId: v1_library_songs_songs_import_runs_create
+      description: 'Accepted modes: full, delta. Abandons every uncommitted run of
+        the same kind.'
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SongImportRunCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SongImportRunCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SongImportRunCreateRequest'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunCreated'
+          description: ''
   /v1/library/songs/songs/import-runs/{run_id}/assignments/parts/{part}/:
     put:
       operationId: v1_library_songs_songs_import_runs_assignments_parts_update
+      description: One gzip NDJSON part of the run's genre assignments.
       parameters:
       - in: path
         name: part
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/library/songs/songs/import-runs/{run_id}/commit/:
     post:
       operationId: v1_library_songs_songs_import_runs_commit_create
+      description: Queues the merge; poll its status with the returned task id.
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
@@ -2891,50 +2596,74 @@ paths:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+          description: ''
   /v1/library/songs/songs/import-runs/{run_id}/deletions/:
     put:
       operationId: v1_library_songs_songs_import_runs_deletions_update
+      description: 'Delta runs only: the deleted ids, gzip NDJSON with one `{"musicbrainz_recording_id":
+        <uuid>}` per line.'
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/library/songs/songs/import-runs/{run_id}/parts/{part}/:
     put:
       operationId: v1_library_songs_songs_import_runs_parts_update
+      description: One gzip NDJSON part of the run's rows.
       parameters:
       - in: path
         name: part
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/library/songs/songs/import/{task_id}/status/:
     get:
       operationId: v1_library_songs_songs_import_status_retrieve
@@ -3631,27 +3360,40 @@ paths:
   /v1/regions/map/import-runs/:
     post:
       operationId: v1_regions_map_import_runs_create
-      description: 'Pipeline import of the region map: one full run uploads the index,
-        one line.'
+      description: 'Accepted modes: full. Abandons every uncommitted run of the same
+        kind.'
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FullImportRunCreateRequest'
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunCreated'
+          description: ''
   /v1/regions/map/import-runs/{run_id}/commit/:
     post:
       operationId: v1_regions_map_import_runs_commit_create
-      description: 'Pipeline import of the region map: one full run uploads the index,
-        one line.'
+      description: Queues the merge; poll its status with the returned task id.
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
@@ -3659,54 +3401,74 @@ paths:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskId'
+          description: ''
   /v1/regions/map/import-runs/{run_id}/deletions/:
     put:
       operationId: v1_regions_map_import_runs_deletions_update
-      description: 'Pipeline import of the region map: one full run uploads the index,
-        one line.'
+      description: 'Delta runs only: the deleted ids, gzip NDJSON with one `{"path":
+        <uuid>}` per line.'
       parameters:
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/regions/map/import-runs/{run_id}/parts/{part}/:
     put:
       operationId: v1_regions_map_import_runs_parts_update
-      description: 'Pipeline import of the region map: one full run uploads the index,
-        one line.'
+      description: One gzip NDJSON part of the run's rows.
       parameters:
       - in: path
         name: part
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       - in: path
         name: run_id
         schema:
-          type: string
-          pattern: ^\d+$
+          type: integer
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema:
+              type: string
+              format: binary
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Count'
+          description: ''
   /v1/regions/map/import/{task_id}/status/:
     get:
       operationId: v1_regions_map_import_status_retrieve
@@ -4420,6 +4182,33 @@ components:
       - playableTracksCount
       - tracksCount
       - uuid
+    ArtistGenreCount:
+      type: object
+      properties:
+        genreOnlyTracksCount:
+          type: integer
+        genreAndSubgenresTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+        genrePlaylist:
+          type: string
+          format: uuid
+        songsCount:
+          type: integer
+          description: The artist's catalogue songs in the genre and its subgenres.
+        tracksCount:
+          type: integer
+          description: The artist's tracks in the genre playlist.
+        catalogue:
+          $ref: '#/components/schemas/GenreScopedCounts'
+      required:
+      - catalogue
+      - genreAndSubgenresTracksCount
+      - genreOnlyTracksCount
+      - genrePlaylist
+      - songsCount
+      - tracksCount
     ArtistMinimum:
       type: object
       description: |-
@@ -4449,6 +4238,54 @@ components:
       required:
       - isSpecialPurpose
       - name
+      - uuid
+    ArtistSearchResult:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        disambiguation:
+          type: string
+          nullable: true
+        type:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/TypeEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        country:
+          type: string
+          nullable: true
+          maxLength: 2
+        beginYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        endYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        matchedAlias:
+          type: string
+          readOnly: true
+          nullable: true
+        recordingCount:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+      required:
+      - matchedAlias
+      - name
+      - recordingCount
       - uuid
     ArtistSimple:
       type: object
@@ -4551,6 +4388,14 @@ components:
         * `technique` - technique
         * `out_of_scope` - out_of_scope
         * `duplicate` - duplicate
+    Count:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: Rows loaded from the uploaded body.
+      required:
+      - count
     CriteriaDetailed:
       type: object
       description: |-
@@ -5109,6 +4954,21 @@ components:
           type: string
       required:
       - detail
+    FullImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/FullImportRunCreateRequestModeEnum'
+          description: |-
+            Only `full` runs are accepted.
+
+            * `full` - full
+    FullImportRunCreateRequestModeEnum:
+      enum:
+      - full
+      type: string
+      description: '* `full` - full'
     GenealogyImportResult:
       type: object
       properties:
@@ -5515,6 +5375,18 @@ components:
           nullable: true
         side:
           $ref: '#/components/schemas/SideEnum'
+    GenreScopedCounts:
+      type: object
+      properties:
+        genreOnlyTracksCount:
+          type: integer
+        genreAndSubgenresTracksCount:
+          type: object
+          additionalProperties:
+            type: integer
+      required:
+      - genreAndSubgenresTracksCount
+      - genreOnlyTracksCount
     GenreSearchResult:
       type: object
       description: Built from `GenreManager.search` rows. `root` tells apart same-named
@@ -5832,6 +5704,32 @@ components:
       - actorPseudo
       - createdOn
       - uuid
+    ImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ImportRunModeEnum'
+          description: |-
+            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
+
+            * `full` - Full
+            * `delta` - Delta
+    ImportRunCreated:
+      type: object
+      properties:
+        runId:
+          type: integer
+      required:
+      - runId
+    ImportRunModeEnum:
+      enum:
+      - full
+      - delta
+      type: string
+      description: |-
+        * `full` - Full
+        * `delta` - Delta
     ImportRunStatus:
       type: object
       properties:
@@ -6086,75 +5984,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaSimple'
-    PaginatedGenreLinkSuggestionList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/GenreLinkSuggestion'
-    PaginatedGenreNameConflictGroupList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/GenreNameConflictGroup'
-    PaginatedGenreSearchResultList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/GenreSearchResult'
     PaginatedGenreSimpleList:
       type: object
       required:
@@ -6178,29 +6007,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GenreSimple'
-    PaginatedHistoryEntryDetailedList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/HistoryEntryDetailed'
     PaginatedManualPlaylistSimpleList:
       type: object
       required:
@@ -6273,26 +6079,40 @@ components:
     PaginatedSongDetailedList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
+          nullable: true
+          description: Null with `with_total=false` and in cursor mode.
         next:
           type: string
-          nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
+          nullable: true
         previous:
           type: string
-          nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
+          nullable: true
         results:
           type: array
           items:
             $ref: '#/components/schemas/SongDetailed'
+        page:
+          type: integer
+          nullable: true
+          description: Null in cursor mode.
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+          nullable: true
+          description: Null with `with_total=false` and in cursor mode.
     PaginatedTrackPlaylistRelInPageList:
       type: object
       required:
@@ -6391,6 +6211,18 @@ components:
         name:
           type: string
           maxLength: 256
+    PatchedSongYoutubePatch:
+      type: object
+      properties:
+        youtubeVideoId:
+          type: string
+          nullable: true
+          maxLength: 32
+        youtubeUnplayableReason:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
+          - $ref: '#/components/schemas/NullEnum'
     PlayDetailed:
       type: object
       description: |-
@@ -6587,6 +6419,42 @@ components:
       description: |-
         * `core` - Core
         * `pop` - Pop
+    SongAssignGenre:
+      type: object
+      properties:
+        songs:
+          type: array
+          items:
+            type: string
+            format: uuid
+        genre:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - genre
+      - songs
+    SongAssignGenreResult:
+      type: object
+      properties:
+        previous:
+          type: array
+          items:
+            $ref: '#/components/schemas/SongPreviousGenre'
+        undoToken:
+          type: string
+          format: uuid
+      required:
+      - previous
+      - undoToken
+    SongAssignGenreUndo:
+      type: object
+      properties:
+        undoToken:
+          type: string
+          format: uuid
+      required:
+      - undoToken
     SongAttributions:
       type: object
       properties:
@@ -6801,6 +6669,97 @@ components:
       - genre
       - playlists
       - relativeUrl
+      - title
+      - uuid
+      - youtubeVideo
+    SongImportExpectedParts:
+      type: object
+      properties:
+        songs:
+          type: integer
+          minimum: 0
+        assignments:
+          type: integer
+          minimum: 0
+        deletions:
+          type: integer
+          maximum: 1
+          minimum: 0
+          description: Delta runs only.
+      required:
+      - assignments
+      - songs
+    SongImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ImportRunModeEnum'
+          description: |-
+            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
+
+            * `full` - Full
+            * `delta` - Delta
+        graphRevision:
+          type: string
+          format: uuid
+          description: Reviewed reference graph revision.
+        membershipRevision:
+          type: string
+          format: uuid
+          description: Reviewed genre membership revision.
+        expectedParts:
+          allOf:
+          - $ref: '#/components/schemas/SongImportExpectedParts'
+          description: Exactly `songs` and `assignments` for a `full` run (with `songs`
+            at least 1), plus `deletions` for a `delta` run; any other key set is
+            rejected.
+      required:
+      - expectedParts
+      - graphRevision
+      - membershipRevision
+    SongPreviousGenre:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        genre:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+      - genre
+      - uuid
+    SongSearchResult:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 2048
+        artists:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtistMinimum'
+        genre:
+          allOf:
+          - $ref: '#/components/schemas/CriteriaMinimum'
+          nullable: true
+        youtubeVideo:
+          $ref: '#/components/schemas/SongYoutubeVideo'
+        firstReleaseYear:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          nullable: true
+      required:
+      - artists
+      - genre
       - title
       - uuid
       - youtubeVideo
