@@ -3,9 +3,9 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from the_music_tree_grow_contracts.curation_lists import EDGE_PROJECTION_LISTS
 
 from grow.curation.edges import edge_field, find_rule_by_legacy
-from grow.curation.lists import EDGE_PROJECTION_LISTS
 from grow.curation.rows import InvalidRow, RowConflict, check_edit, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem

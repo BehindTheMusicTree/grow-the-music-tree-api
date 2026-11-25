@@ -64,7 +64,7 @@ Tests run against an in-memory SQLite database and need no environment variables
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy grow
+uv run mypy grow packages/grow-contracts/src
 uv run django-admin makemigrations grow --check --dry-run
 ```
 
@@ -94,7 +94,7 @@ Use imperative mood, keep the summary under ~70 characters, include issue IDs wh
 
 Before opening a PR:
 
-- ✅ `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy grow`, and `uv run pytest` all pass
+- ✅ `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy grow packages/grow-contracts/src`, and `uv run pytest` all pass
 - ✅ Latency SLOs: checked by CI job `Perf`, not locally
 - ✅ New features/bug fixes have corresponding tests
 - ✅ `CHANGELOG.md` updated under `[Unreleased]`

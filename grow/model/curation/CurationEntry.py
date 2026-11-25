@@ -3,8 +3,8 @@ from typing import Any
 from django.conf import settings
 from django.db import models
 from the_music_tree_api_kit.private_unique_resource.PrivateUniqueResource import PrivateUniqueResource
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS, KEY_MAX_LENGTH
 
-from grow.curation.lists import CURATION_LISTS, KEY_MAX_LENGTH
 from grow.curation.rows import to_csv_row, to_row
 
 from .CurationEntryManager import CurationEntryManager
@@ -12,7 +12,7 @@ from .CurationEntryManager import CurationEntryManager
 
 class CurationEntry(PrivateUniqueResource):
     """
-    One row of a pipeline curation list (`grow.curation.lists`). `key` is the list's key column value, or its key
+    One row of a pipeline curation list (`the_music_tree_grow_contracts.curation_lists`). `key` is the list's key column value, or its key
     columns tab-joined for a composite key; `values` holds the other non-reason columns.
     """
 

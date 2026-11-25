@@ -47,7 +47,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: mypy
-        run: uv run mypy grow
+        run: uv run mypy grow packages/grow-contracts/src
 
   migration-check:
     if: github.event_name != 'schedule'

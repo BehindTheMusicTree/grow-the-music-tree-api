@@ -9,8 +9,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.urls import reverse
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 
-from grow.curation.lists import CURATION_LISTS
 from grow.curation.rows import SEED_DIR
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule

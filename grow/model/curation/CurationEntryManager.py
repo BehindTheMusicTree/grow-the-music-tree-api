@@ -3,8 +3,8 @@ from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
 from the_music_tree_api_kit.public_standard_resource.StandardResourceManager import StandardResourceManager
+from the_music_tree_grow_contracts.curation_lists import GENRE_ALIAS_LIST
 
-from grow.curation.lists import GENRE_ALIAS_LIST
 from grow.curation.rows import UpsertResult, check_upsert, lock_writes
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry

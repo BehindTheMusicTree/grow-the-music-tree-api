@@ -18,6 +18,17 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
+from the_music_tree_grow_contracts.curation_lists import (
+    ADDITION_LISTS,
+    CURATION_LISTS,
+    EDGE_PROJECTION_LISTS,
+    GENRE_ALIAS_LIST,
+    ITEM_ID_COLUMNS,
+    ITEM_ID_PATTERN,
+    KEY_MAX_LENGTH,
+    LEGACY_GENRE_ALIAS_COLUMNS,
+    RETIRED_HISTORY_LISTS,
+)
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
@@ -33,17 +44,6 @@ from grow.curation.essential_songs import LIST_NAME as ESSENTIAL_SONGS_LIST
 from grow.curation.essential_songs import apply_essential_songs
 from grow.curation.genre_aliases import alias_revision, prepare_alias_write, search_alias_targets
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
-from grow.curation.lists import (
-    ADDITION_LISTS,
-    CURATION_LISTS,
-    EDGE_PROJECTION_LISTS,
-    GENRE_ALIAS_LIST,
-    ITEM_ID_COLUMNS,
-    ITEM_ID_PATTERN,
-    KEY_MAX_LENGTH,
-    LEGACY_GENRE_ALIAS_COLUMNS,
-    RETIRED_HISTORY_LISTS,
-)
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import (
     KEY_SEPARATOR,

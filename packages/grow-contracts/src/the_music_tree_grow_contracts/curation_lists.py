@@ -4,6 +4,8 @@ from typing import Literal
 ADDITION_LABEL_COLUMN = "label"
 CANONICAL_ROOTS_LIST = "canonical_roots"
 RETIRED_HISTORY_LISTS = frozenset({"expression_styles"})
+EDGE_COLUMNS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
+"""Columns of an exported genre edge rule, and the header order of `genre_edges.csv`."""
 
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 """A Wikidata QID, or a pipeline-synthesized `LOCAL:<slug>` id for an item Wikidata lacks."""
@@ -434,7 +436,7 @@ GRAPH_LISTS = frozenset(
     }
 )
 """Lists carrying regional graph decisions: each has provenance, strict item ids and graph-wide checks
-(`grow.curation.rule_set`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
+(grow's `curation/rule_set.py`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
 before any row uses it."""
 
 GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "regional_anchorings", "genre_merges", "genre_derivations"})

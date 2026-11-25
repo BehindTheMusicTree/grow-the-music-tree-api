@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/grow/schemas/region_map.schema.json",
+  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/packages/grow-contracts/src/the_music_tree_grow_contracts/schemas/region_map.schema.json",
   "type": "object",
   "additionalProperties": false,
   "required": [

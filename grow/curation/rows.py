@@ -8,12 +8,12 @@ from typing import Any, Literal
 
 from django.db import connections, models
 from django.utils import timezone
-
-from grow.curation.lists import (
+from the_music_tree_grow_contracts.curation_lists import (
     ADDITION_LISTS,
     BOOL_COLUMNS,
     COLUMN_CHOICES,
     CURATION_LISTS,
+    EDGE_COLUMNS,
     ENTITY_ID_COLUMNS,
     ENTITY_ID_PATTERN,
     EXCLUSIVE_LISTS,
@@ -37,7 +37,6 @@ POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_stylistic_genres"
 SCENE_LIST = "canonical_genre_scene"
 EDGES_FILE = "genre_edges"
-EDGE_COLUMNS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 

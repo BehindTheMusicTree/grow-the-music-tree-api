@@ -1,6 +1,5 @@
 from django.db import models
-
-from grow.curation.lists import CURATION_LISTS, ITEM_ID_COLUMNS, KEY_MAX_LENGTH
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS, ITEM_ID_COLUMNS, KEY_MAX_LENGTH
 
 
 class CurationReviewItem(models.Model):

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/grow/schemas/synthesized_overview_alerts.schema.json",
+  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/packages/grow-contracts/src/the_music_tree_grow_contracts/schemas/synthesized_overview_alerts.schema.json",
   "title": "Synthesized overview alerts",
   "type": "object",
   "additionalProperties": false,

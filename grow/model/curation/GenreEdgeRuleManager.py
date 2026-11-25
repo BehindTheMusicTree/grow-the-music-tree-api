@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from django.db import transaction
 from django.db.models import Q
 from the_music_tree_api_kit.public_standard_resource.StandardResourceManager import StandardResourceManager
+from the_music_tree_grow_contracts.curation_lists import EDGE_COLUMNS
 
 from grow.curation.rows import InvalidRow, lock_writes
 from grow.model.history.HistoryAction import HistoryAction
@@ -12,7 +13,6 @@ from grow.model.history.HistoryEntry import HistoryEntry
 if TYPE_CHECKING:
     from .GenreEdgeRule import GenreEdgeRule
 
-SNAPSHOT_FIELDS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
 AUTO_FIELDS = ["created_on", "updated_on"]
 PRIMARY_RELATIONS = ("canonical_parent", "regional_genre_parent")
 UpsertResult = Literal["created", "updated", "unchanged"]
@@ -26,7 +26,7 @@ class GenreEdgeRuleManager(StandardResourceManager):
 
     @staticmethod
     def _snapshot(instance: GenreEdgeRule) -> str:
-        return json.dumps({field: getattr(instance, field) for field in SNAPSHOT_FIELDS})
+        return json.dumps({field: getattr(instance, field) for field in EDGE_COLUMNS})
 
     @staticmethod
     def _validate(instance: GenreEdgeRule) -> None:
@@ -64,7 +64,7 @@ class GenreEdgeRuleManager(StandardResourceManager):
     def update_instance(self, instance: GenreEdgeRule, actor: Any = None, **kwargs) -> GenreEdgeRule:
         self._lock()
         old_value = self._snapshot(instance)
-        candidate = self.model(pk=instance.pk, **{f: getattr(instance, f) for f in SNAPSHOT_FIELDS} | kwargs)
+        candidate = self.model(pk=instance.pk, **{f: getattr(instance, f) for f in EDGE_COLUMNS} | kwargs)
         candidate.user_id = instance.user_id
         candidate._state.adding = False  # so unique constraints ignore the row being updated
         candidate.full_clean(exclude=AUTO_FIELDS, validate_unique=False)

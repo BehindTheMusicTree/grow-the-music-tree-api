@@ -7,8 +7,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.urls import reverse
 from rest_framework import status
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS, EDGE_PROJECTION_LISTS
 
-from grow.curation.lists import CURATION_LISTS, EDGE_PROJECTION_LISTS
 from grow.curation.rows import WRITE_LOCK_ID, InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule

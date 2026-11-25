@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Value
 from django.db.models.functions import Concat
+from the_music_tree_grow_contracts.curation_lists import EDGE_PROJECTION_LISTS
 
-from grow.curation.lists import EDGE_PROJECTION_LISTS
 from grow.curation.rows import KEY_SEPARATOR, SCENE_LIST, InvalidRow, UpsertResult, scene_split_error
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule

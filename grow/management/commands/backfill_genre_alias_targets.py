@@ -4,9 +4,9 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from the_music_tree_grow_contracts.curation_lists import GENRE_ALIAS_LIST
 
 from grow.curation.genre_aliases import AliasCatalogueUnavailable, alias_catalogue, alias_revision
-from grow.curation.lists import GENRE_ALIAS_LIST
 from grow.curation.rows import lock_writes, parse_row
 from grow.model.curation.CurationEntry import CurationEntry
 
