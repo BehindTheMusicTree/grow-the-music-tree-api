@@ -5,9 +5,6 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  # Nightly run: catches dependency drift without a grow commit.
-  schedule:
-    - cron: "17 5 * * *"
 
 concurrency:
   group: validate-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
@@ -15,7 +12,6 @@ concurrency:
 
 jobs:
   lint:
-    if: github.event_name != 'schedule'
     name: Lint
     runs-on: ubuntu-latest
     # Dummy config only, no DB/secrets: mypy just needs settings.py importable via the django-stubs plugin.
@@ -50,7 +46,6 @@ jobs:
         run: uv run mypy grow packages/grow-contracts/src
 
   migration-check:
-    if: github.event_name != 'schedule'
     name: Migration check
     runs-on: ubuntu-latest
     env:
@@ -72,7 +67,6 @@ jobs:
         run: uv run django-admin makemigrations grow --check --dry-run
 
   openapi:
-    if: github.event_name != 'schedule'
     name: OpenAPI
     runs-on: ubuntu-latest
     env:
@@ -97,7 +91,6 @@ jobs:
         run: git diff --exit-code openapi.yaml
 
   pytest:
-    if: github.event_name != 'schedule'
     name: Pytest
     runs-on: ubuntu-24.04
     services:
@@ -123,7 +116,7 @@ jobs:
         run: uv sync --all-extras
 
       - name: Run pytest
-        run: uv run pytest
+        run: uv run pytest --cov-branch --cov-report=xml:coverage-sqlite.xml --cov-fail-under=0
 
       - name: Install PostgreSQL 16 client
         run: |
@@ -132,4 +125,30 @@ jobs:
           echo /usr/lib/postgresql/16/bin >> "$GITHUB_PATH"
 
       - name: Run Postgres-only pytest
-        run: uv run pytest -m postgres --ds=tests.postgres_settings --no-cov
+        run: uv run pytest -m postgres --ds=tests.postgres_settings --cov-branch --cov-report=xml:coverage-postgres.xml --cov-fail-under=0
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-pytest
+          path: coverage-*.xml
+          if-no-files-found: error
+
+  coverage:
+    needs: pytest
+    permissions:
+      contents: read
+    uses: BehindTheMusicTree/github-workflows/.github/workflows/coverage.yml@18b90bc9c64b9abab0a86e7ea74f65acac93aec1 # v6.6.0
+    with:
+      line: 85
+
+  tests-success:
+    name: Tests success
+    if: always()
+    needs: [pytest, coverage]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All test jobs succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: jq -e 'all(.[]; .result == "success")' <<<"$NEEDS"

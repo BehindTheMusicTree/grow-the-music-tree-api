@@ -30,7 +30,7 @@ uv run manage.py runserver
 
 ## Commands
 
-- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
+- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Local coverage gate: `--cov-fail-under=85`. In CI, `validate.yml` runs pytest (SQLite and Postgres, branch coverage, reports uploaded as `coverage-pytest`), then the shared `coverage` job enforces line 85 plus the default branch and patch thresholds; the required `Tests success` gate aggregates `pytest` and `coverage`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
 - **Types:** `uv run mypy grow packages/grow-contracts/src` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `CURATION_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB`, `YOUTUBE_API_KEY` all dummy values are fine, e.g.:
   ```bash
