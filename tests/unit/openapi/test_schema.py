@@ -1,8 +1,10 @@
 import pytest
+from djangorestframework_camel_case.util import camelize
 from drf_spectacular.drainage import GENERATOR_STATS
 from drf_spectacular.generators import SchemaGenerator
 
 from grow.model.history.HistoryAction import HistoryAction
+from grow.model.import_run.ImportRun import ImportRun
 from grow.openapi.views import CachedSchemaView
 
 
@@ -282,3 +284,10 @@ def test_whole_api_generates_without_errors():
     errors = list(GENERATOR_STATS._error_cache)
     GENERATOR_STATS.reset()
     assert errors == []
+
+
+def test_latest_import_runs_document_every_kind_and_runs_are_nullable(schema):
+    latest = schema["components"]["schemas"]["ImportRunLatest"]["properties"]
+    assert set(latest) == set(camelize({kind.value: 0 for kind in ImportRun.Kind}))
+    skipped = schema["components"]["schemas"]["ImportRun"]["properties"]["skippedCount"]
+    assert skipped["nullable"] is True

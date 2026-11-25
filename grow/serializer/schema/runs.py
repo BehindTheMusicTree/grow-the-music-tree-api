@@ -41,7 +41,7 @@ class ImportRunSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=ImportRun.Kind.choices)
     imported_on = serializers.DateTimeField()
     count = serializers.IntegerField()
-    skipped_count = serializers.IntegerField()
+    skipped_count = serializers.IntegerField(allow_null=True)
 
 
 class ImportRunLatestSerializer(serializers.Serializer):
@@ -53,6 +53,7 @@ class ImportRunLatestSerializer(serializers.Serializer):
     artists = ImportRunSerializer(allow_null=True)
     unresolved_genre_tags = ImportRunSerializer(allow_null=True)
     genealogy = ImportRunSerializer(allow_null=True)
+    region_map = ImportRunSerializer(allow_null=True)
 
 
 ImportRunPageSerializer = paginated_serializer("ImportRunPage", ImportRunSerializer)

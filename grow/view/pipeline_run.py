@@ -170,6 +170,7 @@ class PipelineRunView(CurationView):
         request=PipelineRunProgressSerializer,
         responses={
             status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description="No run has this uuid."),
             status.HTTP_409_CONFLICT: OpenApiResponse(description="The run is not running (api-kit error envelope)."),
         },
     )
@@ -218,6 +219,7 @@ class PipelineRunCancelView(CurationView):
         request=None,
         responses={
             status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_404_NOT_FOUND: OpenApiResponse(description="No run has this uuid."),
             status.HTTP_409_CONFLICT: OpenApiResponse(
                 description="The run is neither queued nor running (api-kit error envelope)."
             ),
