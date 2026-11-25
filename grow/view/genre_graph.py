@@ -43,6 +43,7 @@ from grow.genre_graph.service import (
     write_song_attributions,
 )
 from grow.model.song.Song import Song
+from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
 from grow.serializer.schema.genre_graph import (
     GraphAssignmentTokensSerializer,
@@ -173,6 +174,7 @@ class ReferenceGraphImportRunsView(GraphView):
 
     @extend_schema(
         request=GraphImportInput,
+        parameters=[HEADER_PARAMETER],
         responses={status.HTTP_202_ACCEPTED: TaskIdSerializer, status.HTTP_409_CONFLICT: DetailSerializer},
     )
     def post(self, request):
@@ -185,6 +187,7 @@ class ReferenceGraphImportRunsView(GraphView):
         if current != expected:
             raise GraphRevisionConflict("Reference graph revision changed; reload before importing")
         owner = get_request_owner(request)
+        pipeline_run = linked_pipeline_run(request)
         body = {
             "graph": data["graph"],
             "mapping": {key: str(value) if value is not None else None for key, value in data["mapping"].items()},
@@ -207,7 +210,11 @@ class ReferenceGraphImportRunsView(GraphView):
             if BulkImportRun.objects.filter(kind=GENRE_GRAPH_KIND).exists():
                 return Response({"detail": "A graph import is already running"}, status=status.HTTP_409_CONFLICT)
             run = BulkImportRun.objects.create(
-                kind=GENRE_GRAPH_KIND, committed_on=timezone.now(), user_id=owner and owner.pk, record=False
+                kind=GENRE_GRAPH_KIND,
+                committed_on=timezone.now(),
+                user_id=owner and owner.pk,
+                record=False,
+                pipeline_run_request=pipeline_run,
             )
             GenreGraphImportPayload.objects.create(run_id=run.pk, payload=json.loads(json.dumps(body)))
             attempt = queue_attempt(run)

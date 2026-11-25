@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - Typed OpenAPI for the health, auth, playback, import-run and pipeline-run views and `PlayPostSerializer`, so the whole API now validates with 0 errors. Covered by `tests/unit/openapi/test_schema.py`.
+- Pipeline run import progress: tree, graph, songs and artists import runs accept an `X-Pipeline-Run-Request` header linking them to a `running` pipeline run (migration 0164, `pipeline_run_request` on the run and its attempts, 400 unknown uuid, 409 run not running), and `GET pipeline/runs/latest/` returns `activeImport` (newest linked attempt, `bootstrap` for a graph import) and `typicalStageSeconds` (median per stage over the last 10 succeeded `full` runs). Covered by `tests/integration/import_run/test_pipeline_run_import_link.py` and `tests/unit/pipeline_run/test_typical_durations.py`.
 
 - `importing_graph` pipeline run stage, reported after `importing_tree` so the genre graph import (bootstrap included) no longer shows as the tree import. Covered by `tests/integration/import_run/test_pipeline_run.py`.
 

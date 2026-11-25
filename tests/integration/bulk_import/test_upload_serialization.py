@@ -33,7 +33,9 @@ def reviewed_data(**parts):
 
 
 def request(body=b"", data=None):
-    return SimpleNamespace(data=data or {}, body=body, user=None, owner=None, auth=SimpleNamespace(role="pipeline"))
+    return SimpleNamespace(
+        data=data or {}, body=body, user=None, owner=None, auth=SimpleNamespace(role="pipeline"), headers={}
+    )
 
 
 def actions(loader):
