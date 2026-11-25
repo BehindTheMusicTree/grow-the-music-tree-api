@@ -1,7 +1,10 @@
+from urllib.parse import parse_qs, urlsplit
+
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param, replace_query_param
+from the_music_tree_api_kit.utils.data_transformer import to_snake_case
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
@@ -33,9 +36,11 @@ def next_cursor_link(request: Request, cursor: str) -> str:
     url = request.build_absolute_uri()
     if "from" in request.query_params:
         # `from` only positions the first page; the cursor takes over. The total counted the list from that song, so
-        # later pages don't recount a different one. The URL keeps the client's spelling of `with_total`.
-        for param in ("from", NO_TOTAL_PARAM, "withTotal"):
-            url = remove_query_param(url, param)
+        # later pages don't recount a different one. The URL keeps the client's spelling, which
+        # CamelToSnakeMiddleware only normalizes in `request.GET`.
+        for param in parse_qs(urlsplit(url).query, keep_blank_values=True):
+            if to_snake_case(param) in ("from", NO_TOTAL_PARAM):
+                url = remove_query_param(url, param)
     return replace_query_param(url, CURSOR_PARAM, cursor)
 
 

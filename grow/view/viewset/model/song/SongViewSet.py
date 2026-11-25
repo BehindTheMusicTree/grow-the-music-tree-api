@@ -173,7 +173,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         raw_cursor = params.get("cursor")
         cursor = SongCursor.decode(raw_cursor, ordering) if raw_cursor else None
         from_id = None
-        if "from" in params:
+        if params.get("from"):
             if "cursor" in params:
                 raise ParseError("`from` and `cursor` are mutually exclusive.")
             try:
