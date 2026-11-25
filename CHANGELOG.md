@@ -117,6 +117,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Workflow `concurrency` groups follow the org convention (github-config#69): CI workflows (`validate`, `perf`, `catalogue-benchmark`, `agent-drift`) group by `head_ref || ref` and cancel superseded runs on pull requests only; `release-tag` runs once per pushed commit and is never cancelled.
 
+## [18.0.1] - 2026-11-24
+
+### Fixed
+
+- Align workflow concurrency and organization conformance checks while preserving deployment queues.
+
 ## [18.0.0] - 2026-11-18
 
 ### Added
