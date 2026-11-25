@@ -173,6 +173,11 @@ class TestCase(AppTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_list_rejects_cursor_without_cursor_mode(self):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"cursor": "abc"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_list_rejects_unknown_pagination_mode(self):
         response = self.api_client.get(path=reverse(self.list_endpoint), data={"pagination": "offset"})
 

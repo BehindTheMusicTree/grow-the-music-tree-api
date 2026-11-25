@@ -92,7 +92,7 @@ Regional genres only accept `all` among the legacy values. Contract 4 scopes wor
 - Default: numbered pages (`page`, `page_size`) with a total. `with_total=false` skips the `COUNT(*)` and keeps numbered
   pages (`count` and `totalPages` are null; `page` defaults to 1).
 - `pagination=cursor` switches to keyset pagination ordered by `uuid`: no total, `next` carries the `cursor` of the
-  following page. It requires `genre` and rejects `page`, `ordering` and `from` (400). Any other `pagination` value is a
+  following page. It requires `genre` and rejects `page`, `ordering` and `from` (400); `cursor` without it is a 400 too. Any other `pagination` value is a
   400 too.
 
 #### List by artist
