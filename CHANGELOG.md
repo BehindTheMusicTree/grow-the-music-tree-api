@@ -14,6 +14,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Typed OpenAPI for the health, auth, playback, import-run and pipeline-run views and `PlayPostSerializer`, so the whole API now validates with 0 errors. Covered by `tests/unit/openapi/test_schema.py`.
+
 - `importing_graph` pipeline run stage, reported after `importing_tree` so the genre graph import (bootstrap included) no longer shows as the tree import. Covered by `tests/integration/import_run/test_pipeline_run.py`.
 
 - `the-music-tree-grow-contracts` package (`packages/grow-contracts`): the Gold import and curation resolutions JSON Schemas, the curation list columns, and a new generated `curation_export` schema for `GET curation/export/?genre_alias_version=2`, tested against a real export. It has its own release policy and PyPI publish jobs; nothing is published yet. `grow/schemas/` and `grow/curation/lists.py` moved into it and schema `$id`s changed to the new paths (#586).

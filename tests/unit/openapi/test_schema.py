@@ -234,3 +234,51 @@ def test_curation_export_stays_snake_case(schema):
 
 def test_genre_alias_targets_document_the_unpublished_case(schema):
     assert "503" in schema["paths"]["/v1/curation/genre-alias-targets/"]["get"]["responses"]
+
+
+def _ref(body: dict) -> str:
+    return body["$ref"].rsplit("/", 1)[-1]
+
+
+def test_health_documents_both_outcomes_with_one_typed_body(schema):
+    responses = schema["paths"]["/health/"]["get"]["responses"]
+    assert set(responses) == {"200", "503"}
+    assert {_ref(r["content"]["application/json"]["schema"]) for r in responses.values()} == {"Health"}
+
+
+@pytest.mark.parametrize(("path", "name"), [("/v1/auth/me/", "AuthMe"), ("/v1/playback/context/", "PlaybackContext")])
+def test_auth_me_and_playback_have_typed_bodies(schema, path, name):
+    assert _ref(_ok_body(schema, path)) == name
+
+
+def test_import_run_list_is_the_paginated_envelope_with_a_kind_filter(schema):
+    operation = schema["paths"]["/v1/pipeline/imports/"]["get"]
+    assert _ref(_ok_body(schema, "/v1/pipeline/imports/")) == "ImportRunPage"
+    kind = next(p for p in operation["parameters"] if p["name"] == "kind")
+    assert "songs" in kind["schema"]["enum"]
+    page = schema["components"]["schemas"]["ImportRunPage"]
+    assert {"results", "overallTotal", "totalPages"} <= set(page["properties"])
+
+
+def test_pipeline_run_outcomes_are_documented(schema):
+    paths = schema["paths"]
+    assert set(paths["/v1/pipeline/runs/claim/"]["post"]["responses"]) == {"200", "204"}
+    assert set(paths["/v1/pipeline/runs/latest/"]["get"]["responses"]) == {"200", "204"}
+    assert "409" in paths["/v1/pipeline/runs/"]["post"]["responses"]
+    assert "409" in paths["/v1/pipeline/runs/{uuid}/cancel/"]["post"]["responses"]
+    assert _ref(_ok_body(schema, "/v1/pipeline/runs/")) == "PipelineRunPage"
+
+
+def test_play_post_content_is_a_uuid(schema):
+    content = schema["components"]["schemas"]["PlayPost"]["properties"]["content"]
+    assert content["type"] == "string"
+    assert content["format"] == "uuid"
+
+
+def test_whole_api_generates_without_errors():
+    GENERATOR_STATS.reset()
+    with GENERATOR_STATS.silence():
+        SchemaGenerator().get_schema(request=None, public=True)
+    errors = list(GENERATOR_STATS._error_cache)
+    GENERATOR_STATS.reset()
+    assert errors == []

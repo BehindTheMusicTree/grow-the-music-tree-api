@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import transaction
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
@@ -11,6 +12,8 @@ from the_music_tree_grow_contracts.curation_lists import GRAPH_ITEM_ID_PATTERN
 from grow.curation.genre_aliases import apply_alias_report
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.import_run.ImportRun import ImportRun
+from grow.serializer.schema.common import PAGE_PARAMETERS
+from grow.serializer.schema.runs import ImportRunLatestSerializer, ImportRunPageSerializer, ImportRunSerializer
 from grow.view.curation import CurationView, _StrictSerializer
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -85,6 +88,15 @@ class ImportRunUnresolvedGenreTagsView(CurationView):
 
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(
+        request=UnresolvedGenreTagsReportSerializer,
+        responses={
+            status.HTTP_201_CREATED: ImportRunSerializer,
+            status.HTTP_200_OK: OpenApiResponse(
+                description="The alias report was already applied: nothing recorded, empty body."
+            ),
+        },
+    )
     @transaction.atomic
     def post(self, request: Request) -> Response:
         serializer = UnresolvedGenreTagsReportSerializer(data=request.data)
@@ -100,6 +112,7 @@ class ImportRunUnresolvedGenreTagsView(CurationView):
 
 
 class ImportRunLatestView(CurationView):
+    @extend_schema(responses=ImportRunLatestSerializer)
     def get(self, request: Request) -> Response:
         return Response(
             {
@@ -110,6 +123,15 @@ class ImportRunLatestView(CurationView):
 
 
 class ImportRunListView(CurationView):
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "kind", str, enum=ImportRun.Kind.values, required=False, description="Only runs of this kind."
+            ),
+            *PAGE_PARAMETERS,
+        ],
+        responses=ImportRunPageSerializer,
+    )
     def get(self, request: Request) -> Response:
         queryset = ImportRun.objects.all()
         kind = request.query_params.get("kind")

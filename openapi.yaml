@@ -12,7 +12,17 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+          description: The database check failed.
   /v1/albums/:
     get:
       operationId: v1_albums_list
@@ -464,7 +474,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMe'
+          description: ''
   /v1/curation/{list_name}/entries/:
     get:
       operationId: v1_curation_entries_list
@@ -4300,6 +4314,30 @@ paths:
   /v1/pipeline/imports/:
     get:
       operationId: v1_pipeline_imports_retrieve
+      parameters:
+      - in: query
+        name: kind
+        schema:
+          type: string
+          enum:
+          - artists
+          - canonical_tree
+          - genealogy
+          - region_map
+          - regional_tree
+          - songs
+          - unresolved_genre_tags
+        description: Only runs of this kind.
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Rows per page, capped by the server.
       tags:
       - v1
       security:
@@ -4307,7 +4345,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunPage'
+          description: ''
   /v1/pipeline/imports/latest/:
     get:
       operationId: v1_pipeline_imports_latest_retrieve
@@ -4318,7 +4360,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRunLatest'
+          description: ''
   /v1/pipeline/imports/unresolved-genre-tags/:
     post:
       operationId: v1_pipeline_imports_unresolved_genre_tags_create
@@ -4326,12 +4372,31 @@ paths:
         match to a genre.
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnresolvedGenreTagsReport'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UnresolvedGenreTagsReport'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UnresolvedGenreTagsReport'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRun'
+          description: ''
         '200':
-          description: No response body
+          description: 'The alias report was already applied: nothing recorded, empty
+            body.'
   /v1/pipeline/runs/:
     get:
       operationId: v1_pipeline_runs_retrieve
@@ -4339,6 +4404,17 @@ paths:
         Lists past runs (admin), or queues one for the pipeline's poller to claim.
 
         The origin comes from auth: an admin's request is `manual`, the pipeline key's is the `scheduled` nightly `full`.
+      parameters:
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Rows per page, capped by the server.
       tags:
       - v1
       security:
@@ -4346,7 +4422,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRunPage'
+          description: ''
     post:
       operationId: v1_pipeline_runs_create
       description: |-
@@ -4355,12 +4435,31 @@ paths:
         The origin comes from auth: an admin's request is `manual`, the pipeline key's is the `scheduled` nightly `full`.
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineRunCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PipelineRunCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PipelineRunCreate'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
+        '409':
+          description: A pipeline run is already queued or running (api-kit error
+            envelope).
   /v1/pipeline/runs/{uuid}/:
     patch:
       operationId: v1_pipeline_runs_partial_update
@@ -4377,12 +4476,29 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPipelineRunProgress'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPipelineRunProgress'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPipelineRunProgress'
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
+        '409':
+          description: The run is not running (api-kit error envelope).
   /v1/pipeline/runs/{uuid}/cancel/:
     post:
       operationId: v1_pipeline_runs_cancel_create
@@ -4402,7 +4518,13 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
+        '409':
+          description: The run is neither queued nor running (api-kit error envelope).
   /v1/pipeline/runs/claim/:
     post:
       operationId: v1_pipeline_runs_claim_create
@@ -4413,7 +4535,13 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
+        '204':
+          description: No queued run to claim.
   /v1/pipeline/runs/latest/:
     get:
       operationId: v1_pipeline_runs_latest_retrieve
@@ -4424,7 +4552,13 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
+        '204':
+          description: No run was ever requested.
   /v1/playback/context/:
     get:
       operationId: v1_playback_context_retrieve
@@ -4434,7 +4568,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaybackContext'
+          description: ''
   /v1/playlists/:
     get:
       operationId: v1_playlists_list
@@ -5472,6 +5610,110 @@ components:
       - name
       - tracksCount
       - uuid
+    AliasEvidence:
+      type: object
+      properties:
+        automaticItemId:
+          type: string
+          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+        candidateItemIds:
+          type: array
+          items:
+            type: string
+            pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+        currentLabel:
+          type: string
+        legacyStatus:
+          $ref: '#/components/schemas/LegacyStatusEnum'
+    AliasExposure:
+      type: object
+      properties:
+        recording:
+          type: integer
+          minimum: 0
+        releaseGroup:
+          type: integer
+          minimum: 0
+        artist:
+          type: integer
+          minimum: 0
+        any:
+          type: integer
+          minimum: 0
+      required:
+      - any
+      - artist
+      - recording
+      - releaseGroup
+    AliasIssue:
+      type: object
+      properties:
+        tag:
+          type: string
+        targetItemId:
+          type: string
+          nullable: true
+          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+        lastKnownLabel:
+          type: string
+          nullable: true
+        reason:
+          $ref: '#/components/schemas/AliasIssueReasonEnum'
+        exposure:
+          $ref: '#/components/schemas/AliasExposure'
+        evidence:
+          $ref: '#/components/schemas/AliasEvidence'
+      required:
+      - evidence
+      - exposure
+      - lastKnownLabel
+      - reason
+      - tag
+      - targetItemId
+    AliasIssueReasonEnum:
+      enum:
+      - alias_target_missing
+      - alias_target_ineligible
+      - alias_source_auto_resolved
+      - alias_legacy_unmigrated
+      type: string
+      description: |-
+        * `alias_target_missing` - alias_target_missing
+        * `alias_target_ineligible` - alias_target_ineligible
+        * `alias_source_auto_resolved` - alias_source_auto_resolved
+        * `alias_legacy_unmigrated` - alias_legacy_unmigrated
+    AliasReview:
+      type: object
+      properties:
+        curationExportedOn:
+          type: string
+          format: date-time
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/AliasIssue'
+        targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/AliasTarget'
+      required:
+      - curationExportedOn
+      - issues
+      - targets
+    AliasTarget:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+        label:
+          type: string
+        tree:
+          $ref: '#/components/schemas/TreeEnum'
+      required:
+      - id
+      - label
+      - tree
     ArtistDetailed:
       type: object
       description: |-
@@ -5765,6 +6007,18 @@ components:
       - expectedMembershipRevision
       - expectedRevision
       - revision
+    AuthMe:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        email:
+          type: string
+          format: email
+          nullable: true
+      required:
+      - email
+      - role
     BlankEnum:
       enum:
       - ''
@@ -6871,6 +7125,63 @@ components:
           type: string
       required:
       - detail
+    ForegroundStep:
+      type: object
+      properties:
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        stage:
+          $ref: '#/components/schemas/ForegroundStepStageEnum'
+      required:
+      - finishedAt
+      - stage
+      - startedAt
+      - state
+    ForegroundStepStageEnum:
+      enum:
+      - fetching_rules
+      - ingesting_discogs
+      - ingesting_musicbrainz
+      - ingesting_wikidata
+      - ingesting_geohistory
+      - building_songs
+      - building_genres
+      - matching_songs
+      - building_gold
+      - importing_tree
+      - importing_graph
+      - uploading_songs
+      - merging_songs
+      - uploading_artists
+      - merging_artists
+      - uploading_region_map
+      - merging_region_map
+      type: string
+      description: |-
+        * `fetching_rules` - fetching_rules
+        * `ingesting_discogs` - ingesting_discogs
+        * `ingesting_musicbrainz` - ingesting_musicbrainz
+        * `ingesting_wikidata` - ingesting_wikidata
+        * `ingesting_geohistory` - ingesting_geohistory
+        * `building_songs` - building_songs
+        * `building_genres` - building_genres
+        * `matching_songs` - matching_songs
+        * `building_gold` - building_gold
+        * `importing_tree` - importing_tree
+        * `importing_graph` - importing_graph
+        * `uploading_songs` - uploading_songs
+        * `merging_songs` - merging_songs
+        * `uploading_artists` - uploading_artists
+        * `merging_artists` - merging_artists
+        * `uploading_region_map` - uploading_region_map
+        * `merging_region_map` - merging_region_map
     FullImportRunCreateRequest:
       type: object
       properties:
@@ -7609,6 +7920,65 @@ components:
       required:
       - membershipRevision
       - revision
+    Health:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatusEnum'
+        version:
+          type: string
+        commit:
+          type: string
+        uptimeSeconds:
+          type: integer
+        checks:
+          $ref: '#/components/schemas/HealthChecks'
+      required:
+      - checks
+      - commit
+      - status
+      - uptimeSeconds
+      - version
+    HealthCheckEntry:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthCheckEntryStatusEnum'
+        vendor:
+          type: string
+          description: The database vendor.
+        message:
+          type: string
+      required:
+      - status
+    HealthCheckEntryStatusEnum:
+      enum:
+      - ok
+      - warning
+      - error
+      type: string
+      description: |-
+        * `ok` - ok
+        * `warning` - warning
+        * `error` - error
+    HealthChecks:
+      type: object
+      properties:
+        database:
+          $ref: '#/components/schemas/HealthCheckEntry'
+        cache:
+          $ref: '#/components/schemas/HealthCheckEntry'
+      required:
+      - cache
+      - database
+    HealthStatusEnum:
+      enum:
+      - healthy
+      - unhealthy
+      type: string
+      description: |-
+        * `healthy` - healthy
+        * `unhealthy` - unhealthy
     HistoryAction:
       enum:
       - created
@@ -7661,6 +8031,23 @@ components:
       - actorPseudo
       - createdOn
       - uuid
+    ImportRun:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/ImportRunKindEnum'
+        importedOn:
+          type: string
+          format: date-time
+        count:
+          type: integer
+        skippedCount:
+          type: integer
+      required:
+      - count
+      - importedOn
+      - kind
+      - skippedCount
     ImportRunCreateRequest:
       type: object
       properties:
@@ -7679,6 +8066,59 @@ components:
           type: integer
       required:
       - runId
+    ImportRunKindEnum:
+      enum:
+      - canonical_tree
+      - regional_tree
+      - songs
+      - artists
+      - unresolved_genre_tags
+      - genealogy
+      - region_map
+      type: string
+      description: |-
+        * `canonical_tree` - Canonical Tree
+        * `regional_tree` - Regional Tree
+        * `songs` - Songs
+        * `artists` - Artists
+        * `unresolved_genre_tags` - Unresolved Genre Tags
+        * `genealogy` - Genealogy
+        * `region_map` - Region Map
+    ImportRunLatest:
+      type: object
+      description: The newest run of each kind, `null` when the kind never ran.
+      properties:
+        canonicalTree:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+        regionalTree:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+        songs:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+        artists:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+        unresolvedGenreTags:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+        genealogy:
+          allOf:
+          - $ref: '#/components/schemas/ImportRun'
+          nullable: true
+      required:
+      - artists
+      - canonicalTree
+      - genealogy
+      - regionalTree
+      - songs
+      - unresolvedGenreTags
     ImportRunModeEnum:
       enum:
       - full
@@ -7687,6 +8127,37 @@ components:
       description: |-
         * `full` - Full
         * `delta` - Delta
+    ImportRunPage:
+      type: object
+      properties:
+        overallTotal:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportRun'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+      - next
+      - overallTotal
+      - page
+      - pageSize
+      - previous
+      - results
+      - totalPages
     ImportRunStatus:
       type: object
       properties:
@@ -7735,6 +8206,16 @@ components:
       - expectedRevision
       - provenance
       - revision
+    LegacyStatusEnum:
+      enum:
+      - unique
+      - ambiguous
+      - missing
+      type: string
+      description: |-
+        * `unique` - unique
+        * `ambiguous` - ambiguous
+        * `missing` - missing
     ManualPlaylistDetailed:
       type: object
       properties:
@@ -8154,6 +8635,26 @@ components:
         name:
           type: string
           maxLength: 256
+    PatchedPipelineRunProgress:
+      type: object
+      properties:
+        stage:
+          $ref: '#/components/schemas/PipelineRunStageEnum'
+        stageCurrent:
+          type: integer
+          minimum: 0
+          nullable: true
+        stageTotal:
+          type: integer
+          minimum: 0
+          nullable: true
+        stepTelemetry:
+          $ref: '#/components/schemas/StepTelemetry'
+        status:
+          $ref: '#/components/schemas/PipelineRunProgressStatusEnum'
+        error:
+          type: string
+          nullable: true
     PatchedSongYoutubePatch:
       type: object
       properties:
@@ -8183,6 +8684,188 @@ components:
           nullable: true
         reason:
           type: string
+    PipelineRun:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PipelineRunKindEnum'
+        trigger:
+          $ref: '#/components/schemas/TriggerEnum'
+        status:
+          $ref: '#/components/schemas/PipelineRunStatusEnum'
+        stage:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStageEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        stageCurrent:
+          type: integer
+          nullable: true
+        stageTotal:
+          type: integer
+          nullable: true
+        stepTelemetry:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          description: '`StepTelemetry` of a full run.'
+        error:
+          type: string
+          nullable: true
+        requestedOn:
+          type: string
+          format: date-time
+        startedOn:
+          type: string
+          format: date-time
+          nullable: true
+        heartbeatOn:
+          type: string
+          format: date-time
+          nullable: true
+        finishedOn:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: email
+          nullable: true
+        cancelRequested:
+          type: boolean
+      required:
+      - cancelRequested
+      - error
+      - finishedOn
+      - heartbeatOn
+      - kind
+      - requestedBy
+      - requestedOn
+      - stage
+      - stageCurrent
+      - stageTotal
+      - startedOn
+      - status
+      - stepTelemetry
+      - trigger
+      - uuid
+    PipelineRunCreate:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/PipelineRunKindEnum'
+      required:
+      - kind
+    PipelineRunKindEnum:
+      enum:
+      - curation
+      - full
+      - sync
+      type: string
+      description: |-
+        * `curation` - Curation
+        * `full` - Full
+        * `sync` - Sync
+    PipelineRunPage:
+      type: object
+      properties:
+        overallTotal:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PipelineRun'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+      - next
+      - overallTotal
+      - page
+      - pageSize
+      - previous
+      - results
+      - totalPages
+    PipelineRunProgressStatusEnum:
+      enum:
+      - succeeded
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `succeeded` - succeeded
+        * `failed` - failed
+        * `cancelled` - cancelled
+    PipelineRunStageEnum:
+      enum:
+      - fetching_rules
+      - ingesting_discogs
+      - ingesting_musicbrainz
+      - ingesting_wikidata
+      - ingesting_geohistory
+      - building_songs
+      - building_genres
+      - matching_songs
+      - building_gold
+      - importing_tree
+      - importing_graph
+      - uploading_songs
+      - merging_songs
+      - uploading_artists
+      - merging_artists
+      - uploading_region_map
+      - merging_region_map
+      type: string
+      description: |-
+        * `fetching_rules` - Fetching Rules
+        * `ingesting_discogs` - Ingesting Discogs
+        * `ingesting_musicbrainz` - Ingesting Musicbrainz
+        * `ingesting_wikidata` - Ingesting Wikidata
+        * `ingesting_geohistory` - Ingesting Geohistory
+        * `building_songs` - Building Songs
+        * `building_genres` - Building Genres
+        * `matching_songs` - Matching Songs
+        * `building_gold` - Building Gold
+        * `importing_tree` - Importing Tree
+        * `importing_graph` - Importing Graph
+        * `uploading_songs` - Uploading Songs
+        * `merging_songs` - Merging Songs
+        * `uploading_artists` - Uploading Artists
+        * `merging_artists` - Merging Artists
+        * `uploading_region_map` - Uploading Region Map
+        * `merging_region_map` - Merging Region Map
+    PipelineRunStatusEnum:
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      - superseded
+      - cancelled
+      - expired
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `running` - Running
+        * `succeeded` - Succeeded
+        * `failed` - Failed
+        * `superseded` - Superseded
+        * `cancelled` - Cancelled
+        * `expired` - Expired
     PlayDetailed:
       type: object
       description: |-
@@ -8224,9 +8907,19 @@ components:
       properties:
         content:
           type: string
+          format: uuid
           writeOnly: true
       required:
       - content
+    PlaybackContext:
+      type: object
+      properties:
+        country:
+          type: string
+          nullable: true
+          description: The viewer's ISO 3166-1 alpha-2 country, when it can be told.
+      required:
+      - country
     PlaylistDetailed:
       type: object
       description: |-
@@ -8339,22 +9032,6 @@ components:
       - tracksCount
       - type
       - uuid
-    ReasonEnum:
-      enum:
-      - redirect_conflict
-      - missing
-      - not_in_tree
-      - invalid_rule
-      - exclusive_parent_regional
-      - unreached_genre
-      type: string
-      description: |-
-        * `redirect_conflict` - Redirect Conflict
-        * `missing` - Missing
-        * `not_in_tree` - Not In Tree
-        * `invalid_rule` - Invalid Rule
-        * `exclusive_parent_regional` - Exclusive Parent Regional
-        * `unreached_genre` - Unreached Genre
     ReferenceGraph:
       type: object
       properties:
@@ -8391,6 +9068,18 @@ components:
         * `regional_genre_parent` - Regional Genre Parent
         * `regional_overview` - Regional Overview
         * `secondary_parent` - Secondary Parent
+    RoleEnum:
+      enum:
+      - admin
+      - viewer
+      - pipeline
+      - curator
+      type: string
+      description: |-
+        * `admin` - admin
+        * `viewer` - viewer
+        * `pipeline` - pipeline
+        * `curator` - curator
     SceneEnum:
       enum:
       - commercial
@@ -8885,6 +9574,35 @@ components:
       - id
       - unplayableReason
       - viewCount
+    StateEnum:
+      enum:
+      - running
+      - succeeded
+      - failed
+      - cancelled
+      type: string
+      description: |-
+        * `running` - running
+        * `succeeded` - succeeded
+        * `failed` - failed
+        * `cancelled` - cancelled
+    StepTelemetry:
+      type: object
+      properties:
+        variant:
+          $ref: '#/components/schemas/VariantEnum'
+        foreground:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForegroundStep'
+        wikidata:
+          type: array
+          items:
+            $ref: '#/components/schemas/WikidataStep'
+        wikidataRetry:
+          allOf:
+          - $ref: '#/components/schemas/WikidataRetry'
+          nullable: true
     TaskId:
       type: object
       properties:
@@ -9024,6 +9742,14 @@ components:
       description: |-
         * `canonical` - Canonical
         * `regional` - Regional
+    TriggerEnum:
+      enum:
+      - manual
+      - scheduled
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `scheduled` - Scheduled
     TypeEnum:
       enum:
       - person
@@ -9040,6 +9766,26 @@ components:
         * `choir` - Choir
         * `character` - Character
         * `other` - Other
+    UnresolvedGenreTagsReport:
+      type: object
+      properties:
+        unresolvedGenreTagCount:
+          type: integer
+          minimum: 0
+        genreAliasReview:
+          $ref: '#/components/schemas/AliasReview'
+      required:
+      - unresolvedGenreTagCount
+    VariantEnum:
+      enum:
+      - bronze_only
+      - legacy_silver
+      - split_silver
+      type: string
+      description: |-
+        * `bronze_only` - bronze_only
+        * `legacy_silver` - legacy_silver
+        * `split_silver` - split_silver
     WikidataItemsResult:
       type: object
       properties:
@@ -9057,6 +9803,68 @@ components:
       required:
       - remappedCount
       - reviewCount
+    WikidataRetry:
+      type: object
+      properties:
+        attempt:
+          type: integer
+          minimum: 1
+        reason:
+          $ref: '#/components/schemas/WikidataRetryReasonEnum'
+        httpStatus:
+          type: integer
+          maximum: 599
+          minimum: 100
+          nullable: true
+      required:
+      - attempt
+      - httpStatus
+      - reason
+    WikidataRetryReasonEnum:
+      enum:
+      - http
+      - transport
+      - timeout
+      type: string
+      description: |-
+        * `http` - http
+        * `transport` - transport
+        * `timeout` - timeout
+    WikidataStep:
+      type: object
+      properties:
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        state:
+          $ref: '#/components/schemas/StateEnum'
+        stage:
+          $ref: '#/components/schemas/WikidataStepStageEnum'
+      required:
+      - finishedAt
+      - stage
+      - startedAt
+      - state
+    WikidataStepStageEnum:
+      enum:
+      - ingesting_geohistory
+      - ingesting_wikidata
+      - building_wikidata_silver
+      - building_geohistory_silver
+      - resolving_wikidata_silver
+      - anchoring_wikidata_silver
+      type: string
+      description: |-
+        * `ingesting_geohistory` - ingesting_geohistory
+        * `ingesting_wikidata` - ingesting_wikidata
+        * `building_wikidata_silver` - building_wikidata_silver
+        * `building_geohistory_silver` - building_geohistory_silver
+        * `resolving_wikidata_silver` - resolving_wikidata_silver
+        * `anchoring_wikidata_silver` - anchoring_wikidata_silver
     YoutubeUnplayableReasonEnum:
       enum:
       - not_found
@@ -9273,7 +10081,7 @@ components:
           type: string
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
         reason:
-          $ref: '#/components/schemas/ReasonEnum'
+          $ref: '#/components/schemas/_ReviewItemReasonEnum'
         target:
           type: string
           nullable: true
@@ -9286,6 +10094,22 @@ components:
       - column
       - itemId
       - reason
+    _ReviewItemReasonEnum:
+      enum:
+      - redirect_conflict
+      - missing
+      - not_in_tree
+      - invalid_rule
+      - exclusive_parent_regional
+      - unreached_genre
+      type: string
+      description: |-
+        * `redirect_conflict` - Redirect Conflict
+        * `missing` - Missing
+        * `not_in_tree` - Not In Tree
+        * `invalid_rule` - Invalid Rule
+        * `exclusive_parent_regional` - Exclusive Parent Regional
+        * `unreached_genre` - Unreached Genre
     _WikidataItem:
       type: object
       properties:

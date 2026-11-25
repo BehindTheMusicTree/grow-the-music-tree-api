@@ -3,6 +3,7 @@ from typing import Any
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
@@ -13,6 +14,8 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
+from grow.serializer.schema.common import PAGE_PARAMETERS
+from grow.serializer.schema.runs import PipelineRunPageSerializer, PipelineRunSerializer
 from grow.view.curation import CurationView
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
@@ -75,12 +78,22 @@ class PipelineRunsView(CurationView):
     def get_permissions(self):
         return [IsPipelineOrAdmin()] if self.request.method == "POST" else [IsAdmin()]
 
+    @extend_schema(parameters=PAGE_PARAMETERS, responses=PipelineRunPageSerializer)
     def get(self, request: Request) -> Response:
         PipelineRunRequest.objects.expire_stale()
         paginator = AppPagination()
         page = paginator.paginate_queryset(_newest_first(), request, view=self)
         return paginator.get_paginated_response([_serialize(run) for run in page or []])
 
+    @extend_schema(
+        request=PipelineRunCreateSerializer,
+        responses={
+            status.HTTP_201_CREATED: PipelineRunSerializer,
+            status.HTTP_409_CONFLICT: OpenApiResponse(
+                description="A pipeline run is already queued or running (api-kit error envelope)."
+            ),
+        },
+    )
     def post(self, request: Request) -> Response:
         serializer = PipelineRunCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -105,6 +118,12 @@ class PipelineRunsView(CurationView):
 class PipelineRunLatestView(CurationView):
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(description="No run was ever requested."),
+        }
+    )
     def get(self, request: Request) -> Response:
         PipelineRunRequest.objects.expire_stale()
         run = _newest_first().first()
@@ -116,6 +135,13 @@ class PipelineRunLatestView(CurationView):
 class PipelineRunClaimView(CurationView):
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(
+        request=None,
+        responses={
+            status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_204_NO_CONTENT: OpenApiResponse(description="No queued run to claim."),
+        },
+    )
     def post(self, request: Request) -> Response:
         run = PipelineRunRequest.objects.claim()
         if run is None:
@@ -140,6 +166,13 @@ class PipelineRunView(CurationView):
 
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(
+        request=PipelineRunProgressSerializer,
+        responses={
+            status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_409_CONFLICT: OpenApiResponse(description="The run is not running (api-kit error envelope)."),
+        },
+    )
     @transaction.atomic
     def patch(self, request: Request, uuid: str) -> Response:
         PipelineRunRequest.objects.expire_stale()
@@ -181,6 +214,15 @@ class PipelineRunView(CurationView):
 class PipelineRunCancelView(CurationView):
     """Cancels a queued request outright, or asks the poller to stop a running one."""
 
+    @extend_schema(
+        request=None,
+        responses={
+            status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_409_CONFLICT: OpenApiResponse(
+                description="The run is neither queued nor running (api-kit error envelope)."
+            ),
+        },
+    )
     @transaction.atomic
     def post(self, request: Request, uuid: str) -> Response:
         PipelineRunRequest.objects.expire_stale()
