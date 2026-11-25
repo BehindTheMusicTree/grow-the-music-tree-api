@@ -49,6 +49,19 @@ class TestCase(AppTestCase):
         self._install_graph()
         assert self._list_uuids(artists_name="pink floyd") == {str(self.matching_track.uuid)}
 
+    def test_filter_by_artists_name_lists_a_song_once_when_several_artists_match(self):
+        floyd_guest = self.model_fixture_factory.create_artist("Pink Floyd Guest")
+        type(self.matching_track).objects.get(pk=self.matching_track.pk).artists.add(floyd_guest)
+        self._install_graph()
+        for params in ({}, {"withTotal": "true"}, {"page": 1}):
+            response = self.api_client.get(
+                path=reverse(self.list_endpoint), data={"artists_name": "pink floyd", **params}
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert [t["uuid"] for t in response.data["results"]] == [str(self.matching_track.uuid)]
+            if params:
+                assert response.data["overallTotal"] == 1
+
     def test_filter_by_album_name(self):
         self._install_graph()
         assert self._list_uuids(album_name="the wall") == {str(self.matching_track.uuid)}
