@@ -26,7 +26,6 @@ from the_music_tree_grow_contracts.curation_lists import (
     ITEM_ID_PATTERN,
     ITEM_PAIR_LISTS,
     KEY_MAX_LENGTH,
-    LEGACY_GENRE_ALIAS_COLUMNS,
     QID_ENTITY_LISTS,
     TRADITION_ID_COLUMNS,
     is_optional_column,
@@ -98,7 +97,7 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             except ValueError:
                 errors[column] = "Must be a boolean"
             continue
-        if is_optional_column(list_name, column) and column not in curation_list.key and (value is None or value == ""):
+        if is_optional_column(column) and column not in curation_list.key and (value is None or value == ""):
             parsed[column] = ""
             continue
         if not isinstance(value, str) or not value.strip():
@@ -167,7 +166,7 @@ def to_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dic
     curation_list = CURATION_LISTS[list_name]
     fields = {**dict(zip(curation_list.key, key.split(KEY_SEPARATOR), strict=True)), **values, "reason": reason}
     # An optional column added to a list after its entries were stored has no stored value.
-    return {c: fields.get(c, "") if is_optional_column(list_name, c) else fields[c] for c in curation_list.columns}
+    return {c: fields.get(c, "") if is_optional_column(c) else fields[c] for c in curation_list.columns}
 
 
 def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dict[str, str]:
@@ -427,12 +426,6 @@ def check_upsert(
     if excluded_edge_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: excluded_edge_error})
     entry = entries.filter(list_name=list_name, key=parsed.key).first()
-    if list_name == GENRE_ALIAS_LIST and entry and not parsed.values["target_item_id"]:
-        previous_id = entry.values.get("target_item_id")
-        if previous_id:
-            if entry.values["wikidata_genre_name"] != parsed.values["wikidata_genre_name"]:
-                raise InvalidRow({"target_item_id": "Select a target by id to change this alias"})
-            parsed.values["target_item_id"] = previous_id
     return parsed, entry
 
 
@@ -507,10 +500,7 @@ def import_csv_dir(
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             header = tuple(reader.fieldnames or ())
-            allowed = {columns}
-            if name == GENRE_ALIAS_LIST:
-                allowed.add(LEGACY_GENRE_ALIAS_COLUMNS)
-            if header not in allowed:
+            if header != columns:
                 raise ValueError(f"{path.name}: header {reader.fieldnames} != {list(columns)}")
             for line, row in enumerate(reader, start=2):
                 try:

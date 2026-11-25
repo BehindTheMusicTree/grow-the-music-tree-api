@@ -75,7 +75,10 @@ class TestCase(AppTestCase):
         self._genre("Punk rock", "Q3071", parent=rock)
         reason = "r"
         CurationEntry.objects.create(
-            user=None, list_name="genre_alias", key="punk", values={"wikidata_genre_name": "Punk rock"}
+            user=None,
+            list_name="genre_alias",
+            key="punk",
+            values={"wikidata_genre_name": "Punk rock", "target_item_id": "Q3071"},
         )
         for key in ("pop rock\tpop", "pop rock\trock", "punk\tpop", "punk\trock"):
             CurationEntry.objects.create(user=None, list_name="genre_precedence", key=key, values={}, reason=reason)
