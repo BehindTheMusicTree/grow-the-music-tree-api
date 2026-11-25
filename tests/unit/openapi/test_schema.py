@@ -140,7 +140,7 @@ def test_song_import_run_declares_its_reviewed_revisions(schema):
 
 def test_song_list_documents_the_optional_total_envelope(schema):
     operation = schema["paths"]["/v1/library/songs/"]["get"]
-    assert {"with_total", "cursor", "page", "page_size"} <= {p["name"] for p in operation["parameters"]}
+    assert {"with_total", "pagination", "cursor", "page", "page_size"} <= {p["name"] for p in operation["parameters"]}
     envelope = schema["components"]["schemas"][_ok_body(schema, "/v1/library/songs/")["$ref"].rsplit("/", 1)[-1]]
     properties = envelope["properties"]
     assert set(properties) == {"overallTotal", "next", "previous", "results", "page", "pageSize", "totalPages"}

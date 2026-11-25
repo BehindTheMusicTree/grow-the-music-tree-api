@@ -29,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - Library domain in the OpenAPI contract: songs, artists and albums, plus the import-run protocol shared by songs, artists and the region map (create 201 `{runId}`, NDJSON part uploads 200 `{count}`, commit 202 `{taskId}`; the song run declares `graphRevision`, `membershipRevision` and `expectedParts`). The song list documents its real envelope (`overallTotal`, `page`, `pageSize`, `totalPages`, nullable without `with_total`) and its `with_total` and `cursor` parameters. Covered by `tests/unit/openapi/test_schema.py`.
 
+### Changed
+
+- **Breaking:** keyset pagination of `library/songs/` is now explicit: `?pagination=cursor` (requires `genre`, rejects `page`, `ordering` and `from`; another `pagination` value is a 400). `with_total=false` no longer switches to cursor mode: without `page` it returns numbered page 1 with no total. Clients that relied on `with_total=false` for cursors must send `pagination=cursor`. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
+
 ### Fixed
 
 - Keep artist song browsing and playback compatible with existing numbered-page clients. Genre assignment responses retain `previous[].undoable=false` for those clients while the new frontend restores edits through the server's undo token.

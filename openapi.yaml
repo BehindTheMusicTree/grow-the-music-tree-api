@@ -3554,6 +3554,15 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - name: pagination
+        required: false
+        in: query
+        description: '`cursor` switches to keyset pagination (no total, ordered by
+          `uuid`, requires `genre`; rejects `page`, `ordering` and `from`).'
+        schema:
+          type: string
+          enum:
+          - cursor
       - in: query
         name: playable
         schema:
@@ -3594,8 +3603,8 @@ paths:
       - name: with_total
         required: false
         in: query
-        description: '`false` skips the total count; without `page` it also switches
-          to cursor pagination.'
+        description: '`false` skips the total count. Genre requests without `page`,
+          `ordering` or `from` use the genre cursor for compatibility.'
         schema:
           type: boolean
       tags:

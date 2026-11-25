@@ -87,6 +87,15 @@ For existing clients, `canonical` aliases `restricted`, `all` aliases `extended`
 `expressions` plus direct songs. The default is `canonical` for canonical genres and `all` for regional genres.
 Regional genres only accept `all` among the legacy values. Contract 4 scopes work for either tree.
 
+#### Pagination modes
+
+- Default: numbered pages (`page`, `page_size`) with a total. `with_total=false` skips the `COUNT(*)` and keeps numbered
+  pages (`count` and `totalPages` are null; `page` defaults to 1).
+- `pagination=cursor` with `genre` selects keyset pagination ordered by `uuid`. There is no total, and `next` carries the
+  following page's cursor. This mode rejects `page`, `ordering` and `from` with 400. Existing genre panels also select
+  this mode by sending `genre` and `with_total=false` without those three parameters.
+- An unknown `pagination` value or a cursor on a numbered request returns 400.
+
 #### List by artist
 
 An explicit `page` selects the numbered pagination used by existing artist panels and playback queues. This mode accepts

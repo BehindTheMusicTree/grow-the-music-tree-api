@@ -5,12 +5,14 @@ from uuid import UUID
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.utils.urls import remove_query_param, replace_query_param
+from rest_framework.utils.urls import replace_query_param
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
+PAGINATION_PARAM = "pagination"
+CURSOR_MODE = "cursor"
 CURSOR_ORDERING = ("uuid",)
 
 
@@ -19,8 +21,14 @@ def wants_no_total(request: Request) -> bool:
 
 
 def wants_cursor(request: Request) -> bool:
-    """Keyset mode: no total and no explicit page (a `page` param keeps the OFFSET path for older clients)."""
-    return wants_no_total(request) and "page" not in request.query_params
+    params = request.query_params
+    mode = params.get(PAGINATION_PARAM)
+    if mode is not None and mode != CURSOR_MODE:
+        raise ParseError(f"`{PAGINATION_PARAM}` only accepts `{CURSOR_MODE}`.")
+    # Released genre panels send withTotal=false and follow the cursor in next.
+    return mode == CURSOR_MODE or (
+        "genre" in params and wants_no_total(request) and not {"page", "ordering", "from"} & params.keys()
+    )
 
 
 def _encode_cursor(uuid: UUID) -> str:
@@ -44,8 +52,8 @@ class OptionalTotalPagination(AppPagination):
     """`?withTotal=false` (seen as `with_total` after CamelToSnakeMiddleware) skips the COUNT(*): fetches one extra row to know whether a next page exists."""
 
     def paginate_queryset(self, queryset, request, view=None):
-        self._no_total = wants_no_total(request)
         self._cursor_mode = wants_cursor(request)
+        self._no_total = self._cursor_mode or wants_no_total(request)
         if not self._no_total:
             return super().paginate_queryset(queryset, request, view)
         self.request = request
@@ -92,13 +100,7 @@ class OptionalTotalPagination(AppPagination):
             )
         url = self.request.build_absolute_uri()
         next_link = replace_query_param(url, self.page_query_param, self._number + 1) if self._has_next else None
-        previous_link = None
-        if self._number > 1:
-            previous_link = (
-                remove_query_param(url, self.page_query_param)
-                if self._number == 2
-                else replace_query_param(url, self.page_query_param, self._number - 1)
-            )
+        previous_link = replace_query_param(url, self.page_query_param, self._number - 1) if self._number > 1 else None
         return Response(
             {
                 PaginatedResponseFields.OVERALL_TOTAL: None,
@@ -149,8 +151,21 @@ class OptionalTotalPagination(AppPagination):
                 "name": NO_TOTAL_PARAM,
                 "required": False,
                 "in": "query",
-                "description": "`false` skips the total count; without `page` it also switches to cursor pagination.",
+                "description": (
+                    "`false` skips the total count. Genre requests without `page`, `ordering` or `from` "
+                    "use the genre cursor for compatibility."
+                ),
                 "schema": {"type": "boolean"},
+            },
+            {
+                "name": PAGINATION_PARAM,
+                "required": False,
+                "in": "query",
+                "description": (
+                    "`cursor` switches to keyset pagination (no total, ordered by `uuid`, requires `genre`; "
+                    "rejects `page`, `ordering` and `from`)."
+                ),
+                "schema": {"type": "string", "enum": [CURSOR_MODE]},
             },
             {
                 "name": CURSOR_PARAM,
