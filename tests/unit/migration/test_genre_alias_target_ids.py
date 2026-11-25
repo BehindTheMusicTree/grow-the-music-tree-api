@@ -29,8 +29,12 @@ class TestGenreAliasTargetIds(TransactionTestCase):
             list_name="genre_alias", key="other", values={"wikidata_genre_name": "X", "target_item_id": "Q9"}
         )
 
+        review = apps.get_model("grow", "CurationReviewItem").objects
+        review.create(list_name="genre_alias", key="aor", reason="alias_legacy_unmigrated")
+
         apps = migrate(AFTER)
 
+        assert not apps.get_model("grow", "CurationReviewItem").objects.exists()
         entries = apps.get_model("grow", "CurationEntry").objects
         assert entries.get(pk=legacy.pk).values == {
             "wikidata_genre_name": "album-oriented rock",

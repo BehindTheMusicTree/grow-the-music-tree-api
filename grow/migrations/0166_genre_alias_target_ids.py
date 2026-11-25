@@ -12,6 +12,7 @@ TARGETS = {
 
 
 def fill_targets(apps, schema_editor):
+    apps.get_model("grow", "CurationReviewItem").objects.filter(reason="alias_legacy_unmigrated").delete()
     entries = apps.get_model("grow", "CurationEntry").objects.filter(list_name="genre_alias", user=None)
     for entry in entries:
         if entry.values.get("target_item_id"):
