@@ -32,6 +32,10 @@ class BulkImportRun(models.Model):
     graph_revision = models.UUIDField(null=True)
     membership_revision = models.UUIDField(null=True)
     expected_parts = models.JSONField(null=True)
+    # The pipeline run this import was made for (`X-Pipeline-Run-Request`), copied onto each attempt.
+    pipeline_run_request = models.ForeignKey(
+        "grow.PipelineRunRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         db_table = "grow_bulk_import_run"

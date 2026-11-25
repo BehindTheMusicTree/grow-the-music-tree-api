@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db.models.fields.json import KeyTransform
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
@@ -12,10 +13,15 @@ from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
 from the_music_tree_api_kit.view.error.ErrorResponse import ErrorResponse
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND
+from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.status import progress_payload
+from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
+from grow.pipeline_run.typical_durations import typical_stage_seconds
 from grow.serializer.schema.common import PAGE_PARAMETERS
-from grow.serializer.schema.runs import PipelineRunPageSerializer, PipelineRunSerializer
+from grow.serializer.schema.runs import PipelineRunLatestSerializer, PipelineRunPageSerializer, PipelineRunSerializer
 from grow.view.curation import CurationView
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
@@ -49,6 +55,29 @@ def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
         "requested_by": run.requested_by.email if run.requested_by else None,
         "cancel_requested": run.cancel_requested_on is not None,
     }
+
+
+def _is_bootstrap(attempt: ImportAttempt) -> bool | None:
+    """Whether a graph import is the first one (no `expected_revision`); None for other kinds or a cleaned-up run."""
+    if attempt.kind != GENRE_GRAPH_KIND:
+        return None
+    # Reads the one key in the database: the payload holds the whole graph and this runs on every poll.
+    rows = list(
+        GenreGraphImportPayload.objects.filter(run_id=attempt.run_id)
+        .annotate(expected_revision=KeyTransform("expected_revision", "payload"))
+        .values_list("expected_revision", flat=True)[:1]
+    )
+    if not rows:
+        return None
+    return rows[0] is None
+
+
+def _active_import(run: PipelineRunRequest) -> dict[str, Any] | None:
+    """The newest import attempt made for `run`, terminal or not: the front decides whether to show it."""
+    attempt = run.import_attempts.order_by("-queued_at", "-attempt").first()
+    if attempt is None:
+        return None
+    return {**progress_payload(attempt), "bootstrap": _is_bootstrap(attempt)}
 
 
 def _newest_first():
@@ -120,16 +149,23 @@ class PipelineRunLatestView(CurationView):
 
     @extend_schema(
         responses={
-            status.HTTP_200_OK: PipelineRunSerializer,
+            status.HTTP_200_OK: PipelineRunLatestSerializer,
             status.HTTP_204_NO_CONTENT: OpenApiResponse(description="No run was ever requested."),
-        }
+        },
+        description="The newest run, with the progress of its linked import and typical stage durations.",
     )
     def get(self, request: Request) -> Response:
         PipelineRunRequest.objects.expire_stale()
         run = _newest_first().first()
         if run is None:
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(_serialize(run))
+        return Response(
+            {
+                **_serialize(run),
+                "active_import": _active_import(run),
+                "typical_stage_seconds": typical_stage_seconds(run.kind),
+            }
+        )
 
 
 class PipelineRunClaimView(CurationView):

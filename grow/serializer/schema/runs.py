@@ -77,4 +77,13 @@ class PipelineRunSerializer(serializers.Serializer):
     cancel_requested = serializers.BooleanField()
 
 
+class PipelineRunLatestSerializer(PipelineRunSerializer):
+    active_import = serializers.JSONField(
+        allow_null=True, help_text="Progress of the newest import attempt made for the run, plus `bootstrap`."
+    )
+    typical_stage_seconds = serializers.JSONField(
+        allow_null=True, help_text="Median seconds per stage by telemetry chain over recent succeeded full runs."
+    )
+
+
 PipelineRunPageSerializer = paginated_serializer("PipelineRunPage", PipelineRunSerializer)
