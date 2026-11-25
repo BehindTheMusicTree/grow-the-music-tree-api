@@ -125,8 +125,10 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             return self._list_artist_songs(queryset)
         if wants_cursor(self.request):
             params = self.request.query_params
-            if "genre" not in params or "ordering" in params or "from" in params:
-                raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
+            if "genre" not in params or {"ordering", "from", "page"} & params.keys():
+                raise ParseError(
+                    "Cursor pagination requires `genre` and supports none of `ordering`, `from` and `page`."
+                )
             # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
         elif wants_no_total(self.request):
