@@ -4,7 +4,6 @@ from typing import Any
 
 from rest_framework import serializers
 from the_music_tree_grow_contracts import load_schema
-from the_music_tree_grow_contracts.curation_lists import GENRE_ALIAS_LIST, LEGACY_GENRE_ALIAS_COLUMNS
 
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.serializer.schema.common import paginated_serializer
@@ -132,28 +131,11 @@ def _openapi_compatible(node: Any) -> Any:
 
 
 def curation_export_schema() -> dict[str, Any]:
-    """The export contract (`genre_alias_version=2`), widened to the default version 1 and the legacy projection.
+    """The export contract.
 
     A raw schema rather than a serializer: the view renders with `JSONRenderer`, so its keys stay snake_case, which the
     camelize hook would otherwise rewrite.
     """
     schema = _openapi_compatible(load_schema("curation_export"))
     schema.pop("title", None)
-    schema["required"] = [name for name in schema["required"] if name != "genre_alias_version"]
-    schema["properties"]["genre_alias_version"]["description"] = "Present only with `genre_alias_version=2`."
-    alias_row = schema["properties"][GENRE_ALIAS_LIST]["items"]
-    alias_row["required"] = list(LEGACY_GENRE_ALIAS_COLUMNS)
-    alias_row["description"] = "`target_item_id` is present only with `genre_alias_version=2`."
-    schema["properties"]["overview_status_overrides"] = {
-        "type": "array",
-        "deprecated": True,
-        "description": "Legacy projection of `regional_overview_types`.",
-        "items": {
-            "type": "object",
-            "properties": {name: {"type": "string"} for name in ("item_id", "status", "reason")},
-            "required": ["item_id", "status", "reason"],
-            "additionalProperties": False,
-        },
-    }
-    schema["required"].append("overview_status_overrides")
     return schema

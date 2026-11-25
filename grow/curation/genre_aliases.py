@@ -59,18 +59,12 @@ def prepare_alias_write(row: dict[str, Any], entry: CurationEntry | None = None)
     target_id = row.get("target_item_id", old_id)
     label = row.get("wikidata_genre_name", old_label)
     key_changed = entry is None or row.get("musicbrainz_genre_name", entry.key) != entry.key
-    legacy_create = entry is None and bool(label)
-    if "target_item_id" in row and not target_id and (old_id or (entry is None and not legacy_create)):
+    if not target_id:
         raise ValidationError({"row": {"target_item_id": "Select a target by id"}})
     if entry and target_id == old_id and label == old_label and not key_changed:
         return {**old, **row}
 
-    targets = alias_catalogue()["targets"]
-    legacy_retarget = target_id == old_id and label != old_label
-    if target_id and not legacy_retarget:
-        candidates = [target for target in targets if target["id"] == target_id]
-    else:
-        candidates = [target for target in targets if target["label"] == label]
+    candidates = [target for target in alias_catalogue()["targets"] if target["id"] == target_id]
     if len(candidates) != 1:
         raise ValidationError({"row": {"target_item_id": "Select one eligible target by id"}})
     target = candidates[0]
@@ -105,11 +99,10 @@ def apply_alias_report(exported_on: datetime, report: dict[str, Any], count: int
     if (
         export is None
         or not export.snapshot
-        or export.snapshot.get("genre_alias_version") != 2
         or export.genre_alias_revisions is None
         or state.applied_export_on != exported_on
     ):
-        raise ValidationError({"genre_alias_review": "Report must reference the applied v2 curation export"})
+        raise ValidationError({"genre_alias_review": "Report must reference the applied curation export"})
 
     graph_export = dataset.payload.get("curationExportedOn") if dataset else None
     if not isinstance(graph_export, str) or parse_datetime(graph_export) != exported_on:

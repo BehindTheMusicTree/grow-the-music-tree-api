@@ -23,7 +23,7 @@ def test_committed_curation_export_schema_matches_the_curation_lists():
 class TestCurationExportContract(AppTestCase):
     def export(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
-        response = self.api_client.get(reverse("curation-export"), {"genre_alias_version": 2})
+        response = self.api_client.get(reverse("curation-export"))
         assert response.status_code == 200, response.content
         return response.json()
 

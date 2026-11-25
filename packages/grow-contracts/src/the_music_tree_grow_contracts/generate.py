@@ -1,6 +1,6 @@
 """Writes `curation_export.schema.json` from the curation list specs.
 
-Describes the `GET /v1/curation/export/?genre_alias_version=2` response: CSV-ready rows, so every field is a string,
+Describes the `GET /v1/curation/export/` response: CSV-ready rows, so every field is a string,
 booleans being "true" or "" and a blank optional field "". Every column is present in every row.
 """
 
@@ -91,13 +91,7 @@ def build_curation_export_schema() -> dict[str, Any]:
     properties: dict[str, Any] = {name: _list_schema(name) for name in CURATION_LISTS}
     properties["edges"] = _rows(_edge_schema())
     properties["exported_on"] = {"type": "string", "format": "date-time"}
-    properties["genre_alias_version"] = {"const": 2}
     required = list(properties)
-    # Deprecated projection of `regional_overview_types`, optional so that dropping it breaks no consumer.
-    properties["overview_status_overrides"] = {
-        "deprecated": True,
-        **_rows(_object({"item_id": _non_empty(), "status": _non_empty(), "reason": _non_empty()})),
-    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": SCHEMA_ID,
