@@ -10,6 +10,12 @@ from rest_framework.exceptions import ParseError
 
 CURSOR_VERSION = 1
 PK_ORDERING = ""  # no `ordering` param: pk order
+ARTIST_DEFAULT_ORDERING = "title"
+
+
+def cursor_ordering(params) -> str:
+    """A cursor page's ordering. An artist list has one default, whichever path reads it."""
+    return params.get("ordering") or (ARTIST_DEFAULT_ORDERING if "artist" in params else PK_ORDERING)
 
 
 @dataclass(frozen=True)
@@ -55,5 +61,14 @@ def _valid_key(key: object, ordering: str) -> bool:
     if ordering == PK_ORDERING:
         return key is None
     if ordering.lstrip("-") == "title":
-        return isinstance(key, str) and "\x00" not in key
+        return isinstance(key, str) and "\x00" not in key and _encodes(key)
     return key is None or type(key) is int
+
+
+def _encodes(key: str) -> bool:
+    """False for a lone surrogate, which JSON accepts and the database cannot encode."""
+    try:
+        key.encode()
+    except UnicodeEncodeError:
+        return False
+    return True

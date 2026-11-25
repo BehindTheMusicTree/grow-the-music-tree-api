@@ -30,6 +30,7 @@ def test_round_trip(ordering, key):
         ([2, "title", "a", str(SONG_ID)], "title"),
         ([1, "title", 5, str(SONG_ID)], "title"),
         ([1, "title", "\x00", str(SONG_ID)], "title"),
+        ([1, "title", "\ud800", str(SONG_ID)], "title"),
         ([1, "albumYear", True, str(SONG_ID)], "albumYear"),
         ([1, "", "a", str(SONG_ID)], PK_ORDERING),
         ([1, "title", "a", 5], "title"),

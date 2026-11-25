@@ -22,6 +22,7 @@ from grow.view.pagination.OptionalTotalPagination import (
     wants_cursor,
     wants_total,
 )
+from grow.view.pagination.song_cursor import cursor_ordering
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
 
 from .Fields import Fields
@@ -147,11 +148,13 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
             raise ValidationError({"subgenres": "Subgenre scope requires a genre selection."})
         queryset = super().filter_queryset(queryset)
         ordering = self.form.cleaned_data.get("ordering")
+        cursor_mode = self._cursor_mode()
+        if not ordering and cursor_mode and (ordering := cursor_ordering(self.data)):
+            queryset = self.filter_ordering(queryset, "ordering", ordering)
         by_pk = not ordering and self._pk_by_default()
         if by_pk:
             queryset = queryset.order_by("pk")
         anchor_uuid = self.form.cleaned_data.get(Fields.FROM)
-        cursor_mode = self._cursor_mode()
         if anchor_uuid is not None and cursor_mode and CURSOR_PARAM in self.data:
             raise ParseError(f"`{Fields.FROM}` and `{CURSOR_PARAM}` are mutually exclusive.")
         # Cursor pages read the last row's key to build the next cursor.

@@ -73,8 +73,10 @@ four-digit album year; songs with neither sort with the nulls.
 
 `GET /v1/library/songs/?playable=true|false`: playable means `youtube_video_id` is set and
 `youtube_unplayable_reason` is empty.
-`?from=<song uuid>` starts the list at that song (included) in the current ordering (default `created_on`;
-nulls last, ties by id). 404 if it is not in the filtered list, 400 if not a UUID.
+`?from=<song uuid>` starts the list at that song (included) in the current ordering (nulls last, ties by id). Without
+`ordering`, cursor pages (no `page`) sort by id, or by title with `artist`; numbered pages sort by `created_on`, or by
+id with `with_total=false`. 404 if the song is not in the filtered list, 400 if not a UUID. See
+[pagination modes](songs.md#pagination-modes).
 
 `isSpecialPurpose` (read-only boolean, also on nested artists) is true for the special-purpose MBIDs (Various Artists,
 Unknown, etc.).

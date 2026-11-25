@@ -6,7 +6,7 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
 from grow.view.pagination.keyset import SORT_KEY, seek
-from grow.view.pagination.song_cursor import PK_ORDERING, SongCursor
+from grow.view.pagination.song_cursor import PK_ORDERING, SongCursor, cursor_ordering
 
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
@@ -27,6 +27,16 @@ def wants_cursor(request: Request) -> bool:
     if mode is not None and mode != CURSOR_MODE:
         raise ParseError(f"`{PAGINATION_PARAM}` only accepts `{CURSOR_MODE}`.")
     return "page" not in request.query_params
+
+
+def next_cursor_link(request: Request, cursor: str) -> str:
+    url = request.build_absolute_uri()
+    if "from" in request.query_params:
+        # `from` only positions the first page; the cursor takes over. The total counted the list from that song, so
+        # later pages don't recount a different one. The URL keeps the client's spelling of `with_total`.
+        for param in ("from", NO_TOTAL_PARAM, "withTotal"):
+            url = remove_query_param(url, param)
+    return replace_query_param(url, CURSOR_PARAM, cursor)
 
 
 class _NoLastPage:
@@ -57,7 +67,7 @@ class OptionalTotalPagination(AppPagination):
     def _paginate_keyset(self, queryset, request):
         """`queryset` must be ordered by `ordering` (SORT_KEY annotated) or, without it, by pk."""
         self._number = None
-        ordering = request.query_params.get("ordering", PK_ORDERING)  # already validated by the filterset
+        ordering = cursor_ordering(request.query_params)  # already validated by the filterset
         keyed = ordering != PK_ORDERING
         self._total = queryset.count() if wants_total(request) else None
         raw_cursor = request.query_params.get(CURSOR_PARAM)
@@ -84,11 +94,7 @@ class OptionalTotalPagination(AppPagination):
         if not self._no_total:
             return super().get_paginated_response(data)
         if self._cursor_mode:
-            next_link = None
-            if self._has_next:
-                # `from` only positions the first page; the cursor takes over.
-                url = remove_query_param(self.request.build_absolute_uri(), "from")
-                next_link = replace_query_param(url, CURSOR_PARAM, self._next_cursor)
+            next_link = next_cursor_link(self.request, self._next_cursor) if self._has_next else None
             return Response(
                 {
                     PaginatedResponseFields.OVERALL_TOTAL: self._total,
