@@ -32,6 +32,7 @@ class CriteriaPlaylistSimpleSerializer(GenrePlaylistSummaryMixin, EagerLoadingMi
     parent = CriteriaPlaylistMinimumSerializer()
     root = CriteriaPlaylistMinimumSerializer()  # type: ignore
     tracks_count = serializers.IntegerField(source=PlaylistOutputFields.TRACKS_COUNT_ANNOTATED)
+    name = serializers.CharField(read_only=True)  # the model property carries no type hint
     is_unaccepted_root = serializers.SerializerMethodField()
     is_umbrella = serializers.SerializerMethodField()
     scene = serializers.SerializerMethodField()

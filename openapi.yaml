@@ -467,13 +467,36 @@ paths:
           description: No response body
   /v1/curation/{list_name}/entries/:
     get:
-      operationId: v1_curation_entries_retrieve
+      operationId: v1_curation_entries_list
       parameters:
       - in: path
         name: list_name
         schema:
           type: string
         required: true
+      - in: query
+        name: ordering
+        schema:
+          type: string
+          enum:
+          - -updated_on
+          - key
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Rows per page, capped by the server.
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Matched against the key, the values, the reason and the key's
+          genre name.
       tags:
       - v1
       security:
@@ -481,7 +504,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationEntriesPage'
+          description: ''
     post:
       operationId: v1_curation_entries_create
       parameters:
@@ -492,15 +519,31 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurationRowRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CurationRowRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CurationRowRequest'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
   /v1/curation/{list_name}/entries/{uuid}/:
     get:
-      operationId: v1_curation_entries_retrieve_2
+      operationId: v1_curation_entries_retrieve
       parameters:
       - in: path
         name: list_name
@@ -520,7 +563,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
     patch:
       operationId: v1_curation_entries_partial_update
       parameters:
@@ -537,12 +584,27 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCurationRowRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCurationRowRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCurationRowRequest'
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
     delete:
       operationId: v1_curation_entries_destroy
       parameters:
@@ -567,9 +629,39 @@ paths:
           description: No response body
   /v1/curation/edges/:
     get:
-      operationId: v1_curation_edges_retrieve
+      operationId: v1_curation_edges_list
       description: The curated genre edges (canonical/regional parents, roots, regional
         overviews, secondary parents).
+      parameters:
+      - in: query
+        name: item_id
+        schema:
+          type: string
+        description: Edges whose item or parent is this id.
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Rows per page, capped by the server.
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Matched against the ids, the reason and the ids' genre names.
+      - in: query
+        name: relation
+        schema:
+          type: string
+          enum:
+          - canonical_parent
+          - regional_genre_parent
+          - regional_overview
+          - secondary_parent
       tags:
       - v1
       security:
@@ -577,22 +669,42 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationEdgesPage'
+          description: ''
     post:
       operationId: v1_curation_edges_create
       description: The curated genre edges (canonical/regional parents, roots, regional
         overviews, secondary parents).
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_Edge'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_Edge'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/_Edge'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
-        '200':
-          description: No response body
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
   /v1/curation/edges/{uuid}/:
     get:
-      operationId: v1_curation_edges_retrieve_2
+      operationId: v1_curation_edges_retrieve
       parameters:
       - in: path
         name: uuid
@@ -607,7 +719,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
     patch:
       operationId: v1_curation_edges_partial_update
       parameters:
@@ -619,12 +735,27 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Patched_EdgePatch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Patched_EdgePatch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Patched_EdgePatch'
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRule'
+          description: ''
     delete:
       operationId: v1_curation_edges_destroy
       parameters:
@@ -650,6 +781,15 @@ paths:
 
         `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
         knows which export the imported tree was built from.
+      parameters:
+      - in: query
+        name: genre_alias_version
+        schema:
+          type: string
+          enum:
+          - '1'
+          - '2'
+        description: Defaults to 1.
       tags:
       - v1
       security:
@@ -657,10 +797,1159 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  canonical_parent_additions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        label:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - label
+                      - reason
+                      additionalProperties: false
+                  capitalized_words:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        word:
+                          type: string
+                          minLength: 1
+                        capitalized:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - word
+                      - capitalized
+                      - reason
+                      additionalProperties: false
+                  duplicate_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  indigenous_to_exclusions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  label_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        display_label:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - display_label
+                      - reason
+                      additionalProperties: false
+                  forced_canonical_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  out_of_scope_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  overview_reclassifications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  local_identities:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        kind:
+                          type: string
+                          enum:
+                          - genre
+                          - overview
+                        label:
+                          type: string
+                          minLength: 1
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - kind
+                      - label
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  canonical_roots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  regional_memberships:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        child_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        parent_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        action:
+                          type: string
+                          enum:
+                          - add
+                          - prohibit
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - child_item_id
+                      - parent_item_id
+                      - action
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  regional_anchorings:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        overview_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - overview_item_id
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  genre_merges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        target_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - source_item_id
+                      - target_item_id
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  genre_derivations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        origin_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - origin_item_id
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  regional_overview_types:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
+                        overview_type:
+                          type: string
+                          enum:
+                          - current
+                          - historical
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - overview_type
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  regional_overview_additions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        label:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - label
+                      - reason
+                      additionalProperties: false
+                  synthetic_overview_resolutions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        action:
+                          type: string
+                          enum:
+                          - replace
+                          - remove
+                        replacement_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)?$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - action
+                      - replacement_item_id
+                      - reason
+                      additionalProperties: false
+                  technique_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  theme_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  umbrella_non_stylistic_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  umbrella_stylistic_genres:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - reason
+                      additionalProperties: false
+                  canonical_genre_scene:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        scene:
+                          type: string
+                          enum:
+                          - commercial
+                          - underground
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - scene
+                      - reason
+                      additionalProperties: false
+                  accepted_non_genre_tags:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_genre_name:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_genre_name
+                      - reason
+                      additionalProperties: false
+                  musicbrainz_free_genre_tags:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_tag_name:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_tag_name
+                      - reason
+                      additionalProperties: false
+                  canonical_genre_pop_side:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        root_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        pop_child_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - root_item_id
+                      - pop_child_item_id
+                      - reason
+                      additionalProperties: false
+                  genre_alias:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_genre_name:
+                          type: string
+                          minLength: 1
+                        wikidata_genre_name:
+                          type: string
+                          minLength: 1
+                        target_item_id:
+                          type: string
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)?$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_genre_name
+                      - wikidata_genre_name
+                      - reason
+                      additionalProperties: false
+                      description: '`target_item_id` is present only with `genre_alias_version=2`.'
+                  genre_disambiguation:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_genre_name:
+                          type: string
+                          minLength: 1
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        is_default:
+                          type: string
+                          enum:
+                          - 'true'
+                          - ''
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_genre_name
+                      - item_id
+                      - is_default
+                      - reason
+                      additionalProperties: false
+                  genre_disambiguation_context:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_genre_name:
+                          type: string
+                          minLength: 1
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        context_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_genre_name
+                      - item_id
+                      - context_item_id
+                      - reason
+                      additionalProperties: false
+                  song_genre:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_recording_id:
+                          type: string
+                          minLength: 1
+                        genre_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)?$
+                        decision_id:
+                          type: string
+                          minLength: 1
+                        decision_source:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_recording_id
+                      - genre_item_id
+                      - decision_id
+                      - decision_source
+                      - reason
+                      additionalProperties: false
+                  recording_youtube_video:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        musicbrainz_recording_id:
+                          type: string
+                          minLength: 1
+                        youtube_video_id:
+                          type: string
+                        unplayable_reason:
+                          type: string
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - musicbrainz_recording_id
+                      - youtube_video_id
+                      - unplayable_reason
+                      - reason
+                      additionalProperties: false
+                  essential_songs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        musicbrainz_recording_id:
+                          type: string
+                          minLength: 1
+                        position:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - musicbrainz_recording_id
+                      - position
+                      - reason
+                      additionalProperties: false
+                  summary_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        summary:
+                          type: string
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - summary
+                      - reason
+                      additionalProperties: false
+                  genre_precedence:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        over_item_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - item_id
+                      - over_item_id
+                      - reason
+                      additionalProperties: false
+                  entity_cultural_roles:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        is_cultural:
+                          type: string
+                          enum:
+                          - 'true'
+                          - ''
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - is_cultural
+                      - reason
+                      additionalProperties: false
+                  cultural_membership_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        child_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        parent_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        action:
+                          type: string
+                          enum:
+                          - add
+                          - remove
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - child_entity_id
+                      - parent_entity_id
+                      - action
+                      - reason
+                      additionalProperties: false
+                  entity_additions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        entity_kind:
+                          type: string
+                          enum:
+                          - cultural_region
+                          - macro_region
+                          - city
+                          - admin_unit
+                          - historical_country
+                          - ''
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - entity_kind
+                      - reason
+                      additionalProperties: false
+                  entity_exclusions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - reason
+                      additionalProperties: false
+                  entity_membership_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        child_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        parent_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        action:
+                          type: string
+                          minLength: 1
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - child_entity_id
+                      - parent_entity_id
+                      - action
+                      - reason
+                      additionalProperties: false
+                  federated_state_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        action:
+                          type: string
+                          enum:
+                          - add
+                          - remove
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - action
+                      - reason
+                      additionalProperties: false
+                  place_relation_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        child_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        parent_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        extent:
+                          type: string
+                          enum:
+                          - full
+                          - partial
+                          - reject
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - child_entity_id
+                      - parent_entity_id
+                      - extent
+                      - reason
+                      additionalProperties: false
+                  entity_time_span_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        start_year:
+                          type: string
+                          pattern: ^(?:\s*(?:-?[1-9][0-9]*|0)\s*)?$
+                        end_year:
+                          type: string
+                          pattern: ^(?:\s*(?:-?[1-9][0-9]*|0)\s*)?$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - start_year
+                      - end_year
+                      - reason
+                      additionalProperties: false
+                  region_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        region_id:
+                          type: string
+                          enum:
+                          - americas
+                          - europe
+                          - africa
+                          - asia
+                          - oceania
+                          - religions
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - entity_id
+                      - region_id
+                      - reason
+                      additionalProperties: false
+                  tradition_additions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - wikidata_id
+                      - reason
+                      additionalProperties: false
+                  tradition_exclusions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - wikidata_id
+                      - reason
+                      additionalProperties: false
+                  cultural_place_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        child_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        parent_entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - child_entity_id
+                      - parent_entity_id
+                      - reason
+                      additionalProperties: false
+                  tradition_placement_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)?$
+                        start_year:
+                          type: string
+                          pattern: ^(?:\s*(?:-?[1-9][0-9]*|0)\s*)?$
+                        end_year:
+                          type: string
+                          pattern: ^(?:\s*(?:-?[1-9][0-9]*|0)\s*)?$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - wikidata_id
+                      - entity_id
+                      - start_year
+                      - end_year
+                      - reason
+                      additionalProperties: false
+                  tradition_extra_places:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        entity_id:
+                          type: string
+                          pattern: ^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - wikidata_id
+                      - entity_id
+                      - reason
+                      additionalProperties: false
+                  tradition_link_overrides:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        from_wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        to_wikidata_id:
+                          type: string
+                          pattern: ^(?:Q[0-9]+)$
+                        kind:
+                          type: string
+                          enum:
+                          - lineage
+                          - association
+                        action:
+                          type: string
+                          enum:
+                          - add
+                          - remove
+                        reason:
+                          type: string
+                          minLength: 1
+                      required:
+                      - from_wikidata_id
+                      - to_wikidata_id
+                      - kind
+                      - action
+                      - reason
+                      additionalProperties: false
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        relation:
+                          type: string
+                          enum:
+                          - canonical_parent
+                          - regional_genre_parent
+                          - regional_overview
+                          - secondary_parent
+                        item_id:
+                          type: string
+                          minLength: 1
+                        parent_item_id:
+                          type: string
+                          minLength: 1
+                        action:
+                          type: string
+                          enum:
+                          - add
+                          - remove
+                          - ''
+                        exclude_other_parents:
+                          type: string
+                          enum:
+                          - 'true'
+                          - ''
+                        reason:
+                          type: string
+                      required:
+                      - relation
+                      - item_id
+                      - parent_item_id
+                      - action
+                      - exclude_other_parents
+                      - reason
+                      additionalProperties: false
+                  exported_on:
+                    type: string
+                    format: date-time
+                  genre_alias_version:
+                    enum:
+                    - 2
+                    description: Present only with `genre_alias_version=2`.
+                  overview_status_overrides:
+                    type: array
+                    deprecated: true
+                    description: Legacy projection of `regional_overview_types`.
+                    items:
+                      type: object
+                      properties:
+                        item_id:
+                          type: string
+                        status:
+                          type: string
+                        reason:
+                          type: string
+                      required:
+                      - item_id
+                      - status
+                      - reason
+                      additionalProperties: false
+                required:
+                - canonical_parent_additions
+                - capitalized_words
+                - duplicate_genres
+                - indigenous_to_exclusions
+                - label_overrides
+                - forced_canonical_genres
+                - out_of_scope_genres
+                - overview_reclassifications
+                - local_identities
+                - canonical_roots
+                - regional_memberships
+                - regional_anchorings
+                - genre_merges
+                - genre_derivations
+                - regional_overview_types
+                - regional_overview_additions
+                - synthetic_overview_resolutions
+                - technique_genres
+                - theme_genres
+                - umbrella_non_stylistic_genres
+                - umbrella_stylistic_genres
+                - canonical_genre_scene
+                - accepted_non_genre_tags
+                - musicbrainz_free_genre_tags
+                - canonical_genre_pop_side
+                - genre_alias
+                - genre_disambiguation
+                - genre_disambiguation_context
+                - song_genre
+                - recording_youtube_video
+                - essential_songs
+                - summary_overrides
+                - genre_precedence
+                - entity_cultural_roles
+                - cultural_membership_overrides
+                - entity_additions
+                - entity_exclusions
+                - entity_membership_overrides
+                - federated_state_overrides
+                - place_relation_overrides
+                - entity_time_span_overrides
+                - region_overrides
+                - tradition_additions
+                - tradition_exclusions
+                - cultural_place_overrides
+                - tradition_placement_overrides
+                - tradition_extra_places
+                - tradition_link_overrides
+                - edges
+                - exported_on
+                - overview_status_overrides
+                additionalProperties: false
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationExportConflict'
+          description: ''
   /v1/curation/genre-alias-targets/:
     get:
       operationId: v1_curation_genre_alias_targets_retrieve
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Matched against ids and names.
+        required: true
       tags:
       - v1
       security:
@@ -668,12 +1957,45 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreAliasTargets'
+          description: ''
+        '503':
+          description: The genre alias catalogue is not published yet (api-kit error
+            envelope).
   /v1/curation/history/:
     get:
       operationId: v1_curation_history_retrieve
       description: Edits to canonical entries and edges, newest first, optionally
         narrowed to a `list`, an `entry` uuid or an `item_id`.
+      parameters:
+      - in: query
+        name: entry
+        schema:
+          type: string
+          format: uuid
+      - in: query
+        name: item_id
+        schema:
+          type: string
+        description: A Wikidata QID or a `LOCAL:<slug>` id.
+      - in: query
+        name: list
+        schema:
+          type: string
+        description: A curation list, an edge projection list or a retired list.
+      - in: query
+        name: page
+        schema:
+          type: integer
+        description: 1-based page number.
+      - in: query
+        name: page_size
+        schema:
+          type: integer
+        description: Rows per page, capped by the server.
       tags:
       - v1
       security:
@@ -681,12 +2003,23 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationHistoryPage'
+          description: ''
   /v1/curation/items/:
     get:
       operationId: v1_curation_items_retrieve
       description: 'Items matching `q` by id or name, for an admin to pick one: the
         canonical tree, the catalog and pending additions.'
+      parameters:
+      - in: query
+        name: q
+        schema:
+          type: string
+        description: Matched against ids and names.
+        required: true
       tags:
       - v1
       security:
@@ -694,10 +2027,14 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationItems'
+          description: ''
   /v1/curation/lists/:
     get:
-      operationId: v1_curation_lists_retrieve
+      operationId: v1_curation_lists_list
       tags:
       - v1
       security:
@@ -705,12 +2042,27 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CurationList'
+          description: ''
   /v1/curation/review/:
     get:
-      operationId: v1_curation_review_retrieve
+      operationId: v1_curation_review_list
       description: The curation item ids the pipeline's last report couldn't resolve,
         for an admin to fix.
+      parameters:
+      - in: query
+        name: genre_alias_version
+        schema:
+          type: string
+          enum:
+          - '1'
+          - '2'
+        description: 2 includes the genre alias reviews.
       tags:
       - v1
       security:
@@ -718,11 +2070,23 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CurationReviewItem'
+          description: ''
   /v1/curation/rules/:
     get:
       operationId: v1_curation_rules_retrieve
       description: Every canonical entry and edge referencing an item.
+      parameters:
+      - in: query
+        name: item_id
+        schema:
+          type: string
+        required: true
       tags:
       - v1
       security:
@@ -730,7 +2094,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationRules'
+          description: ''
   /v1/curation/status/:
     get:
       operationId: v1_curation_status_retrieve
@@ -743,7 +2111,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurationStatus'
+          description: ''
   /v1/curation/wikidata-items/:
     post:
       operationId: v1_curation_wikidata_items_create
@@ -751,12 +2123,28 @@ paths:
         ones included: replaces the previous one.'
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_WikidataItems'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_WikidataItems'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/_WikidataItems'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikidataItemsResult'
+          description: ''
   /v1/curation/wikidata-resolutions/:
     post:
       operationId: v1_curation_wikidata_resolutions_create
@@ -764,12 +2152,28 @@ paths:
         to remap, and ids it couldn''t resolve.'
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/_WikidataResolutions'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/_WikidataResolutions'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/_WikidataResolutions'
+        required: true
       security:
       - googleIdToken: []
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WikidataResolutionsResult'
+          description: ''
   /v1/genealogy/:
     get:
       operationId: v1_genealogy_retrieve
@@ -953,13 +2357,10 @@ paths:
   /v1/genre-playlists/{uuid}/tracks/:
     get:
       operationId: v1_genre_playlists_tracks_list
-      description: |-
-        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
-        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
-        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
-
-        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
-        track is not in the playlist, 400 if the value is not a UUID.
+      description: The playlist's track relations in play order (position ascending,
+        unpositioned last). `?from=<track uuid>` starts the list at that track's relation
+        (inclusive); 404 if the track is not in the playlist, 400 if the value is
+        not a UUID.
       parameters:
       - in: query
         name: artist
@@ -971,38 +2372,11 @@ paths:
         schema:
           type: string
       - in: query
-        name: created_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: created_on_lte
-        schema:
-          type: string
-          format: date-time
-      - in: query
         name: from
         schema:
           type: string
-      - in: query
-        name: name
-        schema:
-          type: string
+          format: uuid
+        description: Start the list at this track (inclusive).
       - name: page
         required: false
         in: query
@@ -1016,48 +2390,9 @@ paths:
         schema:
           type: integer
       - in: query
-        name: parent
-        schema:
-          type: string
-      - in: query
         name: subgenres
         schema:
           type: boolean
-      - in: query
-        name: tree_name
-        schema:
-          type: string
-          enum:
-          - canonical
-          - regional
-        description: |-
-          * `canonical` - Canonical
-          * `regional` - Regional
-      - in: query
-        name: updated_on
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_gte
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lt
-        schema:
-          type: string
-          format: date-time
-      - in: query
-        name: updated_on_lte
-        schema:
-          type: string
-          format: date-time
       - in: path
         name: uuid
         schema:
@@ -2919,15 +4254,30 @@ paths:
           description: ''
   /v1/manual-playlists/{uuid}/tracks/:
     get:
-      operationId: v1_manual_playlists_tracks_retrieve
-      description: |-
-        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
-        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
-        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
-
-        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
-        track is not in the playlist, 400 if the value is not a UUID.
+      operationId: v1_manual_playlists_tracks_list
+      description: The playlist's track relations in play order (position ascending,
+        unpositioned last). `?from=<track uuid>` starts the list at that track's relation
+        (inclusive); 404 if the track is not in the playlist, 400 if the value is
+        not a UUID.
       parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: uuid
+        description: Start the list at this track (inclusive).
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: path
         name: uuid
         schema:
@@ -2942,7 +4292,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTrackPlaylistRelInPageList'
+          description: ''
   /v1/pipeline/imports/:
     get:
       operationId: v1_pipeline_imports_retrieve
@@ -3206,15 +4560,30 @@ paths:
           description: ''
   /v1/playlists/{uuid}/tracks/:
     get:
-      operationId: v1_playlists_tracks_retrieve
-      description: |-
-        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
-        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
-        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
-
-        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
-        track is not in the playlist, 400 if the value is not a UUID.
+      operationId: v1_playlists_tracks_list
+      description: The playlist's track relations in play order (position ascending,
+        unpositioned last). `?from=<track uuid>` starts the list at that track's relation
+        (inclusive); 404 if the track is not in the playlist, 400 if the value is
+        not a UUID.
       parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: uuid
+        description: Start the list at this track (inclusive).
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: path
         name: uuid
         schema:
@@ -3229,7 +4598,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTrackPlaylistRelInPageList'
+          description: ''
   /v1/plays/:
     get:
       operationId: v1_plays_list
@@ -3627,15 +5000,30 @@ paths:
           description: ''
   /v1/tag-playlists/{uuid}/tracks/:
     get:
-      operationId: v1_tag_playlists_tracks_retrieve
-      description: |-
-        Adds a paginated `{uuid}/tracks` action listing the playlist's track relations in
-        play order (position ascending, unpositioned last). Mix into an `AppModelViewSet`
-        subclass for a playlist viewset and set `track_playlist_rel_serializer_class`.
-
-        `?from=<track uuid>` starts the list at that track's relation (inclusive); 404 if the
-        track is not in the playlist, 400 if the value is not a UUID.
+      operationId: v1_tag_playlists_tracks_list
+      description: The playlist's track relations in play order (position ascending,
+        unpositioned last). `?from=<track uuid>` starts the list at that track's relation
+        (inclusive); 404 if the track is not in the playlist, 400 if the value is
+        not a UUID.
       parameters:
+      - in: query
+        name: from
+        schema:
+          type: string
+          format: uuid
+        description: Start the list at this track (inclusive).
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Number of results to return per page.
+        schema:
+          type: integer
       - in: path
         name: uuid
         schema:
@@ -3650,7 +5038,11 @@ paths:
       - apiKey: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTrackPlaylistRelInPageList'
+          description: ''
   /v1/tags/:
     get:
       operationId: v1_tags_list
@@ -4388,6 +5780,42 @@ components:
         * `technique` - technique
         * `out_of_scope` - out_of_scope
         * `duplicate` - duplicate
+    ColumnEnum:
+      enum:
+      - child_item_id
+      - context_item_id
+      - expression_item_id
+      - genre_item_id
+      - item_id
+      - origin_item_id
+      - over_item_id
+      - overview_item_id
+      - parent_id
+      - parent_item_id
+      - pop_child_item_id
+      - replacement_item_id
+      - root_item_id
+      - source_item_id
+      - style_item_id
+      - target_item_id
+      type: string
+      description: |-
+        * `child_item_id` - child_item_id
+        * `context_item_id` - context_item_id
+        * `expression_item_id` - expression_item_id
+        * `genre_item_id` - genre_item_id
+        * `item_id` - item_id
+        * `origin_item_id` - origin_item_id
+        * `over_item_id` - over_item_id
+        * `overview_item_id` - overview_item_id
+        * `parent_id` - parent_id
+        * `parent_item_id` - parent_item_id
+        * `pop_child_item_id` - pop_child_item_id
+        * `replacement_item_id` - replacement_item_id
+        * `root_item_id` - root_item_id
+        * `source_item_id` - source_item_id
+        * `style_item_id` - style_item_id
+        * `target_item_id` - target_item_id
     Count:
       type: object
       properties:
@@ -4947,6 +6375,495 @@ components:
       required:
       - id
       - secondaryParents
+    CurationColumnSpec:
+      type: object
+      properties:
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/CurationColumnSpecKindEnum'
+        optional:
+          type: boolean
+      required:
+      - kind
+      - name
+      - optional
+    CurationColumnSpecKindEnum:
+      enum:
+      - item_id
+      - tradition_id
+      - entity_id
+      - int
+      - bool
+      - text
+      type: string
+      description: |-
+        * `item_id` - item_id
+        * `tradition_id` - tradition_id
+        * `entity_id` - entity_id
+        * `int` - int
+        * `bool` - bool
+        * `text` - text
+    CurationEdgesPage:
+      type: object
+      properties:
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Name of every item id listed, keyed by id.
+        overallTotal:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationRule'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+      - labels
+      - next
+      - overallTotal
+      - page
+      - pageSize
+      - previous
+      - results
+      - totalPages
+    CurationEntriesPage:
+      type: object
+      properties:
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Name of every item id listed, keyed by id.
+        overallTotal:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationRule'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+      - labels
+      - next
+      - overallTotal
+      - page
+      - pageSize
+      - previous
+      - results
+      - totalPages
+    CurationExportConflict:
+      type: object
+      properties:
+        detail:
+          type: string
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationViolation'
+      required:
+      - detail
+      - violations
+    CurationHistoryEntry:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/HistoryAction'
+        actorPseudo:
+          type: string
+          nullable: true
+          readOnly: true
+        oldValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+        createdOn:
+          type: string
+          format: date-time
+          readOnly: true
+        entry:
+          type: string
+          format: uuid
+      required:
+      - action
+      - actorPseudo
+      - createdOn
+      - entry
+      - uuid
+    CurationHistoryPage:
+      type: object
+      properties:
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Name of every item id listed, keyed by id.
+        overallTotal:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationHistoryEntry'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+      - labels
+      - next
+      - overallTotal
+      - page
+      - pageSize
+      - previous
+      - results
+      - totalPages
+    CurationItem:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+      required:
+      - id
+      - label
+    CurationItems:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationItem'
+      required:
+      - results
+    CurationList:
+      type: object
+      properties:
+        name:
+          type: string
+        keyColumns:
+          type: array
+          items:
+            type: string
+        columns:
+          type: array
+          items:
+            type: string
+        columnSpecs:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationColumnSpec'
+        description:
+          type: string
+        count:
+          type: integer
+          description: Canonical entries in the list.
+      required:
+      - columnSpecs
+      - columns
+      - count
+      - description
+      - keyColumns
+      - name
+    CurationListNameEnum:
+      enum:
+      - canonical_parent_additions
+      - capitalized_words
+      - duplicate_genres
+      - indigenous_to_exclusions
+      - label_overrides
+      - forced_canonical_genres
+      - out_of_scope_genres
+      - overview_reclassifications
+      - local_identities
+      - canonical_roots
+      - regional_memberships
+      - regional_anchorings
+      - genre_merges
+      - genre_derivations
+      - regional_overview_types
+      - regional_overview_additions
+      - synthetic_overview_resolutions
+      - technique_genres
+      - theme_genres
+      - umbrella_non_stylistic_genres
+      - umbrella_stylistic_genres
+      - canonical_genre_scene
+      - accepted_non_genre_tags
+      - musicbrainz_free_genre_tags
+      - canonical_genre_pop_side
+      - genre_alias
+      - genre_disambiguation
+      - genre_disambiguation_context
+      - song_genre
+      - recording_youtube_video
+      - essential_songs
+      - summary_overrides
+      - genre_precedence
+      - entity_cultural_roles
+      - cultural_membership_overrides
+      - entity_additions
+      - entity_exclusions
+      - entity_membership_overrides
+      - federated_state_overrides
+      - place_relation_overrides
+      - entity_time_span_overrides
+      - region_overrides
+      - tradition_additions
+      - tradition_exclusions
+      - cultural_place_overrides
+      - tradition_placement_overrides
+      - tradition_extra_places
+      - tradition_link_overrides
+      - canonical_parent
+      - regional_genre_parent
+      - regional_overviews
+      - secondary_parents
+      type: string
+      description: |-
+        * `canonical_parent_additions` - canonical_parent_additions
+        * `capitalized_words` - capitalized_words
+        * `duplicate_genres` - duplicate_genres
+        * `indigenous_to_exclusions` - indigenous_to_exclusions
+        * `label_overrides` - label_overrides
+        * `forced_canonical_genres` - forced_canonical_genres
+        * `out_of_scope_genres` - out_of_scope_genres
+        * `overview_reclassifications` - overview_reclassifications
+        * `local_identities` - local_identities
+        * `canonical_roots` - canonical_roots
+        * `regional_memberships` - regional_memberships
+        * `regional_anchorings` - regional_anchorings
+        * `genre_merges` - genre_merges
+        * `genre_derivations` - genre_derivations
+        * `regional_overview_types` - regional_overview_types
+        * `regional_overview_additions` - regional_overview_additions
+        * `synthetic_overview_resolutions` - synthetic_overview_resolutions
+        * `technique_genres` - technique_genres
+        * `theme_genres` - theme_genres
+        * `umbrella_non_stylistic_genres` - umbrella_non_stylistic_genres
+        * `umbrella_stylistic_genres` - umbrella_stylistic_genres
+        * `canonical_genre_scene` - canonical_genre_scene
+        * `accepted_non_genre_tags` - accepted_non_genre_tags
+        * `musicbrainz_free_genre_tags` - musicbrainz_free_genre_tags
+        * `canonical_genre_pop_side` - canonical_genre_pop_side
+        * `genre_alias` - genre_alias
+        * `genre_disambiguation` - genre_disambiguation
+        * `genre_disambiguation_context` - genre_disambiguation_context
+        * `song_genre` - song_genre
+        * `recording_youtube_video` - recording_youtube_video
+        * `essential_songs` - essential_songs
+        * `summary_overrides` - summary_overrides
+        * `genre_precedence` - genre_precedence
+        * `entity_cultural_roles` - entity_cultural_roles
+        * `cultural_membership_overrides` - cultural_membership_overrides
+        * `entity_additions` - entity_additions
+        * `entity_exclusions` - entity_exclusions
+        * `entity_membership_overrides` - entity_membership_overrides
+        * `federated_state_overrides` - federated_state_overrides
+        * `place_relation_overrides` - place_relation_overrides
+        * `entity_time_span_overrides` - entity_time_span_overrides
+        * `region_overrides` - region_overrides
+        * `tradition_additions` - tradition_additions
+        * `tradition_exclusions` - tradition_exclusions
+        * `cultural_place_overrides` - cultural_place_overrides
+        * `tradition_placement_overrides` - tradition_placement_overrides
+        * `tradition_extra_places` - tradition_extra_places
+        * `tradition_link_overrides` - tradition_link_overrides
+        * `canonical_parent` - canonical_parent
+        * `regional_genre_parent` - regional_genre_parent
+        * `regional_overviews` - regional_overviews
+        * `secondary_parents` - secondary_parents
+    CurationListRule:
+      type: object
+      description: 'A curation entry or an edge rule: `row` keeps the list''s snake_case
+        columns (the camelCase renderer skips it).'
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        row:
+          type: object
+          additionalProperties: {}
+        createdOn:
+          type: string
+          format: date-time
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null until the first edit.
+        listName:
+          type: string
+      required:
+      - createdOn
+      - listName
+      - row
+      - updatedOn
+      - uuid
+    CurationReviewItem:
+      type: object
+      properties:
+        ruleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set for an edge rule.
+        list:
+          type: string
+          nullable: true
+          description: Null for a synthetic overview alert.
+        key:
+          type: string
+          nullable: true
+        column:
+          type: string
+        itemId:
+          type: string
+        reason:
+          type: string
+        target:
+          type: string
+          nullable: true
+        evidence:
+          type: object
+          additionalProperties: {}
+          nullable: true
+        reportedOn:
+          type: string
+          format: date-time
+      required:
+      - column
+      - evidence
+      - itemId
+      - key
+      - list
+      - reason
+      - reportedOn
+      - ruleId
+      - target
+    CurationRowRequest:
+      type: object
+      properties:
+        row:
+          type: object
+          additionalProperties: {}
+          description: The list's columns, snake_case. A PATCH merges it into the
+            stored row.
+      required:
+      - row
+    CurationRule:
+      type: object
+      description: 'A curation entry or an edge rule: `row` keeps the list''s snake_case
+        columns (the camelCase renderer skips it).'
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        row:
+          type: object
+          additionalProperties: {}
+        createdOn:
+          type: string
+          format: date-time
+        updatedOn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null until the first edit.
+      required:
+      - createdOn
+      - row
+      - updatedOn
+      - uuid
+    CurationRules:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationListRule'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurationRule'
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          description: Name of every item id listed, keyed by id.
+      required:
+      - edges
+      - labels
+      - results
+    CurationStatus:
+      type: object
+      properties:
+        appliedExportOn:
+          type: string
+          format: date-time
+          nullable: true
+        pendingCount:
+          type: integer
+      required:
+      - appliedExportOn
+      - pendingCount
+    CurationViolation:
+      type: object
+      properties:
+        kind:
+          type: string
+        message:
+          type: string
+        itemIds:
+          type: array
+          items:
+            type: string
+      required:
+      - itemIds
+      - kind
+      - message
     Detail:
       type: object
       properties:
@@ -5014,6 +6931,38 @@ components:
           format: uuid
       required:
       - target
+    GenreAliasTargetItem:
+      type: object
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        tree:
+          $ref: '#/components/schemas/TreeEnum'
+      required:
+      - id
+      - label
+      - tree
+    GenreAliasTargets:
+      type: object
+      properties:
+        publishedOn:
+          type: string
+          format: date-time
+          nullable: true
+        curationExportedOn:
+          type: string
+          format: date-time
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GenreAliasTargetItem'
+      required:
+      - curationExportedOn
+      - publishedOn
+      - results
     GenreCataloguePlaylist:
       type: object
       description: |-
@@ -5135,6 +7084,14 @@ components:
       - tracksCount
       - uuid
       - wikidataId
+    GenreEdgeActionEnum:
+      enum:
+      - add
+      - remove
+      type: string
+      description: |-
+        * `add` - Add
+        * `remove` - Remove
     GenreExclude:
       type: object
       properties:
@@ -5778,28 +7735,6 @@ components:
       - expectedRevision
       - provenance
       - revision
-    KindEnum:
-      enum:
-      - official
-      - wikipedia
-      - wikidata
-      - spotify
-      - youtube
-      - bandcamp
-      - soundcloud
-      - discogs
-      - social
-      type: string
-      description: |-
-        * `official` - Official
-        * `wikipedia` - Wikipedia
-        * `wikidata` - Wikidata
-        * `spotify` - Spotify
-        * `youtube` - Youtube
-        * `bandcamp` - Bandcamp
-        * `soundcloud` - Soundcloud
-        * `discogs` - Discogs
-        * `social` - Social
     ManualPlaylistDetailed:
       type: object
       properties:
@@ -6159,6 +8094,14 @@ components:
           type: string
           format: uuid
           nullable: true
+    PatchedCurationRowRequest:
+      type: object
+      properties:
+        row:
+          type: object
+          additionalProperties: {}
+          description: The list's columns, snake_case. A PATCH merges it into the
+            stored row.
     PatchedGenrePut:
       type: object
       description: |-
@@ -6223,6 +8166,23 @@ components:
           oneOf:
           - $ref: '#/components/schemas/YoutubeUnplayableReasonEnum'
           - $ref: '#/components/schemas/NullEnum'
+    Patched_EdgePatch:
+      type: object
+      properties:
+        parentItemId:
+          type: string
+          nullable: true
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        action:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/GenreEdgeActionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        excludeOtherParents:
+          type: boolean
+          nullable: true
+        reason:
+          type: string
     PlayDetailed:
       type: object
       description: |-
@@ -6379,6 +8339,22 @@ components:
       - tracksCount
       - type
       - uuid
+    ReasonEnum:
+      enum:
+      - redirect_conflict
+      - missing
+      - not_in_tree
+      - invalid_rule
+      - exclusive_parent_regional
+      - unreached_genre
+      type: string
+      description: |-
+        * `redirect_conflict` - Redirect Conflict
+        * `missing` - Missing
+        * `not_in_tree` - Not In Tree
+        * `invalid_rule` - Invalid Rule
+        * `exclusive_parent_regional` - Exclusive Parent Regional
+        * `unreached_genre` - Unreached Genre
     ReferenceGraph:
       type: object
       properties:
@@ -6403,6 +8379,18 @@ components:
       - mapping
       - membershipRevision
       - revision
+    RelationEnum:
+      enum:
+      - canonical_parent
+      - regional_genre_parent
+      - regional_overview
+      - secondary_parent
+      type: string
+      description: |-
+        * `canonical_parent` - Canonical Parent
+        * `regional_genre_parent` - Regional Genre Parent
+        * `regional_overview` - Regional Overview
+        * `secondary_parent` - Secondary Parent
     SceneEnum:
       enum:
       - commercial
@@ -7018,6 +9006,16 @@ components:
       - artists
       - title
       - uuid
+    TreeEnum:
+      enum:
+      - canonical
+      - regional
+      - local
+      type: string
+      description: |-
+        * `canonical` - canonical
+        * `regional` - regional
+        * `local` - local
     TreeNameEnum:
       enum:
       - canonical
@@ -7042,6 +9040,23 @@ components:
         * `choir` - Choir
         * `character` - Character
         * `other` - Other
+    WikidataItemsResult:
+      type: object
+      properties:
+        itemCount:
+          type: integer
+      required:
+      - itemCount
+    WikidataResolutionsResult:
+      type: object
+      properties:
+        remappedCount:
+          type: integer
+        reviewCount:
+          type: integer
+      required:
+      - remappedCount
+      - reviewCount
     YoutubeUnplayableReasonEnum:
       enum:
       - not_found
@@ -7077,6 +9092,55 @@ components:
       required:
       - name
       - uuid
+    _Edge:
+      type: object
+      properties:
+        relation:
+          $ref: '#/components/schemas/RelationEnum'
+        itemId:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        parentItemId:
+          type: string
+          nullable: true
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        action:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/GenreEdgeActionEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        excludeOtherParents:
+          type: boolean
+          nullable: true
+        reason:
+          type: string
+          default: ''
+      required:
+      - itemId
+      - relation
+    _Evidence:
+      type: object
+      properties:
+        label:
+          type: string
+        modified:
+          type: string
+          format: date-time
+        instanceOf:
+          type: array
+          items:
+            $ref: '#/components/schemas/_ItemRef'
+        subclassOf:
+          type: array
+          items:
+            $ref: '#/components/schemas/_ItemRef'
+        hasIndigenousTo:
+          type: boolean
+        conflictList:
+          $ref: '#/components/schemas/CurationListNameEnum'
+        detail:
+          type: string
+          maxLength: 500
     _Group:
       type: object
       properties:
@@ -7099,16 +9163,50 @@ components:
         roles: {}
       required:
       - artist
+    _ItemRef:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        label:
+          type: string
+          nullable: true
+      required:
+      - id
+      - label
     _Link:
       type: object
       properties:
         kind:
-          $ref: '#/components/schemas/KindEnum'
+          $ref: '#/components/schemas/_LinkKindEnum'
         url:
           type: string
       required:
       - kind
       - url
+    _LinkKindEnum:
+      enum:
+      - official
+      - wikipedia
+      - wikidata
+      - spotify
+      - youtube
+      - bandcamp
+      - soundcloud
+      - discogs
+      - social
+      type: string
+      description: |-
+        * `official` - Official
+        * `wikipedia` - Wikipedia
+        * `wikidata` - Wikidata
+        * `spotify` - Spotify
+        * `youtube` - Youtube
+        * `bandcamp` - Bandcamp
+        * `soundcloud` - Soundcloud
+        * `discogs` - Discogs
+        * `social` - Social
     _Member:
       type: object
       properties:
@@ -7131,6 +9229,97 @@ components:
         roles: {}
       required:
       - artist
+    _Remap:
+      type: object
+      description: An item id of a curation entry (`list` + `key`) or of an edge rule
+        (`rule_id`, or the legacy `list` + `key`).
+      properties:
+        ruleId:
+          type: string
+          format: uuid
+        list:
+          $ref: '#/components/schemas/CurationListNameEnum'
+        key:
+          type: string
+          maxLength: 512
+        column:
+          $ref: '#/components/schemas/ColumnEnum'
+        to:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        from:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+      required:
+      - column
+      - from
+      - to
+    _ReviewItem:
+      type: object
+      description: An item id of a curation entry (`list` + `key`) or of an edge rule
+        (`rule_id`, or the legacy `list` + `key`).
+      properties:
+        ruleId:
+          type: string
+          format: uuid
+        list:
+          $ref: '#/components/schemas/CurationListNameEnum'
+        key:
+          type: string
+          maxLength: 512
+        column:
+          $ref: '#/components/schemas/ColumnEnum'
+        itemId:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        target:
+          type: string
+          nullable: true
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        evidence:
+          allOf:
+          - $ref: '#/components/schemas/_Evidence'
+          nullable: true
+      required:
+      - column
+      - itemId
+      - reason
+    _WikidataItem:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
+        label:
+          type: string
+      required:
+      - id
+      - label
+    _WikidataItems:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/_WikidataItem'
+      required:
+      - items
+    _WikidataResolutions:
+      type: object
+      properties:
+        remaps:
+          type: array
+          items:
+            $ref: '#/components/schemas/_Remap'
+        review:
+          type: array
+          items:
+            $ref: '#/components/schemas/_ReviewItem'
+      required:
+      - remaps
+      - review
   securitySchemes:
     apiKey:
       type: apiKey

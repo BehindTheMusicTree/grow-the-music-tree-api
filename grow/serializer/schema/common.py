@@ -1,5 +1,8 @@
 """Output shapes of hand-built `Response(...)` bodies, declared only so the OpenAPI schema can describe them."""
 
+from typing import Any
+
+from drf_spectacular.utils import OpenApiParameter
 from rest_framework import serializers
 
 from grow.bulk_import.BulkImportRun import BulkImportRun
@@ -40,3 +43,26 @@ class ImportRunCreatedSerializer(serializers.Serializer):
 
 class CountSerializer(serializers.Serializer):
     count = serializers.IntegerField(help_text="Rows loaded from the uploaded body.")
+
+
+def paginated_serializer(
+    name: str, item: type[serializers.Serializer], **extra: serializers.Field
+) -> type[serializers.Serializer]:
+    """`AppPagination`'s envelope, for an `APIView` that paginates by hand (spectacular only wraps viewset lists)."""
+    fields: dict[str, Any] = {
+        "overall_total": serializers.IntegerField(),
+        "next": serializers.URLField(allow_null=True),
+        "previous": serializers.URLField(allow_null=True),
+        "results": item(many=True),
+        "page": serializers.IntegerField(),
+        "page_size": serializers.IntegerField(),
+        "total_pages": serializers.IntegerField(),
+        **extra,
+    }
+    return type(name, (serializers.Serializer,), fields)
+
+
+PAGE_PARAMETERS = [
+    OpenApiParameter("page", int, required=False, description="1-based page number."),
+    OpenApiParameter("page_size", int, required=False, description="Rows per page, capped by the server."),
+]
