@@ -131,12 +131,24 @@ class TestCase(AppTestCase):
         self._with_years()
         Song = type(self.matching_track)
 
-        for ordering in ("title", "-title", "albumYear", "-albumYear", None):
-            params = {"ordering": ordering} if ordering else {}
-            full = self._titles(**params)
-            for index, title in enumerate(full):
-                anchor = str(Song.objects.get(title=title).pk)
-                assert self._titles(**params, **{"from": anchor}) == full[index:], (ordering, title)
+        for with_total in (None, "false"):
+            for ordering in ("title", "-title", "albumYear", "-albumYear", None):
+                params = {"ordering": ordering} if ordering else {}
+                if with_total:
+                    params["withTotal"] = with_total
+                full = self._titles(**params)
+                for index, title in enumerate(full):
+                    anchor = str(Song.objects.get(title=title).pk)
+                    assert self._titles(**params, **{"from": anchor}) == full[index:], (with_total, ordering, title)
+
+    def test_without_total_defaults_to_pk_order(self):
+        self._install_graph()
+        self._with_years()
+        Song = type(self.matching_track)
+        expected = [song.title for song in Song.objects.order_by("pk")]
+
+        assert self._titles(withTotal="false") == expected
+        assert self._titles(withTotal="false", ordering="title") == sorted(expected)
 
     def test_from_anchor_filtered_out_then_404(self):
         self._install_graph()

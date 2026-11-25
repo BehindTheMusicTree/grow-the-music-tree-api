@@ -35,6 +35,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- **Songs**: `library/songs/?from=<uuid>&withTotal=false` returned rows out of order (anchor computed on `created_on` while rows were sorted by pk); the default ordering is now decided once in `SongFilterSet`. Artist song pages with `withTotal=false` and no `ordering` now also sort by uuid instead of creation date. Covered by `tests/integration/track/song/test_filters.py`.
 - Keep artist song browsing and playback compatible with existing numbered-page clients. Genre assignment responses retain `previous[].undoable=false` for those clients while the new frontend restores edits through the server's undo token.
 
 - Paginated lists reject `page_size` of 0, below 1 or non-integer with 400 (`page_size=0` used to return the whole table unpaginated), cap it at `PAGINATION_PAGE_SIZE_MAX`, and no longer read the `pageSize` query alias (api-kit v0.12.4 via genre-kit v0.72.5). `openapi.yaml` now documents the real list envelope (`overallTotal`, `page`, `pageSize`, `totalPages`) instead of DRF's `count`. Covered by `tests/integration/artist/test_artists.py`

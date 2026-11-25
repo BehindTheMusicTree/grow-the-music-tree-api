@@ -42,7 +42,6 @@ from grow.view.pagination.OptionalTotalPagination import (
     CURSOR_PARAM,
     OptionalTotalPagination,
     wants_cursor,
-    wants_no_total,
 )
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
@@ -137,8 +136,6 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             queryset = queryset.order_by(*CURSOR_ORDERING)
         elif CURSOR_PARAM in self.request.query_params:
             raise ParseError("`cursor` requires genre cursor pagination.")
-        elif wants_no_total(self.request):
-            queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
 
     def _list_artist_songs(self, queryset):
