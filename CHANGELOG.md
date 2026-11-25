@@ -12,6 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [19.0.0] - 2026-11-25
+
 ### Added
 
 - Typed OpenAPI for the health, auth, playback, import-run and pipeline-run views and `PlayPostSerializer`, so the whole API now validates with 0 errors. Covered by `tests/unit/openapi/test_schema.py`.
@@ -88,8 +90,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Recalibrated the four provisional `Perf` SLOs from five sequential `workflow_dispatch` runs on develop (3x the slowest side's pooled p50, rounded up to 10 ms): `artist-songs` `-albumYear` 60 -> 110 ms and `title` 60 -> 130 ms, `genre-playlist-tracks` viewer FR coverage+subgenres 870 -> 340 ms and genre_only 70 -> 30 ms (README "Performance" lists the runs).
 - Adopt the-music-tree-genre-kit v0.67.0, whose `graph_read_transaction` defers `GenreGraphDataset.payload` unless `with_payload=True`: `SongViewSet.list` uses it again (no payload decode per read, restoring the artist-songs list latency) and `ReferenceGraphView.get` opts in. Song genre selection follows the kit's `select_tracks(tracks, *, node=...)` signature.
 - `Perf` on a PR no longer fails on an absolute SLO breach the base shares (`over SLO (base too)`): the same-runner A/B judges the PR and the SLO judges `develop`. Slowdowns, query increases, instability, a breach only the head has, and any breach on pushes or without a base still fail. The job timeout is 35 minutes, enough for the 8 rounds of a suspected regression. Tests in `tests/unit/perf/test_compare.py`.
-- **Breaking:** `?artist` accepts only `artist`, `ordering` (`title` or `-albumYear`), `cursor`, `page_size` and `with_total`; combining it with other filters now returns 400, and `?page=` is replaced by `cursor`.
-- **Breaking:** `assign-genre` returns `undoToken` and `previous` items drop `undoable`, since every case is now exactly undoable; the frontend must call the undo endpoint instead of re-assigning the previous genre.
+- Artist song lists keep numbered pagination and existing filters when clients send `page`. Unfiltered artist lists use an indexed cursor with `title` or `-albumYear` ordering.
+- `assign-genre` returns a single-use `undoToken` that restores the audited batch through the undo endpoint. Each `previous` item retains `undoable=false` for older clients, which can still submit edits.
 
 - Adopt the-music-tree-genre-kit v0.65.0, which enforces one graph node per track and dataset (`UNIQUE(dataset_id, track_id)`): migration `0144` drops grow's own `grow_single_assignment_guard`, and the songs merge joins attributions on `dataset_id`. Migration 0022 of the kit fails, naming dataset and track, if a track holds several nodes in one dataset.
 - **Breaking:** songs import runs must be reviewed: they carry `graph_revision`, `membership_revision` and `expected_parts` (`songs`, `assignments`), every imported song has exactly one assignment row, and committing an incomplete run returns 400. Runs without assignments (legacy pipelines) are refused with 400.

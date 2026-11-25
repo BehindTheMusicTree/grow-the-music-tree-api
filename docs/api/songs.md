@@ -106,9 +106,7 @@ from the songs and fails if there is any.
 
 See the songs import runs in the [README](../../README.md#api) and `grow/track/bulk_import/`.
 
-The legacy song import protocol resolves a single genre by name or QID. Creating a legacy run returns 400 once the semantic reference graph exists. A worker also checks this condition under the catalogue publication gate before merging a previously staged run. If a graph was activated during the upload, the attempt fails before changing catalogue data. Rejected run creation preserves existing uploads. A legacy run staged before graph activation is rejected at commit without enqueueing a worker or changing catalogue data; a later valid run abandons and cleans up its staging.
-
-Semantic staging is a preview: uploads are accepted, but **commit remains disabled** until catalogue, playlist and search publication share the semantic assignment authority. Do not activate a production graph or change the pipeline uploader on this basis.
+Song imports require a published reference graph, reviewed revisions and a complete assignment stream. A request using the legacy song import protocol returns 400. An accepted commit queues publication and returns 202.
 
 Create a semantic run at `POST songs/import-runs/` with `mode`, `graphRevision`, `membershipRevision` and `expectedParts`. Both revisions must be the explicitly reviewed UUIDs from the reference graph API; a stale review returns 409 before abandoning existing uploads. `expectedParts` declares the number of zero-based parts in each stream, for example `{"songs": 2, "assignments": 2}`. A delta also declares `deletions` as 0 or 1; an empty delta explicitly declares all three counts as 0. Full runs require at least one song part.
 
