@@ -115,6 +115,23 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK, response.content
         assert [song["title"] for song in response.data["results"]] == ["A"]
 
+    def test_empty_from_keeps_the_total_on_next_pages(self):
+        artist, _ = self._artist_with_songs([("A", 2000), ("B", 2000)])
+        ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
+
+        # Without `playable` the artist index serves the list, with it the generic keyset does.
+        for extra in ({}, {"playable": "true"}):
+            response = self.api_client.get(
+                path=reverse(self.list_endpoint),
+                data={"artist": str(artist.uuid), "from": "", "pageSize": 1, "with_total": "true", **extra},
+            )
+            assert response.data["overallTotal"] == 2, extra
+            response = self.api_client.get(response.data["next"])
+
+            assert response.status_code == status.HTTP_200_OK, response.content
+            assert response.data["overallTotal"] == 2, extra
+            assert [song["title"] for song in response.data["results"]] == ["B"], extra
+
     def test_from_outside_the_artist_list_is_404(self):
         artist, _ = self._artist_with_songs([("A", 2000)])
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})

@@ -34,7 +34,7 @@ def wants_cursor(request: Request) -> bool:
 
 def next_cursor_link(request: Request, cursor: str) -> str:
     url = request.build_absolute_uri()
-    if "from" in request.query_params:
+    if request.query_params.get("from"):
         # `from` only positions the first page; the cursor takes over. The total counted the list from that song, so
         # later pages don't recount a different one. The URL keeps the client's spelling, which
         # CamelToSnakeMiddleware only normalizes in `request.GET`.
