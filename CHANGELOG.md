@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- CI: pin `BehindTheMusicTree/github-workflows` reusable workflows and actions to v6.6.0 (from v4.5–v4.8 and v6.5.0) and drop the `release-tag.yml` `form: "event"` concurrency exemption, now recognized by the conformance check.
 - Genre song lists accept `pagination=cursor` for UUID keyset pages. Existing clients also get keyset pages when they send `genre` and `with_total=false` without `page`, `ordering` or `from`. On numbered pages, `with_total=false` skips the total count. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
 
 ### Fixed
