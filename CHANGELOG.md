@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - `GET library/songs/` is cursor-paginated by default: without `page`, pages follow `next` with a versioned cursor, in any `ordering` and with or without `genre`. Without `ordering` they now sort by pk (by title with `artist`) instead of `created_on`. The total is only counted with `with_total=true`, so a request that sends neither `page` nor `with_total=true` now gets `overallTotal: null`; requests with `page` keep numbered pages. `from` starts the first cursor page at that song (not with `cursor`; its `with_total=true` counts from that song and `next` drops it), a cursor is only valid with the `ordering` it was issued for, and `with_total` accepts only `true` or `false`. Covered by `tests/integration/track/song/` and `tests/unit/view/pagination/test_song_cursor.py`.
 
+### Fixed
+
+- `GET library/songs/?artists_name=` lists a song once, and counts it once, when several of its artists match (genre kit v0.72.6, api-kit v0.12.5: `RelatedObjectCharFilter` filters through an `EXISTS` subquery instead of repeating rows across the many-to-many join). Covered by `tests/integration/track/song/test_filters.py`, on numbered and cursor pages.
+
 ### Deprecated
 
 - On `GET library/songs/`: numbered pages (`page`), `pagination=cursor` (now without effect) and the cursors issued before the versioned format, still accepted until clients have moved to the default cursor.
