@@ -86,7 +86,19 @@ def test_library_viewsets_generate_without_errors():
     GENERATOR_STATS.reset()
     with GENERATOR_STATS.silence():
         SchemaGenerator().get_schema(request=None, public=True)
-    views = ("SongViewSet", "ArtistViewSet", "AlbumViewSet", "RegionMapViewSet")
+    views = (
+        "SongViewSet",
+        "ArtistViewSet",
+        "AlbumViewSet",
+        "RegionMapViewSet",
+        "TagViewSet",
+        "PlaylistViewSet",
+        "ManualPlaylistViewSet",
+        "CriteriaPlaylistViewSet",
+        "TagPlaylistViewSet",
+        "GenrePlaylistViewSet",
+        "Curation",
+    )
     errors = [message for message in GENERATOR_STATS._error_cache if any(f"[{view}" in message for view in views)]
     GENERATOR_STATS.reset()
     assert errors == []
@@ -142,3 +154,83 @@ def test_song_curation_operations_are_typed(schema):
     assert set(schema["components"]["schemas"][assign]["properties"]) == {"previous", "undoToken"}
     assert set(paths["/v1/library/songs/assign-genre/undo/"]["post"]["responses"]) == {"204"}
     assert set(paths["/v1/library/songs/{uuid}/"]["delete"]["responses"]) == {"204"}
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/v1/playlists/{uuid}/tracks/",
+        "/v1/manual-playlists/{uuid}/tracks/",
+        "/v1/tag-playlists/{uuid}/tracks/",
+        "/v1/genre-playlists/{uuid}/tracks/",
+    ],
+)
+def test_playlist_tracks_document_only_the_parameters_they_read(schema, path):
+    """The tracks action never calls `filter_queryset`: the viewset's filterset parameters do not apply."""
+    operation = schema["paths"][path]["get"]
+    names = {p["name"] for p in operation["parameters"]}
+    assert {"from", "page", "page_size"} <= names
+    assert not names & {"ordering", "created_on", "name", "parent"}
+    assert "Mix into" not in operation["description"]
+
+
+def test_tag_destroy_and_overview_are_typed(schema):
+    assert set(schema["paths"]["/v1/tags/{uuid}/"]["delete"]["responses"]) == {"204"}
+    assert _ok_body(schema, "/v1/tags/{uuid}/overview/")["$ref"].endswith("/CriteriaOverview")
+
+
+@pytest.mark.parametrize(
+    ("path", "page"),
+    [
+        ("/v1/curation/{list_name}/entries/", "CurationEntriesPage"),
+        ("/v1/curation/edges/", "CurationEdgesPage"),
+        ("/v1/curation/history/", "CurationHistoryPage"),
+    ],
+)
+def test_paginated_curation_views_document_the_real_envelope(schema, path, page):
+    assert _ok_body(schema, path)["$ref"].endswith(f"/{page}")
+    properties = schema["components"]["schemas"][page]["properties"]
+    assert set(properties) == {
+        "overallTotal",
+        "next",
+        "previous",
+        "results",
+        "page",
+        "pageSize",
+        "totalPages",
+        "labels",
+    }
+    names = {p["name"] for p in schema["paths"][path]["get"]["parameters"]}
+    assert {"page", "page_size"} <= names
+
+
+def test_curation_rows_keep_their_snake_case_columns(schema):
+    """The renderer skips the `row` subtree, so the schema declares it as a free-form object."""
+    row = schema["components"]["schemas"]["CurationRule"]["properties"]["row"]
+    assert row["type"] == "object"
+    assert "properties" not in row
+
+
+def test_curation_list_and_detail_operations_have_distinct_ids(schema):
+    paths = schema["paths"]
+    ids = [
+        paths["/v1/curation/{list_name}/entries/"]["get"]["operationId"],
+        paths["/v1/curation/{list_name}/entries/{uuid}/"]["get"]["operationId"],
+        paths["/v1/curation/edges/"]["get"]["operationId"],
+        paths["/v1/curation/edges/{uuid}/"]["get"]["operationId"],
+    ]
+    assert len(set(ids)) == 4
+
+
+def test_curation_export_stays_snake_case(schema):
+    """The export renders with `JSONRenderer`: its keys are the pipeline's snake_case columns."""
+    body = _ok_body(schema, "/v1/curation/export/")
+    assert {"exported_on", "genre_alias", "edges", "overview_status_overrides"} <= set(body["properties"])
+    assert "exportedOn" not in body["properties"]
+    assert "genre_alias_version" not in body["required"]
+    assert "target_item_id" not in body["properties"]["genre_alias"]["items"]["required"]
+    assert "409" in schema["paths"]["/v1/curation/export/"]["get"]["responses"]
+
+
+def test_genre_alias_targets_document_the_unpublished_case(schema):
+    assert "503" in schema["paths"]["/v1/curation/genre-alias-targets/"]["get"]["responses"]

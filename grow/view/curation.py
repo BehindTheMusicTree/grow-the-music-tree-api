@@ -11,6 +11,8 @@ from django.db.models.functions import Cast, Coalesce
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.renderers import JSONRenderer
@@ -65,9 +67,30 @@ from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
+from grow.serializer.schema.common import PAGE_PARAMETERS, DetailSerializer
+from grow.serializer.schema.curation import (
+    CurationEdgesPageSerializer,
+    CurationEntriesPageSerializer,
+    CurationExportConflictSerializer,
+    CurationHistoryPageSerializer,
+    CurationItemsSerializer,
+    CurationListSerializer,
+    CurationReviewItemSerializer,
+    CurationRowRequestSerializer,
+    CurationRuleSerializer,
+    CurationRulesSerializer,
+    CurationStatusSerializer,
+    GenreAliasTargetsSerializer,
+    WikidataItemsResultSerializer,
+    WikidataResolutionsResultSerializer,
+    curation_export_schema,
+)
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
+
+# Every list a history entry or a conflict can name; also the OpenAPI enum `CurationListNameEnum`.
+CURATION_LIST_NAMES = [*CURATION_LISTS, *EDGE_PROJECTION_LISTS]
 
 
 def _entries():
@@ -143,12 +166,22 @@ def _snapshot_has(column: str, value: str) -> Q:
     return Q(old_value__contains=fragment) | Q(new_value__contains=fragment)
 
 
+def _query(name: str, type_: Any = str, **kwargs: Any) -> OpenApiParameter:
+    return OpenApiParameter(name, type_, required=kwargs.pop("required", False), **kwargs)
+
+
+_ITEM_ID_QUERY = _query("item_id", description="A Wikidata QID or a `LOCAL:<slug>` id.")
+_SEARCH_QUERY = _query("q", required=True, description="Matched against ids and names.")
+_DELETED = {status.HTTP_204_NO_CONTENT: None}
+
+
 class CurationView(APIView):
     authentication_classes = [GoogleIdTokenAuthentication, ApiKeyAuthentication]
     permission_classes = [IsAdmin]
 
 
 class CurationListsView(CurationView):
+    @extend_schema(responses=CurationListSerializer(many=True))
     def get(self, request: Request) -> Response:
         counts = dict(_entries().values("list_name").annotate(count=Count("pk")).values_list("list_name", "count"))
         return Response(
@@ -169,6 +202,15 @@ class CurationListsView(CurationView):
 class CurationEntriesView(CurationView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(
+        operation_id="v1_curation_entries_list",
+        parameters=[
+            _query("ordering", enum=list(ORDERINGS)),
+            _query("q", description="Matched against the key, the values, the reason and the key's genre name."),
+            *PAGE_PARAMETERS,
+        ],
+        responses=CurationEntriesPageSerializer,
+    )
     def get(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
         ordering = request.query_params.get("ordering", "key")
@@ -186,6 +228,7 @@ class CurationEntriesView(CurationView):
         response.data["labels"] = _labels(entries)
         return response
 
+    @extend_schema(request=CurationRowRequestSerializer, responses={status.HTTP_201_CREATED: CurationRuleSerializer})
     @transaction.atomic
     def post(self, request: Request, list_name: str) -> Response:
         _check_list(list_name)
@@ -213,10 +256,12 @@ class CurationEntryView(CurationView):
         lock_writes(_entries())
         return get_object_or_404(_entries(), list_name=list_name, uuid=uuid)
 
+    @extend_schema(operation_id="v1_curation_entries_retrieve", responses=CurationRuleSerializer)
     def get(self, request: Request, list_name: str, uuid: str) -> Response:
         _check_list(list_name)
         return Response(_serialize(get_object_or_404(_entries(), list_name=list_name, uuid=uuid)))
 
+    @extend_schema(request=CurationRowRequestSerializer, responses=CurationRuleSerializer)
     @transaction.atomic
     def patch(self, request: Request, list_name: str, uuid: str) -> Response:
         if list_name == GENRE_ALIAS_LIST:
@@ -232,6 +277,7 @@ class CurationEntryView(CurationView):
         _apply_essential_songs(list_name, old_item_id, entry.row.get("item_id"), written_key=entry.key)
         return Response(_serialize(entry))
 
+    @extend_schema(responses=_DELETED)
     @transaction.atomic
     def delete(self, request: Request, list_name: str, uuid: str) -> Response:
         if list_name == GENRE_ALIAS_LIST:
@@ -296,6 +342,16 @@ class CurationEdgesView(CurationView):
 
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(
+        operation_id="v1_curation_edges_list",
+        parameters=[
+            _query("item_id", description="Edges whose item or parent is this id."),
+            _query("relation", enum=list(GenreEdgeRule.Relation.values)),
+            _query("q", description="Matched against the ids, the reason and the ids' genre names."),
+            *PAGE_PARAMETERS,
+        ],
+        responses=CurationEdgesPageSerializer,
+    )
     def get(self, request: Request) -> Response:
         queryset = edge_rules()
         if "item_id" in request.query_params:
@@ -324,6 +380,7 @@ class CurationEdgesView(CurationView):
         response.data["labels"] = _edge_labels(rules)
         return response
 
+    @extend_schema(request=_EdgeSerializer, responses={status.HTTP_201_CREATED: CurationRuleSerializer})
     @transaction.atomic
     def post(self, request: Request) -> Response:
         serializer = _EdgeSerializer(data=request.data)
@@ -342,9 +399,11 @@ class CurationEdgeView(CurationView):
         lock_writes(edge_rules())
         return get_object_or_404(edge_rules(), uuid=uuid)
 
+    @extend_schema(operation_id="v1_curation_edges_retrieve", responses=CurationRuleSerializer)
     def get(self, request: Request, uuid: str) -> Response:
         return Response(_serialize_edge(get_object_or_404(edge_rules(), uuid=uuid)))
 
+    @extend_schema(request=_EdgePatchSerializer, responses=CurationRuleSerializer)
     @transaction.atomic
     def patch(self, request: Request, uuid: str) -> Response:
         rule = self._get(uuid)
@@ -356,6 +415,7 @@ class CurationEdgeView(CurationView):
             raise ValidationError(_edge_errors(e)) from e
         return Response(_serialize_edge(rule))
 
+    @extend_schema(responses=_DELETED)
     @transaction.atomic
     def delete(self, request: Request, uuid: str) -> Response:
         GenreEdgeRule.objects.delete_instance(self._get(uuid), actor=request.user)
@@ -365,6 +425,7 @@ class CurationEdgeView(CurationView):
 class CurationRulesView(CurationView):
     """Every canonical entry and edge referencing an item."""
 
+    @extend_schema(parameters=[_query("item_id", required=True)], responses=CurationRulesSerializer)
     def get(self, request: Request) -> Response:
         item_id = _item_id(request)
         entries = list(find_item_rules(_entries(), item_id).order_by("list_name", "key"))
@@ -381,6 +442,15 @@ class CurationRulesView(CurationView):
 class CurationHistoryView(CurationView):
     """Edits to canonical entries and edges, newest first, optionally narrowed to a `list`, an `entry` uuid or an `item_id`."""
 
+    @extend_schema(
+        parameters=[
+            _query("list", description="A curation list, an edge projection list or a retired list."),
+            _query("entry", OpenApiTypes.UUID),
+            _ITEM_ID_QUERY,
+            *PAGE_PARAMETERS,
+        ],
+        responses=CurationHistoryPageSerializer,
+    )
     def get(self, request: Request) -> Response:
         params = request.query_params
         content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
@@ -420,6 +490,7 @@ class CurationHistoryView(CurationView):
 class CurationStatusView(CurationView):
     """Which pipeline export the canonical tree was last built from, and how many entries were edited since."""
 
+    @extend_schema(responses=CurationStatusSerializer)
     def get(self, request: Request) -> Response:
         state = CurationSyncState.load()
         return Response({"applied_export_on": state.applied_export_on, "pending_count": state.pending_count})
@@ -439,6 +510,13 @@ class CurationExportView(CurationView):
     permission_classes = [IsPipelineOrAdmin]
     renderer_classes = [JSONRenderer]
 
+    @extend_schema(
+        parameters=[_query("genre_alias_version", enum=["1", "2"], description="Defaults to 1.")],
+        responses={
+            status.HTTP_200_OK: OpenApiResponse(curation_export_schema()),
+            status.HTTP_409_CONFLICT: CurationExportConflictSerializer,
+        },
+    )
     @transaction.atomic
     def get(self, request: Request) -> Response:
         version = request.query_params.get("genre_alias_version", "1")
@@ -487,7 +565,7 @@ class _CurationItemSerializer(serializers.Serializer):
     """An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or the legacy `list` + `key`)."""
 
     rule_id = serializers.UUIDField(required=False)
-    list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
+    list = serializers.ChoiceField(choices=CURATION_LIST_NAMES, required=False)
     key = serializers.CharField(max_length=KEY_MAX_LENGTH, trim_whitespace=False, required=False)
     column = serializers.ChoiceField(choices=sorted(ITEM_ID_COLUMNS))
 
@@ -526,7 +604,7 @@ class _EvidenceSerializer(_StrictSerializer):
     instance_of = _ItemRefSerializer(many=True, required=False)
     subclass_of = _ItemRefSerializer(many=True, required=False)
     has_indigenous_to = serializers.BooleanField(required=False)
-    conflict_list = serializers.ChoiceField(choices=[*CURATION_LISTS, *EDGE_PROJECTION_LISTS], required=False)
+    conflict_list = serializers.ChoiceField(choices=CURATION_LIST_NAMES, required=False)
     detail = serializers.CharField(required=False, allow_blank=False, max_length=500)
 
     def to_internal_value(self, data: Any) -> dict[str, Any]:
@@ -560,6 +638,7 @@ class CurationWikidataResolutionsView(CurationView):
 
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(request=_WikidataResolutionsSerializer, responses=WikidataResolutionsResultSerializer)
     def post(self, request: Request) -> Response:
         serializer = _WikidataResolutionsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -580,6 +659,7 @@ class CurationWikidataItemsView(CurationView):
 
     permission_classes = [IsPipelineOrAdmin]
 
+    @extend_schema(request=_WikidataItemsSerializer, responses=WikidataItemsResultSerializer)
     @transaction.atomic
     def post(self, request: Request) -> Response:
         serializer = _WikidataItemsSerializer(data=request.data)
@@ -596,6 +676,7 @@ ITEM_SEARCH_LIMIT = 20
 class CurationItemsView(CurationView):
     """Items matching `q` by id or name, for an admin to pick one: the canonical tree, the catalog and pending additions."""
 
+    @extend_schema(parameters=[_SEARCH_QUERY], responses=CurationItemsSerializer)
     def get(self, request: Request) -> Response:
         q = request.query_params.get("q", "").strip()
         if not q:
@@ -630,6 +711,15 @@ class CurationItemsView(CurationView):
 class GenreAliasTargetsView(CurationView):
     permission_classes = [IsCuratorOrAdmin]
 
+    @extend_schema(
+        parameters=[_SEARCH_QUERY],
+        responses={
+            status.HTTP_200_OK: GenreAliasTargetsSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: OpenApiResponse(
+                DetailSerializer, description="The genre alias catalogue is not published yet."
+            ),
+        },
+    )
     def get(self, request: Request) -> Response:
         q = request.query_params.get("q", "").strip()
         if not q:
@@ -649,6 +739,10 @@ def _review_key(item: CurationReviewItem) -> str | None:
 class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
+    @extend_schema(
+        parameters=[_query("genre_alias_version", enum=["1", "2"], description="2 includes the genre alias reviews.")],
+        responses=CurationReviewItemSerializer(many=True),
+    )
     def get(self, request: Request) -> Response:
         items_query = CurationReviewItem.objects.select_related("rule")
         if request.query_params.get("genre_alias_version") != "2":

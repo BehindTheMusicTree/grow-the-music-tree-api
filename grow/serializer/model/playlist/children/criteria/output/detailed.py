@@ -13,6 +13,7 @@ from .Fields import Fields
 
 class CriteriaPlaylistDetailedSerializer(GenrePlaylistSummaryMixin, EagerLoadingMixin, serializers.ModelSerializer):
     tracks_count = serializers.IntegerField(source=PlaylistOutputFields.TRACKS_COUNT_ANNOTATED)
+    name = serializers.CharField(read_only=True)  # the model property carries no type hint
     criteria = CriteriaMinimumSerializer()
     root = CriteriaPlaylistMinimumSerializer()  # type: ignore
     parent = CriteriaPlaylistMinimumSerializer()

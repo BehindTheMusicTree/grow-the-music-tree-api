@@ -1,4 +1,6 @@
 from django.db.models import prefetch_related_objects
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -14,6 +16,10 @@ from grow.serializer.model.criteria.output.simple import CriteriaSimpleSerialize
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 
 
+@extend_schema_view(
+    destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}),
+    overview=extend_schema(responses=CriteriaOverviewSerializer),
+)
 class CriteriaViewSet(AbstractCriteriaViewSet[Criteria], GrowModelViewSet[Criteria]):
     def __init__(
         self,
