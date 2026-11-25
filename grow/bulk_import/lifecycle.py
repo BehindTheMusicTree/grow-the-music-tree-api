@@ -22,7 +22,13 @@ def queue_attempt(run: BulkImportRun) -> ImportAttempt:
     ImportReceipt.objects.filter(applied_at__lt=cutoff).exclude(run_id__in=BulkImportRun.objects.values("pk")).delete()
     number = (ImportAttempt.objects.filter(run_id=run.pk).aggregate(n=models.Max("attempt"))["n"] or 0) + 1
     return ImportAttempt.objects.create(
-        run_id=run.pk, task_id=f"import-run-{run.pk}", kind=run.kind, mode=run.mode, user_id=run.user_id, attempt=number
+        run_id=run.pk,
+        task_id=f"import-run-{run.pk}",
+        kind=run.kind,
+        mode=run.mode,
+        user_id=run.user_id,
+        attempt=number,
+        pipeline_run_request_id=run.pipeline_run_request_id,
     )
 
 
