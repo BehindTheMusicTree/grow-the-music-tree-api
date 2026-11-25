@@ -48,7 +48,11 @@ from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylis
 from grow.serializer.schema.genre import GenrePlaylistTreeRowSerializer
 from grow.view.pagination.PlaylistTracksPagination import PlaylistTracksPagination
 from grow.view.viewset.model.playlist.children.criteria.CriteriaPlaylistViewSet import CriteriaPlaylistViewSet
-from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import blocked_restricted_songs
+from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import (
+    FROM_TRACK_PARAMETER,
+    TRACKS_DESCRIPTION,
+    blocked_restricted_songs,
+)
 from grow.youtube_regions import viewer_country
 
 TREE_CACHE_TTL = timedelta(days=7).total_seconds()
@@ -184,13 +188,15 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
 
 @extend_schema_view(
     tracks=extend_schema(
+        description=TRACKS_DESCRIPTION,
         parameters=[
             OpenApiParameter("coverage", str, required=False),
             OpenApiParameter("subgenres", bool, required=False),
             OpenApiParameter("artist", OpenApiTypes.UUID, required=False),
-            OpenApiParameter(FROM_QUERY_PARAM, str, required=False),
+            FROM_TRACK_PARAMETER,
         ],
         responses=TrackPlaylistRelInPageSerializer(many=True),
+        filters=False,
     ),
     tree=extend_schema(
         filters=False,

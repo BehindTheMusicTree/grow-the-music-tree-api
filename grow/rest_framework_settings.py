@@ -22,6 +22,8 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "HistoryAction": "grow.model.history.HistoryAction.HistoryAction",
         "ImportRunModeEnum": "grow.bulk_import.BulkImportRun.BulkImportRun.Mode",
+        "GenreEdgeActionEnum": "grow.model.curation.GenreEdgeRule.GenreEdgeRule.Action",
+        "CurationListNameEnum": "grow.view.curation.CURATION_LIST_NAMES",
     },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": [
