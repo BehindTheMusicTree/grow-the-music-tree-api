@@ -1963,11 +1963,8 @@ paths:
                 $ref: '#/components/schemas/GenreAliasTargets'
           description: ''
         '503':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Detail'
-          description: The genre alias catalogue is not published yet.
+          description: The genre alias catalogue is not published yet (api-kit error
+            envelope).
   /v1/curation/history/:
     get:
       operationId: v1_curation_history_retrieve

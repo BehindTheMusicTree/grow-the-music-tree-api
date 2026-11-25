@@ -716,7 +716,7 @@ class GenreAliasTargetsView(CurationView):
         responses={
             status.HTTP_200_OK: GenreAliasTargetsSerializer,
             status.HTTP_503_SERVICE_UNAVAILABLE: OpenApiResponse(
-                DetailSerializer, description="The genre alias catalogue is not published yet."
+                description="The genre alias catalogue is not published yet (api-kit error envelope)."
             ),
         },
     )
