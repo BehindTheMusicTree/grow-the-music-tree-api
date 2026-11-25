@@ -2,7 +2,8 @@ import json
 from collections.abc import Iterable
 from typing import Any
 
-from grow.curation.lists import ADDITION_LABEL_COLUMN, ADDITION_LISTS, ITEM_ID_COLUMNS
+from the_music_tree_grow_contracts.curation_lists import ADDITION_LABEL_COLUMN, ADDITION_LISTS, ITEM_ID_COLUMNS
+
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.WikidataItem import WikidataItem

@@ -20,7 +20,7 @@ class SongSearchQuerySerializer(SearchQuerySerializer):
 
 class SongSearchResultSerializer(serializers.ModelSerializer):
     artists = ArtistMinimumSerializer(many=True)
-    genre = CriteriaMinimumSerializer(allow_null=True)
+    genre = CriteriaMinimumSerializer(source="membership_genre", allow_null=True)
     youtube_video = SongYoutubeVideoSerializer(source="*")
 
     class Meta:

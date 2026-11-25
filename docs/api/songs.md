@@ -75,6 +75,33 @@ While it is unbuilt, the merges skip it and queue one bulk build (`song-search-b
 but song, artist and genre writes wait for it, imports included: run it outside the nightly pipeline window. `manage.py rebuild_song_search --check` prints the `missing`, `orphaned` and `stale` row counts and
 fails if any of them is non-zero.
 
+#### List by genre
+
+`GET {base}?genre=<uuid>&coverage=genre_and_subgenres&subgenres=<scope>`
+
+With inclusive coverage, contract 4 supports `restricted` (direct songs plus restricted descendants),
+`extended` (direct songs plus all accessible descendants), and `expressions` (the additional descendants reached
+by extended coverage). The exact `coverage=genre_only` selects only directly assigned songs and rejects `subgenres`.
+
+For existing clients, `canonical` aliases `restricted`, `all` aliases `extended`, and `regional` selects
+`expressions` plus direct songs. The default is `canonical` for canonical genres and `all` for regional genres.
+Regional genres only accept `all` among the legacy values. Contract 4 scopes work for either tree.
+
+#### List by artist
+
+`GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
+
+Only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
+returns 400, as do an unknown ordering or an invalid cursor. Pages are keyset pages: `next` carries the `cursor` of the
+following page and is null on the last one. `count`, `page` and `totalPages` are null, `previous` is always null.
+Songs without an album year come last under `-albumYear`.
+
+The page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort
+keys), so the cost stays flat for an artist with 100 k+ songs. The songs and artists merges keep it current in their
+transaction, and so do the song, album and credit ORM writes. While it is unbuilt the merges skip it, and the endpoint
+returns 503 (no fallback to the unindexed query). `manage.py rebuild_artist_song` builds it; `--check` prints the drift
+from the songs and fails if there is any.
+
 #### Import
 
 See the songs import runs in the [README](../../README.md#api) and `grow/track/bulk_import/`.

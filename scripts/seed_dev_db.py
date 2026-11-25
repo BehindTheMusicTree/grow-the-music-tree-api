@@ -1,6 +1,5 @@
 """Seeds an empty dev DB with the perf/fixtures Gold snapshot, through the same endpoints and order as the nightly sync."""
 
-import gzip
 import json
 import os
 import sys
@@ -17,10 +16,20 @@ import django
 django.setup()
 
 from grow.model.criteria.children.genre.Genre import Genre
+from perf.gold_graph import (
+    SONGS,
+    TREES,
+    assignments_part,
+    build_graph,
+    identity_mapping,
+    load_songs,
+    load_trees,
+    read_genres,
+    resolve_songs,
+    run_body,
+    songs_part,
+)
 
-FIXTURES = ROOT / "perf" / "fixtures"
-TREES = ["1_canonical_genre_tree.json.gz", "1_regional_genre_tree.json.gz"]
-SONGS = "2_songs.json.gz"
 BASE_URL = f"http://127.0.0.1:{os.environ['APP_PORT']}"
 API_KEY = os.environ["PIPELINE_API_KEY"]
 HEALTH_TIMEOUT_S = 120
@@ -51,36 +60,36 @@ def wait_for_server() -> None:
             return
 
 
+def _json_headers() -> dict[str, str]:
+    return {"Content-Type": "application/json"}
+
+
 def seed() -> None:
     exported_on = call("GET", "curation/export/")["exported_on"]
-    trees = []
-    for fixture in TREES:
-        with gzip.open(FIXTURES / fixture) as file:
-            trees.append({**json.load(file), "curationExportedOn": exported_on})
+    trees = load_trees(exported_on)
     log(f"importing {', '.join(TREES)}")
-    task_id = call(
-        "POST", "genres/trees/import-runs/", json.dumps({"trees": trees}).encode(), {"Content-Type": "application/json"}
-    )["taskId"]
-    # Songs resolve their genre against the imported trees, so wait for the merge.
+    task_id = call("POST", "genres/trees/import-runs/", json.dumps({"trees": trees}).encode(), _json_headers())[
+        "taskId"
+    ]
+    # The graph maps onto the imported genres, so wait for the merge.
     while (polled := call("GET", f"genres/trees/import/{task_id}/status/"))["status"] not in ("success", "failure"):
         time.sleep(2)
     if polled["status"] != "success":
         raise SystemExit(f"genre trees import failed: {polled}")
+    genres = read_genres(lambda page: call("GET", f"genres/?page={page}&page_size=100"))
+    graph = build_graph(trees)
+    body = {"graph": graph, "mapping": identity_mapping(graph, genres), "expectedRevision": None}
+    call("PUT", "genres/graph/", json.dumps(body).encode(), _json_headers())
     log(f"importing {SONGS}")
-    with gzip.open(FIXTURES / SONGS) as file:
-        part = gzip.compress(
-            "".join(json.dumps({"first_release_year": None, **song}) + "\n" for song in json.load(file)).encode()
-        )
+    songs = load_songs()
+    resolved = resolve_songs(trees, songs)
     runs = "library/songs/songs/import-runs/"
-    run_id = call("POST", runs)["runId"]
-    call(
-        "PUT",
-        f"{runs}{run_id}/parts/0/",
-        part,
-        {"Content-Type": "application/x-ndjson", "Content-Encoding": "gzip"},
-    )
+    run_id = call("POST", runs, json.dumps(run_body(call("GET", "genres/graph/"))).encode(), _json_headers())["runId"]
+    headers = {"Content-Type": "application/x-ndjson", "Content-Encoding": "gzip"}
+    call("PUT", f"{runs}{run_id}/parts/0/", songs_part(songs), headers)
+    call("PUT", f"{runs}{run_id}/assignments/parts/0/", assignments_part(resolved), headers)
     call("POST", f"{runs}{run_id}/commit/")
-    log("trees imported; songs are merging in the worker")
+    log("trees and graph imported; songs are merging in the worker")
 
 
 if __name__ == "__main__":

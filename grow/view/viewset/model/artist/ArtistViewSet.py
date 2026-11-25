@@ -1,3 +1,5 @@
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -14,10 +16,18 @@ from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.artist.detailed import ArtistDetailedSerializer
 from grow.serializer.model.artist.search import ArtistSearchQuerySerializer, ArtistSearchResultSerializer
 from grow.serializer.model.artist.simple import ArtistSimpleSerializer
+from grow.serializer.schema.artist import ArtistGenreCountSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import bulk_import_run_actions
 
 
+@extend_schema_view(
+    destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}),
+    search=extend_schema(
+        parameters=[ArtistSearchQuerySerializer], responses=ArtistSearchResultSerializer(many=True), filters=False
+    ),
+    genre_counts=extend_schema(responses=ArtistGenreCountSerializer(many=True), filters=False),
+)
 class ArtistViewSet(GrowModelViewSet[Artist]):
     throttle_scope = "artist-search"
 
@@ -45,6 +55,7 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
         authentication_classes=[],
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
+        pagination_class=None,
     )
     def search(self, request):
         query = ArtistSearchQuerySerializer(data=request.query_params)
@@ -64,6 +75,7 @@ class ArtistViewSet(GrowModelViewSet[Artist]):
         url_path="genre-counts",
         authentication_classes=[],
         permission_classes=[AllowAny],
+        pagination_class=None,
     )
     def genre_counts(self, request, pk=None):
         """Sparse per-genre-playlist counts of the artist's songs, for pruning the genre tree to their footprint."""

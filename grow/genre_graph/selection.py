@@ -2,11 +2,18 @@ from django.db.models import QuerySet
 from rest_framework.exceptions import ValidationError
 from the_music_tree_genre_graph import GraphValidationError
 from the_music_tree_genre_kit.criteria.selection.coverage import CriteriaCoverage
+from the_music_tree_genre_kit.genre_graph.models import GraphScope
 from the_music_tree_genre_kit.genre_graph.storage import effective_attributions, select_tracks
 
 from grow.genre_graph.service import DATASET_KEY, reference_dataset
-from grow.genre_music.selection import parse_subgenres
+from grow.genre_music.selection import SubgenreScope, parse_subgenres
 from grow.model.criteria.children.genre.Genre import Genre
+
+_LEGACY_SCOPES = {
+    SubgenreScope.CANONICAL: GraphScope.RESTRICTED,
+    SubgenreScope.REGIONAL: GraphScope.EXPRESSIONS,
+    SubgenreScope.ALL: GraphScope.EXTENDED,
+}
 
 
 def require_reference_graph() -> None:
@@ -32,12 +39,16 @@ def select_songs(songs: QuerySet, *, genre_id, coverage: CriteriaCoverage, subge
         raise ValidationError({"genre": "Genre has no reference graph identity mapping."})
     if not node.is_active:
         return songs.none()
+    if coverage == CriteriaCoverage.ONLY:
+        parse_subgenres(subgenres, coverage, "canonical")
+        return select_tracks(songs, node=node, include_descendants=False)
+    if subgenres in GraphScope:
+        return select_tracks(songs, node=node, scope=GraphScope(subgenres))
+
     tree = "canonical" if node.canonical_state == "canonical" else "regional"
-    scope = parse_subgenres(subgenres, coverage, tree)
-    return select_tracks(
-        songs,
-        key=DATASET_KEY,
-        identity=node.identity,
-        scope=scope.value if scope is not None else "all",
-        include_descendants=coverage != CriteriaCoverage.ONLY,
-    )
+    legacy_scope = parse_subgenres(subgenres, coverage, tree)
+    selected = select_tracks(songs, node=node, scope=_LEGACY_SCOPES[legacy_scope])
+    if legacy_scope == SubgenreScope.REGIONAL:
+        # The legacy regional selection also includes songs assigned directly to the selected genre.
+        selected |= select_tracks(songs, node=node, include_descendants=False)
+    return selected

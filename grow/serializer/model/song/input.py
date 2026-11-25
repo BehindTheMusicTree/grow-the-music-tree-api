@@ -15,6 +15,10 @@ class SongAssignGenreSerializer(serializers.Serializer):
         return songs
 
 
+class SongAssignGenreUndoSerializer(serializers.Serializer):
+    undo_token = serializers.UUIDField()
+
+
 class SongYoutubePatchSerializer(serializers.Serializer):
     youtube_video_id = serializers.CharField(max_length=32, allow_null=True, required=False)
     youtube_unplayable_reason = serializers.ChoiceField(

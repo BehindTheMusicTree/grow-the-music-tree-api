@@ -1,15 +1,43 @@
 from django.db.models import Exists, OuterRef
-from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import PlaylistTracksActionMixin
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from the_music_tree_genre_kit.view.viewset.playlist.PlaylistTracksActionMixin import (
+    FROM_QUERY_PARAM,
+    PlaylistTracksActionMixin,
+)
 
 from grow.genre_graph.snapshot import graph_snapshot
 from grow.model.song.playable import RESTRICTED_POLICY
 from grow.model.song.Song import Song
+from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.youtube_regions import attemptable, viewer_country, with_region_status
 
 
 def blocked_restricted_songs(country):
     """Songs whose policy blocks `country`; the restricted predicate lets PostgreSQL use the partial index."""
     return with_region_status(Song.objects.all(), country).filter(RESTRICTED_POLICY, _region_blocked=True)
+
+
+TRACKS_DESCRIPTION = (
+    "The playlist's track relations in play order (position ascending, unpositioned last). `?from=<track uuid>` starts"
+    " the list at that track's relation (inclusive); 404 if the track is not in the playlist, 400 if the value is not a"
+    " UUID."
+)
+FROM_TRACK_PARAMETER = OpenApiParameter(
+    FROM_QUERY_PARAM, OpenApiTypes.UUID, required=False, description="Start the list at this track (inclusive)."
+)
+
+
+# Applied by each viewset (a mixin has no `schema` for `extend_schema_view`). The action lists the playlist's members
+# without `filter_queryset`: the viewset's filterset does not apply.
+TRACKS_SCHEMA = extend_schema_view(
+    tracks=extend_schema(
+        description=TRACKS_DESCRIPTION,
+        parameters=[FROM_TRACK_PARAMETER],
+        responses=TrackPlaylistRelInPageSerializer(many=True),
+        filters=False,
+    )
+)
 
 
 class RegionPlaylistTracksMixin(PlaylistTracksActionMixin):

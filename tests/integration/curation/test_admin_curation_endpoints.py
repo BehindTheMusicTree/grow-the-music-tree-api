@@ -46,6 +46,11 @@ class TestCase(AppTestCase):
         with patch(VERIFY, return_value=VIEWER_CLAIMS):
             assert call(path=path, data=data, format="json").status_code == status.HTTP_403_FORBIDDEN
 
+    def _undo(self, response):
+        return self.api_client.post(
+            path=reverse("song-undo-assign-genre"), data={"undoToken": response.json()["undoToken"]}, format="json"
+        )
+
     def test_assign_genre_then_rule_row_and_undo(self):
         rock = self._rock()
         song = self._song()
@@ -53,7 +58,7 @@ class TestCase(AppTestCase):
         response = self._assign([song], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None, "undoable": True}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None}]
         song.refresh_from_db()
         assert song.genre.pk == rock.pk
         assert song.is_manually_edited
@@ -61,36 +66,94 @@ class TestCase(AppTestCase):
         assert rule["genre_item_id"] == "Q11399"
         assert rule["key"] == MB_ID
 
-        undo = self._assign([song], None)
+        undo = self._undo(response)
 
-        assert undo.status_code == status.HTTP_200_OK
+        assert undo.status_code == status.HTTP_204_NO_CONTENT
         song.refresh_from_db()
         assert song.genre is None
-        [rule] = self._rule("song_genre")
-        assert rule["genre_item_id"] == ""
+        assert not song.is_manually_edited
+        assert self._rule("song_genre") == []
 
-    def test_assign_genre_batch_then_previous_restores_each(self):
+    def test_assign_then_unlink_then_rule_carries_admin_provenance(self):
+        rock = self._rock()
+        song = self._song()
+
+        self._assign([song], rock)
+        assigned = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None)
+        self._assign([song], None)
+        unlinked = CurationEntry.objects.get(list_name="song_genre", key=MB_ID, user=None)
+
+        for entry in (assigned, unlinked):
+            assert entry.values["decision_id"].startswith("admin-")
+            assert entry.values["decision_source"] == "admin curation"
+            assert entry.reason.startswith("grow admin edit by ")
+        assert assigned.values["decision_id"] != unlinked.values["decision_id"]
+        assert unlinked.values["genre_item_id"] == ""
+
+    def test_undo_restores_previous_rule_row(self):
+        rock, jazz = self._rock(), self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q8341")
+        song = self._song()
+        self._assign([song], rock)
+
+        undo = self._undo(self._assign([song], jazz))
+
+        assert undo.status_code == status.HTTP_204_NO_CONTENT
+        song.refresh_from_db()
+        assert song.genre.pk == rock.pk
+        [rule] = self._rule("song_genre")
+        assert rule["genre_item_id"] == "Q11399"
+
+    def test_assign_genre_batch_then_undo_restores_each(self):
         rock, jazz = self._rock(), self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q8341")
         a = self._song("A", rock)
         b = self._song("B", None, "22222222-2222-4222-8222-222222222222")
 
-        previous = self._assign([a, b], jazz).json()["previous"]
+        response = self._assign([a, b], jazz)
 
-        assert previous == [
-            {"uuid": str(a.uuid), "genre": str(rock.uuid), "undoable": True},
-            {"uuid": str(b.uuid), "genre": None, "undoable": True},
+        assert response.json()["previous"] == [
+            {"uuid": str(a.uuid), "genre": str(rock.uuid)},
+            {"uuid": str(b.uuid), "genre": None},
         ]
-        self._assign([a], rock)
+        assert self._undo(response).status_code == status.HTTP_204_NO_CONTENT
         a.refresh_from_db()
+        b.refresh_from_db()
         assert a.genre.pk == rock.pk
+        assert b.genre is None
 
-    def test_assign_genre_from_genre_without_wikidata_id_then_not_undoable(self):
+    def test_undo_from_genre_without_wikidata_id_restores_it(self):
         local = self.model_fixture_factory.create_genre("Local")
         song = self._song("A", local)
 
-        previous = self._assign([song], self._rock()).json()["previous"]
+        response = self._assign([song], self._rock())
 
-        assert previous == [{"uuid": str(song.uuid), "genre": str(local.uuid), "undoable": False}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(local.uuid)}]
+        assert self._undo(response).status_code == status.HTTP_204_NO_CONTENT
+        song.refresh_from_db()
+        assert song.genre.pk == local.pk
+
+    def test_undo_when_song_changed_since_then_409_and_nothing_restored(self):
+        rock, jazz = self._rock(), self.model_fixture_factory.create_genre("Jazz", wikidata_id="Q8341")
+        song = self._song()
+        first = self._assign([song], rock)
+        self._assign([song], jazz)
+
+        undo = self._undo(first)
+
+        assert undo.status_code == status.HTTP_409_CONFLICT
+        song.refresh_from_db()
+        assert song.genre.pk == jazz.pk
+
+    def test_undo_token_is_single_use_and_unknown_token_is_404(self):
+        song = self._song()
+        response = self._assign([song], self._rock())
+
+        assert self._undo(response).status_code == status.HTTP_204_NO_CONTENT
+        assert self._undo(response).status_code == status.HTTP_404_NOT_FOUND
+
+    def test_undo_then_401_and_403(self):
+        self._forbidden_and_unauthorized(
+            "post", reverse("song-undo-assign-genre"), {"undoToken": str(uuid_lib.uuid4())}
+        )
 
     def test_assign_genre_without_musicbrainz_id_then_400_and_nothing_written(self):
         rock = self._rock()
@@ -292,7 +355,11 @@ class TestCase(AppTestCase):
         assert child.parent.pk == target.pk
         assert list(target.essential_songs.all()) == [Song.objects.get(pk=song.pk)]
         [rule] = self._rule("genre_alias")
-        assert (rule["key"], rule["wikidata_genre_name"]) == ("alt rock", "Alternative rock")
+        assert (rule["key"], rule["wikidata_genre_name"], rule["target_item_id"]) == (
+            "alt rock",
+            "Alternative rock",
+            "Q11366",
+        )
         assert [r["key"] for r in self._rule("essential_songs")] == [f"Q11366\t{MB_ID}"]
 
     def test_alias_of_descendant_then_400(self):

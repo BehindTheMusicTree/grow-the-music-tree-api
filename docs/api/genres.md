@@ -11,6 +11,19 @@ Manage genre hierarchies and trees.
 Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`). grow-api is a
 single-tenant service — this is the canonical reference dataset, not scoped per user.
 
+## Reference graph
+
+`PUT {base}graph/` (pipeline or admin) takes `graph`, `mapping` and `expectedRevision`. A `null` mapping
+keeps the identity's existing binding; otherwise it adopts the ownerless genre whose `wikidata_id` equals the
+identity (never by label), or creates a genre. Several genres sharing that `wikidata_id`, or one already bound
+to another identity, answer 400 and change nothing.
+
+A genre created in the admin without a `wikidata_id` is adopted as a local node: it gets `wikidata_id`
+`LOCAL:<slug>`, a `canonical_parent_additions` row and a parent edge, so the pipelines recreate the node under the
+same id and this import binds it. Creating a regional or excluded genre, or a root without a parent, answers 400
+(`treeName` and `parent` fields respectively), since neither can be expressed as a `LOCAL:` node. Migration `0154`
+adopts the existing app-created genres the same way; a genre whose chain has no adoptable parent is skipped and logged.
+
 ## Endpoints
 
 #### List

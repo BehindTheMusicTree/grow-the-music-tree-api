@@ -3,9 +3,9 @@ from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from the_music_tree_grow_contracts.curation_lists import EDGE_PROJECTION_LISTS
 
 from grow.curation.edges import edge_field, find_rule_by_legacy
-from grow.curation.lists import EDGE_PROJECTION_LISTS
 from grow.curation.rows import InvalidRow, RowConflict, check_edit, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
@@ -98,7 +98,9 @@ def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[s
             continue
         CurationEntry.objects.update_instance(entry, actor=None, key=parsed.key, values=parsed.values)
         remapped += len(applied)
-    CurationReviewItem.objects.exclude(reason__in=CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS).delete()
+    CurationReviewItem.objects.exclude(
+        reason__in=(*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
+    ).delete()
     review_items = [item for item in map(_review_item, review) if item is not None]
     CurationReviewItem.objects.bulk_create(review_items)
     return {"remapped_count": remapped, "review_count": len(review_items)}

@@ -9,8 +9,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.urls import reverse
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 
-from grow.curation.lists import CURATION_LISTS
 from grow.curation.rows import SEED_DIR
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -85,3 +85,24 @@ class TestCase(AppTestCase):
                 raise AssertionError("expected CommandError")
 
         assert CurationEntry.objects.count() == total
+
+    def test_b13_missing_list_file_then_error_without_substitution(self):
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            for path in SEED_DIR.glob("*.csv"):
+                shutil.copy(path, directory)
+            (directory / "regional_memberships.csv").unlink()
+
+            try:
+                call_command("import_curation_csvs", str(directory), stdout=StringIO())
+            except CommandError as e:
+                assert "regional_memberships" in str(e)
+            else:
+                raise AssertionError("expected CommandError")
+
+    def test_header_only_graph_lists_then_import_ok(self):
+        out = StringIO()
+
+        call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
+
+        assert "0 created" in out.getvalue()

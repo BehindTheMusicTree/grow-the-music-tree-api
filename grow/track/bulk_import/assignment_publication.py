@@ -9,6 +9,7 @@ from the_music_tree_genre_kit.genre_graph.models import GenreGraphEvidence, Genr
 from the_music_tree_genre_kit.genre_graph.publication import publish_staged_attributions
 from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict, graph_write_transaction
 
+from grow.bulk_import.progress import report_step
 from grow.genre_graph.service import DATASET_KEY
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
@@ -108,5 +109,5 @@ def publish_assignments(*, run_id: int, dataset) -> None:
         # The kit compares complete sets through correlated lookups for each track.
         cursor.execute(f"CREATE INDEX ON {d} (track_id, node_id, evidence_id)")
         cursor.execute(f"ANALYZE {d}")
-        publish_staged_attributions(dataset=dataset, population=population, assignments=desired)
+        publish_staged_attributions(dataset=dataset, population=population, assignments=desired, on_step=report_step)
         cursor.execute(f"DROP TABLE {d}, {f}, {p}")

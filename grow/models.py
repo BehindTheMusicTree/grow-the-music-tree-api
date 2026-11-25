@@ -7,6 +7,7 @@ from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.ImportPart import ImportPart
+from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.album.Album import Album
@@ -14,12 +15,15 @@ from grow.model.artist.Artist import Artist
 from grow.model.artist_alias.ArtistAlias import ArtistAlias
 from grow.model.artist_link.ArtistLink import ArtistLink
 from grow.model.artist_membership.ArtistMembership import ArtistMembership
+from grow.model.artist_song.ArtistSong import ArtistSong
+from grow.model.artist_song.ArtistSongState import ArtistSongState
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.children.genre.GenreEssentialSong import GenreEssentialSong
 from grow.model.criteria.children.tag.Tag import Tag
 from grow.model.criteria.Criteria import Criteria
 from grow.model.criteria.lineage_rel.CriteriaLineageRel import CriteriaLineageRel
 from grow.model.curation.CurationEntry import CurationEntry
+from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -39,6 +43,7 @@ from grow.model.playlist.GenreMembershipCount import GenreMembershipCount
 from grow.model.region_map.RegionMapFile import RegionMapFile
 from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.model.song.Song import Song
+from grow.model.song.SongGenreUndo import SongGenreUndo
 from grow.model.song_search.SongSearch import SongSearch
 from grow.model.song_search.SongSearchState import SongSearchState
 from grow.model.user.UserProfile import UserProfile
@@ -53,12 +58,15 @@ __all__ = [
     "ArtistImportStaging",
     "ArtistLink",
     "ArtistMembership",
+    "ArtistSong",
+    "ArtistSongState",
     "BulkImportDeletion",
     "BulkImportRun",
     "Criteria",
     "CriteriaLineageRel",
     "CriteriaPlaylist",
     "CurationEntry",
+    "CurationExport",
     "CurationReviewItem",
     "CurationSyncState",
     "GenealogySnapshot",
@@ -68,6 +76,7 @@ __all__ = [
     "GenreEssentialSong",
     "GenreGraphAssignmentBackup",
     "GenreGraphImport",
+    "GenreGraphImportPayload",
     "GenreMembershipCount",
     "GenrePlaylist",
     "GenreTreeImportPayload",
@@ -86,6 +95,7 @@ __all__ = [
     "RegionMapSnapshot",
     "Song",
     "SongAssignmentStaging",
+    "SongGenreUndo",
     "SongImportStaging",
     "SongSearch",
     "SongSearchState",

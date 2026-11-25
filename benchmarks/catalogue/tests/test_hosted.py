@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -17,6 +18,15 @@ from benchmarks.catalogue.scenario_plan import canonical_bytes
 
 REPOSITORY = "BehindTheMusicTree/grow-the-music-tree-api"
 INVOCATION = "e" * 32
+
+
+def copy_clone(source, parent, name):
+    """Stand-in for the reflink clone: CI runners and laptops lack a reflink filesystem."""
+    destination = parent / (name + "-copy")
+    shutil.copytree(source, destination, symlinks=True)
+    return destination
+
+
 PREPARE = b"print('prepare')\n"
 SETTINGS = b"SETTINGS = 1\n"
 POSTGRES = "docker.io/library/postgres@sha256:" + "a" * 64
@@ -287,6 +297,8 @@ class RuntimeTest(unittest.TestCase):
             options.pop("check", self.check),
             docker=self.docker,
             namespace=lambda pid: 1 if pid == 1 else 2,
+            probe=lambda _directory: None,
+            clone=copy_clone,
         )
 
     def test_round_serves_after_a_verified_handoff_and_reuses_the_prepared_side(self):
@@ -325,6 +337,26 @@ class RuntimeTest(unittest.TestCase):
             self.assertFalse(self.docker.containers)
             runtime.sides.clear()
 
+    def test_each_round_runs_on_its_own_clone_of_the_untouched_restore(self):
+        runtime = self.runtime()
+        clones = []
+
+        def recording(source, parent, name):
+            # The prepared database must have been stopped gracefully, not killed by `docker rm --force`.
+            self.assertTrue(any(call[0] == "stop" for call in runtime.docker_binary.calls))
+            clones.append(copy_clone(source, parent, name))
+            return clones[-1]
+
+        runtime.clone = recording
+        with runtime.prepare(self.session.base, 1):
+            self.assertTrue(clones[0].exists())
+        pristine, _scripts = runtime.sides[self.session.base]
+        with runtime.prepare(self.session.base, 2):
+            pass
+        self.assertEqual(2, len(clones))
+        self.assertTrue(pristine.exists())
+        self.assertFalse(any(clone.exists() for clone in clones))
+
     def test_host_network_namespace_is_rejected_after_start(self):
         runtime = hosted_runtime.HostedRuntime(
             self.session,
@@ -334,6 +366,8 @@ class RuntimeTest(unittest.TestCase):
             self.check,
             docker=self.docker,
             namespace=lambda pid: 1,
+            probe=lambda _directory: None,
+            clone=copy_clone,
         )
         with self.assertRaisesRegex(RuntimeError, "host network"), runtime.prepare(self.session.base, 1):
             pass
@@ -380,6 +414,32 @@ class RuntimeTest(unittest.TestCase):
         runtime.check = expired
         with self.assertRaises(hosted.DeadlineExceeded), runtime.prepare(self.session.base, 1):
             pass
+
+    def test_running_job_past_the_manifest_deadline_is_a_deadline_failure(self):
+        def expired():
+            raise hosted.DeadlineExceeded("deadline")
+
+        runtime = self.runtime()
+        runtime.check = expired
+        with patch.object(runtime, "docker", return_value="true"), self.assertRaises(hosted.DeadlineExceeded):
+            runtime.finish("job", 3600)
+
+    def test_preparation_timeout_is_the_time_left_before_the_manifest_deadline(self):
+        runtime = self.runtime()
+        with (
+            patch("benchmarks.catalogue.hosted_runtime.time.time", return_value=self.session.deadline_timestamp - 90),
+            patch.object(runtime, "finish", return_value=0) as finish,
+        ):
+            runtime.prepare_application(self.session.base, Path(self.workspace), self.bundle)
+        self.assertEqual(90, finish.call_args.args[1])
+
+    def test_failed_preparation_script_is_a_preparation_failure(self):
+        runtime = self.runtime()
+        with (
+            patch.object(runtime, "finish", return_value=1),
+            self.assertRaisesRegex(RuntimeError, "preparation failed"),
+        ):
+            runtime.prepare_application(self.session.base, Path(self.workspace), self.bundle)
 
 
 class VerdictTest(unittest.TestCase):

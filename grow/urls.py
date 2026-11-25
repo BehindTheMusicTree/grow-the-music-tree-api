@@ -2,6 +2,7 @@ from django.conf import settings
 from django.urls import include, path
 from rest_framework import routers
 
+from grow.openapi.views import CachedSchemaView
 from grow.view.auth_me import AuthMeView
 from grow.view.curation import (
     CurationEdgesView,
@@ -17,10 +18,12 @@ from grow.view.curation import (
     CurationStatusView,
     CurationWikidataItemsView,
     CurationWikidataResolutionsView,
+    GenreAliasTargetsView,
 )
 from grow.view.genealogy import GenealogyImportView, GenealogyView
 from grow.view.genre_graph import (
     InitialAssignmentsRestoreView,
+    ReferenceGraphImportRunsView,
     ReferenceGraphRestoreView,
     ReferenceGraphView,
     SongAttributionsRestoreView,
@@ -69,10 +72,22 @@ router.register(r"plays", PlayViewSet, basename="play")
 router.register(r"library/songs", SongViewSet, basename="song")
 router.register(r"regions/map", RegionMapViewSet, basename="region-map")
 
-urlpatterns = [path("health/", HealthCheckView.as_view(), name="health")]
+urlpatterns = [
+    path("health/", HealthCheckView.as_view(), name="health"),
+    path(
+        "schema/",
+        CachedSchemaView.as_view(),
+        name="schema",
+    ),
+]
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),
+    path(
+        f"{settings.API_ROOT_BASE}genres/graph/import-runs/",
+        ReferenceGraphImportRunsView.as_view(),
+        name="reference-graph-import-runs",
+    ),
     path(
         f"{settings.API_ROOT_BASE}genres/graph/restore/",
         ReferenceGraphRestoreView.as_view(),
@@ -110,6 +125,11 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}curation/wikidata-items/",
         CurationWikidataItemsView.as_view(),
         name="curation-wikidata-items",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}curation/genre-alias-targets/",
+        GenreAliasTargetsView.as_view(),
+        name="genre-alias-targets",
     ),
     path(f"{settings.API_ROOT_BASE}curation/items/", CurationItemsView.as_view(), name="curation-items"),
     path(f"{settings.API_ROOT_BASE}curation/edges/", CurationEdgesView.as_view(), name="curation-edges"),

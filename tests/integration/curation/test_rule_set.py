@@ -15,7 +15,7 @@ def _exclude(list_name: str, item_id: str) -> None:
 
 
 def _root(item_id: str) -> None:
-    GenreEdgeRule.objects.upsert("canonical_parent", item_id, None, exclude_other_parents=True, reason="r")
+    _graph("canonical_roots", item_id, f"root-{item_id}")
 
 
 def _violations() -> list:
@@ -34,16 +34,20 @@ class TestRootRegionalConflict(AppTestCase):
     def test_root_on_a_regional_item_then_invalid_row(self):
         GenreEdgeRule.objects.upsert("regional_genre_parent", A, B, exclude_other_parents=False, reason="r")
 
-        with self.assertRaises(InvalidRow):
-            _root(A)
+        with self.assertRaises(RowConflict):
+            check_edit(
+                CurationEntry.objects.filter(user=None),
+                "canonical_roots",
+                {"item_id": A, "decision_id": "d", "decision_source": "gold", "reason": "r"},
+            )
 
     def test_stored_conflict_then_found_and_export_409(self):
+        _root(A)
         GenreEdgeRule.objects.bulk_create(
             [
-                GenreEdgeRule(user=None, relation="canonical_parent", item_id=A, exclude_other_parents=True),
                 GenreEdgeRule(
                     user=None, relation="regional_overview", item_id=A, parent_item_id=B, exclude_other_parents=False
-                ),
+                )
             ]
         )
 
@@ -97,12 +101,12 @@ class TestExcludedEdgeConflict(AppTestCase):
 
 class TestStoredViolationsDontBlockOthers(AppTestCase):
     def test_rule_under_a_conflicted_root_then_created(self):
+        _root(A)
         GenreEdgeRule.objects.bulk_create(
             [
-                GenreEdgeRule(user=None, relation="canonical_parent", item_id=A, exclude_other_parents=True),
                 GenreEdgeRule(
                     user=None, relation="regional_overview", item_id=A, parent_item_id=B, exclude_other_parents=False
-                ),
+                )
             ]
         )
 
@@ -114,5 +118,130 @@ class TestStoredViolationsDontBlockOthers(AppTestCase):
         _exclude("theme_genres", A)
 
         GenreEdgeRule.objects.upsert("secondary_parent", A, B, action="remove", reason="r")
+
+        assert _violations() == []
+
+
+def _graph(list_name: str, key: str, decision: str, **values: str) -> None:
+    CurationEntry.objects.create(
+        user=None,
+        list_name=list_name,
+        key=key,
+        values={**values, "decision_id": decision, "decision_source": "gold"},
+        reason="r",
+    )
+
+
+def _local(item: str, kind: str, decision: str) -> None:
+    _graph("local_identities", item, decision, kind=kind, label=item)
+
+
+def _kinds() -> list[str]:
+    return sorted(v.kind for v in _violations())
+
+
+class TestGraphViolations(AppTestCase):
+    def test_reused_decision_then_duplicate_decision_and_export_409(self):
+        _graph("canonical_roots", "Q1", "d1")
+        _graph("canonical_roots", "Q2", "d1")
+
+        assert _kinds() == ["duplicate_decision"]
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_409_CONFLICT
+
+    def test_undeclared_local_then_violation(self):
+        _graph("regional_anchorings", "Q1\tLOCAL:ghost", "d1")
+
+        assert _kinds() == ["undeclared_local"]
+
+    def test_wrong_local_kind_then_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_anchorings", "Q1\tLOCAL:genre-a", "d2")
+
+        assert _kinds() == ["local_kind"]
+
+    def test_membership_add_under_local_genre_then_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_memberships", "Q1\tLOCAL:genre-a", "d2", action="add")
+        assert _kinds() == ["local_kind"]
+
+    def test_membership_prohibit_under_local_genre_then_allowed(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("regional_memberships", "Q1\tLOCAL:genre-a", "d2", action="prohibit")
+        assert _kinds() == []
+
+    def test_overview_as_derivation_end_then_violation(self):
+        _local("LOCAL:over-a", "overview", "d1")
+        _graph("genre_derivations", "Q1\tLOCAL:over-a", "d2")
+
+        assert _kinds() == ["local_kind"]
+
+    def test_genre_derivation_then_no_violation(self):
+        _local("LOCAL:genre-a", "genre", "d1")
+        _graph("genre_derivations", "LOCAL:genre-a\tQ1", "d2")
+
+        assert _kinds() == []
+
+    def test_membership_cycle_then_violation(self):
+        _local("LOCAL:a", "overview", "d1")
+        _local("LOCAL:b", "overview", "d2")
+        _graph("regional_memberships", "LOCAL:a\tLOCAL:b", "d3", action="add")
+        _graph("regional_memberships", "LOCAL:b\tLOCAL:a", "d4", action="add")
+
+        assert _kinds() == ["membership_cycle"]
+
+    def test_prohibited_membership_cycle_then_no_violation(self):
+        _local("LOCAL:a", "overview", "d1")
+        _local("LOCAL:b", "overview", "d2")
+        _graph("regional_memberships", "LOCAL:a\tLOCAL:b", "d3", action="add")
+        _graph("regional_memberships", "LOCAL:b\tLOCAL:a", "d4", action="prohibit")
+
+        assert _violations() == []
+
+    def test_consistent_graph_then_export_200(self):
+        _local("LOCAL:a", "overview", "d1")
+        _graph("regional_anchorings", "Q1\tLOCAL:a", "d2")
+
+        assert _violations() == []
+        assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
+
+
+class TestMergeLocals(AppTestCase):
+    def test_merge_naming_undeclared_local_then_violation(self):
+        _graph("genre_merges", "LOCAL:x\tQ1", "d1")
+
+        assert _kinds() == ["undeclared_local"]
+
+    def test_merge_local_declared_by_addition_list_then_no_violation(self):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
+            reason="r",
+        )
+        _graph("genre_merges", "LOCAL:x\tQ1", "d1")
+
+        assert _violations() == []
+
+    def test_derivation_local_declared_by_addition_list_then_no_violation(self):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
+            reason="r",
+        )
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _violations() == []
+
+    def test_derivation_naming_undeclared_local_then_violation(self):
+        _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
+
+        assert _kinds() == ["undeclared_local"]
+
+    def test_merge_local_declared_by_local_identity_then_no_violation(self):
+        _local("LOCAL:x", "genre", "d1")
+        _graph("genre_merges", "LOCAL:x\tQ1", "d2")
 
         assert _violations() == []

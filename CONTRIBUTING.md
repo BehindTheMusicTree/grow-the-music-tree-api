@@ -64,11 +64,11 @@ Tests run against an in-memory SQLite database and need no environment variables
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy grow
+uv run mypy grow packages/grow-contracts/src
 uv run django-admin makemigrations grow --check --dry-run
 ```
 
-If you touch a serializer, a queryset or an import, also run the latency SLO suite on Postgres (see README, "Performance").
+The latency SLO suite (README, "Performance") runs in CI (job `Perf`, required, gates auto-merge; skipped, which counts as passing, when a PR only touches non-runtime files, see README "Performance"); don't run it locally before a PR. Run it locally only to debug a red `Perf` or to test a change not meant to merge.
 
 These are the same checks CI runs (`.github/workflows/validate.yml`, jobs `Lint`, `Migration check`, `Pytest`) on every PR to `main` or `develop`.
 
@@ -94,8 +94,8 @@ Use imperative mood, keep the summary under ~70 characters, include issue IDs wh
 
 Before opening a PR:
 
-- ✅ `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy grow`, and `uv run pytest` all pass
-- ✅ Latency SLOs pass (`uv run pytest perf --ds=perf.settings`, CI job `Perf`) when a serializer, queryset or import changed
+- ✅ `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy grow packages/grow-contracts/src`, and `uv run pytest` all pass
+- ✅ Latency SLOs: checked by CI job `Perf`, not locally
 - ✅ New features/bug fixes have corresponding tests
 - ✅ `CHANGELOG.md` updated under `[Unreleased]`
 - ✅ `README.md` updated if endpoints, env vars, or setup steps changed

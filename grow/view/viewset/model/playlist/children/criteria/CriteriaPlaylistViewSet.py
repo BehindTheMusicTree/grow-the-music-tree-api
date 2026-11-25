@@ -6,9 +6,10 @@ from grow.serializer.model.playlist.children.criteria.output.detailed import Cri
 from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
 from grow.serializer.model.track_playlist_rel.output.in_page import TrackPlaylistRelInPageSerializer
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
-from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import RegionPlaylistTracksMixin
+from grow.view.viewset.model.playlist.RegionPlaylistTracksMixin import TRACKS_SCHEMA, RegionPlaylistTracksMixin
 
 
+@TRACKS_SCHEMA
 class CriteriaPlaylistViewSet(RegionPlaylistTracksMixin, GrowModelViewSet[CriteriaPlaylist]):
     track_playlist_rel_serializer_class = TrackPlaylistRelInPageSerializer
 

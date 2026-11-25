@@ -15,6 +15,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 from the_music_tree_genre_kit.criteria.track_playlist_rel.TrackPlaylistRel import TrackPlaylistRel
 
+from grow.artist_song.rebuild import rebuild_artist_song
 from grow.bulk_import.BulkImportDeletion import BulkImportDeletion
 from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.ImportAttempt import ImportAttempt
@@ -22,6 +23,9 @@ from grow.bulk_import.run_steps import run_steps
 from grow.genre_music.catalogue_verification import stored_catalogue_bucket_counts, verify_catalogue_counts
 from grow.genre_music.membership import membership_bucket_counts, stored_membership_bucket_counts
 from grow.model.artist.Artist import Artist
+from grow.model.artist_song.ArtistSong import ArtistSong
+from grow.model.artist_song.ArtistSongState import ArtistSongState
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.model.import_run.ImportRun import ImportRun
@@ -48,6 +52,7 @@ SONG = {
     "genre_name": "Rock",
     "first_release_year": None,
 }
+EVIDENCE = {"decisionId": "import-test", "source": "fixture", "rationale": "Reviewed"}
 ARTIST_MBID = "83d91898-7763-47d7-b03b-b92132375c47"
 RUNS = reverse("song-list") + "songs/import-runs/"
 
@@ -57,50 +62,29 @@ def _gzip_ndjson(songs: list[dict]) -> bytes:
 
 
 class TestImportRunProtocol(AppTestCase):
-    def test_reference_graph_rejects_legacy_runs_without_abandoning_uploads(self):
+    def test_run_without_review_metadata_then_400_and_earlier_upload_kept(self):
         run_id = self._create_run()
-        genre = self.model_fixture_factory.create_genre("Rock")
-        install_song_graph({genre: []})
 
         for mode in ("full", "delta"):
             response = self.api_client.post(path=RUNS, data={"mode": mode})
             assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "semantic assignment imports are required" in str(response.json())
         assert list(BulkImportRun.objects.values_list("pk", flat=True)) == [run_id]
 
-    def test_commit_rejects_legacy_run_when_graph_activated_after_upload(self):
-        run_id = self._create_run()
-        genre = self.model_fixture_factory.create_genre("Rock")
-        install_song_graph({genre: []})
-        with patch("grow.view.viewset.mixin.BulkImportRunMixin.enqueue_merge") as enqueue:
-            response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "semantic assignment imports are required" in str(response.json())
-        enqueue.assert_not_called()
-        assert BulkImportRun.objects.get(pk=run_id).committed_on is None
-
-    def test_merge_rechecks_graph_activated_after_upload(self):
-        run_id = self._create_run()
-        genre = self.model_fixture_factory.create_genre("Rock")
-        song = self.model_fixture_factory.create_song(title="Kept", genre=genre)
-        dataset = install_song_graph({genre: [song]})
+    def _create_run(self, mode: str = "full") -> int:
+        genre = Genre.objects.filter(user__isnull=True).first() or self.model_fixture_factory.create_genre("Rock")
+        dataset = install_song_graph({genre: []})
         dataset.refresh_from_db()
-        revision = dataset.membership_revision
-
-        with (
-            patch("grow.track.bulk_import.merge.run_steps") as steps,
-            pytest.raises(ValidationError, match="semantic assignment imports are required"),
-        ):
-            _merge(run_id, {}, False)
-        steps.assert_not_called()
-        song.refresh_from_db()
-        dataset.refresh_from_db()
-        assert song.title == "Kept"
-        assert dataset.membership_revision == revision
-
-    def _create_run(self) -> int:
-        response = self.api_client.post(path=RUNS)
-        assert response.status_code == status.HTTP_201_CREATED
+        response = self.api_client.post(
+            path=RUNS,
+            data={
+                "mode": mode,
+                "graph_revision": str(dataset.revision),
+                "membership_revision": str(dataset.membership_revision),
+                "expected_parts": {"songs": 1, "assignments": 1, **({"deletions": 0} if mode == "delta" else {})},
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED, response.content
         return response.data["run_id"]
 
     def test_create_run_abandons_earlier_runs(self):
@@ -133,7 +117,7 @@ class TestImportRunProtocol(AppTestCase):
 
     @pytest.mark.postgres
     def test_invalid_deletion_then_400_and_nothing_staged(self):
-        run_id = self.api_client.post(path=RUNS, data={"mode": "delta"}).data["run_id"]
+        run_id = self._create_run("delta")
 
         for body in (b"not gzip", _gzip_ndjson([{"musicbrainz_recording_id": "nope"}]), _gzip_ndjson([{"id": MBID}])):
             response = self.api_client.put(
@@ -162,7 +146,7 @@ class TestImportRunProtocol(AppTestCase):
         assert not SongImportStaging.objects.exists()
 
     def test_deletions_upload_interrupted_then_400(self):
-        run_id = self.api_client.post(path=RUNS, data={"mode": "delta"}).data["run_id"]
+        run_id = self._create_run("delta")
 
         with patch("grow.view.viewset.mixin.BulkImportRunMixin.shutil.copyfileobj", side_effect=UnreadablePostError):
             response = self.api_client.put(
@@ -194,7 +178,7 @@ class TestImportRunProtocol(AppTestCase):
 
         assert response.data["status"] == "pending"
 
-    def test_list_includes_tracks_without_video_but_hides_genreless(self):
+    def test_list_includes_tracks_without_video_and_unassigned_songs(self):
         genre = self.model_fixture_factory.create_genre("Rock")
         kept = self.model_fixture_factory.create_song(title="Kept", genre=genre, youtube_video_id="abc123defgh")
         no_video = self.model_fixture_factory.create_song(title="No video", genre=genre, youtube_video_id=None)
@@ -204,7 +188,7 @@ class TestImportRunProtocol(AppTestCase):
 
         response = self.api_client.get(path=reverse("song-list"))
 
-        assert sorted(track["title"] for track in response.json()["results"]) == ["Kept", "No video"]
+        assert sorted(track["title"] for track in response.json()["results"]) == ["Kept", "No genre", "No video"]
 
 
 @pytest.mark.postgres
@@ -233,18 +217,77 @@ class TestImportRunMerge(AppTestCase):
             HTTP_CONTENT_ENCODING="gzip",
         )
 
-    def _sync(self, *parts: list[dict], client=None, mode: str = "full", deleted: tuple[str, ...] = ()) -> dict:
+    def _review(self, songs: list[dict]) -> tuple[dict, list[dict]]:
+        """Installs a graph mirroring the stored genres and derives the reviewed assignments from `genre_name`."""
+        genres = list(Genre.objects.filter(user__isnull=True))
+        by_pk = {genre.pk: genre for genre in genres}
+        stored: dict = {genre: [] for genre in genres}
+        for song in Song.objects.filter(genre__in=genres):
+            stored[by_pk[song.genre_id]].append(song)
+        dataset = install_song_graph(stored)
+        dataset.refresh_from_db()  # attributions bump the membership revision after the graph is installed
+        by_name = {genre.name.lower(): genre for genre in genres}
+        rows = []
+        for song in songs:
+            name = song.get("genre_name")
+            genre = by_name.get(name.lower()) if name else None
+            rows.append(
+                {
+                    "musicbrainz_recording_id": song["musicbrainz_recording_id"],
+                    "assignments": {f"LOCAL:{genre.pk}": [EVIDENCE]} if genre else {},
+                }
+            )
+        return {
+            "graph_revision": str(dataset.revision),
+            "membership_revision": str(dataset.membership_revision),
+        }, rows
+
+    def _upload_assignments(self, run_id: int, rows: list[dict], client=None):
+        return (client or self.api_client).put(
+            path=f"{RUNS}{run_id}/assignments/parts/0/",
+            data=_gzip_ndjson(rows),
+            format=None,
+            content_type="application/x-ndjson",
+            HTTP_CONTENT_ENCODING="gzip",
+        )
+
+    def _open_run(self, *, parts: int = 1) -> int:
+        """Creates a reviewed run with nothing uploaded yet."""
+        revisions, _ = self._review([])
+        created = self.api_client.post(
+            path=RUNS, data={**revisions, "expected_parts": {"songs": parts, "assignments": 1}}, format="json"
+        )
+        assert created.status_code == status.HTTP_201_CREATED, created.content
+        return created.data["run_id"]
+
+    def _create_run(self, *parts: list[dict], client=None, mode: str = "full", deleted: tuple[str, ...] = ()) -> int:
+        """Creates a reviewed run and uploads every stream; returns the run id, ready to commit."""
         client = client or self.api_client
-        run_id = client.post(path=RUNS, data={"mode": mode}).data["run_id"]
+        revisions, rows = self._review([song for part in parts for song in part])
+        expected = {
+            "songs": len(parts),
+            "assignments": 1,
+            **({"deletions": 1 if deleted else 0} if mode == "delta" else {}),
+        }
+        created = client.post(path=RUNS, data={"mode": mode, **revisions, "expected_parts": expected}, format="json")
+        assert created.status_code == status.HTTP_201_CREATED, created.content
+        run_id = created.data["run_id"]
         for part, songs in enumerate(parts):
             response = self._upload(run_id, part, _gzip_ndjson(songs), client)
             assert response.status_code == status.HTTP_200_OK, response.content
             assert response.data["count"] == len(songs)
+        response = self._upload_assignments(run_id, rows, client)
+        assert response.status_code == status.HTTP_200_OK, response.content
         if deleted:
             response = self._upload_deletions(run_id, deleted, client)
             assert response.status_code == status.HTTP_200_OK, response.content
+        return run_id
+
+    def _sync(self, *parts: list[dict], client=None, mode: str = "full", deleted: tuple[str, ...] = ()) -> dict:
+        client = client or self.api_client
+        run_id = self._create_run(*parts, client=client, mode=mode, deleted=deleted)
         response = client.post(path=f"{RUNS}{run_id}/commit/")
-        assert response.status_code == status.HTTP_202_ACCEPTED
+        assert response.status_code == status.HTTP_202_ACCEPTED, response.content
         task = self.api_client.get(path=reverse("song-list") + f"songs/import/{response.data['task_id']}/status/")
         assert task.data["status"] == "success", task.data
         return task.data["result"]
@@ -265,14 +308,12 @@ class TestImportRunMerge(AppTestCase):
             {**SONG, "musicbrainz_recording_id": str(uuid.uuid4()), "title": "Unknown", "genre_name": "Nope"},
         ]
 
-        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 1, "stepTimings": ANY}
+        assert self._sync(songs[:2], songs[2:]) == {"imported": 4, "skipped": 0, "stepTimings": ANY}
 
         track = Song.objects.get(musicbrainz_recording_id=MBID)
-        assert (track.title, track.genre_id, track.youtube_video_id) == ("Comfortably Numb", rock.pk, "abc123defgh")
+        assert (track.title, track.youtube_video_id) == ("Comfortably Numb", "abc123defgh")
         assert [a.name for a in track.artists.all()] == ["Pink Floyd"]
         assert Song.objects.get(title="No video").youtube_video_id is None
-        assert Song.objects.get(title="No genre").genre is None
-        assert Song.objects.get(title="Unknown").genre is None
         assert self._playlist_tracks(rock) == ["Comfortably Numb"]
         assert not SongImportStaging.objects.exists() and not BulkImportRun.objects.exists()
 
@@ -442,33 +483,7 @@ class TestImportRunMerge(AppTestCase):
 
         self._sync([{**SONG, "genre_name": "progressive rock"}])
 
-        assert Song.objects.get().genre_id == prog.pk
         assert self._playlist_tracks(prog) == self._playlist_tracks(rock) == ["Comfortably Numb"]
-
-    def test_import_resolves_genre_by_wikidata_id_canonical_first(self):
-        regional = self.model_fixture_factory.create_genre("New Wave", wikidata_id="Q187760", tree_name="regional")
-        canonical = self.model_fixture_factory.create_genre("New Wave (Q187760)", wikidata_id="Q187760")
-        k_pop = self.model_fixture_factory.create_genre("K-pop", wikidata_id="Q213665", tree_name="regional")
-        k_pop_song = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "genre_name": "K-pop"}
-
-        result = self._sync(
-            [
-                {**SONG, "genre_name": "New Wave", "genre_wikidata_id": "Q187760"},
-                {**k_pop_song, "genre_wikidata_id": "Q213665"},
-            ]
-        )
-
-        assert result == {"imported": 2, "skipped": 0, "stepTimings": ANY}
-        assert Song.objects.get(musicbrainz_recording_id=MBID).genre_id == canonical.pk != regional.pk
-        assert Song.objects.get(musicbrainz_recording_id=OTHER_MBID).genre_id == k_pop.pk
-
-    def test_import_with_unknown_wikidata_id_ignores_the_name_and_counts_skipped(self):
-        self.model_fixture_factory.create_genre("Rock", wikidata_id="Q11399")
-
-        result = self._sync([{**SONG, "genre_wikidata_id": "Q999999999"}])
-
-        assert result == {"imported": 1, "skipped": 1, "stepTimings": ANY}
-        assert Song.objects.get().genre is None
 
     def test_reimport_updates_in_place_and_moves_playlists(self):
         rock = self.model_fixture_factory.create_genre("Rock")
@@ -484,7 +499,7 @@ class TestImportRunMerge(AppTestCase):
         )
 
         moved = Song.objects.get(musicbrainz_recording_id=MBID)
-        assert (moved.uuid, moved.genre_id, moved.youtube_unplayable_reason) == (track.uuid, pop.pk, "not_embeddable")
+        assert (moved.uuid, moved.youtube_unplayable_reason) == (track.uuid, "not_embeddable")
         assert self._playlist_tracks(rock) == ["Other"]
         assert self._playlist_tracks(pop) == []
         assert list(
@@ -597,6 +612,32 @@ class TestImportRunMerge(AppTestCase):
         assert (row.title_key, row.has_genre) == ("comfortably numb live", False)
         assert [s.title for s in SongSearch.objects.search("waters numb", 8)] == ["Comfortably Numb (Live)"]
 
+    def test_merges_keep_artist_song_in_sync(self):
+        self.model_fixture_factory.create_genre("Rock")
+        other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
+        rebuild_artist_song()
+        no_drift = {"missing": 0, "orphaned": 0, "stale": 0}
+
+        self._sync([SONG, other])
+        assert ArtistSong.objects.count() == 2 and ArtistSong.objects.drift() == no_drift
+
+        steps = self._steps(self._sync([SONG, other]))
+        assert steps["upsert_artist_song"] == 0
+
+        self._sync([{**SONG, "title": "Comfortably Numb (Live)", "artist": "Roger Waters"}])
+        assert ArtistSong.objects.count() == 1 and ArtistSong.objects.drift() == no_drift
+        assert ArtistSong.objects.get().title == "Comfortably Numb (Live)"
+
+    def test_unbuilt_artist_song_projection_is_built_after_the_merge(self):
+        self.model_fixture_factory.create_genre("Rock")
+
+        result = self._sync([SONG])
+
+        assert not {"upsert_artist_song", "delete_artist_song"} & {t["label"] for t in result["stepTimings"]}
+        assert ArtistSongState.load().ready
+        assert ArtistSong.objects.count() == 1
+        assert ArtistSong.objects.drift() == {"missing": 0, "orphaned": 0, "stale": 0}
+
     def test_unbuilt_projection_is_built_in_bulk_after_the_merge(self):
         self.model_fixture_factory.create_genre("Rock")
         other = {**SONG, "musicbrainz_recording_id": OTHER_MBID, "title": "Money"}
@@ -647,8 +688,6 @@ class TestImportRunMerge(AppTestCase):
                 assert steps["current_artist"] == steps["desired_artist"] == (1 if name == "artist" else 0)
                 changed = Song.objects.get(musicbrainz_recording_id=MBID)
                 assert Song.objects.exclude(pk=changed.pk).get().title == "Other"
-                if name == "genre":
-                    assert changed.genre_id == pop.pk
                 if name == "artist":
                     assert [a.musicbrainz_artist_id for a in changed.artists.all()] == [uuid.UUID(other_artist)]
                 self._sync([base, {**base, "musicbrainz_recording_id": OTHER_MBID, "title": "Other"}])
@@ -729,12 +768,10 @@ class TestImportRunMerge(AppTestCase):
         assert all({"label", "rowcount", "ms"} == timing.keys() for timing in timings)
 
     def test_partial_merge_failure_rolls_back_catalogue_and_membership(self):
-        rock = self.model_fixture_factory.create_genre("Rock")
-        pop = self.model_fixture_factory.create_genre("Pop")
+        self.model_fixture_factory.create_genre("Rock")
+        self.model_fixture_factory.create_genre("Pop")
         self._sync([SONG])
-        run_id = self.api_client.post(path=RUNS).data["run_id"]
-        response = self._upload(run_id, 0, _gzip_ndjson([{**SONG, "genre_name": "Pop"}]))
-        assert response.status_code == status.HTTP_200_OK
+        run_id = self._create_run([{**SONG, "genre_name": "Pop", "title": "Changed"}])
         observed = []
 
         def fail_after_track_update(cursor, steps, params):
@@ -742,7 +779,7 @@ class TestImportRunMerge(AppTestCase):
             for label, sql in steps:
                 timings.extend(run_steps(cursor, [(label, sql)], params))
                 if label == "update_tracks":
-                    observed.append(Song.objects.get(musicbrainz_recording_id=MBID).genre_id)
+                    observed.append(Song.objects.get(musicbrainz_recording_id=MBID).title)
                     assert verify_catalogue_counts()["catalogue"].valid
                     raise ValueError("Injected partial merge failure")
             return timings
@@ -754,8 +791,8 @@ class TestImportRunMerge(AppTestCase):
         attempt = ImportAttempt.objects.get(run_id=run_id)
         assert attempt.state == ImportAttempt.State.FAILED
         assert not attempt.data_applied
-        assert observed == [pop.pk]
-        assert Song.objects.get(musicbrainz_recording_id=MBID).genre_id == rock.pk
+        assert observed == ["Changed"]
+        assert Song.objects.get(musicbrainz_recording_id=MBID).title == SONG["title"]
         assert all(report.valid for report in verify_catalogue_counts().values())
         assert stored_membership_bucket_counts() == membership_bucket_counts()
 
@@ -806,7 +843,7 @@ class TestImportRunMerge(AppTestCase):
 
     def test_reuploaded_part_replaces_its_rows(self):
         self.model_fixture_factory.create_genre("Rock")
-        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        run_id = self._open_run()
         self._upload(run_id, 0, _gzip_ndjson([{**SONG, "title": "First"}]))
 
         assert self._upload(run_id, 0, _gzip_ndjson([SONG])).data["count"] == 1
@@ -814,7 +851,7 @@ class TestImportRunMerge(AppTestCase):
         assert list(SongImportStaging.objects.values_list("title", flat=True)) == ["Comfortably Numb"]
 
     def test_invalid_part_then_400_and_nothing_staged(self):
-        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        run_id = self._open_run()
         invalid = [
             b"not gzip",
             _gzip_ndjson([{**SONG, "musicbrainz_recording_id": None}]),
@@ -848,20 +885,18 @@ class TestImportRunMerge(AppTestCase):
 
     def test_empty_run_fails_and_keeps_tracks(self):
         self.model_fixture_factory.create_song(title="Kept", genre=None)
-        run_id = self.api_client.post(path=RUNS).data["run_id"]
+        run_id = self._open_run()
 
         response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
 
-        # Sync django-q re-raises the task's error into the request; the cluster records it as a failed task.
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert list(Song.objects.values_list("title", flat=True)) == ["Kept"]
-        assert not BulkImportRun.objects.exists()
+        assert BulkImportRun.objects.get(pk=run_id).committed_on is None
 
     def test_tag_name_is_not_a_genre(self):
         self.model_fixture_factory.create_tag("Rock")
 
-        assert self._sync([SONG]) == {"imported": 1, "skipped": 1, "stepTimings": ANY}
-        assert Song.objects.get().genre is None
+        assert self._sync([SONG]) == {"imported": 1, "skipped": 0, "stepTimings": ANY}
 
     def test_pipeline_commit_recorded_and_admin_not(self):
         self.model_fixture_factory.create_genre("Rock")
@@ -871,7 +906,7 @@ class TestImportRunMerge(AppTestCase):
         assert not ImportRun.objects.exists()
         self._sync([SONG, unmatched], client=self.pipeline)
 
-        assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("songs", 2, 1)]
+        assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("songs", 2, 0)]
         timings = {step["label"]: step for step in ImportRun.objects.get().step_timings}
         assert timings["song_import"]["rowcount"] == 2
         assert {"insert_tracks", "insert_history"} <= timings.keys()

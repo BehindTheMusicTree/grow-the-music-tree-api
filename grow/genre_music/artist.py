@@ -21,7 +21,7 @@ def artist_exact_counts(artist_id: UUID) -> dict:
     return dict(
         Song.objects.filter(user__isnull=True, artists=artist_id)
         .order_by()
-        .values_list("genre_id")
+        .values_list("membership_genre_id")
         .annotate(count=Count("pk", distinct=True))
     )
 
@@ -71,7 +71,9 @@ def playlist_counts(
     else:
         rows = (
             queryset.order_by()
-            .values_list("playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__genre_id")
+            .values_list(
+                "playlist__uuid", "playlist__criteria_playlist__criteria_id", "track__song__membership_genre_id"
+            )
             .annotate(count=Count("pk", distinct=True))
         )
     trees, edges = graph if graph is not None else genre_graph()

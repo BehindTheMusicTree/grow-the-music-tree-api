@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -8,7 +9,8 @@ from grow.serializer.model.history.output.detailed import HistoryEntryDetailedSe
 
 
 class HistoryActionMixin:
-    @action(detail=True, methods=["get"])
+    @extend_schema(responses=HistoryEntryDetailedSerializer(many=True), filters=False)
+    @action(detail=True, methods=["get"], pagination_class=None)
     def history(self, request: Request, *args, **kwargs) -> Response:
         instance = self.get_object()
         queryset = (

@@ -14,7 +14,7 @@ from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPa
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.import_run.ImportRun import ImportRun
 from tests.utils.AppTestCase import AppTestCase
-from tests.utils.curation_export import export_curation
+from tests.utils.curation_export import export_curation, record_export
 
 POP = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
 ROCK = {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}
@@ -101,6 +101,7 @@ class TestGenreTreesImportRun(AppTestCase):
     def test_pipeline_run_with_mixed_curation_exports_then_400(self):
         exported_on = export_curation(self.pipeline)
         body = self._body([("canonical", [POP, ROCK]), ("regional", [BRITTANY])], exported_on=exported_on)
+        record_export("2000-01-01T00:00:00Z")
         body["trees"][1]["curationExportedOn"] = "2000-01-01T00:00:00Z"
 
         response = self.pipeline.post(self.url, data=body, format="json")

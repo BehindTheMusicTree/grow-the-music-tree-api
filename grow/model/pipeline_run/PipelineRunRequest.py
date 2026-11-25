@@ -37,11 +37,13 @@ class PipelineRunRequest(models.Model):
         INGESTING_DISCOGS = "ingesting_discogs"
         INGESTING_MUSICBRAINZ = "ingesting_musicbrainz"
         INGESTING_WIKIDATA = "ingesting_wikidata"
+        INGESTING_GEOHISTORY = "ingesting_geohistory"
         BUILDING_SONGS = "building_songs"
         BUILDING_GENRES = "building_genres"
         MATCHING_SONGS = "matching_songs"
         BUILDING_GOLD = "building_gold"
         IMPORTING_TREE = "importing_tree"
+        IMPORTING_GRAPH = "importing_graph"
         UPLOADING_SONGS = "uploading_songs"
         MERGING_SONGS = "merging_songs"
         UPLOADING_ARTISTS = "uploading_artists"
@@ -57,6 +59,7 @@ class PipelineRunRequest(models.Model):
     stage = models.TextField(choices=Stage.choices, null=True)
     stage_current = models.PositiveIntegerField(null=True)
     stage_total = models.PositiveIntegerField(null=True)
+    step_telemetry = models.JSONField(null=True)
     error = models.TextField(null=True)
     requested_on = models.DateTimeField(auto_now_add=True)
     started_on = models.DateTimeField(null=True)

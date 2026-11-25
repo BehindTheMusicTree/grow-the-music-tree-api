@@ -4,14 +4,103 @@ on:
     branches: [main]
 permissions:
   contents: read
+# One run per pushed commit, never cancelled or replaced: release-tag validates only before..after,
+# so a replaced run would leave its bump untagged.
 concurrency:
   group: release-tag-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
   release:
-    uses: BehindTheMusicTree/github-workflows/.github/workflows/release-tag.yml@79c136234b5d487bb99e0cd2050f38f6b3e06747
+    permissions:
+      contents: write
+    uses: BehindTheMusicTree/github-workflows/.github/workflows/release-tag.yml@8b10f1dfcb88a245e4e4256e61164b49e595faea # v6.5.0
     with:
       app-id: ${{ vars.RELEASE_APP_ID }}
     secrets:
       release-app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+  # The contracts package (packages/grow-contracts) has its own release policy and `contracts-v` tags.
+  # Recover from a failed job with "Re-run failed jobs"; prepare only uploads the files still missing.
+  tag-contracts:
+    permissions:
+      contents: write
+    uses: BehindTheMusicTree/github-workflows/.github/workflows/release-tag.yml@8b10f1dfcb88a245e4e4256e61164b49e595faea # v6.5.0
+    with:
+      app-id: ${{ vars.RELEASE_APP_ID }}
+      release-policy-path: .github/grow-contracts-release-policy.json
+    secrets:
+      release-app-private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+  build-contracts:
+    needs: tag-contracts
+    # The tag is empty when this push carries no contracts release.
+    if: needs.tag-contracts.outputs.tag != ''
+    uses: BehindTheMusicTree/github-workflows/.github/workflows/publish-python.yml@8b10f1dfcb88a245e4e4256e61164b49e595faea # v6.5.0
+    with:
+      release-tag: ${{ needs.tag-contracts.outputs.tag }}
+      package-name: the-music-tree-grow-contracts
+      package-directory: packages/grow-contracts
+      release-policy-path: .github/grow-contracts-release-policy.json
+      python-version: "3.12"
+      artifact-name: grow-contracts-distributions
+  publish-contracts:
+    needs: [tag-contracts, build-contracts]
+    if: needs.tag-contracts.outputs.tag != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/the-music-tree-grow-contracts
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: BehindTheMusicTree/github-workflows
+          ref: ${{ needs.build-contracts.outputs.foundation-sha }}
+          path: foundation
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-contracts.outputs.artifact-name }}
+          path: dist
+      - name: Verify downloaded files and check PyPI retries
+        id: retry
+        env:
+          VERSION: ${{ needs.build-contracts.outputs.version }}
+          REGISTRY: ${{ needs.build-contracts.outputs.registry }}
+        run: python3 foundation/release/python-artifact.py prepare the-music-tree-grow-contracts "$VERSION" dist pending --registry "$REGISTRY"
+      - name: Publish missing distributions with Trusted Publishing
+        if: steps.retry.outputs.upload-needed == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: pending/
+          skip-existing: false
+      - name: Verify the complete published file set
+        env:
+          VERSION: ${{ needs.build-contracts.outputs.version }}
+          REGISTRY: ${{ needs.build-contracts.outputs.registry }}
+        run: python3 foundation/release/python-artifact.py verify the-music-tree-grow-contracts "$VERSION" dist --registry "$REGISTRY"
+  verify-contracts-installable:
+    needs: [build-contracts, publish-contracts]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install the released package from public PyPI
+        env:
+          VERSION: ${{ needs.build-contracts.outputs.version }}
+        run: |
+          # The Simple index page is cached for up to 600 s after an upload: pin the exact version and retry.
+          deadline=$((SECONDS + 660))
+          until python3 -m pip install --no-cache-dir "the-music-tree-grow-contracts==$VERSION"; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "the-music-tree-grow-contracts $VERSION is still not installable after 660 s" >&2
+              exit 1
+            fi
+            sleep 30
+          done

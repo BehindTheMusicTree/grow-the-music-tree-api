@@ -158,6 +158,7 @@ class SanitizationTest(unittest.TestCase):
             "grow_user_profile",
             "django_q_ormq",
             "grow_song_import_staging",
+            "grow_genre_graph_import_payload",
             "grow_genre_tree_import_payload",
         ):
             raw = policy()

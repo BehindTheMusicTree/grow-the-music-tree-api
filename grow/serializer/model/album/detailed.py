@@ -10,9 +10,7 @@ from .Fields import Fields
 
 
 class AlbumDetailedSerializer(serializers.ModelSerializer):
-    tracks_sorted = TrackSimpleWithoutAlbumWithPositionInAlbumSerializer(
-        source=Fields.TRACKS_SORTED_INTERNAL, many=True
-    )
+    tracks_sorted = TrackSimpleWithoutAlbumWithPositionInAlbumSerializer(many=True)
     tracks_count = serializers.IntegerField()
     album_artists = ArtistMinimumSerializer(many=True)
 

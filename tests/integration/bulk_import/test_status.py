@@ -1,12 +1,15 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.urls import reverse
+from django.utils import timezone
 from django_q.models import Task
 from rest_framework.test import APIClient
 
-from grow.bulk_import.BulkImportRun import BulkImportRun
-from grow.bulk_import.ImportAttempt import ImportAttempt
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, BulkImportRun
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.bulk_import.status import reconcile
 from tests.utils.AppTestCase import AppTestCase
 
 PREFIX = reverse("song-list") + "songs/"
@@ -56,7 +59,11 @@ class TestProgressStatus(AppTestCase):
         assert response["error"] == "cleanup failed"
 
     def test_enqueue_failure_is_durable(self):
-        with patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")):
+        with (
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_complete_run"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_reviewed_contract"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=RuntimeError("broker down")),
+        ):
             response = self.api_client.post(f"{PREFIX}import-runs/{self.run.pk}/commit/")
         assert response.status_code == 500
         attempt = ImportAttempt.objects.filter(run_id=self.run.pk).latest("attempt")
@@ -88,3 +95,77 @@ class TestProgressStatus(AppTestCase):
         attempt = ImportAttempt.objects.get(run_id=self.run.pk)
         assert attempt.state == "failed"
         assert self.api_client.get(self.path).json()["status"] == "failed"
+
+
+class TestWorkerAbsence(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self.run = BulkImportRun.objects.create(kind="songs")
+        self.attempt = queue_attempt(self.run)
+        self.path = f"{PREFIX}import/{self.attempt.task_id}/status/"
+
+    def test_absent_worker_is_recorded_and_attempt_stays_pending(self):
+        with patch("grow.bulk_import.status.Stat.get_all", return_value=[]):
+            data = self.api_client.get(self.path).json()
+        assert data["status"] == "pending"
+        assert data["progress"]["workerAbsentSince"]
+
+    def test_absence_past_grace_fails_the_attempt_without_enqueue(self):
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=601)
+        )
+        with (
+            patch("grow.bulk_import.status.Stat.get_all", return_value=[]),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task") as enqueue,
+        ):
+            data = self.api_client.get(self.path).json()
+        assert data["status"] == "failed"
+        assert "No import worker" in data["error"]
+        enqueue.assert_not_called()
+        self.attempt.refresh_from_db()
+        assert self.attempt.state == "failed"
+        assert self.attempt.finished_at is not None
+
+    def test_returning_worker_clears_the_absence(self):
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=300)
+        )
+        data = self.api_client.get(self.path).json()
+        assert data["status"] == "pending"
+        assert data["progress"]["workerAbsentSince"] is None
+
+    def test_public_status_does_not_look_for_a_worker(self):
+        with patch("grow.bulk_import.status.Stat.get_all") as get_all:
+            APIClient().get(self.path)
+        get_all.assert_not_called()
+
+    def test_attempt_with_committed_data_is_never_abandoned(self):
+        ImportReceipt.objects.create(run_id=self.run.pk, result={})
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=601)
+        )
+        with patch("grow.bulk_import.status.Stat.get_all", return_value=[]):
+            self.api_client.get(self.path)
+        self.attempt.refresh_from_db()
+        assert self.attempt.state == "queued"
+
+    def test_unreachable_redis_neither_fails_the_read_nor_abandons(self):
+        ImportAttempt.objects.filter(pk=self.attempt.pk).update(
+            worker_absent_since=timezone.now() - timedelta(seconds=601)
+        )
+        with patch("grow.bulk_import.status.Stat.get_all", side_effect=ConnectionError("redis down")):
+            response = self.api_client.get(self.path)
+        assert response.status_code == 200
+        self.attempt.refresh_from_db()
+        assert self.attempt.state == "queued"
+
+    def test_abandoned_graph_import_frees_the_single_run_slot(self):
+        run = BulkImportRun.objects.create(kind=GENRE_GRAPH_KIND, committed_on=timezone.now())
+        attempt = queue_attempt(run)
+        ImportAttempt.objects.filter(pk=attempt.pk).update(worker_absent_since=timezone.now() - timedelta(seconds=601))
+        attempt.refresh_from_db()
+        with patch("grow.bulk_import.status.Stat.get_all", return_value=[]):
+            assert reconcile(attempt) is None
+        attempt.refresh_from_db()
+        assert attempt.state == "failed"
+        assert not BulkImportRun.objects.filter(pk=run.pk).exists()

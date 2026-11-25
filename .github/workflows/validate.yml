@@ -47,7 +47,7 @@ jobs:
         run: uv run ruff format --check .
 
       - name: mypy
-        run: uv run mypy grow
+        run: uv run mypy grow packages/grow-contracts/src
 
   migration-check:
     if: github.event_name != 'schedule'
@@ -70,6 +70,31 @@ jobs:
 
       - name: makemigrations --check
         run: uv run django-admin makemigrations grow --check --dry-run
+
+  openapi:
+    if: github.event_name != 'schedule'
+    name: OpenAPI
+    runs-on: ubuntu-latest
+    env:
+      DJANGO_SETTINGS_MODULE: tests.settings
+      PYTHONPATH: .
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+
+      - name: Sync dependencies
+        run: uv sync --all-extras
+
+      - name: Regenerate openapi.yaml
+        run: uv run django-admin spectacular --file openapi.yaml --validate
+
+      - name: Committed openapi.yaml is current
+        run: git diff --exit-code openapi.yaml
 
   pytest:
     if: github.event_name != 'schedule'

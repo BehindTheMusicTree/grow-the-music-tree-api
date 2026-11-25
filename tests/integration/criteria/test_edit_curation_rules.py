@@ -24,6 +24,12 @@ def _edges(relation: str | None = None) -> list[tuple]:
     return [(r.item_id, r.parent_item_id, r.action, r.exclude_other_parents) for r in rules]
 
 
+def _roots() -> list[str]:
+    """The test genres' accepted canonical roots (the `canonical_roots` list)."""
+    keys = CurationEntry.objects.filter(user=None, list_name="canonical_roots", key__startswith="Q888")
+    return sorted(keys.values_list("key", flat=True))
+
+
 class TestCase(GenreTestCase):
     def setUp(self):
         super().setUp()
@@ -112,7 +118,8 @@ class TestCase(GenreTestCase):
         assert punk.parent_id is None
         assert punk.is_manually_edited
         assert not punk.is_unaccepted_root
-        assert _edges("canonical_parent") == [("Q888002", None, None, True)]
+        assert _edges("canonical_parent") == []
+        assert _roots() == ["Q888002"]
         entries = HistoryEntry.objects.filter(
             action=HistoryAction.PARENT_CHANGED, content_uuid=punk.uuid, new_value=None
         )
@@ -137,22 +144,25 @@ class TestCase(GenreTestCase):
         assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
 
     def test_reparent_accepted_root_then_accepted_rule_dropped(self):
-        GenreEdgeRule.objects.upsert("canonical_parent", "Q888002", None, exclude_other_parents=True)
+        self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
+        self._make_root(self.punk)
+        assert _roots() == ["Q888002"]
 
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
+        assert _roots() == []
         assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
 
     def test_make_root_of_app_created_genre_then_root_without_rule(self):
         local = self.model_fixture_factory.create_genre("Local genre", parent=self.rock)
 
-        rules_before = GenreEdgeRule.objects.filter(parent_item_id=None).count()
+        roots_before = CurationEntry.objects.filter(list_name="canonical_roots").count()
 
         assert self._make_root(local).status_code == status.HTTP_200_OK
 
         assert Genre.objects.get(pk=local.pk).parent_id is None
-        assert GenreEdgeRule.objects.filter(parent_item_id=None).count() == rules_before
+        assert CurationEntry.objects.filter(list_name="canonical_roots").count() == roots_before
 
     def test_make_root_of_root_then_noop_without_rule(self):
         response = self._make_root(self.rock)
@@ -208,7 +218,7 @@ class TestCase(GenreTestCase):
         assert local.source == CriteriaSource.APP
         assert local.is_manually_edited
         assert self._additions() == {"LOCAL:local-genre": "Local genre"}
-        assert self._local_edges() == [("LOCAL:local-genre", None), ("Q888002", "LOCAL:local-genre")]
+        assert self._local_edges() == [("Q888002", "LOCAL:local-genre")]
         assert GenreEdgeRule.objects.get(item_id="Q888002").exclude_other_parents
         assert HistoryEntry.objects.filter(
             content_uuid=local.pk, action=HistoryAction.UPDATED, new_value__startswith="adopted"
@@ -305,7 +315,8 @@ class TestCase(GenreTestCase):
         Genre.objects.delete_instance(Genre.objects.get(pk=local.pk), actor=self.admin)
 
         assert self._additions() == {}
-        assert self._local_edges() == [("Q888002", None)]
+        assert self._local_edges() == []
+        assert _roots() == ["Q888002"]
 
     def test_export_after_adoption_then_200_and_dangling_local_edge_then_409(self):
         local = self.model_fixture_factory.create_genre("Local genre")
@@ -343,7 +354,8 @@ class TestCase(GenreTestCase):
         )
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert _edges("canonical_parent") == [("Q888002", None, None, True)]
+        assert _edges("canonical_parent") == []
+        assert _roots() == ["Q888002"]
 
     def test_exclude_then_category_list(self):
         assert self._post_genre_exclude(self.punk.uuid, "technique").status_code == status.HTTP_200_OK
@@ -470,3 +482,56 @@ class TestCase(GenreTestCase):
 
         assert Genre.objects.get(pk=mine.pk).is_manually_edited
         assert _rows("canonical_genre_pop_side") == []
+
+
+class TestAdminCreatedGenreAdoption(GenreTestCase):
+    def setUp(self):
+        super().setUp()
+        self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q888001")
+
+    def test_create_under_parent_then_local_node_and_edge(self):
+        response = self._post_genre(data={"name": "Lol Music", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        created = Genre.objects.get(uuid=response.json()["uuid"])
+        assert created.wikidata_id == "LOCAL:lol-music"
+        assert created.is_manually_edited is True
+        additions = CurationEntry.objects.get(user=None, list_name="canonical_parent_additions", key="LOCAL:lol-music")
+        assert additions.row["label"] == "Lol Music"
+        edge = GenreEdgeRule.objects.get(user=None, relation="canonical_parent", item_id="LOCAL:lol-music")
+        assert edge.parent_item_id == "Q888001"
+
+    def test_create_under_app_created_parent_then_ancestors_adopted(self):
+        mid = self.model_fixture_factory.create_genre("Mid", parent=self.rock)
+
+        response = self._post_genre(data={"name": "Leaf", "parent": str(mid.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        edges = dict(
+            GenreEdgeRule.objects.filter(
+                user=None, relation="canonical_parent", item_id__in=["LOCAL:mid", "LOCAL:leaf"]
+            ).values_list("item_id", "parent_item_id")
+        )
+        assert edges == {"LOCAL:mid": "Q888001", "LOCAL:leaf": "LOCAL:mid"}
+
+    def test_create_at_root_without_wikidata_id_then_400_and_nothing_written(self):
+        response = self._post_genre(data={"name": "Orphan"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not Genre.objects.filter(_name="Orphan").exists()
+        assert not CurationEntry.objects.filter(list_name="canonical_parent_additions", key="LOCAL:orphan").exists()
+
+    def test_create_with_slug_taken_by_existing_genre_or_seeded_list_then_suffixed(self):
+        self.model_fixture_factory.create_genre("Squatter", wikidata_id="LOCAL:lol-music")
+        CurationEntry.objects.create(
+            user=None,
+            list_name="local_identities",
+            key="LOCAL:lol-music-2",
+            values={"kind": "genre", "label": "X", "decision_id": "d", "decision_source": "s"},
+            reason="r",
+        )
+
+        response = self._post_genre(data={"name": "Lol Music", "parent": str(self.rock.uuid)})
+
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Genre.objects.get(uuid=response.json()["uuid"]).wikidata_id == "LOCAL:lol-music-3"

@@ -120,6 +120,14 @@ grow_artist_membership|ended|boolean|NO
 grow_artist_membership|roles|jsonb|NO
 grow_artist_membership|group_id|uuid|NO
 grow_artist_membership|member_id|uuid|NO
+grow_artist_song|title|text|NO
+grow_artist_song|album_year|smallint|YES
+grow_artist_song|artist_id|uuid|NO
+grow_artist_song|song_id|uuid|NO
+grow_artist_song_state|id|bigint|NO
+grow_artist_song_state|ready|boolean|NO
+grow_artist_song_state|rebuilt_on|timestamp with time zone|YES
+grow_artist_song_state|fingerprint|character varying|YES
 grow_bulk_import_deletion|id|bigint|NO
 grow_bulk_import_deletion|run_id|bigint|NO
 grow_bulk_import_deletion|part|integer|NO
@@ -132,6 +140,9 @@ grow_bulk_import_run|mode|text|NO
 grow_bulk_import_run|record|boolean|NO
 grow_bulk_import_run|started_on|timestamp with time zone|YES
 grow_bulk_import_run|user_id|integer|YES
+grow_bulk_import_run|expected_parts|jsonb|YES
+grow_bulk_import_run|graph_revision|uuid|YES
+grow_bulk_import_run|membership_revision|uuid|YES
 grow_criteria|uuid|uuid|NO
 grow_criteria|created_on|timestamp with time zone|NO
 grow_criteria|updated_on|timestamp with time zone|YES
@@ -143,6 +154,8 @@ grow_criteria|user_id|integer|YES
 grow_criteria|summary|text|YES
 grow_criteria|tree_name|character varying|NO
 grow_criteria|folded_name|text|YES
+grow_criteria|graph_node_id|bigint|YES
+grow_criteria|semantic_identity|character varying|YES
 grow_criteria_additional_primary_parents|id|bigint|NO
 grow_criteria_additional_primary_parents|from_criteria_id|uuid|NO
 grow_criteria_additional_primary_parents|to_criteria_id|uuid|NO
@@ -157,7 +170,6 @@ grow_criteria_playlist|playlist_id|uuid|NO
 grow_criteria_playlist|criteria_id|uuid|YES
 grow_criteria_playlist|type_id|bigint|NO
 grow_criteria_playlist|views_count|bigint|NO
-grow_criteria_playlist|direct_songs_count|integer|NO
 grow_criteria_secondary_parents|id|bigint|NO
 grow_criteria_secondary_parents|from_criteria_id|uuid|NO
 grow_criteria_secondary_parents|to_criteria_id|uuid|NO
@@ -169,6 +181,10 @@ grow_curation_entry|key|character varying|NO
 grow_curation_entry|values|jsonb|NO
 grow_curation_entry|reason|text|NO
 grow_curation_entry|user_id|integer|YES
+grow_curation_export|id|bigint|NO
+grow_curation_export|exported_on|timestamp with time zone|NO
+grow_curation_export|snapshot|jsonb|YES
+grow_curation_export|genre_alias_revisions|jsonb|YES
 grow_curation_review_item|id|bigint|NO
 grow_curation_review_item|list_name|character varying|YES
 grow_curation_review_item|key|character varying|YES
@@ -180,8 +196,8 @@ grow_curation_review_item|reported_on|timestamp with time zone|NO
 grow_curation_review_item|evidence|jsonb|YES
 grow_curation_review_item|rule_id|uuid|YES
 grow_curation_sync_state|id|bigint|NO
-grow_curation_sync_state|exported_on|timestamp with time zone|YES
 grow_curation_sync_state|applied_export_on|timestamp with time zone|YES
+grow_curation_sync_state|genre_alias_publication|jsonb|YES
 grow_genealogy_snapshot|id|bigint|NO
 grow_genealogy_snapshot|created_at|timestamp with time zone|NO
 grow_genealogy_snapshot|document|jsonb|NO
@@ -222,6 +238,9 @@ grow_genre_essential_songs|id|bigint|NO
 grow_genre_essential_songs|genre_id|uuid|NO
 grow_genre_essential_songs|song_id|uuid|NO
 grow_genre_essential_songs|position|integer|NO
+grow_genre_graph_import_payload|id|bigint|NO
+grow_genre_graph_import_payload|run_id|bigint|NO
+grow_genre_graph_import_payload|payload|jsonb|NO
 grow_genre_membership_count|id|bigint|NO
 grow_genre_membership_count|genre_id|uuid|YES
 grow_genre_membership_count|tracks_count|bigint|NO
@@ -231,6 +250,16 @@ grow_genre_tree_import_payload|run_id|bigint|NO
 grow_genre_tree_import_payload|payload|jsonb|NO
 grow_genre_tree_version|id|bigint|NO
 grow_genre_tree_version|token|uuid|NO
+grow_genregraphassignmentbackup|id|bigint|NO
+grow_genregraphassignmentbackup|song_uuid|uuid|NO
+grow_genregraphassignmentbackup|genre_uuid|uuid|YES
+grow_genregraphassignmentbackup|imported_id|uuid|NO
+grow_genregraphimport|revision|uuid|NO
+grow_genregraphimport|mapping|jsonb|NO
+grow_genregraphimport|curation_exported_on|timestamp with time zone|NO
+grow_genregraphimport|created_on|timestamp with time zone|NO
+grow_genregraphimport|retirements|jsonb|NO
+grow_genregraphimport|has_initial_assignment_backup|boolean|NO
 grow_history_entry|uuid|uuid|NO
 grow_history_entry|created_on|timestamp with time zone|NO
 grow_history_entry|updated_on|timestamp with time zone|YES
@@ -262,6 +291,13 @@ grow_import_attempt|backend_start|timestamp with time zone|YES
 grow_import_attempt|error|text|YES
 grow_import_attempt|result|jsonb|YES
 grow_import_attempt|data_applied|boolean|NO
+grow_import_attempt|worker_absent_since|timestamp with time zone|YES
+grow_import_part|id|bigint|NO
+grow_import_part|stream|text|NO
+grow_import_part|part|integer|NO
+grow_import_part|row_count|bigint|NO
+grow_import_part|sha256|character varying|NO
+grow_import_part|run_id|bigint|NO
 grow_import_receipt|run_id|bigint|NO
 grow_import_receipt|applied_at|timestamp with time zone|NO
 grow_import_receipt|result|jsonb|NO
@@ -288,6 +324,7 @@ grow_pipeline_run_request|heartbeat_on|timestamp with time zone|YES
 grow_pipeline_run_request|cancel_requested_on|timestamp with time zone|YES
 grow_pipeline_run_request|trigger|text|NO
 grow_pipeline_run_request|requested_by_id|integer|YES
+grow_pipeline_run_request|step_telemetry|jsonb|YES
 grow_play|uuid|uuid|NO
 grow_play|created_on|timestamp with time zone|NO
 grow_play|updated_on|timestamp with time zone|YES
@@ -317,6 +354,16 @@ grow_song|first_release_year|smallint|YES
 grow_song|youtube_view_count|bigint|YES
 grow_song|recording_count|integer|YES
 grow_song|youtube_region_restriction|jsonb|YES
+grow_song|genre_id|uuid|YES
+grow_song_assignment_staging|id|bigint|NO
+grow_song_assignment_staging|run_id|bigint|NO
+grow_song_assignment_staging|part|integer|NO
+grow_song_assignment_staging|musicbrainz_recording_id|uuid|NO
+grow_song_assignment_staging|assignments|jsonb|NO
+grow_song_genre_undo|token|uuid|NO
+grow_song_genre_undo|entries|jsonb|NO
+grow_song_genre_undo|created_at|timestamp with time zone|NO
+grow_song_genre_undo|actor_id|integer|NO
 grow_song_import_staging|id|bigint|NO
 grow_song_import_staging|run_id|bigint|NO
 grow_song_import_staging|part|integer|NO
@@ -341,6 +388,7 @@ grow_song_search|rank_score|integer|NO
 grow_song_search_state|id|bigint|NO
 grow_song_search_state|ready|boolean|NO
 grow_song_search_state|rebuilt_on|timestamp with time zone|YES
+grow_song_search_state|fingerprint|character varying|YES
 grow_user_profile|id|bigint|NO
 grow_user_profile|pseudo|character varying|NO
 grow_user_profile|user_id|integer|NO
@@ -348,6 +396,48 @@ grow_wikidata_item|item_id|character varying|NO
 grow_wikidata_item|label|text|NO
 the_music_tree_genre_kit_criteriatype|id|bigint|NO
 the_music_tree_genre_kit_criteriatype|label|character varying|NO
+the_music_tree_genre_kit_genregraphaccess|id|bigint|NO
+the_music_tree_genre_kit_genregraphaccess|scope|character varying|NO
+the_music_tree_genre_kit_genregraphaccess|ancestor_id|bigint|NO
+the_music_tree_genre_kit_genregraphaccess|descendant_id|bigint|NO
+the_music_tree_genre_kit_genregraphaccess|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphassignmentstate|id|bigint|NO
+the_music_tree_genre_kit_genregraphassignmentstate|revision|uuid|NO
+the_music_tree_genre_kit_genregraphassignmentstate|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphassignmentstate|track_id|uuid|NO
+the_music_tree_genre_kit_genregraphattribution|id|bigint|NO
+the_music_tree_genre_kit_genregraphattribution|track_id|uuid|NO
+the_music_tree_genre_kit_genregraphattribution|node_id|bigint|NO
+the_music_tree_genre_kit_genregraphattribution|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphattributionevidence|id|bigint|NO
+the_music_tree_genre_kit_genregraphattributionevidence|attribution_id|bigint|NO
+the_music_tree_genre_kit_genregraphattributionevidence|evidence_id|bigint|NO
+the_music_tree_genre_kit_genregraphattributionrevision|revision|uuid|NO
+the_music_tree_genre_kit_genregraphattributionrevision|track_id|uuid|NO
+the_music_tree_genre_kit_genregraphattributionrevision|graph_revision|uuid|NO
+the_music_tree_genre_kit_genregraphattributionrevision|attributions|jsonb|NO
+the_music_tree_genre_kit_genregraphattributionrevision|created_at|timestamp with time zone|NO
+the_music_tree_genre_kit_genregraphattributionrevision|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphdataset|key|character varying|NO
+the_music_tree_genre_kit_genregraphdataset|revision|uuid|NO
+the_music_tree_genre_kit_genregraphdataset|membership_revision|uuid|NO
+the_music_tree_genre_kit_genregraphdataset|payload|jsonb|NO
+the_music_tree_genre_kit_genregraphevidence|id|bigint|NO
+the_music_tree_genre_kit_genregraphevidence|decision_id|character varying|NO
+the_music_tree_genre_kit_genregraphevidence|source|text|NO
+the_music_tree_genre_kit_genregraphevidence|rationale|text|NO
+the_music_tree_genre_kit_genregraphevidence|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphnode|id|bigint|NO
+the_music_tree_genre_kit_genregraphnode|identity|character varying|NO
+the_music_tree_genre_kit_genregraphnode|is_umbrella|boolean|NO
+the_music_tree_genre_kit_genregraphnode|canonical_state|character varying|YES
+the_music_tree_genre_kit_genregraphnode|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphnode|is_active|boolean|NO
+the_music_tree_genre_kit_genregraphrevision|revision|uuid|NO
+the_music_tree_genre_kit_genregraphrevision|payload|jsonb|NO
+the_music_tree_genre_kit_genregraphrevision|created_at|timestamp with time zone|NO
+the_music_tree_genre_kit_genregraphrevision|dataset_id|character varying|NO
+the_music_tree_genre_kit_genregraphrevision|retirements|jsonb|NO
 the_music_tree_genre_kit_importrun|id|bigint|NO
 the_music_tree_genre_kit_importrun|started_at|timestamp with time zone|NO
 the_music_tree_genre_kit_importrun|finished_at|timestamp with time zone|YES

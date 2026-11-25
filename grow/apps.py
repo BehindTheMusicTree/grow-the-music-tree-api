@@ -9,10 +9,13 @@ class GrowConfig(AppConfig):
     def ready(self) -> None:
         from the_music_tree_genre_kit.track.Track import Track
 
+        from grow.artist_song import signals as artist_song_signals
+        from grow.openapi import extensions
         from grow.search.cache import on_track_deleted as invalidate_song_search_cache
         from grow.workload.workers import register
 
         register()
+        artist_song_signals.connect()
 
         # Songs also disappear through album and artist cascades, which no manager hook sees.
         post_delete.connect(

@@ -110,3 +110,53 @@ class OptionalTotalPagination(AppPagination):
                 PaginatedResponseFields.TOTAL_PAGES: None,
             }
         )
+
+    def get_paginated_response_schema(self, schema):
+        nullable_int = {"type": "integer", "nullable": True}
+        link = {"type": "string", "format": "uri", "nullable": True}
+        return {
+            "type": "object",
+            "required": [
+                PaginatedResponseFields.OVERALL_TOTAL,
+                PaginatedResponseFields.NEXT,
+                PaginatedResponseFields.PREVIOUS,
+                PaginatedResponseFields.RESULTS,
+                PaginatedResponseFields.PAGE,
+                PaginatedResponseFields.PAGE_SIZE,
+                PaginatedResponseFields.TOTAL_PAGES,
+            ],
+            "properties": {
+                PaginatedResponseFields.OVERALL_TOTAL: {
+                    **nullable_int,
+                    "description": "Null with `with_total=false` and in cursor mode.",
+                },
+                PaginatedResponseFields.NEXT: link,
+                PaginatedResponseFields.PREVIOUS: link,
+                PaginatedResponseFields.RESULTS: schema,
+                PaginatedResponseFields.PAGE: {**nullable_int, "description": "Null in cursor mode."},
+                PaginatedResponseFields.PAGE_SIZE: {"type": "integer"},
+                PaginatedResponseFields.TOTAL_PAGES: {
+                    **nullable_int,
+                    "description": "Null with `with_total=false` and in cursor mode.",
+                },
+            },
+        }
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            *super().get_schema_operation_parameters(view),
+            {
+                "name": NO_TOTAL_PARAM,
+                "required": False,
+                "in": "query",
+                "description": "`false` skips the total count; without `page` it also switches to cursor pagination.",
+                "schema": {"type": "boolean"},
+            },
+            {
+                "name": CURSOR_PARAM,
+                "required": False,
+                "in": "query",
+                "description": "Opaque cursor from the previous page's `next` link, in cursor mode.",
+                "schema": {"type": "string"},
+            },
+        ]

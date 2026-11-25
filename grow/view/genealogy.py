@@ -5,7 +5,9 @@ from typing import Any
 from django.db import transaction
 from django.http import HttpResponseNotModified
 from django.utils.http import parse_etags
-from rest_framework import status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
@@ -13,10 +15,10 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from the_music_tree_grow_contracts import first_error
 
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.import_run.ImportRun import ImportRun
-from grow.schemas import first_error
 from grow.view.curation import CurationView
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -26,6 +28,11 @@ def _checksum(document: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+_IMPORT_RESULT = inline_serializer(
+    "GenealogyImportResult", {"checksum": serializers.CharField(), "created": serializers.BooleanField()}
+)
+
+
 class GenealogyImportView(CurationView):
     """Pipeline import of the genealogy document. Parsed and rendered verbatim: the document's keys must not be recased."""
 
@@ -33,6 +40,14 @@ class GenealogyImportView(CurationView):
     parser_classes = [JSONParser]
     renderer_classes = [JSONRenderer]
 
+    @extend_schema(
+        request=OpenApiTypes.OBJECT,
+        responses={
+            status.HTTP_200_OK: _IMPORT_RESULT,
+            status.HTTP_201_CREATED: _IMPORT_RESULT,
+        },
+        description="The genealogy document, validated against the `genealogy` Gold schema.",
+    )
     def post(self, request: Request) -> Response:
         if not isinstance(request.data, dict):
             raise ValidationError({"non_field_errors": ["Expected a JSON object."]})
@@ -68,6 +83,10 @@ class GenealogyView(APIView):
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer]
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: OpenApiTypes.OBJECT, status.HTTP_304_NOT_MODIFIED: None},
+        description="The latest genealogy document, verbatim, with its checksum as `ETag`.",
+    )
     def get(self, request: Request) -> Response | HttpResponseNotModified:
         snapshot = GenealogySnapshot.objects.first()
         if snapshot is None:

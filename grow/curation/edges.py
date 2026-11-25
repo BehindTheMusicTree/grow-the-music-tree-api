@@ -4,8 +4,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Value
 from django.db.models.functions import Concat
+from the_music_tree_grow_contracts.curation_lists import EDGE_PROJECTION_LISTS
 
-from grow.curation.lists import EDGE_PROJECTION_LISTS
 from grow.curation.rows import KEY_SEPARATOR, SCENE_LIST, InvalidRow, UpsertResult, scene_split_error
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -16,7 +16,6 @@ Relation = GenreEdgeRule.Relation
 
 RELATION_BY_LIST = {
     "canonical_parent": Relation.CANONICAL_PARENT,
-    "accepted_canonical_roots": Relation.CANONICAL_PARENT,
     "regional_genre_parent": Relation.REGIONAL_GENRE_PARENT,
     "regional_overviews": Relation.REGIONAL_OVERVIEW,
     "secondary_parents": Relation.SECONDARY_PARENT,
@@ -28,8 +27,8 @@ def edge_rules() -> models.QuerySet[GenreEdgeRule]:
 
 
 def canonical_parents(exclude_pk: Any = None) -> dict[str, str]:
-    """Item -> its curated canonical parent, roots left out."""
-    rules = edge_rules().filter(relation=Relation.CANONICAL_PARENT, parent_item_id__isnull=False)
+    """Item -> its curated canonical parent."""
+    rules = edge_rules().filter(relation=Relation.CANONICAL_PARENT)
     return dict(rules.exclude(pk=exclude_pk).values_list("item_id", "parent_item_id"))
 
 
@@ -63,9 +62,8 @@ def edge_csv_row(rule: GenreEdgeRule) -> dict[str, str]:
 
 def legacy_list_name(rule: GenreEdgeRule) -> str:
     """The legacy list the rule used to belong to."""
-    if rule.relation == Relation.CANONICAL_PARENT:
-        return "accepted_canonical_roots" if rule.parent_item_id is None else "canonical_parent"
     return {
+        Relation.CANONICAL_PARENT: "canonical_parent",
         Relation.REGIONAL_GENRE_PARENT: "regional_genre_parent",
         Relation.REGIONAL_OVERVIEW: "regional_overviews",
         Relation.SECONDARY_PARENT: "secondary_parents",
@@ -84,9 +82,7 @@ def find_rule_by_legacy(list_name: str, key: str) -> GenreEdgeRule | None:
     rules = edge_rules().filter(relation=RELATION_BY_LIST[list_name], item_id=item_id)
     if list_name in {"regional_overviews", "secondary_parents"}:
         return rules.filter(parent_item_id=parent_item_id).first()
-    if list_name == "accepted_canonical_roots":
-        return rules.filter(parent_item_id__isnull=True).first()
-    return rules.filter(parent_item_id__isnull=False).first()
+    return rules.first()
 
 
 def edge_field(column: str) -> str:
@@ -125,9 +121,11 @@ def find_edge_candidate_error(
 ) -> tuple[str, str] | None:
     """The `(field, message)` of the first rule-set violation a rule would add to the stored edges, if any."""
     from grow.curation.rule_set import (
+        canonical_root_items,
         declared_additions,
         excluded_items,
         find_excluded_edge_conflicts,
+        find_root_parent_conflicts,
         find_root_regional_conflicts,
         find_undeclared_local_edges,
         involving,
@@ -138,7 +136,8 @@ def find_edge_candidate_error(
     )
     edges = [*edge_rules().exclude(pk=exclude_pk), candidate]
     own = {item_id}
-    violations = involving(find_root_regional_conflicts(edges), {item_id})
+    roots = canonical_root_items(CurationEntry.objects.filter(user=None))
+    violations = involving(find_root_regional_conflicts(roots, edges), {item_id})
     violations += involving(
         find_excluded_edge_conflicts(excluded_items(CurationEntry.objects.filter(user=None)), [candidate]), own
     )
@@ -146,4 +145,5 @@ def find_edge_candidate_error(
         find_undeclared_local_edges(declared_additions(CurationEntry.objects.filter(user=None)), [candidate]),
         {item_id, parent_item_id},
     )
+    violations += involving(find_root_parent_conflicts(roots, [candidate]), own)
     return ("item_id", violations[0].message) if violations else None

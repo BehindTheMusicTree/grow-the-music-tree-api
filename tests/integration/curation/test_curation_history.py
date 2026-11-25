@@ -51,6 +51,15 @@ class TestCurationHistory(AppTestCase):
         assert [h["entry"] for h in self._history(item_id="Q999999991")] == [theme]
         assert self._history(item_id="Q99999999") == []
 
+    def test_filter_retired_expression_styles_history_by_list_and_item(self):
+        entry = self._create(ITEM)
+        snapshot = {"list_name": "expression_styles", "expression_item_id": ITEM["item_id"], "style_item_id": "Q5"}
+        HistoryEntry.objects.filter(content_uuid=entry).update(new_value=json.dumps(snapshot))
+
+        [change] = self._history(list="expression_styles", item_id="Q5")
+        assert change["entry"] == entry
+        assert json.loads(change["newValue"]) == snapshot
+
     def test_curator_key_edit_then_history_actor_is_curation_bot_pseudo(self):
         self.api_client.credentials(HTTP_X_API_KEY=settings.CURATION_API_KEY)
         self._create(ITEM)

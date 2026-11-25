@@ -8,22 +8,28 @@ from typing import Any, Literal
 
 from django.db import connections, models
 from django.utils import timezone
-
-from grow.curation.lists import (
+from the_music_tree_grow_contracts.curation_lists import (
+    ADDITION_LISTS,
     BOOL_COLUMNS,
     COLUMN_CHOICES,
     CURATION_LISTS,
+    EDGE_COLUMNS,
     ENTITY_ID_COLUMNS,
     ENTITY_ID_PATTERN,
     EXCLUSIVE_LISTS,
+    GENRE_ALIAS_LIST,
+    GRAPH_ITEM_ID_PATTERN,
+    GRAPH_LISTS,
+    GRAPH_PAIR_LISTS,
     INT_COLUMNS,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     ITEM_PAIR_LISTS,
     KEY_MAX_LENGTH,
-    OPTIONAL_COLUMNS,
+    LEGACY_GENRE_ALIAS_COLUMNS,
     QID_ENTITY_LISTS,
     TRADITION_ID_COLUMNS,
+    is_optional_column,
 )
 
 KEY_SEPARATOR = "\t"
@@ -31,7 +37,6 @@ POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_stylistic_genres"
 SCENE_LIST = "canonical_genre_scene"
 EDGES_FILE = "genre_edges"
-EDGE_COLUMNS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
 
@@ -93,7 +98,7 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             except ValueError:
                 errors[column] = "Must be a boolean"
             continue
-        if column in OPTIONAL_COLUMNS and column not in curation_list.key and (value is None or value == ""):
+        if is_optional_column(list_name, column) and column not in curation_list.key and (value is None or value == ""):
             parsed[column] = ""
             continue
         if not isinstance(value, str) or not value.strip():
@@ -102,7 +107,16 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
         if column in curation_list.key and KEY_SEPARATOR in value:
             errors[column] = "Must not contain a tab"
             continue
-        if column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
+        if (column in ITEM_ID_COLUMNS and list_name in GRAPH_LISTS) or (
+            list_name == GENRE_ALIAS_LIST and column == "target_item_id"
+        ):
+            if not re.fullmatch(GRAPH_ITEM_ID_PATTERN, value):
+                errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<lowercase-slug> id"
+                continue
+            if list_name == "local_identities" and not value.startswith("LOCAL:"):
+                errors[column] = "Must be a LOCAL:<slug> id: Wikidata items need no declared identity"
+                continue
+        elif column in ITEM_ID_COLUMNS and not re.fullmatch(ITEM_ID_PATTERN, value):
             errors[column] = "Must be a Wikidata QID (Q123) or a LOCAL:<slug> id"
             continue
         if column in TRADITION_ID_COLUMNS and not re.fullmatch(r"Q[0-9]+", value):
@@ -122,11 +136,15 @@ def parse_row(list_name: str, row: dict[str, Any]) -> ParsedRow:
             errors[column] = "Must be an integer year"
             continue
         parsed[column] = value
-    if not errors and list_name in ITEM_PAIR_LISTS and len({parsed[c] for c in curation_list.key}) == 1:
+    if (
+        not errors
+        and list_name in ITEM_PAIR_LISTS | GRAPH_PAIR_LISTS
+        and len({parsed[c] for c in curation_list.key}) == 1
+    ):
         errors[curation_list.key[-1]] = "Must differ from " + curation_list.key[0]
     if (
         not errors
-        and list_name in {"place_relation_overrides", "cultural_membership_overrides"}
+        and list_name in {"place_relation_overrides", "cultural_membership_overrides", "cultural_place_overrides"}
         and parsed["child_entity_id"] == parsed["parent_entity_id"]
     ):
         errors["parent_entity_id"] = "Must differ from child_entity_id"
@@ -149,7 +167,7 @@ def to_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dic
     curation_list = CURATION_LISTS[list_name]
     fields = {**dict(zip(curation_list.key, key.split(KEY_SEPARATOR), strict=True)), **values, "reason": reason}
     # An optional column added to a list after its entries were stored has no stored value.
-    return {c: fields.get(c, "") if c in OPTIONAL_COLUMNS else fields[c] for c in curation_list.columns}
+    return {c: fields.get(c, "") if is_optional_column(list_name, c) else fields[c] for c in curation_list.columns}
 
 
 def to_csv_row(list_name: str, key: str, values: dict[str, Any], reason: str) -> dict[str, str]:
@@ -297,6 +315,82 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
     return violations[0].message if violations else None
 
 
+def find_root_edge_error(entries: models.QuerySet, list_name: str, key: str) -> str | None:
+    """Why `key` can't become an accepted canonical root, if it can't: a curated edge still gives it a parent."""
+    if list_name != "canonical_roots":
+        return None
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import find_root_parent_conflicts, find_root_regional_conflicts
+
+    edges = list(edge_rules())
+    violations = find_root_regional_conflicts({key}, edges) + find_root_parent_conflicts({key}, edges)
+    return violations[0].message if violations else None
+
+
+def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
+    """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
+    and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
+    if list_name in ADDITION_LISTS and exclude_pk is not None:
+        renamed = entries.filter(pk=exclude_pk).exclude(key=parsed.key).first()
+        return _addition_removal_error(entries, renamed) if renamed is not None else None
+    if list_name not in GRAPH_LISTS:
+        return None
+    from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
+
+    graph_entries = entries.filter(list_name__in=GRAPH_LISTS)
+    others = graph_entries.exclude(pk=exclude_pk).exclude(list_name=list_name, key=parsed.key)
+    rows = [(e.list_name, e.key, e.values) for e in others]
+    rows.append((list_name, parsed.key, parsed.values))
+    items = set(graph_row_items(list_name, parsed.key, parsed.values).values())
+    replaced = graph_entries.filter(pk=exclude_pk).first() if exclude_pk is not None else None
+    if replaced is not None:
+        items |= set(graph_row_items(replaced.list_name, replaced.key, replaced.values).values())
+    violations = involving(find_graph_violations(rows, declared_additions(entries)), items)
+    return violations[0].message if violations else None
+
+
+def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
+    if entry.list_name in ADDITION_LISTS:
+        return _addition_removal_error(entries, entry)
+    if entry.list_name not in GRAPH_LISTS:
+        return None
+    from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
+
+    others = entries.filter(list_name__in=GRAPH_LISTS).exclude(pk=entry.pk)
+    violations = involving(
+        find_graph_violations([(e.list_name, e.key, e.values) for e in others], declared_additions(entries)),
+        graph_row_items(entry.list_name, entry.key, entry.values).values(),
+    )
+    return violations[0].message if violations else None
+
+
+def _addition_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why dropping the addition `entry` would leave its `LOCAL:` item undeclared in a merge or an edge, if it would."""
+    from grow.curation.edges import edge_rules
+    from grow.curation.rule_set import declared_additions, find_graph_violations, find_undeclared_local_edges, involving
+
+    declared = declared_additions(entries.exclude(pk=entry.pk))
+    rows = [(e.list_name, e.key, e.values) for e in entries.filter(list_name__in=GRAPH_LISTS)]
+    violations = find_graph_violations(rows, declared) + find_undeclared_local_edges(declared, edge_rules())
+    violations = involving(violations, {entry.key})
+    return violations[0].message if violations else None
+
+
+def find_membership_contradiction(entries: models.QuerySet, list_name: str, parsed: ParsedRow) -> str | None:
+    """Why a membership `parsed` contradicts the stored one on the same pair, if it does."""
+    if list_name != "regional_memberships":
+        return None
+    stored = entries.filter(list_name=list_name, key=parsed.key).first()
+    if stored is None or stored.values.get("action") == parsed.values["action"]:
+        return None
+    child, parent = parsed.key.split(KEY_SEPARATOR)
+    return (
+        f"{child} -> {parent} is already `{stored.values.get('action')}`; "
+        f"`{parsed.values['action']}` would contradict it"
+    )
+
+
 def check_upsert(
     entries: models.QuerySet, list_name: str, row: dict[str, Any], check_edges: bool = True
 ) -> tuple[ParsedRow, Any]:
@@ -326,10 +420,20 @@ def check_upsert(
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    graph_error = find_graph_error(entries, list_name, parsed)
+    if graph_error:
+        raise InvalidRow({CURATION_LISTS[list_name].key[0]: graph_error})
     excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key) if check_edges else None
     if excluded_edge_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: excluded_edge_error})
-    return parsed, entries.filter(list_name=list_name, key=parsed.key).first()
+    entry = entries.filter(list_name=list_name, key=parsed.key).first()
+    if list_name == GENRE_ALIAS_LIST and entry and not parsed.values["target_item_id"]:
+        previous_id = entry.values.get("target_item_id")
+        if previous_id:
+            if entry.values["wikidata_genre_name"] != parsed.values["wikidata_genre_name"]:
+                raise InvalidRow({"target_item_id": "Select a target by id to change this alias"})
+            parsed.values["target_item_id"] = previous_id
+    return parsed, entry
 
 
 def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], exclude_pk: Any = None) -> ParsedRow:
@@ -338,6 +442,9 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     Raises `InvalidRow` or `RowConflict`."""
     parsed = parse_row(list_name, row)
     lock_writes(entries)
+    contradiction = find_membership_contradiction(entries.exclude(pk=exclude_pk), list_name, parsed)
+    if contradiction:
+        raise RowConflict(contradiction)
     if entries.filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
         raise RowConflict(f"An entry with this key already exists in {list_name}")
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key, exclude_pk)
@@ -355,9 +462,15 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     umbrella_error = find_umbrella_leaf_error(list_name, parsed.key)
     if umbrella_error:
         raise InvalidRow({CURATION_LISTS[list_name].key[0]: umbrella_error})
+    graph_error = find_graph_error(entries, list_name, parsed, exclude_pk)
+    if graph_error:
+        raise RowConflict(graph_error)
     excluded_edge_error = find_excluded_edge_error(entries, list_name, parsed.key)
     if excluded_edge_error:
         raise RowConflict(excluded_edge_error)
+    root_edge_error = find_root_edge_error(entries, list_name, parsed.key)
+    if root_edge_error:
+        raise RowConflict(root_edge_error)
     return parsed
 
 
@@ -393,7 +506,11 @@ def import_csv_dir(
         path = directory / f"{name}.csv"
         with path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            if tuple(reader.fieldnames or ()) != columns:
+            header = tuple(reader.fieldnames or ())
+            allowed = {columns}
+            if name == GENRE_ALIAS_LIST:
+                allowed.add(LEGACY_GENRE_ALIAS_COLUMNS)
+            if header not in allowed:
                 raise ValueError(f"{path.name}: header {reader.fieldnames} != {list(columns)}")
             for line, row in enumerate(reader, start=2):
                 try:

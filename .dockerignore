@@ -6,7 +6,15 @@
 graphify-out
 tests
 perf
-benchmarks
+benchmarks/*
+!benchmarks/catalogue
+benchmarks/catalogue/*
+!benchmarks/catalogue/__init__.py
+!benchmarks/catalogue/catalogue_restore.py
+!benchmarks/catalogue/catalogue-schema.tsv
+!benchmarks/catalogue/export_plan.py
+!benchmarks/catalogue/manifest.py
+!benchmarks/catalogue/sanitization.py
 docs
 bruno
 **/__pycache__

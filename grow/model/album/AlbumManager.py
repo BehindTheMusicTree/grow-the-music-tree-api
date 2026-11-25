@@ -7,6 +7,7 @@ from the_music_tree_genre_kit.track_mixin.TrackMixinWithInternalNameManager impo
     TrackMixinWithInternalNameManager,
 )
 
+from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.artist.Artist import Artist
 
 if TYPE_CHECKING:
@@ -63,6 +64,8 @@ class AlbumManager(TrackMixinWithInternalNameManager["Album"]):
 
     def delete_instance_with_tracks_and_potentially_artists(self, instance: Album):
         from the_music_tree_genre_kit.track.Track import Track
+
+        lock_catalogue_sources(using=self.db)
 
         # Keep this deletion order for rollback tests: first delete tracks, then delete album, then delete artists
 

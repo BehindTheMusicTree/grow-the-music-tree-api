@@ -6,6 +6,8 @@ from django.conf import settings
 from django.db import transaction
 from django.http import QueryDict
 from django.utils import timezone
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -15,13 +17,17 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
+from the_music_tree_genre_graph import GraphValidationError
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
+from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
 
 from grow.bulk_import.analyze import analyze
-from grow.bulk_import.BulkImportRun import GENRE_TREES_KIND, BulkImportRun
+from grow.bulk_import.BulkImportRun import GENRE_GRAPH_KIND, GENRE_TREES_KIND, BulkImportRun
 from grow.bulk_import.lifecycle import queue_attempt
+from grow.genre_graph.bulk_import.merge import merge_reference_graph_import_run
 from grow.genre_graph.snapshot import graph_snapshot
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.genre_tree.bulk_import.merge import (
@@ -56,7 +62,16 @@ from grow.serializer.model.criteria.children.genre.output.detailed import GenreD
 from grow.serializer.model.criteria.children.genre.output.name_conflict_group import GenreNameConflictGroupSerializer
 from grow.serializer.model.criteria.children.genre.output.simple import GenreSimpleSerializer
 from grow.serializer.model.criteria.children.genre.search import GenreSearchQuerySerializer, GenreSearchResultSerializer
+from grow.serializer.model.criteria.output.overview import CriteriaOverviewSerializer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
+from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
+from grow.serializer.schema.genre import (
+    GenreAliasConflictSerializer,
+    GenreAliasCountsSerializer,
+    GenreLinkSuggestionSerializer,
+    GenreTreeImportFileSerializer,
+    GenreTreeNodeSerializer,
+)
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 from grow.view.viewset.mixin.BulkImportRunMixin import enqueue_merge, import_run_status_action
@@ -77,10 +92,54 @@ def _pop_curation_exported_on(tree_file: Any) -> Any:
     return tree_file.pop(CURATION_EXPORTED_ON, None) if _is_json_object(tree_file) else None
 
 
-def _curation_exported_on(request: Request, state: CurationSyncState) -> datetime:
-    return parse_curation_exported_on(_pop_curation_exported_on(request.data), state)
+def _curation_exported_on(request: Request) -> datetime:
+    return parse_curation_exported_on(_pop_curation_exported_on(request.data))
 
 
+_UUID_PATH_PARAM = OpenApiParameter("parent_uuid", OpenApiTypes.UUID, OpenApiParameter.PATH)
+_TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
+
+
+@extend_schema_view(
+    destroy=extend_schema(responses={status.HTTP_204_NO_CONTENT: None}),
+    tree=extend_schema(
+        parameters=[OpenApiParameter("tree_name", str, enum=list(CriteriaTreeName.values), required=True)],
+        responses=GenreTreeNodeSerializer,
+    ),
+    overview=extend_schema(responses=CriteriaOverviewSerializer),
+    search=extend_schema(
+        parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True), filters=False
+    ),
+    import_tree=extend_schema(
+        request=GenreTreeImportFileSerializer,
+        responses={status.HTTP_201_CREATED: OpenApiTypes.OBJECT},
+        description="Paginated simple genres of the imported tree.",
+    ),
+    import_trees=extend_schema(
+        request=inline_serializer("GenreTreesImportRequest", {"trees": GenreTreeImportFileSerializer(many=True)}),
+        responses=_TASK_ID_BODY,
+    ),
+    exclude=extend_schema(request=GenreExcludeSerializer, responses=GenreDetailedSerializer),
+    name_conflicts=extend_schema(responses=GenreNameConflictGroupSerializer(many=True), filters=False),
+    validate_name_conflicts=extend_schema(
+        request=GenreNameConflictValidateSerializer, responses={status.HTTP_204_NO_CONTENT: None}
+    ),
+    unaccepted_roots=extend_schema(responses=GenreSimpleSerializer(many=True)),
+    accept_unaccepted_roots=extend_schema(
+        request=GenreUnacceptedRootAcceptSerializer, responses={status.HTTP_204_NO_CONTENT: None}
+    ),
+    link_suggestions=extend_schema(responses=GenreLinkSuggestionSerializer(many=True), filters=False),
+    secondary_parent=extend_schema(request=None, parameters=[_UUID_PATH_PARAM], responses=GenreDetailedSerializer),
+    alias_of=extend_schema(
+        request=GenreAliasOfSerializer,
+        responses={
+            status.HTTP_200_OK: GenreDetailedSerializer,
+            status.HTTP_400_BAD_REQUEST: GenreAliasConflictSerializer,
+            status.HTTP_409_CONFLICT: DetailSerializer,
+        },
+    ),
+    alias_of_preview=extend_schema(parameters=[GenreAliasOfSerializer], responses=GenreAliasCountsSerializer),
+)
 class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     throttle_scope = "genre-search"
 
@@ -111,6 +170,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         authentication_classes=[],
         permission_classes=[AllowAny],
         throttle_classes=[ScopedRateThrottle],
+        pagination_class=None,
     )
     @graph_snapshot
     def search(self, request: Request) -> Response:
@@ -133,7 +193,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         with transaction.atomic():
             if is_pipeline:
                 state = CurationSyncState.load()
-                state.applied_export_on = _curation_exported_on(request, state)
+                state.applied_export_on = _curation_exported_on(request)
             response = super().import_tree(request)
             Genre.objects.assert_required_roots_present(get_request_owner(request))
             analyze(TREE_IMPORT_MODELS)
@@ -147,6 +207,9 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         return response
 
     import_run_status = import_run_status_action("trees/", GENRE_TREES_KIND, merge_genre_trees_import_run)
+    graph_import_run_status = import_run_status_action(
+        "graph/", GENRE_GRAPH_KIND, merge_reference_graph_import_run, name="graph_import_run_status"
+    )
 
     @action(detail=False, methods=["post"], url_path="trees/import-runs", permission_classes=[IsPipelineOrAdmin])
     def import_trees(self, request):
@@ -164,9 +227,8 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         entries = body.get("trees")
         exports = []
         if record and isinstance(entries, list):
-            state = CurationSyncState.load()
             exports = [_pop_curation_exported_on(entry) for entry in entries]
-            parsed = {parse_curation_exported_on(value, state) for value in exports}
+            parsed = {parse_curation_exported_on(value) for value in exports}
             if len(parsed) > 1:
                 raise ValidationError({"trees": "Mixed curation exports: every tree needs the same curationExportedOn"})
         serializer = CriteriaTreeImportSerializer(data=entries, many=True)
@@ -203,7 +265,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
         )
         return self._detailed(instance)
 
-    @action(detail=False, methods=["get"], url_path="name-conflicts")
+    @action(detail=False, methods=["get"], url_path="name-conflicts", pagination_class=None)
     def name_conflicts(self, request: Request) -> Response:
         groups = Genre.objects.get_name_conflict_groups(get_request_owner(request))
         return Response(data=GenreNameConflictGroupSerializer(groups, many=True).data)
@@ -241,7 +303,9 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def _detailed(self, genre: Genre) -> Response:
         return Response(data=self._get_detailed_serializer(genre).data)
 
-    @action(detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin])
+    @action(
+        detail=True, methods=["get"], url_path="link-suggestions", permission_classes=[IsAdmin], pagination_class=None
+    )
     def link_suggestions(self, request: Request, *args, **kwargs) -> Response:
         songs = SongCurationManager.link_suggestions(self.get_object())
         data = SongWithoutPlaylistsSerializer(songs, many=True, context=self.get_serializer_context()).data
@@ -268,11 +332,19 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     def alias_of(self, request: Request, *args, **kwargs) -> Response:
         serializer = GenreAliasOfSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        target = Genre.objects.alias_instance(
-            self.get_object(),
-            self._genre_by_uuid(serializer.validated_data["target"]),
-            **self._get_manager_write_kwargs(request),
-        )
+        try:
+            target = Genre.objects.alias_instance(
+                self.get_object(),
+                self._genre_by_uuid(serializer.validated_data["target"]),
+                **self._get_manager_write_kwargs(request),
+            )
+        except GraphRevisionConflict as error:
+            return Response({"detail": str(error)}, status=status.HTTP_409_CONFLICT)
+        except GraphValidationError as error:
+            return Response(
+                {"detail": str(error), "paths": [list(path) for path in getattr(error, "paths", [])]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return self._detailed(target)
 
     @action(detail=True, methods=["get"], url_path="alias-of/preview", permission_classes=[IsAdmin])
