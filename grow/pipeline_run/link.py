@@ -25,7 +25,8 @@ def linked_pipeline_run(request: Request) -> PipelineRunRequest | None:
     """
     The pipeline run an import is made for, named by the `X-Pipeline-Run-Request` header; None when it is absent.
     A malformed or unknown uuid is a 400, and a run that is not `running` a 409: `expire_stale` ends a run whose
-    poller stopped beating, so a late import must not attach to it.
+    poller stopped beating, so a late import is refused. The check is not atomic with the import's creation: a run
+    may end in between, which only leaves a display link.
     """
     raw = request.headers.get(HEADER)
     if raw is None:

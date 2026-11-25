@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db.models.fields.json import KeyTransform
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
@@ -60,10 +61,15 @@ def _is_bootstrap(attempt: ImportAttempt) -> bool | None:
     """Whether a graph import is the first one (no `expected_revision`); None for other kinds or a cleaned-up run."""
     if attempt.kind != GENRE_GRAPH_KIND:
         return None
-    payload = GenreGraphImportPayload.objects.filter(run_id=attempt.run_id).values_list("payload", flat=True).first()
-    if payload is None:
+    # Reads the one key in the database: the payload holds the whole graph and this runs on every poll.
+    rows = list(
+        GenreGraphImportPayload.objects.filter(run_id=attempt.run_id)
+        .annotate(expected_revision=KeyTransform("expected_revision", "payload"))
+        .values_list("expected_revision", flat=True)[:1]
+    )
+    if not rows:
         return None
-    return payload.get("expected_revision") is None
+    return rows[0] is None
 
 
 def _active_import(run: PipelineRunRequest) -> dict[str, Any] | None:
