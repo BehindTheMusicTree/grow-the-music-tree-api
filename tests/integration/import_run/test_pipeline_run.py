@@ -167,6 +167,29 @@ class TestPipelineRun(AppTestCase):
         assert self._latest().json() == done.json()
         assert self.api_client.get(reverse("pipeline-runs")).json()["results"][0] == done.json()
 
+    def test_importing_graph_stage_follows_importing_tree(self):
+        uuid = self._request("full")["uuid"]
+        assert self._claim().status_code == status.HTTP_200_OK
+        tree = {
+            "stage": "importing_tree",
+            "startedAt": "2026-11-20T12:00:00Z",
+            "finishedAt": None,
+            "state": "running",
+        }
+        running = self._patch(
+            uuid, {"stage": "importing_tree", "stepTelemetry": {"variant": "bronze_only", "foreground": [tree]}}
+        )
+        assert running.status_code == status.HTTP_200_OK, running.content
+
+        tree_done = {**tree, "state": "succeeded", "finishedAt": "2026-11-20T12:04:00Z"}
+        graph = {**tree, "stage": "importing_graph", "startedAt": "2026-11-20T12:04:00Z"}
+        graph_running = self._patch(
+            uuid, {"stage": "importing_graph", "stepTelemetry": {"foreground": [tree_done, graph]}}
+        )
+        assert graph_running.status_code == status.HTTP_200_OK, graph_running.content
+        assert graph_running.json()["stage"] == "importing_graph"
+        assert graph_running.json()["stepTelemetry"]["foreground"] == [tree_done, graph]
+
     def test_rejects_invalid_step_telemetry(self):
         uuid = self._request("full")["uuid"]
         self._claim()

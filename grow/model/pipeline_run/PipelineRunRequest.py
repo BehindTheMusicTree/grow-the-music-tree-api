@@ -43,6 +43,7 @@ class PipelineRunRequest(models.Model):
         MATCHING_SONGS = "matching_songs"
         BUILDING_GOLD = "building_gold"
         IMPORTING_TREE = "importing_tree"
+        IMPORTING_GRAPH = "importing_graph"
         UPLOADING_SONGS = "uploading_songs"
         MERGING_SONGS = "merging_songs"
         UPLOADING_ARTISTS = "uploading_artists"
