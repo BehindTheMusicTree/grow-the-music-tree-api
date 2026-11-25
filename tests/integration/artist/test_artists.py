@@ -43,6 +43,18 @@ class TestCase(AppTestCase):
         assert (artist["name"], artist["tracks_count"], artist["albums"][0]["name"]) == ("Pink Floyd", 1, "The Wall")
         assert "tracks" not in artist
 
+    def test_invalid_page_size_then_400(self):
+        for value in ("0", "-1", "abc"):
+            response = self.api_client.get(path=reverse("artist-list"), data={"page_size": value})
+
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, value
+
+    def test_page_size_above_max_then_capped(self):
+        response = self.api_client.get(path=reverse("artist-list"), data={"page_size": "1000"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["pageSize"] == 100
+
     def test_anonymous_detail_then_artist_page_shape(self):
         response = self.api_client.get(path=reverse("artist-detail", kwargs={"pk": self.band.uuid}))
 

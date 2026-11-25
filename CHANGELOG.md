@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Paginated lists reject `page_size` of 0, below 1 or non-integer with 400 (`page_size=0` used to return the whole table unpaginated), cap it at `PAGINATION_PAGE_SIZE_MAX`, and no longer read the `pageSize` query alias (api-kit v0.12.4 via genre-kit v0.72.5). `openapi.yaml` now documents the real list envelope (`overallTotal`, `page`, `pageSize`, `totalPages`) instead of DRF's `count`. Covered by `tests/integration/artist/test_artists.py`
 - `GET /v1/albums/{uuid}/` no longer answers 500: `AlbumDetailedSerializer` read fields the viewset does not annotate. Covered by `tests/integration/album/test_albums.py`.
 - OpenAPI: `history`, the song, artist and genre `search`, artist `genre-counts`, genre `name-conflicts` and `link-suggestions` are documented as the bare arrays they return, not as paginated filtered lists; `PATCH /v1/library/songs/{uuid}/` is no longer dropped from the schema (the 405 filter now keeps a `partial_update` implemented without `update`). Covered by `tests/unit/openapi/`.
 - `perf.yml` limits the `GITHUB_TOKEN` to `contents: read` for both jobs, closing the two CodeQL `actions/missing-workflow-permissions` alerts.

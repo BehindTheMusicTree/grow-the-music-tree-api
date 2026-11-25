@@ -8358,187 +8358,251 @@ components:
     PaginatedAlbumSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/AlbumSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedArtistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/ArtistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedCriteriaPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaPlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedCriteriaSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedGenreSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/GenreSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedManualPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/ManualPlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedPlayDetailedList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/PlayDetailed'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/PlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedSongDetailedList:
       type: object
       required:
@@ -8579,26 +8643,34 @@ components:
     PaginatedTrackPlaylistRelInPageList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/TrackPlaylistRelInPage'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PatchedCriteriaPut:
       type: object
       description: |-
