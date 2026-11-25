@@ -89,28 +89,33 @@ Regional genres only accept `all` among the legacy values. Contract 4 scopes wor
 
 #### Pagination modes
 
-- Numbered pages (`page`, `page_size`) include a total by default. Use `page` with `with_total=false` to skip the
-  count and keep numbered pages. Both `overallTotal` and `totalPages` are then null.
-- `pagination=cursor` with `genre` selects keyset pagination ordered by `uuid`. There is no total, and `next` carries the
-  following page's cursor. This mode rejects `page`, `ordering` and `from` with 400. Existing genre panels also select
-  this mode by sending `genre` and `with_total=false` without those three parameters.
-- An unknown `pagination` value or a cursor on a numbered request returns 400.
+- Requests without `page` use cursor pagination, with or without `genre`: follow `next`, whose `cursor` is opaque and
+  versioned. Pages follow `ordering`; without it they sort by `uuid`, or by `title` with `artist`. `page`, `totalPages`
+  and `previous` are null, and so is `overallTotal` unless `with_total=true`.
+- `from=<song uuid>` starts the first cursor page at that song (included) in the active order; 404 if it is not in the
+  filtered list. `next` replaces it with the cursor, so it is rejected together with `cursor`. With `from`,
+  `with_total=true` counts the songs from that one on, and `next` drops `with_total`.
+- A cursor is only valid with the `ordering` it was issued for. An invalid or mismatched cursor returns 400.
+- Numbered pages (`page`, `page_size`; deprecated) include a total by default. Use `page` with `with_total=false` to
+  skip the count; both `overallTotal` and `totalPages` are then null, and without `ordering` these pages sort by `uuid`.
+  `ordering` and `from` are honored, and `from` starts at the anchor in that active order.
+- `with_total` accepts only `true` or `false`. `pagination=cursor` is deprecated and has no effect; another
+  `pagination` value, or `cursor` with `page`, returns 400.
 
 #### List by artist
 
-An explicit `page` selects the numbered pagination used by existing artist panels and playback queues. This mode accepts
-`playable`, `genre`, `from`, `coverage` and `subgenres`, with the same filters as the general song list. Its response
-includes page numbers and, by default, the total. An artist filter can also narrow the genre catalogue cursor above.
-Use artist cursor pagination below for large unfiltered artist catalogues.
+An explicit `page` selects the numbered pagination used by released artist panels and playback queues. This mode
+accepts `playable`, `genre`, `from`, `coverage` and `subgenres`, with the same filters as the general song list. Its
+response includes page numbers and, by default, the total.
 
 `GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
 
-For cursor pages, only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
-returns 400, as do an unknown ordering or an invalid cursor. Pages are keyset pages: `next` carries the `cursor` of the
-following page and is null on the last one. `overallTotal`, `page`, `totalPages` and `previous` are null.
-Songs without an album year come last under `-albumYear`.
+Without `page`, pages are cursor pages as above, ordered by `title` unless `ordering` says otherwise. When the request
+has only `artist`, `ordering` (`title` or `-albumYear`), `from`, `cursor`, `pagination`, `page_size` and `with_total`,
+it is read from the artist index below, which suits large artist catalogues. Any other filter or ordering takes the
+general cursor query. Songs without an album year come last under `-albumYear`.
 
-The page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort
+The indexed page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort
 keys), so the cost stays flat for an artist with 100 k+ songs. The songs and artists merges keep it current in their
 transaction, and so do the song, album and credit ORM writes. While the projection is unbuilt, the merges skip it and the projection-backed artist cursor returns 503.
 `manage.py rebuild_artist_song` builds the projection. The `--check` option reports any drift and fails when it finds a difference.

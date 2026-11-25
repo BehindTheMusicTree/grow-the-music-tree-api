@@ -1,5 +1,6 @@
 import statistics
 import time
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from django.core.cache import cache
@@ -49,7 +50,12 @@ VIEWER_HEADERS = {"HTTP_X_VIEWER_CONTEXT_TOKEN": VIEWER_TOKEN, "HTTP_X_VIEWER_CO
 HEADERS = {
     "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": VIEWER_HEADERS,
     "genre-playlist-tracks (front: viewer FR, genre_only)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, title, first page)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, title, third page)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, -albumYear, from)": VIEWER_HEADERS,
+    "songs genre panel (cursor, second page)": VIEWER_HEADERS,
 }
+SONGS_PAGE_SIZE = 100
 
 
 def _large_playlist(name: str) -> str:
@@ -64,6 +70,48 @@ def _largest_artist_genre_counts() -> str:
 def _artist_songs(ordering: str) -> tuple[str, dict]:
     artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
     return reverse("song-list"), {"artist": str(artist.uuid), "ordering": ordering, "page_size": 100}
+
+
+def _songs_get(params: dict) -> dict:
+    response = AppApiClient().get(reverse("song-list"), params, **VIEWER_HEADERS)
+    assert response.status_code == status.HTTP_200_OK, response.content[:500]
+    return response.json()
+
+
+def _largest_genre_uuid() -> str:
+    return str(largest_genre_playlist().criteria.uuid)
+
+
+def _songs_tracklist(ordering: str, page: int) -> tuple[str, dict]:
+    params = {"genre": _largest_genre_uuid(), "playable": "true", "ordering": ordering, "page_size": SONGS_PAGE_SIZE}
+    if page == 1:
+        return reverse("song-list"), {**params, "with_total": "true"}
+    # Later pages are reached by cursor, without recounting; walking there is not timed.
+    cursor: dict = {}
+    for _ in range(page - 1):
+        next_url = _songs_get({**params, **cursor})["next"]
+        assert next_url, f"largest genre has fewer than {page} pages of playable songs"
+        cursor = _cursor_param(next_url)
+    return reverse("song-list"), {**params, **cursor}
+
+
+def _cursor_param(next_url: str) -> dict:
+    return {"cursor": parse_qs(urlparse(next_url).query)["cursor"][0]}
+
+
+def _songs_tracklist_from() -> tuple[str, dict]:
+    genre = _largest_genre_uuid()
+    base = {"genre": genre, "playable": "true", "ordering": "-albumYear", "page_size": SONGS_PAGE_SIZE}
+    anchor_page = _songs_get({**base, "page": 2})["results"]
+    assert len(anchor_page) > 50, "largest genre has fewer than 150 playable songs"
+    return reverse("song-list"), {**base, "from": anchor_page[49]["uuid"], "with_total": "true"}
+
+
+def _songs_genre_panel_second_page() -> tuple[str, dict]:
+    params = {"genre": _largest_genre_uuid(), "with_total": "false", "page_size": SONGS_PAGE_SIZE}
+    next_url = _songs_get(params)["next"]
+    assert next_url, "largest genre has a single page of songs"
+    return reverse("song-list"), {**params, **_cursor_param(next_url)}
 
 
 PATHS = {
@@ -89,11 +137,16 @@ PATHS = {
         _large_playlist("genre-playlist-tracks"),
         {"page_size": 100, "coverage": "genre_only"},
     ),
+    # No SLO yet: reported as "pending calibration" so the A/B tracks them before the cursor change.
+    "songs tracklist (genre, playable, title, first page)": lambda: _songs_tracklist("title", 1),
+    "songs tracklist (genre, playable, title, third page)": lambda: _songs_tracklist("title", 3),
+    "songs tracklist (genre, playable, -albumYear, from)": _songs_tracklist_from,
+    "songs genre panel (cursor, second page)": _songs_genre_panel_second_page,
 }
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("scenario", SLO_MS)
+@pytest.mark.parametrize("scenario", PATHS)
 def test_median_latency_within_slo(scenario, perf_record, settings):
     settings.VIEWER_CONTEXT_TOKEN = VIEWER_TOKEN
     path, params = PATHS[scenario]()
@@ -117,8 +170,10 @@ def test_median_latency_within_slo(scenario, perf_record, settings):
     p50 = statistics.median(timings)
     p95 = statistics.quantiles(timings, n=20)[-1]
     print(f"\n{scenario:<38} queries={max(query_counts):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
-    perf_record(scenario, timings, slo_ms=SLO_MS[scenario], queries=max(query_counts))
-    assert_within_slo(p50, SLO_MS[scenario])
+    slo_ms = SLO_MS.get(scenario)
+    perf_record(scenario, timings, slo_ms=slo_ms, queries=max(query_counts))
+    if slo_ms is not None:
+        assert_within_slo(p50, slo_ms)
 
 
 # Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.

@@ -571,7 +571,7 @@ requires-dist = [
     { name = "pytest-django", marker = "extra == 'dev'", specifier = "==4.8.0" },
     { name = "redis", specifier = "==8.1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.9" },
-    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.72.5" },
+    { name = "the-music-tree-genre-kit", git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.72.6" },
     { name = "the-music-tree-grow-contracts", editable = "packages/grow-contracts" },
 ]
 provides-extras = ["dev"]
@@ -1037,8 +1037,8 @@ wheels = [
 
 [[package]]
 name = "the-music-tree-api-kit"
-version = "0.12.4"
-source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-api-kit.git?rev=v0.12.4#07fa368146fc291a947295ff32956ec942e395d6" }
+version = "0.12.5"
+source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-api-kit.git?rev=v0.12.5#d22f50427ef9fd1070821c2b442b07ea732f94e3" }
 dependencies = [
     { name = "django" },
     { name = "django-filter" },
@@ -1049,15 +1049,15 @@ dependencies = [
 [[package]]
 name = "the-music-tree-genre-graph"
 version = "0.6.1"
-source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?subdirectory=packages%2Fgenre-graph&rev=v0.72.5#daabbbb1aa5135440276c6003df7aa760cb0a1c8" }
+source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?subdirectory=packages%2Fgenre-graph&rev=v0.72.6#c0eaaf000a42e609efd2c3d82e5cec09c25616ac" }
 dependencies = [
     { name = "jsonschema" },
 ]
 
 [[package]]
 name = "the-music-tree-genre-kit"
-version = "0.72.5"
-source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.72.5#daabbbb1aa5135440276c6003df7aa760cb0a1c8" }
+version = "0.72.6"
+source = { git = "https://github.com/BehindTheMusicTree/the-music-tree-genre-kit.git?rev=v0.72.6#c0eaaf000a42e609efd2c3d82e5cec09c25616ac" }
 dependencies = [
     { name = "django" },
     { name = "djangorestframework" },
@@ -1067,7 +1067,7 @@ dependencies = [
 
 [[package]]
 name = "the-music-tree-grow-contracts"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "packages/grow-contracts" }
 dependencies = [
     { name = "jsonschema" },

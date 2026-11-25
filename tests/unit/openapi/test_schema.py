@@ -227,10 +227,10 @@ def test_curation_list_and_detail_operations_have_distinct_ids(schema):
 def test_curation_export_stays_snake_case(schema):
     """The export renders with `JSONRenderer`: its keys are the pipeline's snake_case columns."""
     body = _ok_body(schema, "/v1/curation/export/")
-    assert {"exported_on", "genre_alias", "edges", "overview_status_overrides"} <= set(body["properties"])
+    assert {"exported_on", "genre_alias", "edges"} <= set(body["properties"])
     assert "exportedOn" not in body["properties"]
-    assert "genre_alias_version" not in body["required"]
-    assert "target_item_id" not in body["properties"]["genre_alias"]["items"]["required"]
+    assert "genre_alias_version" not in body["properties"]
+    assert "target_item_id" in body["properties"]["genre_alias"]["items"]["required"]
     assert "409" in schema["paths"]["/v1/curation/export/"]["get"]["responses"]
 
 

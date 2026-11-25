@@ -13,6 +13,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ## [19.0.0] - 2026-11-25
+### Changed
+
+- `GET library/songs/` is cursor-paginated by default: without `page`, pages follow `next` with a versioned cursor, in any `ordering` and with or without `genre`. Without `ordering` they now sort by pk (by title with `artist`) instead of `created_on`. The total is only counted with `with_total=true`, so a request that sends neither `page` nor `with_total=true` now gets `overallTotal: null`; requests with `page` keep numbered pages. `from` starts the first cursor page at that song (not with `cursor`; its `with_total=true` counts from that song and `next` drops it), a cursor is only valid with the `ordering` it was issued for, and `with_total` accepts only `true` or `false`. Covered by `tests/integration/track/song/` and `tests/unit/view/pagination/test_song_cursor.py`.
+
+### Fixed
+
+- `GET library/songs/?artists_name=` lists a song once, and counts it once, when several of its artists match (genre kit v0.72.6, api-kit v0.12.5: `RelatedObjectCharFilter` filters through an `EXISTS` subquery instead of repeating rows across the many-to-many join). Covered by `tests/integration/track/song/test_filters.py`, on numbered and cursor pages.
+
+### Deprecated
+
+- On `GET library/songs/`: numbered pages (`page`), `pagination=cursor` (now without effect) and the cursors issued before the versioned format, still accepted until clients have moved to the default cursor.
+
+### Removed
+
+- **Breaking:** the `genre_alias_version` negotiation (closes #582). `GET curation/export/` and `GET curation/review/` always return the id-based alias format: `genre_alias` rows carry a required `target_item_id`, the `genre_alias_version` marker, the `overview_status_overrides` projection, the legacy alias columns, label-based alias resolution, the `alias_legacy_unmigrated` review reason, the `backfill_genre_alias_targets` command and the legacy alias report evidence are gone. `the-music-tree-grow-contracts` 0.2.0 matches; pipelines must be on a release that no longer sends the parameter. Migration 0166 fills the `target_item_id` of the five aliases that had none (it refuses any other alias without one) and deletes `alias_legacy_unmigrated` review items. Covered by `tests/unit/migration/test_genre_alias_target_ids.py` and `tests/integration/curation/test_genre_alias_targets.py`.
 
 ### Added
 
@@ -33,10 +48,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- CI: pin `BehindTheMusicTree/github-workflows` reusable workflows and actions to v6.6.0 (from v4.5–v4.8 and v6.5.0) and drop the `release-tag.yml` `form: "event"` concurrency exemption, now recognized by the conformance check.
 - Genre song lists accept `pagination=cursor` for UUID keyset pages. Existing clients also get keyset pages when they send `genre` and `with_total=false` without `page`, `ordering` or `from`. On numbered pages, `with_total=false` skips the total count. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
 
 ### Fixed
 
+- **Songs**: `library/songs/?from=<uuid>&withTotal=false` returned rows out of order (anchor computed on `created_on` while rows were sorted by pk); the default ordering is now decided once in `SongFilterSet`. Artist song pages with `withTotal=false` and no `ordering` now also sort by uuid instead of creation date. Covered by `tests/integration/track/song/test_filters.py`.
 - Keep artist song browsing and playback compatible with existing numbered-page clients. Genre assignment responses retain `previous[].undoable=false` for those clients while the new frontend restores edits through the server's undo token.
 
 - Paginated lists reject `page_size` of 0, below 1 or non-integer with 400 (`page_size=0` used to return the whole table unpaginated), cap it at `PAGINATION_PAGE_SIZE_MAX`, and no longer read the `pageSize` query alias (api-kit v0.12.4 via genre-kit v0.72.5). `openapi.yaml` now documents the real list envelope (`overallTotal`, `page`, `pageSize`, `totalPages`) instead of DRF's `count`. Covered by `tests/integration/artist/test_artists.py`

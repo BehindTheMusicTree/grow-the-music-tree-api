@@ -49,17 +49,13 @@ class AliasExposureSerializer(_StrictSerializer):
 
 class AliasEvidenceSerializer(_StrictSerializer):
     automatic_item_id = serializers.RegexField(rf"^(?:{GRAPH_ITEM_ID_PATTERN})$", required=False)
-    candidate_item_ids = serializers.ListField(
-        child=serializers.RegexField(rf"^(?:{GRAPH_ITEM_ID_PATTERN})$"), required=False
-    )
     current_label = serializers.CharField(required=False, trim_whitespace=False)
-    legacy_status = serializers.ChoiceField(choices=("unique", "ambiguous", "missing"), required=False)
 
 
 class AliasIssueSerializer(_StrictSerializer):
     tag = serializers.CharField(trim_whitespace=False)
-    target_item_id = serializers.RegexField(rf"^(?:{GRAPH_ITEM_ID_PATTERN})$", allow_null=True)
-    last_known_label = serializers.CharField(allow_null=True, trim_whitespace=False)
+    target_item_id = serializers.RegexField(rf"^(?:{GRAPH_ITEM_ID_PATTERN})$")
+    last_known_label = serializers.CharField(trim_whitespace=False)
     reason = serializers.ChoiceField(choices=CurationReviewItem.GENRE_ALIAS_REASONS)
     exposure = AliasExposureSerializer()
     evidence = AliasEvidenceSerializer()

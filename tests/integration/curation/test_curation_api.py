@@ -520,13 +520,13 @@ class TestCase(AppTestCase):
         for rejected in (duplicate, bad_type, no_reason, no_decision, bad_id):
             assert rejected.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_export_then_overview_type_rows_and_deprecated_projection(self):
+    def test_export_then_overview_type_rows(self):
         self._create(OVERVIEW_TYPE, "regional_overview_types")
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
         assert export["regional_overview_types"] == [OVERVIEW_TYPE]
-        assert export["overview_status_overrides"] == [{"item_id": "Q1", "status": "current", "reason": "testing"}]
+        assert "overview_status_overrides" not in export
 
     def test_b13_undeclared_local_then_rejected_without_substitution(self):
         anchoring = {"item_id": "Q1", "overview_item_id": "LOCAL:ghost", **PROVENANCE}
@@ -800,7 +800,7 @@ class TestCase(AppTestCase):
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
-        assert set(export) == {*CURATION_LISTS, "edges", "exported_on", "overview_status_overrides"}
+        assert set(export) == {*CURATION_LISTS, "edges", "exported_on"}
         assert not {
             "canonical_parent",
             "accepted_canonical_roots",

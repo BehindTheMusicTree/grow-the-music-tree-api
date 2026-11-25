@@ -28,7 +28,6 @@ from the_music_tree_grow_contracts.curation_lists import (
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
     KEY_MAX_LENGTH,
-    LEGACY_GENRE_ALIAS_COLUMNS,
     RETIRED_HISTORY_LISTS,
 )
 
@@ -511,7 +510,6 @@ class CurationExportView(CurationView):
     renderer_classes = [JSONRenderer]
 
     @extend_schema(
-        parameters=[_query("genre_alias_version", enum=["1", "2"], description="Defaults to 1.")],
         responses={
             status.HTTP_200_OK: OpenApiResponse(curation_export_schema()),
             status.HTTP_409_CONFLICT: CurationExportConflictSerializer,
@@ -519,11 +517,8 @@ class CurationExportView(CurationView):
     )
     @transaction.atomic
     def get(self, request: Request) -> Response:
-        version = request.query_params.get("genre_alias_version", "1")
-        if version not in {"1", "2"}:
-            raise ValidationError({"genre_alias_version": "Expected 1 or 2"})
         lock_writes(_entries())
-        revisions = {} if version == "2" else None
+        revisions: dict[str, list[str]] = {}
         violations = find_stored_violations()
         if violations:
             return Response(
@@ -538,19 +533,8 @@ class CurationExportView(CurationView):
         for entry in _entries().order_by("list_name", "key"):
             row = entry.csv_row
             if entry.list_name == GENRE_ALIAS_LIST:
-                if revisions is None:
-                    row = {column: row[column] for column in LEGACY_GENRE_ALIAS_COLUMNS}
-                else:
-                    revisions[entry.key] = alias_revision(entry)
+                revisions[entry.key] = alias_revision(entry)
             export[entry.list_name].append(row)
-        if revisions is not None:
-            export["genre_alias_version"] = 2
-        # Deprecated projection for pipelines that still read `overview_status_overrides`: dropped once they read
-        # `regional_overview_types`.
-        export["overview_status_overrides"] = [
-            {"item_id": row["item_id"], "status": row["overview_type"], "reason": row["reason"]}
-            for row in export["regional_overview_types"]
-        ]
         export["edges"] = [
             edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
         ]
@@ -739,16 +723,10 @@ def _review_key(item: CurationReviewItem) -> str | None:
 class CurationReviewView(CurationView):
     """The curation item ids the pipeline's last report couldn't resolve, for an admin to fix."""
 
-    @extend_schema(
-        parameters=[_query("genre_alias_version", enum=["1", "2"], description="2 includes the genre alias reviews.")],
-        responses=CurationReviewItemSerializer(many=True),
-    )
+    @extend_schema(responses=CurationReviewItemSerializer(many=True))
     def get(self, request: Request) -> Response:
-        items_query = CurationReviewItem.objects.select_related("rule")
-        if request.query_params.get("genre_alias_version") != "2":
-            items_query = items_query.exclude(reason__in=CurationReviewItem.GENRE_ALIAS_REASONS)
         items = sorted(
-            items_query,
+            CurationReviewItem.objects.select_related("rule"),
             key=lambda i: (_review_list(i) or "", _review_key(i) or "", i.column, i.item_id),
         )
         return Response(

@@ -1,6 +1,6 @@
 [project]
 name = "the-music-tree-grow-contracts"
-version = "0.1.1"
+version = "0.2.0"
 description = "JSON Schemas and curation list specs of the documents exchanged with grow-the-music-tree-api"
 readme = "README.md"
 license = { file = "LICENSE" }
