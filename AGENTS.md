@@ -30,7 +30,7 @@ uv run manage.py runserver
 
 ## Commands
 
-- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Coverage gate: `--cov-fail-under=85`.
+- **Tests:** `uv run pytest` — in-memory SQLite, no env vars needed (`DJANGO_SETTINGS_MODULE=tests.settings` is set via `pyproject.toml`'s `[tool.pytest.ini_options]`). Local coverage gate: `--cov-fail-under=85`. In CI, `validate.yml` runs pytest (SQLite and Postgres, branch coverage, reports uploaded as `coverage-pytest`), then the shared `coverage` job enforces line 85 plus the default branch and patch thresholds; the required `Tests success` gate aggregates `pytest` and `coverage`.
 - **Lint:** `uv run ruff check .` / `uv run ruff format --check .` (rules vendored from `baselines/ruff.toml`, itself vendored from genre-kit, itself from hear).
 - **Types:** `uv run mypy grow packages/grow-contracts/src` — imports `grow/settings.py` directly (not `tests.settings`), so it needs real env vars even though it's read-only: `SECRET_KEY`, `PIPELINE_API_KEY`, `CURATION_API_KEY`, `DATABASE_URL`, `REDIS_URL`, `GOOGLE_OAUTH_CLIENT_ID`, `ADMIN_GOOGLE_SUB`, `YOUTUBE_API_KEY` all dummy values are fine, e.g.:
   ```bash
@@ -44,7 +44,7 @@ uv run manage.py runserver
 - **Projection fingerprint:** `SongSearchState` and `ArtistSongState` store a sha256 of the definition that built their table (`COLUMNS`, `PROJECTION` and the `FUNCTIONS` they call, via `grow/projection/fingerprint.py`); only a full rebuild or a clean `--check` stamps it, and `rebuild_* --if-stale` skips a current table. A `grow_\w+(` call added to a `PROJECTION` must be listed in its `FUNCTIONS` (unit test).
 - **Catalogue benchmark harness:** `benchmarks/catalogue/` (restore, A/B scenarios, verdict) is inactive, stdlib-only `unittest` code (its own tests live in `benchmarks/catalogue/tests`, outside the pytest suite) excluded from the Docker image, except the subset `manage.py export_perf_catalogue --plan` imports (allowlisted in `.dockerignore`, guarded by `tests/unit/benchmarks/test_dockerignore_subset.py`); see its `README.md`. Validate with `uv run python -m unittest discover -s benchmarks/catalogue/tests -t .` (set `GROW_PERF_PG_BINDIR` to a PostgreSQL 16 `bin` directory for the database tests). CI job `Catalogue benchmark harness` (`.github/workflows/catalogue-benchmark.yml`) is not required, but its schema contract (`benchmarks/catalogue/catalogue-schema.tsv`) is guarded by `tests/integration/benchmarks/test_catalogue_schema_contract.py` in the required `Pytest` job: after a migration, apply the diff it prints and classify new tables in `catalogue_restore.py`.
 - **Calling the API on staging or prod:** `CURATION_API_KEY` and `PIPELINE_API_KEY` are server-side variables; never ask the user for a key. Use the `curate-grow` workflow or `~/git/infrastructure/scripts/grow-api-call.sh <staging|prod> METHOD PATH`, which loads the key itself.
-- These map 1:1 to CI (`.github/workflows/validate.yml` jobs `Lint`, `Migration check`, `Pytest`; `.github/workflows/perf.yml` job `Perf`). Run all of them except Perf before opening a PR.
+- These map 1:1 to CI (`.github/workflows/validate.yml` jobs `Lint`, `Migration check`, `OpenAPI`, `Pytest`, `Coverage`, `Tests success`; `.github/workflows/perf.yml` job `Perf`). Run all of them except Perf before opening a PR.
 
 ## Architecture
 
