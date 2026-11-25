@@ -7,8 +7,8 @@ they are schema-valid, and grow stores them.
 
 import pytest
 from jsonschema import Draft7Validator
+from the_music_tree_grow_contracts import load_schema
 
-from grow.schemas import load_gold_schema
 from tests.integration.region_map.test_region_map import ALERT, GENRE, HIDDEN, TRADITION, _index, _region
 from tests.utils.json_schema import keys_used, property_names
 
@@ -38,13 +38,13 @@ SAMPLES = {
 
 @pytest.mark.parametrize("name", SAMPLES)
 def test_sample_covers_every_schema_property(name):
-    declared, used = property_names(load_gold_schema(name)), keys_used(SAMPLES[name])
+    declared, used = property_names(load_schema(name)), keys_used(SAMPLES[name])
 
     assert declared == used, {"unused": declared - used, "unknown": used - declared}
 
 
 @pytest.mark.parametrize("name", SAMPLES)
 def test_sample_is_schema_valid(name):
-    Draft7Validator.check_schema(load_gold_schema(name))
+    Draft7Validator.check_schema(load_schema(name))
 
-    assert Draft7Validator(load_gold_schema(name)).is_valid(SAMPLES[name])
+    assert Draft7Validator(load_schema(name)).is_valid(SAMPLES[name])

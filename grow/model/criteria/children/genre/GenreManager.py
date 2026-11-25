@@ -16,10 +16,10 @@ from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager impor
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.criteria.Fields import Fields
+from the_music_tree_grow_contracts.curation_lists import ADDITION_LISTS, CANONICAL_ROOTS_LIST, EXCLUDED_GENRE_LISTS
 
 from grow.curation.admin_rules import admin_provenance, invalid, upsert_admin_rule
 from grow.curation.edges import find_edge_parent_rule
-from grow.curation.lists import ADDITION_LISTS, CANONICAL_ROOTS_LIST, EXCLUDED_GENRE_LISTS
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry

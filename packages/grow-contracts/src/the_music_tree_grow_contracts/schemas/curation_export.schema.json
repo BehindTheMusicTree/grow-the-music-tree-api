@@ -1,0 +1,1529 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/packages/grow-contracts/src/the_music_tree_grow_contracts/schemas/curation_export.schema.json",
+  "title": "Curation export",
+  "type": "object",
+  "properties": {
+    "canonical_parent_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "label",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "capitalized_words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "word": {
+            "type": "string",
+            "minLength": 1
+          },
+          "capitalized": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "word",
+          "capitalized",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "duplicate_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "indigenous_to_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "label_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "display_label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "display_label",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "forced_canonical_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "out_of_scope_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "overview_reclassifications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "local_identities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "genre",
+              "overview"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "kind",
+          "label",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "canonical_roots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "regional_memberships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "child_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "parent_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "prohibit"
+            ]
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "child_item_id",
+          "parent_item_id",
+          "action",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "regional_anchorings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "overview_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "overview_item_id",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_merges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "target_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "source_item_id",
+          "target_item_id",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_derivations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "origin_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "origin_item_id",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "regional_overview_types": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
+          },
+          "overview_type": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical"
+            ]
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "overview_type",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "regional_overview_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "label",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "synthetic_overview_resolutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "remove"
+            ]
+          },
+          "replacement_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)?$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "action",
+          "replacement_item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "technique_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "theme_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "umbrella_non_stylistic_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "umbrella_stylistic_genres": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "canonical_genre_scene": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "scene": {
+            "type": "string",
+            "enum": [
+              "commercial",
+              "underground"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "scene",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "accepted_non_genre_tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_genre_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_genre_name",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "musicbrainz_free_genre_tags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_tag_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_tag_name",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "canonical_genre_pop_side": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "root_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "pop_child_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "root_item_id",
+          "pop_child_item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_alias": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_genre_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "wikidata_genre_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)?$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_genre_name",
+          "wikidata_genre_name",
+          "target_item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_disambiguation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_genre_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "is_default": {
+            "type": "string",
+            "enum": [
+              "true",
+              ""
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_genre_name",
+          "item_id",
+          "is_default",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_disambiguation_context": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_genre_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "context_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_genre_name",
+          "item_id",
+          "context_item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "song_genre": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_recording_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "genre_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)?$"
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision_source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_recording_id",
+          "genre_item_id",
+          "decision_id",
+          "decision_source",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "recording_youtube_video": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "musicbrainz_recording_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "youtube_video_id": {
+            "type": "string"
+          },
+          "unplayable_reason": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "musicbrainz_recording_id",
+          "youtube_video_id",
+          "unplayable_reason",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "essential_songs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "musicbrainz_recording_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "position": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "musicbrainz_recording_id",
+          "position",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "summary_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "summary",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "genre_precedence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "over_item_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "over_item_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "entity_cultural_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "is_cultural": {
+            "type": "string",
+            "enum": [
+              "true",
+              ""
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "is_cultural",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cultural_membership_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "child_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "parent_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "child_entity_id",
+          "parent_entity_id",
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "entity_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "entity_kind": {
+            "type": "string",
+            "enum": [
+              "cultural_region",
+              "macro_region",
+              "city",
+              "admin_unit",
+              "historical_country",
+              ""
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "entity_kind",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "entity_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "entity_membership_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "child_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "parent_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "child_entity_id",
+          "parent_entity_id",
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "federated_state_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "place_relation_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "child_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "parent_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "extent": {
+            "type": "string",
+            "enum": [
+              "full",
+              "partial",
+              "reject"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "child_entity_id",
+          "parent_entity_id",
+          "extent",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "entity_time_span_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "start_year": {
+            "type": "string",
+            "pattern": "^(?:\\s*(?:-?[1-9][0-9]*|0)\\s*)?$"
+          },
+          "end_year": {
+            "type": "string",
+            "pattern": "^(?:\\s*(?:-?[1-9][0-9]*|0)\\s*)?$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "start_year",
+          "end_year",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "region_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "region_id": {
+            "type": "string",
+            "enum": [
+              "americas",
+              "europe",
+              "africa",
+              "asia",
+              "oceania",
+              "religions"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "entity_id",
+          "region_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tradition_additions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "wikidata_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tradition_exclusions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "wikidata_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cultural_place_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "child_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "parent_entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "child_entity_id",
+          "parent_entity_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tradition_placement_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)?$"
+          },
+          "start_year": {
+            "type": "string",
+            "pattern": "^(?:\\s*(?:-?[1-9][0-9]*|0)\\s*)?$"
+          },
+          "end_year": {
+            "type": "string",
+            "pattern": "^(?:\\s*(?:-?[1-9][0-9]*|0)\\s*)?$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "wikidata_id",
+          "entity_id",
+          "start_year",
+          "end_year",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tradition_extra_places": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "entity_id": {
+            "type": "string",
+            "pattern": "^(?:[a-z]{4}[0-9]{4}|Q[0-9]+)$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "wikidata_id",
+          "entity_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "tradition_link_overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from_wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "to_wikidata_id": {
+            "type": "string",
+            "pattern": "^(?:Q[0-9]+)$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "lineage",
+              "association"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "from_wikidata_id",
+          "to_wikidata_id",
+          "kind",
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "relation": {
+            "type": "string",
+            "enum": [
+              "canonical_parent",
+              "regional_genre_parent",
+              "regional_overview",
+              "secondary_parent"
+            ]
+          },
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parent_item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove",
+              ""
+            ]
+          },
+          "exclude_other_parents": {
+            "type": "string",
+            "enum": [
+              "true",
+              ""
+            ]
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "relation",
+          "item_id",
+          "parent_item_id",
+          "action",
+          "exclude_other_parents",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "exported_on": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "genre_alias_version": {
+      "const": 2
+    },
+    "overview_status_overrides": {
+      "deprecated": true,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "item_id",
+          "status",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "canonical_parent_additions",
+    "capitalized_words",
+    "duplicate_genres",
+    "indigenous_to_exclusions",
+    "label_overrides",
+    "forced_canonical_genres",
+    "out_of_scope_genres",
+    "overview_reclassifications",
+    "local_identities",
+    "canonical_roots",
+    "regional_memberships",
+    "regional_anchorings",
+    "genre_merges",
+    "genre_derivations",
+    "regional_overview_types",
+    "regional_overview_additions",
+    "synthetic_overview_resolutions",
+    "technique_genres",
+    "theme_genres",
+    "umbrella_non_stylistic_genres",
+    "umbrella_stylistic_genres",
+    "canonical_genre_scene",
+    "accepted_non_genre_tags",
+    "musicbrainz_free_genre_tags",
+    "canonical_genre_pop_side",
+    "genre_alias",
+    "genre_disambiguation",
+    "genre_disambiguation_context",
+    "song_genre",
+    "recording_youtube_video",
+    "essential_songs",
+    "summary_overrides",
+    "genre_precedence",
+    "entity_cultural_roles",
+    "cultural_membership_overrides",
+    "entity_additions",
+    "entity_exclusions",
+    "entity_membership_overrides",
+    "federated_state_overrides",
+    "place_relation_overrides",
+    "entity_time_span_overrides",
+    "region_overrides",
+    "tradition_additions",
+    "tradition_exclusions",
+    "cultural_place_overrides",
+    "tradition_placement_overrides",
+    "tradition_extra_places",
+    "tradition_link_overrides",
+    "edges",
+    "exported_on",
+    "genre_alias_version"
+  ],
+  "additionalProperties": false
+}

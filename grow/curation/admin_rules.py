@@ -3,8 +3,8 @@ from uuid import uuid4
 
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 
-from grow.curation.lists import CURATION_LISTS
 from grow.curation.rows import InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
 

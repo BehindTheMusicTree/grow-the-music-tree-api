@@ -20,6 +20,7 @@ dependencies = [
     "cachecontrol==0.14.4",
     "jsonschema==4.26.0",
     "drf-spectacular==0.30.0",
+    "the-music-tree-grow-contracts",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +40,12 @@ constraint-dependencies = [
     "cryptography<49; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "cryptography>=49; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
+
+[tool.uv.workspace]
+members = ["packages/grow-contracts"]
+
+[tool.uv.sources]
+the-music-tree-grow-contracts = { workspace = true }
 
 [tool.ruff]
 # Shared rule set vendored from the-music-tree-genre-kit/baselines/ruff.toml (itself vendored from hear-the-music-tree-api).
@@ -98,7 +105,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 DJANGO_SETTINGS_MODULE = "tests.settings"
-addopts = "--cov=grow --cov-report=term-missing --cov-fail-under=85 -m 'not postgres'"
+addopts = "--cov=grow --cov=packages/grow-contracts/src --cov-report=term-missing --cov-fail-under=85 -m 'not postgres'"
 markers = [
     "postgres: needs Postgres (COPY); run with -m postgres --ds=tests.postgres_settings --no-cov",
 ]

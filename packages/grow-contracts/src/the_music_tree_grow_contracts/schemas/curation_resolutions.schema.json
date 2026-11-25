@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/BehindTheMusicTree/the-music-tree-pipelines/wikidata/curation_resolutions.schema.json",
+  "$id": "https://raw.githubusercontent.com/BehindTheMusicTree/grow-the-music-tree-api/main/packages/grow-contracts/src/the_music_tree_grow_contracts/schemas/curation_resolutions.schema.json",
   "title": "Curation QID resolutions",
   "type": "object",
   "properties": {

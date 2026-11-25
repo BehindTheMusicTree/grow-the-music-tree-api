@@ -6,4 +6,4 @@
 - Do not add a version parameter or a legacy projection for a format change by default.
 - When rows migrate progressively, add the column as optional in grow and give pipelines a fallback for rows without it.
 - Add a legacy projection only when grow and pipelines cannot be deployed together. Then put a removal condition in a comment next to it and open a follow-up issue that references it. Existing examples: `overview_status_overrides` and `genre_alias_version`.
-- A change here also needs a pipelines PR. Pipelines' `AGENTS.md` points back to this rule.
+- The columns live in `packages/grow-contracts` (`the-music-tree-grow-contracts`): change `curation_lists.py`, regenerate `curation_export.schema.json` (`uv run python -m the_music_tree_grow_contracts.generate`) and release the package; pipelines bumps its pin before the next prod run.

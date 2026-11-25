@@ -15,10 +15,10 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from the_music_tree_grow_contracts import first_error
 
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.import_run.ImportRun import ImportRun
-from grow.schemas import first_error
 from grow.view.curation import CurationView
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
