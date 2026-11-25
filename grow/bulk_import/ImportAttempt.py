@@ -35,6 +35,10 @@ class ImportAttempt(models.Model):
     data_applied = models.BooleanField(default=False)
     # Set while a queued attempt sees no live django-q cluster; reconcile fails the attempt once it lasts too long.
     worker_absent_since = models.DateTimeField(null=True)
+    # Kept after the run is cleaned up, so the pipeline panel can still show the last attempt.
+    pipeline_run_request = models.ForeignKey(
+        "grow.PipelineRunRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="import_attempts"
+    )
 
     class Meta:
         db_table = "grow_import_attempt"

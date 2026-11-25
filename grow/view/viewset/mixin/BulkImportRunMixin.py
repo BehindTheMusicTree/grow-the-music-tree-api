@@ -31,6 +31,7 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.serializer.schema.common import (
     CountSerializer,
     FullImportRunCreateRequestSerializer,
@@ -230,6 +231,7 @@ def bulk_import_run_actions(
 
     @extend_schema(
         request=create_request,
+        parameters=[HEADER_PARAMETER],
         responses={status.HTTP_201_CREATED: ImportRunCreatedSerializer},
         description=f"Accepted modes: {', '.join(modes)}. Abandons every uncommitted run of the same kind.",
     )
@@ -238,6 +240,7 @@ def bulk_import_run_actions(
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
         if mode not in modes:
             raise ValidationError(f"mode must be one of {', '.join(modes)}")
+        pipeline_run = linked_pipeline_run(request)
         metadata = run_metadata(request.data, mode) if kind == ImportRun.Kind.SONGS else {}
         with transaction.atomic():
             if kind == ImportRun.Kind.SONGS:
@@ -258,7 +261,7 @@ def bulk_import_run_actions(
                 model._default_manager.filter(run_id__in=abandoned_ids).delete()
             BulkImportDeletion.objects.filter(run_id__in=abandoned_ids).delete()
             BulkImportRun.objects.filter(pk__in=abandoned_ids).delete()
-            run = BulkImportRun.objects.create(kind=kind, mode=mode, **metadata)
+            run = BulkImportRun.objects.create(kind=kind, mode=mode, pipeline_run_request=pipeline_run, **metadata)
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 
     @_upload_schema("One gzip NDJSON part of the run's rows.", [_RUN_ID_PARAM, _PART_PARAM])

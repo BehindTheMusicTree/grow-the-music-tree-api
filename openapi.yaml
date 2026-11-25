@@ -304,6 +304,13 @@ paths:
       operationId: v1_artists_import_runs_create
       description: 'Accepted modes: full, delta. Abandons every uncommitted run of
         the same kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -3030,6 +3037,13 @@ paths:
         Queues a reference graph import (same body as `PUT genres/graph/`) and answers 202 `{taskId}`; the merge runs in the
         worker, so the initial cutover over every song is not bound by the web `statement_timeout`. The checks here only
         fail fast: the worker repeats them under its locks.
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -3251,6 +3265,13 @@ paths:
         Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
         tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -3872,6 +3893,13 @@ paths:
       operationId: v1_library_songs_songs_import_runs_create
       description: 'Accepted modes: full, delta. Abandons every uncommitted run of
         the same kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -4549,6 +4577,8 @@ paths:
   /v1/pipeline/runs/latest/:
     get:
       operationId: v1_pipeline_runs_latest_retrieve
+      description: The newest run, with the progress of its linked import and typical
+        stage durations.
       tags:
       - v1
       security:
@@ -4559,7 +4589,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PipelineRun'
+                $ref: '#/components/schemas/PipelineRunLatest'
           description: ''
         '204':
           description: No run was ever requested.
@@ -4877,6 +4907,13 @@ paths:
       operationId: v1_regions_map_import_runs_create
       description: 'Accepted modes: full. Abandons every uncommitted run of the same
         kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -8705,7 +8742,7 @@ components:
         trigger:
           $ref: '#/components/schemas/TriggerEnum'
         status:
-          $ref: '#/components/schemas/PipelineRunStatusEnum'
+          $ref: '#/components/schemas/Status18bEnum'
         stage:
           nullable: true
           oneOf:
@@ -8779,6 +8816,84 @@ components:
         * `curation` - Curation
         * `full` - Full
         * `sync` - Sync
+    PipelineRunLatest:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PipelineRunKindEnum'
+        trigger:
+          $ref: '#/components/schemas/TriggerEnum'
+        status:
+          $ref: '#/components/schemas/Status18bEnum'
+        stage:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStageEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        stageCurrent:
+          type: integer
+          nullable: true
+        stageTotal:
+          type: integer
+          nullable: true
+        stepTelemetry:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          description: '`StepTelemetry` of a full run.'
+        error:
+          type: string
+          nullable: true
+        requestedOn:
+          type: string
+          format: date-time
+        startedOn:
+          type: string
+          format: date-time
+          nullable: true
+        heartbeatOn:
+          type: string
+          format: date-time
+          nullable: true
+        finishedOn:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: email
+          nullable: true
+        cancelRequested:
+          type: boolean
+        activeImport:
+          nullable: true
+          description: Progress of the newest import attempt made for the run, plus
+            `bootstrap`.
+        typicalStageSeconds:
+          nullable: true
+          description: Median seconds per stage by telemetry chain over recent succeeded
+            full runs.
+      required:
+      - activeImport
+      - cancelRequested
+      - error
+      - finishedOn
+      - heartbeatOn
+      - kind
+      - requestedBy
+      - requestedOn
+      - stage
+      - stageCurrent
+      - stageTotal
+      - startedOn
+      - status
+      - stepTelemetry
+      - trigger
+      - typicalStageSeconds
+      - uuid
     PipelineRunPage:
       type: object
       properties:
@@ -8858,24 +8973,6 @@ components:
         * `merging_artists` - Merging Artists
         * `uploading_region_map` - Uploading Region Map
         * `merging_region_map` - Merging Region Map
-    PipelineRunStatusEnum:
-      enum:
-      - queued
-      - running
-      - succeeded
-      - failed
-      - superseded
-      - cancelled
-      - expired
-      type: string
-      description: |-
-        * `queued` - Queued
-        * `running` - Running
-        * `succeeded` - Succeeded
-        * `failed` - Failed
-        * `superseded` - Superseded
-        * `cancelled` - Cancelled
-        * `expired` - Expired
     PlayDetailed:
       type: object
       description: |-
@@ -9596,6 +9693,24 @@ components:
         * `succeeded` - succeeded
         * `failed` - failed
         * `cancelled` - cancelled
+    Status18bEnum:
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      - superseded
+      - cancelled
+      - expired
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `running` - Running
+        * `succeeded` - Succeeded
+        * `failed` - Failed
+        * `superseded` - Superseded
+        * `cancelled` - Cancelled
+        * `expired` - Expired
     StepTelemetry:
       type: object
       properties:

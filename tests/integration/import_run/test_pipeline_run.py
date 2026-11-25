@@ -60,6 +60,11 @@ class TestPipelineRun(AppTestCase):
     def _latest(self):
         return self.pipeline.get(path=reverse("pipeline-runs-latest"))
 
+    def _latest_run(self) -> dict:
+        """The latest run without the import progress fields, which have their own tests."""
+        body = self._latest().json()
+        return {key: value for key, value in body.items() if key not in ("activeImport", "typicalStageSeconds")}
+
     def _go_silent(self, uuid: str, minutes: int) -> None:
         PipelineRunRequest.objects.filter(uuid=uuid).update(heartbeat_on=timezone.now() - timedelta(minutes=minutes))
 
@@ -109,8 +114,12 @@ class TestPipelineRun(AppTestCase):
         assert done["finishedOn"] is not None
         assert self._patch(requested["uuid"], {"stage": "merging_songs"}).status_code == status.HTTP_409_CONFLICT
 
-        assert self._latest().json() == done
-        assert self.api_client.get(path=reverse("pipeline-runs-latest")).json() == done
+        assert self._latest_run() == done
+        assert self.api_client.get(path=reverse("pipeline-runs-latest")).json() == {
+            **done,
+            "activeImport": None,
+            "typicalStageSeconds": None,
+        }
 
     def test_background_geohistory_failure_replaces_foreground_stage(self):
         uuid = self._request("full")["uuid"]
@@ -123,7 +132,7 @@ class TestPipelineRun(AppTestCase):
         result = failed.json()
         assert (result["status"], result["stage"], result["error"]) == ("failed", "ingesting_geohistory", error)
         assert result["finishedOn"] is not None
-        assert self._latest().json() == result
+        assert self._latest_run() == result
 
     def test_full_step_telemetry_survives_independent_progress_and_terminal_updates(self):
         uuid = self._request("full")["uuid"]
@@ -164,7 +173,7 @@ class TestPipelineRun(AppTestCase):
         assert done.status_code == status.HTTP_200_OK, done.content
         assert done.json()["stepTelemetry"]["wikidata"] == [finished]
         assert done.json()["stepTelemetry"]["wikidataRetry"] is None
-        assert self._latest().json() == done.json()
+        assert self._latest_run() == done.json()
         assert self.api_client.get(reverse("pipeline-runs")).json()["results"][0] == done.json()
 
     def test_importing_graph_stage_follows_importing_tree(self):
@@ -437,7 +446,7 @@ class TestPipelineRun(AppTestCase):
         assert (claimed["trigger"], claimed["requestedBy"]) == ("scheduled", None)
         done = self._patch(claimed["uuid"], {"status": "succeeded"}).json()
         assert (done["trigger"], done["requestedBy"]) == ("scheduled", None)
-        assert self._latest().json() == done
+        assert self._latest_run() == done
 
     def test_pipeline_key_curation_rejected(self):
         self._edit()

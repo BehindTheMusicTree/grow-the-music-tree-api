@@ -143,6 +143,7 @@ grow_bulk_import_run|user_id|integer|YES
 grow_bulk_import_run|expected_parts|jsonb|YES
 grow_bulk_import_run|graph_revision|uuid|YES
 grow_bulk_import_run|membership_revision|uuid|YES
+grow_bulk_import_run|pipeline_run_request_id|bigint|YES
 grow_criteria|uuid|uuid|NO
 grow_criteria|created_on|timestamp with time zone|NO
 grow_criteria|updated_on|timestamp with time zone|YES
@@ -292,6 +293,7 @@ grow_import_attempt|error|text|YES
 grow_import_attempt|result|jsonb|YES
 grow_import_attempt|data_applied|boolean|NO
 grow_import_attempt|worker_absent_since|timestamp with time zone|YES
+grow_import_attempt|pipeline_run_request_id|bigint|YES
 grow_import_part|id|bigint|NO
 grow_import_part|stream|text|NO
 grow_import_part|part|integer|NO
