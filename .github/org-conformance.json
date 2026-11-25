@@ -5,11 +5,6 @@
         "workflow": "build-and-deploy.yml",
         "form": "queue",
         "reason": "Deploys the environment: runs queue per ref and are never cancelled mid-deploy."
-      },
-      {
-        "workflow": "release-tag.yml",
-        "form": "event",
-        "reason": "Release workflow with an inline PyPI publish job: one group per pushed commit, so a replaced run never leaves a version bump untagged. Remove once BehindTheMusicTree/github-workflows#79 recognizes it."
       }
     ]
   }
