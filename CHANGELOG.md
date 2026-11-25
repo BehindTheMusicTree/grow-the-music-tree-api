@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- ci(perf): the required `Perf` check is now a scoped gate job over `Perf route` and the renamed heavy job `Perf run` (skipped for non-runtime PRs; a failed route fails the gate instead of running in full). The check name is unchanged. Refs BehindTheMusicTree/github-config#97.
 - ci(coverage): coverage now goes through the shared `coverage` workflow (line threshold 85, Postgres tests included) and a `Tests success` gate aggregating `pytest` and `coverage`; the nightly `schedule` trigger of `validate.yml` is removed. Refs BehindTheMusicTree/github-config#97.
 - `GET library/songs/` is cursor-paginated by default: without `page`, pages follow `next` with a versioned cursor, in any `ordering` and with or without `genre`. Without `ordering` they now sort by pk (by title with `artist`) instead of `created_on`. The total is only counted with `with_total=true`, so a request that sends neither `page` nor `with_total=true` now gets `overallTotal: null`; requests with `page` keep numbered pages. `from` starts the first cursor page at that song (not with `cursor`; its `with_total=true` counts from that song and `next` drops it), a cursor is only valid with the `ordering` it was issued for, and `with_total` accepts only `true` or `false`. Covered by `tests/integration/track/song/` and `tests/unit/view/pagination/test_song_cursor.py`.
 
