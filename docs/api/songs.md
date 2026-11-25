@@ -89,9 +89,14 @@ Regional genres only accept `all` among the legacy values. Contract 4 scopes wor
 
 #### List by artist
 
+An explicit `page` selects the numbered pagination used by existing artist panels and playback queues. This mode accepts
+`playable`, `genre`, `from`, `coverage` and `subgenres`, with the same filters as the general song list. Its response
+includes page numbers and, by default, the total. An artist filter can also narrow the genre catalogue cursor above.
+Use artist cursor pagination below for large unfiltered artist catalogues.
+
 `GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
 
-Only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
+For cursor pages, only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
 returns 400, as do an unknown ordering or an invalid cursor. Pages are keyset pages: `next` carries the `cursor` of the
 following page and is null on the last one. `count`, `page` and `totalPages` are null, `previous` is always null.
 Songs without an album year come last under `-albumYear`.

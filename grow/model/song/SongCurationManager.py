@@ -64,7 +64,8 @@ class SongCurationManager:
         entries = []
         for song, key in zip(songs, keys, strict=True):
             old = song_genre(song)
-            previous.append({"uuid": song.uuid, "genre": old.uuid if old else None})
+            # Older clients replay the assignment to undo; only the token restores the full snapshot.
+            previous.append({"uuid": song.uuid, "genre": old.uuid if old else None, "undoable": False})
             before = song_attribution_state(song)
             rule = CurationEntry.objects.filter(user=None, list_name=SONG_GENRE_LIST, key=key).first()
             entry: dict[str, Any] = {

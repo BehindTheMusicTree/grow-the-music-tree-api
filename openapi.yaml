@@ -9584,8 +9584,13 @@ components:
           type: string
           format: uuid
           nullable: true
+        undoable:
+          type: boolean
+          description: Always false. Use the response's undo token to restore the
+            edit.
       required:
       - genre
+      - undoable
       - uuid
     SongSearchResult:
       type: object

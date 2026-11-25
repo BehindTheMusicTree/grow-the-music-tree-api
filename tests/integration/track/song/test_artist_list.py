@@ -7,6 +7,7 @@ from rest_framework import status
 
 from grow.model.artist_song.ArtistSong import ArtistSong
 from grow.model.artist_song.ArtistSongState import ArtistSongState
+from grow.model.song.Song import Song
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.song_graph import install_song_graph
 
@@ -75,9 +76,76 @@ class TestCase(AppTestCase):
 
     def test_unsupported_ordering_and_filters_are_rejected(self):
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
-        for extra in ({"ordering": "-title"}, {"playable": "true"}, {"genre": str(uuid4())}, {"page": 2}):
+        for extra in (
+            {"ordering": "-title"},
+            {"playable": "true"},
+            {"genre": str(uuid4())},
+            {"page": 1, "cursor": "invalid"},
+            {"page": 1, "unknown": "true"},
+        ):
             response = self.api_client.get(path=reverse(self.list_endpoint), data={"artist": str(uuid4()), **extra})
             assert response.status_code == status.HTTP_400_BAD_REQUEST, extra
+
+    def test_explicit_page_keeps_numbered_pagination_and_count(self):
+        artist, _ = self._artist_with_songs([("B", 2000), ("A", 2000)])
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint),
+            data={"artist": str(artist.uuid), "ordering": "title", "page": 1, "page_size": 1},
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert response.data["overallTotal"] == response.data["totalPages"] == 2
+        assert response.data["page"] == 1
+        assert [song["title"] for song in response.data["results"]] == ["A"]
+
+        second = self.api_client.get(response.data["next"])
+        assert second.data["page"] == 2
+        assert [song["title"] for song in second.data["results"]] == ["B"]
+        previous = self.api_client.get(second.data["previous"])
+        assert previous.data["page"] == 1
+
+    def test_numbered_playback_honors_genre_and_start_song(self):
+        artist, songs = self._artist_with_songs([("A", 2000), ("B", 2000), ("C", 2000), ("D", 2000)])
+        other_genre = self.model_fixture_factory.create_genre("Jazz")
+        Song.objects.filter(pk=songs[2].pk).update(youtube_video_id=None)
+        install_song_graph({songs[0].genre: songs[:3], other_genre: [songs[3]]})
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint),
+            data={
+                "artist": str(artist.uuid),
+                "ordering": "title",
+                "page": 1,
+                "playable": "true",
+                "genre": str(songs[0].genre.uuid),
+                "from": str(songs[1].uuid),
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert response.data["overallTotal"] == 1
+        assert [song["title"] for song in response.data["results"]] == ["B"]
+
+    def test_genre_panel_honors_artist_through_uuid_cursor_pages(self):
+        artist, songs = self._artist_with_songs([("A", 2000), ("B", 2000), ("C", 2000)])
+        songs[2].artists.remove(artist)
+        response = self.api_client.get(
+            path=reverse(self.list_endpoint),
+            data={
+                "artist": str(artist.uuid),
+                "genre": str(songs[0].genre.uuid),
+                "with_total": "false",
+                "page_size": 1,
+            },
+        )
+
+        assert response.status_code == status.HTTP_200_OK, response.content
+        assert response.data["page"] is None
+        assert len(response.data["results"]) == 1
+
+        second = self.api_client.get(response.data["next"])
+        assert second.status_code == status.HTTP_200_OK, second.content
+        assert second.data["next"] is None
+        assert {item["title"] for item in response.data["results"] + second.data["results"]} == {"A", "B"}
 
     def test_invalid_cursor_is_rejected(self):
         ArtistSongState.objects.update_or_create(pk=1, defaults={"ready": True})
