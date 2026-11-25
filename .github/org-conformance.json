@@ -5,6 +5,11 @@
         "workflow": "build-and-deploy.yml",
         "form": "queue",
         "reason": "Deploys the environment: runs queue per ref and are never cancelled mid-deploy."
+      },
+      {
+        "workflow": "release-tag.yml",
+        "form": "event",
+        "reason": "Has a publish job besides the release callers; one group per pushed commit so a replaced run never leaves a version bump untagged."
       }
     ]
   }
