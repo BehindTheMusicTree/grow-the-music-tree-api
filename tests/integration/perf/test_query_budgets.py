@@ -21,6 +21,7 @@ from grow.model.song.Song import Song
 from tests.utils.AppApiClient import AppApiClient
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 from tests.utils.query_budget import QueryCounts
+from tests.utils.song_graph import install_song_graph
 
 # Genre playlist summaries read the graph, catalogue and membership buckets in one
 # statement. This is independent of page and song counts;
@@ -252,3 +253,30 @@ def test_search_query_count_is_constant_and_within_budget(route):
 
     assert few_rows == many_rows, f"{route} issues queries per row"
     assert many_rows == SEARCH_BUDGETS[route], f"{route}: {many_rows} queries"
+
+
+# A songs list page with a genre filter: the query count is the same on the first and the third page,
+# whatever the pagination mode (numbered pages today, cursor next).
+SONG_LIST_BUDGET = 7
+
+
+@pytest.mark.django_db(transaction=True)
+def test_song_list_query_count_is_constant_across_pages_and_within_budget():
+    _seed_tracks(0, 12)
+    genre = GenrePlaylist.objects.get(criteria__name="Root").criteria
+    install_song_graph({genre: list(Song.objects.all())})
+    client = AppApiClient()
+    # The first request creates the admin user and its profile; keep that out of the counted queries.
+    client.get(reverse("song-list"), {"genre": str(genre.uuid), "page_size": 1})
+    counts = []
+    for page in (1, 3):
+        params = {"genre": str(genre.uuid), "ordering": "title", "page": page, "page_size": 4}
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get(reverse("song-list"), params)
+        assert response.status_code == status.HTTP_200_OK, response.content[:500]
+        counts.append(
+            QueryCounts.from_queries(queries.captured_queries).assert_protocol(snapshot=True, vendor=connection.vendor)
+        )
+
+    assert counts[0] == counts[1], f"song-list issues a different number of queries per page: {counts}"
+    assert counts[0] == SONG_LIST_BUDGET, f"song-list: {counts[0]} queries, budget {SONG_LIST_BUDGET}"
