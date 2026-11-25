@@ -3,10 +3,13 @@ import time
 from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from grow.serializer.schema.runs import HealthSerializer
 
 START_TIME = time.time()
 
@@ -15,6 +18,14 @@ class HealthCheckView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: HealthSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: OpenApiResponse(
+                HealthSerializer, description="The database check failed."
+            ),
+        }
+    )
     def get(self, request):
         health_status = {
             "status": "healthy",

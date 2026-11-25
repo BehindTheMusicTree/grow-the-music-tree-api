@@ -24,6 +24,9 @@ SPECTACULAR_SETTINGS = {
         "ImportRunModeEnum": "grow.bulk_import.BulkImportRun.BulkImportRun.Mode",
         "GenreEdgeActionEnum": "grow.model.curation.GenreEdgeRule.GenreEdgeRule.Action",
         "CurationListNameEnum": "grow.view.curation.CURATION_LIST_NAMES",
+        "ImportRunKindEnum": "grow.model.import_run.ImportRun.ImportRun.Kind",
+        "PipelineRunKindEnum": "grow.model.pipeline_run.PipelineRunRequest.PipelineRunRequest.Kind",
+        "PipelineRunStageEnum": "grow.model.pipeline_run.PipelineRunRequest.PipelineRunRequest.Stage",
     },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": [

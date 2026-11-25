@@ -2,6 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from django.contrib.contenttypes.models import ContentType
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
 from the_music_tree_api_kit.serializer.field.foreign_key.PrivateUuidField import PrivateUuidField
 from the_music_tree_genre_kit.playlist.Playlist import Playlist
 
@@ -9,6 +11,7 @@ from grow.model.ContentObjectFields import ContentObjectFields
 from grow.model.song.Song import Song
 
 
+@extend_schema_field(OpenApiTypes.UUID)
 class PrivateContentUuidField(PrivateUuidField):
     """
     Special case of PrivateUuidField that allows references to either Playlists or Tracks.
