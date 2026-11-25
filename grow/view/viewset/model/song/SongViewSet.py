@@ -136,7 +136,7 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             # UUID order also supports songs with no legacy genre assignment.
             queryset = queryset.order_by(*CURSOR_ORDERING)
         elif CURSOR_PARAM in self.request.query_params:
-            raise ParseError("`cursor` requires `pagination=cursor`.")
+            raise ParseError("`cursor` requires genre cursor pagination.")
         elif wants_no_total(self.request):
             queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)

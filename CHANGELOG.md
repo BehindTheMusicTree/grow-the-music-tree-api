@@ -31,7 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
-- **Breaking:** keyset pagination of `library/songs/` is now explicit: `?pagination=cursor` (requires `genre`, rejects `page`, `ordering` and `from`; another `pagination` value is a 400). `with_total=false` no longer switches to cursor mode: without `page` it returns numbered page 1 with no total. Clients that relied on `with_total=false` for cursors must send `pagination=cursor`. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
+- Genre song lists accept `pagination=cursor` for UUID keyset pages. Existing clients also get keyset pages when they send `genre` and `with_total=false` without `page`, `ordering` or `from`. On numbered pages, `with_total=false` skips the total count. Covered by `tests/integration/track/song/test_list.py` and `tests/integration/criteria/test_reference_graph.py`.
 
 ### Fixed
 
