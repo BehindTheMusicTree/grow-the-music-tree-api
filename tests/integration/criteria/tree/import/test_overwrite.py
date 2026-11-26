@@ -15,7 +15,7 @@ class TestOverwrite(GenreTestCase):
             {Fields.ID: "Q101", Fields.NAME_PUBLIC: "New Rock", Fields.CHILDREN: []},
             {Fields.ID: "Q102", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -32,7 +32,7 @@ class TestOverwrite(GenreTestCase):
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock Music", Fields.CHILDREN: []},
             {Fields.ID: "Q103", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -50,7 +50,7 @@ class TestOverwrite(GenreTestCase):
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
             {Fields.ID: "Q104", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
 
@@ -65,7 +65,7 @@ class TestOverwrite(GenreTestCase):
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
             {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert Genre.objects.filter(user=None, wikidata_id="Q182985").exists()
@@ -85,7 +85,7 @@ class TestOverwrite(GenreTestCase):
             {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []},
             {Fields.ID: "Q105", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
         assert not Genre.objects.filter(user=None, wikidata_id="Q182985").exists()
@@ -108,7 +108,7 @@ class TestOverwrite(GenreTestCase):
             },
             {Fields.ID: "Q105", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []},
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_201_CREATED
         assert Genre.objects.get(wikidata_id="Q3071").parent_id == rock.pk

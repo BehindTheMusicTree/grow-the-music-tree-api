@@ -102,25 +102,25 @@ class TestCase(AppTestCase):
         playlist = GenrePlaylist.objects.get(criteria=self.punk)
         TrackPlaylistRel.objects.filter(track=playable, playlist=playlist).delete()
         path = reverse("genre-playlist-list") + "tree/"
-        response = self.api_client.get(path, {"tree_name": "canonical", "artist": str(self.artist.uuid)})
+        response = self.api_client.get(path, {"tree_name": "global", "artist": str(self.artist.uuid)})
 
         assert response.status_code == 200
         rows = {row["name"]: row for row in response.json()}
         assert set(rows) == {"Rock", "Punk"}
         assert rows["Punk"]["catalogue"] == {
             "genreOnlyTracksCount": 2,
-            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 2, "all": 2},
+            "genreAndSubgenresTracksCount": {"global": 2, "regional": 2, "all": 2},
         }
         assert rows["Punk"]["genreOnlyTracksCount"] == 0
-        assert rows["Punk"]["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 0, "all": 0}
+        assert rows["Punk"]["genreAndSubgenresTracksCount"] == {"global": 0, "regional": 0, "all": 0}
         assert rows["Rock"]["genreOnlyTracksCount"] == 0
-        assert rows["Rock"]["genreAndSubgenresTracksCount"] == {"canonical": 1, "regional": 0, "all": 1}
+        assert rows["Rock"]["genreAndSubgenresTracksCount"] == {"global": 1, "regional": 0, "all": 1}
         assert "viewsCount" not in rows["Rock"]
         assert response["Cache-Control"] == "no-store"
-        assert self.api_client.get(path, {"tree_name": "canonical", "artist": "bad"}).status_code == 400
+        assert self.api_client.get(path, {"tree_name": "global", "artist": "bad"}).status_code == 400
         assert (
             self.api_client.get(
-                path, {"tree_name": "canonical", "artist": "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"}
+                path, {"tree_name": "global", "artist": "0c4b2a83-6a5c-4c1d-9f43-3b9d8f0b2e11"}
             ).status_code
             == 404
         )
@@ -134,17 +134,17 @@ class TestCase(AppTestCase):
         playlist = GenrePlaylist.objects.get(criteria=self.rock)
         TrackPlaylistRel.objects.get_or_create(playlist=playlist, track=regional_song, defaults={"user": None})
         path = reverse("genre-playlist-list") + "tree/"
-        response = self.api_client.get(path, {"tree_name": "canonical", "artist": str(self.artist.uuid)})
+        response = self.api_client.get(path, {"tree_name": "global", "artist": str(self.artist.uuid)})
         assert response.status_code == 200
         row = next(row for row in response.json() if row["name"] == "Rock")
-        expected = {"canonical": 2, "regional": 2, "all": 3}
+        expected = {"global": 2, "regional": 2, "all": 3}
         assert row["catalogue"]["genreAndSubgenresTracksCount"] == expected
         assert row["genreAndSubgenresTracksCount"] == expected
         TrackPlaylistRel.objects.filter(playlist=playlist, track=regional_song).delete()
-        response = self.api_client.get(path, {"tree_name": "canonical", "artist": str(self.artist.uuid)})
+        response = self.api_client.get(path, {"tree_name": "global", "artist": str(self.artist.uuid)})
         row = next(row for row in response.json() if row["name"] == "Rock")
         assert row["catalogue"]["genreAndSubgenresTracksCount"] == expected
-        assert row["genreAndSubgenresTracksCount"] == {"canonical": 2, "regional": 1, "all": 2}
+        assert row["genreAndSubgenresTracksCount"] == {"global": 2, "regional": 1, "all": 2}
 
     def test_artist_counts_use_actual_membership_and_scoped_catalogue(self):
         regional = self.factory.create_genre("Regional", tree_name="regional")
@@ -159,13 +159,13 @@ class TestCase(AppTestCase):
         row = next(row for row in response.json() if row["genrePlaylist"] == str(playlist.uuid))
         assert row["songsCount"] == 0
         assert row["tracksCount"] == 0
-        assert row["catalogue"]["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 1, "all": 1}
-        assert row["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 1, "all": 1}
+        assert row["catalogue"]["genreAndSubgenresTracksCount"] == {"global": 0, "regional": 1, "all": 1}
+        assert row["genreAndSubgenresTracksCount"] == {"global": 0, "regional": 1, "all": 1}
 
         TrackPlaylistRel.objects.filter(playlist=playlist, track=song).delete()
         response = self.api_client.get(path)
         row = next(row for row in response.json() if row["genrePlaylist"] == str(playlist.uuid))
-        assert row["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 0, "all": 0}
+        assert row["genreAndSubgenresTracksCount"] == {"global": 0, "regional": 0, "all": 0}
 
     def test_artist_tree_keeps_canonical_genre_with_only_regional_songs(self):
         regional = self.factory.create_genre("Regional", tree_name="regional")
@@ -173,24 +173,24 @@ class TestCase(AppTestCase):
         self.song("Regional song", regional)
 
         path = reverse("genre-playlist-list") + "tree/"
-        response = self.api_client.get(path, {"tree_name": "canonical", "artist": str(self.artist.uuid)})
+        response = self.api_client.get(path, {"tree_name": "global", "artist": str(self.artist.uuid)})
 
         assert response.status_code == 200
         row = next(row for row in response.json() if row["name"] == "Rock")
         assert row["songsCount"] == 0
-        assert row["catalogue"]["genreAndSubgenresTracksCount"] == {"canonical": 0, "regional": 1, "all": 1}
+        assert row["catalogue"]["genreAndSubgenresTracksCount"] == {"global": 0, "regional": 1, "all": 1}
 
     def test_artist_tree_does_not_reuse_a_global_etag_or_artist_results(self):
         path = reverse("genre-playlist-list") + "tree/"
         self.song("Song", self.punk)
         other = self.factory.create_artist("Other")
-        global_response = self.api_client.get(path, {"tree_name": "canonical"})
+        global_response = self.api_client.get(path, {"tree_name": "global"})
         filtered = self.api_client.get(
             path,
-            {"tree_name": "canonical", "artist": str(other.uuid)},
+            {"tree_name": "global", "artist": str(other.uuid)},
             HTTP_IF_NONE_MATCH=global_response["ETag"],
         )
         assert filtered.status_code == 200
         assert filtered.json() == []
-        own = self.api_client.get(path, {"tree_name": "canonical", "artist": str(self.artist.uuid)})
+        own = self.api_client.get(path, {"tree_name": "global", "artist": str(self.artist.uuid)})
         assert {row["name"] for row in own.json()} == {"Rock", "Punk"}

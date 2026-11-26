@@ -59,7 +59,7 @@ def genre_playlist_summaries(playlist_ids) -> dict:
     memberships = playlist_counts_from_rows(membership_rows, graph, selections=selections)
     summaries = {}
     for playlist, (genre, tree) in selected_rows.items():
-        scopes = {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0}
+        scopes = {"global": 0, "regional": 0, "all": 0} if tree == "global" else {"all": 0}
         counts = memberships.get(playlist, GenreScopedCounts(0, scopes))
         summaries[playlist] = {
             **asdict(counts),

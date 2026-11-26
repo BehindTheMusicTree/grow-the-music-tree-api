@@ -50,7 +50,7 @@ class TestResetCatalogue(TransactionTestCase):
             values={"wikidata_genre_name": "x", "target_item_id": "LOCAL:sound"},
             reason="original",
         )
-        GenreEdgeRule.objects.upsert("canonical_parent", A, B, exclude_other_parents=False)
+        GenreEdgeRule.objects.upsert("classification", A, B, action="assert")
         PipelineRunRequest.objects.create(kind=PipelineRunRequest.Kind.FULL, status=PipelineRunRequest.Status.SUCCEEDED)
 
     def reset(self, *args, **kwargs):

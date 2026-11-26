@@ -24,7 +24,7 @@ class TestNameConflict(GenreTestCase):
         return self._post_genres_tree_import(data={Fields.TREE_NAME: tree_name, Fields.TREE: tree})
 
     def test_regional_namesake_of_canonical_genre_is_imported_flagged_and_renamable(self):
-        assert self._import("canonical", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import("global", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
         assert self._import("regional", REGIONAL_TREE).status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -62,7 +62,7 @@ class TestNameConflict(GenreTestCase):
 class TestNameConflictGroups(GenreTestCase):
     def setUp(self):
         super().setUp()
-        for tree_name, tree in (("canonical", CANONICAL_TREE), ("regional", REGIONAL_TREE)):
+        for tree_name, tree in (("global", CANONICAL_TREE), ("regional", REGIONAL_TREE)):
             self._post_genres_tree_import(data={Fields.TREE_NAME: tree_name, Fields.TREE: tree})
         self.genres = Genre.objects.filter(user=None)
         self.canonical = self.genres.get(wikidata_id="Q1431327")

@@ -52,7 +52,7 @@ class TestCriteriaDetail(GenreTestCase):
         assert response.status_code == 200
         assert response.json()["catalogue"] == {
             "genreOnlyTracksCount": 1,
-            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 1, "all": 2},
+            "genreAndSubgenresTracksCount": {"global": 2, "regional": 1, "all": 2},
         }
         assert response.json()["tracksCount"] == 2
 
@@ -74,7 +74,7 @@ class TestCriteriaDetail(GenreTestCase):
         summary = response.json()["criteriaPlaylist"]
         assert summary["uuid"] == str(playlist.uuid)
         assert summary["genreOnlyTracksCount"] == 1
-        assert summary["genreAndSubgenresTracksCount"] == {"canonical": 1, "regional": 2, "all": 2}
+        assert summary["genreAndSubgenresTracksCount"] == {"global": 1, "regional": 2, "all": 2}
         assert TrackPlaylistRel.objects.filter(playlist=playlist, track=direct).exists()
 
     def test_child_only_catalogue_matches_tree(self):
@@ -83,14 +83,14 @@ class TestCriteriaDetail(GenreTestCase):
         self.model_fixture_factory.create_song("Child song", genre=child, youtube_video_id=None)
 
         detail = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()
-        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "canonical"}).json()
+        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "global"}).json()
         tree_parent = next(row for row in tree if row["name"] == "Parent")
         assert (
             detail["catalogue"]
             == tree_parent["catalogue"]
             == {
                 "genreOnlyTracksCount": 0,
-                "genreAndSubgenresTracksCount": {"canonical": 1, "regional": 0, "all": 1},
+                "genreAndSubgenresTracksCount": {"global": 1, "regional": 0, "all": 1},
             }
         )
 
@@ -102,14 +102,14 @@ class TestCriteriaDetail(GenreTestCase):
         self.model_fixture_factory.create_song("Song", genre=regional)
 
         detail = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()
-        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "canonical"}).json()
+        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "global"}).json()
         tree_parent = next(row for row in tree if row["name"] == "Canonical")
         assert (
             detail["catalogue"]
             == tree_parent["catalogue"]
             == {
                 "genreOnlyTracksCount": 0,
-                "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 1, "all": 1},
+                "genreAndSubgenresTracksCount": {"global": 0, "regional": 1, "all": 1},
             }
         )
 
@@ -126,11 +126,11 @@ class TestCriteriaDetail(GenreTestCase):
 
         parent_counts = self.api_client.get(reverse("genre-detail", kwargs={"pk": parent.uuid})).json()["catalogue"]
         regional_counts = self.api_client.get(reverse("genre-detail", kwargs={"pk": regional.uuid})).json()["catalogue"]
-        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "canonical"}).json()
+        tree = self.api_client.get(reverse("genre-playlist-list") + "tree/", {"tree_name": "global"}).json()
         assert parent_counts == next(row for row in tree if row["name"] == parent.name)["catalogue"]
         assert parent_counts == {
             "genreOnlyTracksCount": 1,
-            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 3, "all": 4},
+            "genreAndSubgenresTracksCount": {"global": 2, "regional": 3, "all": 4},
         }
         assert regional_counts == {"genreOnlyTracksCount": 1, "genreAndSubgenresTracksCount": {"all": 2}}
 

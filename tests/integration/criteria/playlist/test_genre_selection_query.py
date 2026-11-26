@@ -23,12 +23,12 @@ def test_sql_selection_preserves_primary_paths_and_tree_boundaries(django_assert
     secondary = factory.create_genre("Secondary only")
     secondary.secondary_parents.add(root)
     expected = {
-        SubgenreScope.CANONICAL: {root.pk, canonical.pk},
+        SubgenreScope.GLOBAL: {root.pk, canonical.pk},
         SubgenreScope.REGIONAL: {root.pk, regional.pk, diamond.pk},
         SubgenreScope.ALL: {root.pk, canonical.pk, regional.pk, diamond.pk},
     }
     for scope, ids in expected.items():
-        query = selected_genres_query(root.pk, "canonical", scope, using=connection.alias)
+        query = selected_genres_query(root.pk, "global", scope, using=connection.alias)
         with django_assert_num_queries(1):
             result = list(Genre.objects.filter(InSubquery(F("pk"), query)).values_list("pk", flat=True))
         assert set(result) == ids

@@ -7,7 +7,7 @@ from types import MappingProxyType
 
 
 class SubgenreScope(StrEnum):
-    CANONICAL = "canonical"
+    GLOBAL = "global"
     REGIONAL = "regional"
     ALL = "all"
 
@@ -24,7 +24,7 @@ def selected_genres[K: Hashable](
     if not isinstance(scope, SubgenreScope):
         raise ValueError("Invalid subgenre scope")
     tree = tree_names[genre]
-    if tree not in {"canonical", "regional"}:
+    if tree not in {"global", "regional"}:
         raise ValueError("Invalid genre tree")
     if tree == "regional" and scope != SubgenreScope.ALL:
         raise ValueError("Regional genres require the all scope")
@@ -35,17 +35,17 @@ def selected_genres[K: Hashable](
             raise ValueError("Primary edge references a missing genre")
         children[parent].add(child)
 
-    canonical = {genre}
-    if tree == "canonical" and scope != SubgenreScope.REGIONAL:
+    global_set = {genre}
+    if tree == "global" and scope != SubgenreScope.REGIONAL:
         pending = deque([genre])
         while pending:
             parent = pending.popleft()
-            for child in children[parent] - canonical:
-                if tree_names[child] == "canonical":
-                    canonical.add(child)
+            for child in children[parent] - global_set:
+                if tree_names[child] == "global":
+                    global_set.add(child)
                     pending.append(child)
-        if scope == SubgenreScope.CANONICAL:
-            return canonical
+        if scope == SubgenreScope.GLOBAL:
+            return global_set
 
     reachable = {genre}
     pending = deque([genre])
@@ -59,12 +59,12 @@ def selected_genres[K: Hashable](
     regional = {node for node in reachable if tree_names[node] == "regional"} | {genre}
     if scope == SubgenreScope.REGIONAL:
         return regional
-    return canonical | regional
+    return global_set | regional
 
 
 @dataclass(frozen=True)
 class GenreTreeSnapshot:
-    """Canonical primary genre graph; shared across requests, so never mutate it."""
+    """Reference primary genre graph; shared across requests, so never mutate it."""
 
     tree_names: Mapping
     primary_edges: frozenset
@@ -144,7 +144,7 @@ def parse_subgenres(value, coverage, tree_name):
         scope = (
             SubgenreScope(value)
             if value is not None
-            else (SubgenreScope.CANONICAL if tree_name == "canonical" else SubgenreScope.ALL)
+            else (SubgenreScope.GLOBAL if tree_name == "global" else SubgenreScope.ALL)
         )
     except ValueError:
         raise ValidationError({"subgenres": "Invalid subgenre scope."}) from None
@@ -170,13 +170,13 @@ def _selection_index[K: Hashable](tree_items: tuple[tuple[K, str], ...], primary
     remaining = [len(descendants) for descendants in children]
     pending = deque(index for index, count in enumerate(remaining) if count == 0)
     reachable = [1 << index for index in range(len(nodes))]
-    canonical = reachable.copy()
-    canonical_nodes = [tree_names[node] == "canonical" for node in nodes]
+    global_masks = reachable.copy()
+    global_nodes = [tree_names[node] == "global" for node in nodes]
     regional_mask = 0
     for index, node in enumerate(nodes):
         if tree_names[node] == "regional":
             regional_mask |= 1 << index
-        elif tree_names[node] != "canonical":
+        elif tree_names[node] != "global":
             raise ValueError("Invalid genre tree")
     processed = 0
     while pending:
@@ -184,8 +184,8 @@ def _selection_index[K: Hashable](tree_items: tuple[tuple[K, str], ...], primary
         processed += 1
         for parent in parents[child]:
             reachable[parent] |= reachable[child]
-            if canonical_nodes[child]:
-                canonical[parent] |= canonical[child]
+            if global_nodes[child]:
+                global_masks[parent] |= global_masks[child]
             remaining[parent] -= 1
             if remaining[parent] == 0:
                 pending.append(parent)
@@ -201,7 +201,7 @@ def _selection_index[K: Hashable](tree_items: tuple[tuple[K, str], ...], primary
             mask ^= bit
         return frozenset(result)
 
-    return indices, reachable, canonical, regional_mask, members
+    return indices, reachable, global_masks, regional_mask, members
 
 
 _last_index: tuple | None = None
@@ -224,7 +224,7 @@ def all_genre_selections[K: Hashable](
         # Snapshot graphs are immutable and reused, so identity skips rehashing ~6k nodes per call.
         if isinstance(tree_names, MappingProxyType) and isinstance(primary_edges, frozenset):
             _last_index = tree_names, primary_edges, index_data
-    indices, reachable, canonical, regional_mask, members = index_data
+    indices, reachable, global_masks, regional_mask, members = index_data
     result = {}
     for genre in tree_names if genres is None else genres:
         index = indices[genre]
@@ -233,8 +233,8 @@ def all_genre_selections[K: Hashable](
         else:
             regional = (reachable[index] & regional_mask) | (1 << index)
             result[genre] = {
-                SubgenreScope.CANONICAL: members(canonical[index]),
+                SubgenreScope.GLOBAL: members(global_masks[index]),
                 SubgenreScope.REGIONAL: members(regional),
-                SubgenreScope.ALL: members(canonical[index] | regional),
+                SubgenreScope.ALL: members(global_masks[index] | regional),
             }
     return result

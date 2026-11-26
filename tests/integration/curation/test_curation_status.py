@@ -15,7 +15,7 @@ from tests.utils.curation_export import export_curation
 MB_ID = "11111111-1111-4111-8111-111111111111"
 ITEM = {"item_id": "Q999999991", "reason": "testing"}
 TREE = {
-    Fields.TREE_NAME: "canonical",
+    Fields.TREE_NAME: "global",
     Fields.TREE: [{Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}],
 }
 

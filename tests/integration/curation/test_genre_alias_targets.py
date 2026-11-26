@@ -11,7 +11,7 @@ from tests.utils.AppApiClient import AppApiClient
 from tests.utils.AppTestCase import AppTestCase
 
 TARGETS = [
-    {"id": "Q1", "label": "Same label", "tree": "canonical"},
+    {"id": "Q1", "label": "Same label", "tree": "global"},
     {"id": "Q2", "label": "Same label", "tree": "regional"},
     {"id": "LOCAL:sound", "label": "Local sound", "tree": "local"},
 ]

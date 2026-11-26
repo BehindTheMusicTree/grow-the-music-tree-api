@@ -14,7 +14,7 @@ class GenreTestCase(AppTestCase):
     def _list_genres(self, **kwargs):
         return self.api_client.get(path=reverse(self.list_endpoint), data=kwargs, handle_response=self._set_results)
 
-    def _get_genres_tree(self, tree_name: str | None = "canonical"):
+    def _get_genres_tree(self, tree_name: str | None = "global"):
         data = {} if tree_name is None else {"tree_name": tree_name}
         return self.api_client.get(
             path=reverse(self.list_endpoint) + "tree/",

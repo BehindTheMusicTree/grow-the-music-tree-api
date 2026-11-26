@@ -6,6 +6,7 @@ from the_music_tree_grow_contracts import SCHEMA_NAMES, first_error, load_schema
 from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 from the_music_tree_grow_contracts.generate import SCHEMA_PATH, render
 
+from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from tests.utils.AppTestCase import AppTestCase
 
 
@@ -33,6 +34,18 @@ class TestCurationExportContract(AppTestCase):
         assert first_error("curation_export", export) is None
         assert export["edges"]
         assert any(export[list_name] for list_name in CURATION_LISTS)
+
+    def test_every_relation_and_action_then_valid(self):
+        for relation in ("classification", "derivation", "influence"):
+            for action in ("assert", "prohibit"):
+                GenreEdgeRule.objects.upsert(relation, f"Q9{relation}{action}", "Q9target", action=action, reason="r")
+
+        export = self.export()
+
+        assert first_error("curation_export", export) is None
+        assert {(e["relation"], e["action"]) for e in export["edges"]} >= {
+            (r, a) for r in ("classification", "derivation", "influence") for a in ("assert", "prohibit")
+        }
 
     def test_row_with_an_unexpected_column_then_invalid(self):
         export = self.export()

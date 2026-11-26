@@ -31,7 +31,7 @@ def _newest_first(queryset):
 class AliasTargetSerializer(_StrictSerializer):
     id = serializers.RegexField(rf"^(?:{GRAPH_ITEM_ID_PATTERN})$")
     label = serializers.CharField(trim_whitespace=False)
-    tree = serializers.ChoiceField(choices=("canonical", "regional", "local"))
+    tree = serializers.ChoiceField(choices=("global", "regional", "local"))
 
 
 class AliasExposureSerializer(_StrictSerializer):

@@ -13,14 +13,14 @@ def export_curation(pipeline_client) -> str:
     return response.json()["exported_on"]
 
 
-def record_export(exported_on, canonical_roots=()):
+def record_export(exported_on, global_roots=()):
     """Stores an export as `GET curation/export/` would, for a graph or tree built from it."""
     CurationSyncState.load()
     when = parse_datetime(exported_on) if isinstance(exported_on, str) else exported_on
-    snapshot = {"canonical_roots": [{"item_id": item_id} for item_id in canonical_roots]}
+    snapshot = {"global_roots": [{"item_id": item_id} for item_id in global_roots]}
     return CurationExport.objects.update_or_create(exported_on=when, defaults={"snapshot": snapshot})[0]
 
 
 def record_graph_export(payload):
     """Stores the export a regional graph payload claims to come from, with the roots it declares."""
-    return record_export(payload["curationExportedOn"], [root["nodeId"] for root in payload["canonicalRoots"]])
+    return record_export(payload["curationExportedOn"], [root["nodeId"] for root in payload["globalRoots"]])

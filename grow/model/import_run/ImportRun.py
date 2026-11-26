@@ -5,7 +5,7 @@ class ImportRun(models.Model):
     """One data import by the nightly pipeline, for the admin freshness page. Admin manual imports aren't recorded."""
 
     class Kind(models.TextChoices):
-        CANONICAL_TREE = "canonical_tree"
+        GLOBAL_TREE = "global_tree"
         REGIONAL_TREE = "regional_tree"
         SONGS = "songs"
         ARTISTS = "artists"

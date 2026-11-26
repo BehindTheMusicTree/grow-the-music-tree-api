@@ -9,7 +9,7 @@ from grow.model.criteria.Criteria import Criteria
 
 def selected_genres_query(genre, tree_name: str, scope: SubgenreScope, *, using: str):
     """An uncorrelated genre-only closure, usable inside a membership-bounded song lookup."""
-    if tree_name not in {"canonical", "regional"}:
+    if tree_name not in {"global", "regional"}:
         raise ValueError("Invalid genre tree")
     if not isinstance(scope, SubgenreScope):
         raise ValueError("Invalid subgenre scope")
@@ -23,18 +23,18 @@ def selected_genres_query(genre, tree_name: str, scope: SubgenreScope, *, using:
     genre_id = Criteria._meta.pk.get_db_prep_value(genre, connection)
     if tree_name == "regional":
         predicate = "TRUE"
-    elif scope == SubgenreScope.CANONICAL:
-        predicate = "canonical_path"
+    elif scope == SubgenreScope.GLOBAL:
+        predicate = "global_path"
     elif scope == SubgenreScope.REGIONAL:
         predicate = "tree_name = 'regional' OR id = %s"
     else:
-        predicate = "canonical_path OR tree_name = 'regional'"
+        predicate = "global_path OR tree_name = 'regional'"
     params = [genre_id]
-    if tree_name == "canonical" and scope == SubgenreScope.REGIONAL:
+    if tree_name == "global" and scope == SubgenreScope.REGIONAL:
         params.append(genre_id)
-    node_filter = "AND c.tree_name = 'canonical'" if scope == SubgenreScope.CANONICAL else ""
-    # UNION terminates even with repeated primary paths; canonical_path preserves whether a
-    # canonical descendant was reached without crossing a regional subtree.
+    node_filter = "AND c.tree_name = 'global'" if scope == SubgenreScope.GLOBAL else ""
+    # UNION terminates even with repeated primary paths; global_path preserves whether a
+    # global descendant was reached without crossing a regional subtree.
     return RawSQL(
         f"""
         WITH RECURSIVE nodes AS MATERIALIZED (
@@ -46,10 +46,10 @@ def selected_genres_query(genre, tree_name: str, scope: SubgenreScope, *, using:
             UNION ALL
             SELECT a.to_criteria_id, a.from_criteria_id FROM {additional} a
             JOIN nodes c ON c.uuid = a.from_criteria_id
-        ), reachable(id, tree_name, canonical_path) AS (
+        ), reachable(id, tree_name, global_path) AS (
             SELECT c.uuid, c.tree_name, TRUE FROM nodes c WHERE c.uuid = %s
             UNION
-            SELECT c.uuid, c.tree_name, r.canonical_path AND c.tree_name = 'canonical'
+            SELECT c.uuid, c.tree_name, r.global_path AND c.tree_name = 'global'
             FROM reachable r
             JOIN edges e ON e.parent_id = r.id
             JOIN nodes c ON c.uuid = e.child_id

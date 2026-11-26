@@ -30,16 +30,16 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
 
     assignments maps each graph genre to its directly attributed songs, including
     an empty list for nodes with no direct songs. Repeated songs model polygenre.
-    Every genre without a classification parent is a canonical root unless listed in ``regional``,
-    a mapping of each regional genre to its overview: it adds the ``regional_membership`` edge, which
-    makes a node regional.
+    Every genre without a classification parent is a global root unless listed in ``regional``,
+    a mapping of each regional genre to its overview: it adds a classification edge to that overview,
+    which makes a node regional.
     """
     node_overrides = node_overrides or {}
     regional = regional or {}
     relations = [
         *((child, parent, "classification") for child, parent in classifications),
         *relations,
-        *((genre, overview, "regional_membership") for genre, overview in regional.items()),
+        *((genre, overview, "classification") for genre, overview in regional.items()),
     ]
 
     def identity(genre):
@@ -63,14 +63,14 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
                 isUmbrella=True,
             )
         nodes.append(node)
-    non_roots = {child for child, _, kind in relations if kind in {"classification", "regional_membership"}}
+    non_roots = {child for child, _, kind in relations if kind == "classification"}
     roots = [
         genre
         for genre, node in zip(assignments, nodes, strict=True)
         if genre not in non_roots and node["kind"] == "genre"
     ]
     payload = {
-        "contractVersion": 4,
+        "contractVersion": 5,
         "curationExportedOn": "2026-11-14T00:00:00Z",
         "nodes": nodes,
         "relations": [
@@ -82,8 +82,8 @@ def install_song_graph(assignments, *, classifications=(), node_overrides=None, 
             }
             for child, parent, relation_type in relations
         ],
-        "canonicalRoots": [
-            {"nodeId": identity(genre), "provenance": provenance(f"canonical-root-{genre.pk}")} for genre in roots
+        "globalRoots": [
+            {"nodeId": identity(genre), "provenance": provenance(f"global-root-{genre.pk}")} for genre in roots
         ],
     }
     current = GenreGraphDataset.objects.filter(pk=DATASET_KEY).first()

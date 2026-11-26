@@ -1,40 +1,46 @@
 from typing import Any
+from uuid import uuid4
 
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Q
 from the_music_tree_api_kit.private_unique_resource.PrivateUniqueResource import PrivateUniqueResource
-from the_music_tree_grow_contracts.curation_lists import KEY_MAX_LENGTH
+from the_music_tree_grow_contracts.curation_lists import EDGE_ACTIONS, EDGE_RELATIONS, KEY_MAX_LENGTH
 
 from .GenreEdgeRuleManager import GenreEdgeRuleManager
 
-PRIMARY_RELATIONS = ("canonical_parent", "regional_genre_parent")
+DECISION_ID_MAX_LENGTH = 255
+
+
+def new_decision_id() -> str:
+    return str(uuid4())
 
 
 class GenreEdgeRule(PrivateUniqueResource):
-    """One curated edge between two genre items (Wikidata QIDs or `LOCAL:` ids), read by the pipeline.
+    """One curated decision on a typed edge between two genre items (Wikidata QIDs or `LOCAL:` ids), read by the
+    pipeline: `assert` adds the `(item_id, relation, target_item_id)` triplet, `prohibit` keeps the sources from
+    bringing it back. Deleting a rule returns the triplet to what the sources say.
 
-    Replaces the `canonical_parent`, `regional_genre_parent`, `regional_overviews` and `secondary_parents` curation
-    lists. Accepted canonical roots are the `canonical_roots` curation list, not edges."""
+    Accepted global roots are the `global_roots` curation list, not edges."""
 
     class Relation(models.TextChoices):
-        CANONICAL_PARENT = "canonical_parent"
-        REGIONAL_GENRE_PARENT = "regional_genre_parent"
-        REGIONAL_OVERVIEW = "regional_overview"
-        SECONDARY_PARENT = "secondary_parent"
+        CLASSIFICATION = "classification"
+        DERIVATION = "derivation"
+        INFLUENCE = "influence"
 
     class Action(models.TextChoices):
-        ADD = "add"
-        REMOVE = "remove"
+        ASSERT = "assert"
+        PROHIBIT = "prohibit"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="%(class)ss", null=True, blank=True
     )
+    decision_id = models.CharField(max_length=DECISION_ID_MAX_LENGTH, default=new_decision_id)
+    """The decision's stable identity in the pipeline's provenance; rows folded from older lists keep theirs."""
     relation = models.CharField(max_length=32, choices=Relation.choices)
     item_id = models.CharField(max_length=KEY_MAX_LENGTH)
-    parent_item_id = models.CharField(max_length=KEY_MAX_LENGTH, null=True, blank=True)
-    action = models.CharField(max_length=8, choices=Action.choices, null=True, blank=True)
-    exclude_other_parents = models.BooleanField(null=True, blank=True)
+    target_item_id = models.CharField(max_length=KEY_MAX_LENGTH)
+    action = models.CharField(max_length=8, choices=Action.choices)
     reason = models.TextField(blank=True, default="")
 
     objects: GenreEdgeRuleManager = GenreEdgeRuleManager()
@@ -43,52 +49,42 @@ class GenreEdgeRule(PrivateUniqueResource):
         db_table = "grow_genre_edge_rule"
         constraints = [
             models.UniqueConstraint(
-                fields=["item_id", "relation"],
-                condition=Q(relation__in=PRIMARY_RELATIONS),
-                name="genre_edge_rule_primary_unique",
-                violation_error_message="This item already has a rule of this relation",
+                fields=["item_id", "relation", "target_item_id"],
+                name="genre_edge_rule_triplet_unique",
+                violation_error_message="A rule already exists for this item, relation and target",
             ),
             models.UniqueConstraint(
-                fields=["item_id", "parent_item_id"],
-                condition=Q(parent_item_id__isnull=False),
-                name="genre_edge_rule_pair_unique",
-                violation_error_message="A rule already exists for this item and parent",
+                fields=["decision_id"],
+                name="genre_edge_rule_decision_unique",
+                violation_error_message="A rule already carries this decision_id",
             ),
             models.CheckConstraint(
-                condition=~Q(item_id=F("parent_item_id")),
+                condition=~Q(item_id=F("target_item_id")),
                 name="genre_edge_rule_no_self_edge",
                 violation_error_message="An item can't be its own parent",
             ),
             models.CheckConstraint(
-                condition=Q(parent_item_id__isnull=False),
-                name="genre_edge_rule_parent_required",
-                violation_error_message="An edge needs a parent: accepted roots live in the canonical_roots list",
+                condition=Q(relation__in=EDGE_RELATIONS),
+                name="genre_edge_rule_relation_valid",
+                violation_error_message="Unknown relation",
             ),
             models.CheckConstraint(
-                condition=(Q(relation="secondary_parent") & Q(action__isnull=False))
-                | (~Q(relation="secondary_parent") & Q(action__isnull=True)),
-                name="genre_edge_rule_action_iff_secondary",
-                violation_error_message="Only a secondary_parent rule has an action, and it must",
-            ),
-            models.CheckConstraint(
-                condition=(Q(relation="secondary_parent") & Q(exclude_other_parents__isnull=True))
-                | (~Q(relation="secondary_parent") & Q(exclude_other_parents__isnull=False)),
-                name="genre_edge_rule_exclude_iff_not_secondary",
-                violation_error_message="exclude_other_parents is set on every relation but secondary_parent",
+                condition=Q(action__in=EDGE_ACTIONS),
+                name="genre_edge_rule_action_valid",
+                violation_error_message="Unknown action",
             ),
         ]
 
     @property
     def row(self) -> dict[str, Any]:
         return {
-            "id": str(self.uuid),
-            "relation": self.relation,
+            "decision_id": self.decision_id,
             "item_id": self.item_id,
-            "parent_item_id": self.parent_item_id,
+            "relation": self.relation,
+            "target_item_id": self.target_item_id,
             "action": self.action,
-            "exclude_other_parents": self.exclude_other_parents,
             "reason": self.reason,
         }
 
     def __str__(self) -> str:
-        return f"{self.relation} | {self.item_id} -> {self.parent_item_id}"
+        return f"{self.relation} {self.action} | {self.item_id} -> {self.target_item_id}"

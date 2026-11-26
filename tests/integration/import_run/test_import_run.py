@@ -33,18 +33,18 @@ class TestImportRun(AppTestCase):
         return list(ImportRun.objects.order_by("pk").values_list("kind", "count", "skipped_count"))
 
     def test_pipeline_tree_imports_then_recorded_with_node_count(self):
-        assert self._import_tree(self.pipeline, "canonical", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import_tree(self.pipeline, "global", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
         assert self._import_tree(self.pipeline, "regional", REGIONAL_TREE).status_code == status.HTTP_201_CREATED
 
-        assert self._runs() == [("canonical_tree", 2, None), ("regional_tree", 3, None)]
+        assert self._runs() == [("global_tree", 2, None), ("regional_tree", 3, None)]
 
     def test_admin_tree_import_then_not_recorded(self):
-        assert self._import_tree(self.api_client, "canonical", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
+        assert self._import_tree(self.api_client, "global", CANONICAL_TREE).status_code == status.HTTP_201_CREATED
 
         assert self._runs() == []
 
     def test_failed_tree_import_then_not_recorded(self):
-        response = self._import_tree(self.pipeline, "canonical", CANONICAL_TREE[1:])
+        response = self._import_tree(self.pipeline, "global", CANONICAL_TREE[1:])
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self._runs() == []
@@ -82,7 +82,7 @@ class TestImportRun(AppTestCase):
     def test_latest_then_newest_run_per_kind(self):
         ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=1, skipped_count=0)
         ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=2, skipped_count=3)
-        ImportRun.objects.create(kind=ImportRun.Kind.CANONICAL_TREE, count=10)
+        ImportRun.objects.create(kind=ImportRun.Kind.GLOBAL_TREE, count=10)
 
         response = self.api_client.get(path=reverse("import-runs-latest"))
 
@@ -90,12 +90,12 @@ class TestImportRun(AppTestCase):
         body = response.json()
         assert body["regionalTree"] is None and body["unresolvedGenreTags"] is None
         assert (body["songs"]["count"], body["songs"]["skippedCount"]) == (2, 3)
-        assert (body["canonicalTree"]["kind"], body["canonicalTree"]["count"]) == ("canonical_tree", 10)
+        assert (body["globalTree"]["kind"], body["globalTree"]["count"]) == ("global_tree", 10)
 
     def test_list_then_newest_first_and_filtered_by_kind(self):
         for count in (1, 2):
             ImportRun.objects.create(kind=ImportRun.Kind.SONGS, count=count, skipped_count=0)
-        ImportRun.objects.create(kind=ImportRun.Kind.CANONICAL_TREE, count=3)
+        ImportRun.objects.create(kind=ImportRun.Kind.GLOBAL_TREE, count=3)
 
         all_runs = self.api_client.get(path=reverse("import-runs")).json()
         songs = self.api_client.get(path=reverse("import-runs"), data={"kind": "songs"}).json()

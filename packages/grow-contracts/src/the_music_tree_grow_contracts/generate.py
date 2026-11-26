@@ -11,7 +11,9 @@ from the_music_tree_grow_contracts import SCHEMAS_DIR
 from the_music_tree_grow_contracts.curation_lists import (
     COLUMN_CHOICES,
     CURATION_LISTS,
+    EDGE_ACTIONS,
     EDGE_COLUMNS,
+    EDGE_RELATIONS,
     ENTITY_ID_PATTERN,
     GENRE_ALIAS_LIST,
     GRAPH_ITEM_ID_PATTERN,
@@ -27,7 +29,6 @@ SCHEMA_ID = (
 )
 QID_PATTERN = r"Q[0-9]+"
 INT_PATTERN = r"\s*(?:-?[1-9][0-9]*|0)\s*"
-EDGE_RELATIONS = ("canonical_parent", "regional_genre_parent", "regional_overview", "secondary_parent")
 
 
 def _object(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -77,11 +78,11 @@ def _list_schema(list_name: str) -> dict[str, Any]:
 
 def _edge_schema() -> dict[str, Any]:
     columns = {
-        "relation": {"type": "string", "enum": list(EDGE_RELATIONS)},
+        "decision_id": _non_empty(),
         "item_id": _non_empty(),
-        "parent_item_id": _non_empty(),
-        "action": {"type": "string", "enum": ["add", "remove", ""]},
-        "exclude_other_parents": {"type": "string", "enum": ["true", ""]},
+        "relation": {"type": "string", "enum": list(EDGE_RELATIONS)},
+        "target_item_id": _non_empty(),
+        "action": {"type": "string", "enum": list(EDGE_ACTIONS)},
         "reason": {"type": "string"},
     }
     return _object({column: columns[column] for column in EDGE_COLUMNS})

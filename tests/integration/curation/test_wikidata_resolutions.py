@@ -61,68 +61,56 @@ class TestWikidataResolutions(AppTestCase):
 
     def test_remap_value_and_composite_key_then_rewritten(self):
         main = GenreEdgeRule.objects.create(
-            user=None,
-            relation="canonical_parent",
-            item_id="Q999999001",
-            parent_item_id=OLD,
-            exclude_other_parents=False,
+            user=None, relation="classification", item_id="Q999999001", target_item_id=OLD, action="assert"
         )
         edge = GenreEdgeRule.objects.create(
-            user=None, relation="secondary_parent", item_id="Q999999002", parent_item_id="Q999999003", action="add"
+            user=None, relation="influence", item_id="Q999999002", target_item_id="Q999999003", action="assert"
         )
 
         response = self._report(
             [
-                _remap("canonical_parent", "Q999999001", "parent_item_id"),
-                _remap("secondary_parents", "Q999999002\tQ999999003", "item_id", "Q999999002", "Q999999020"),
-                _remap("secondary_parents", "Q999999002\tQ999999003", "parent_id", "Q999999003", "Q999999030"),
+                {"rule_id": str(main.uuid), "column": "target_item_id", "from": OLD, "to": NEW},
+                {"rule_id": str(edge.uuid), "column": "item_id", "from": "Q999999002", "to": "Q999999020"},
+                {"rule_id": str(edge.uuid), "column": "target_item_id", "from": "Q999999003", "to": "Q999999030"},
             ]
         )
 
         assert response.json()["remappedCount"] == 3
         main.refresh_from_db()
         edge.refresh_from_db()
-        assert main.parent_item_id == NEW
-        assert (edge.item_id, edge.parent_item_id) == ("Q999999020", "Q999999030")
+        assert main.target_item_id == NEW
+        assert (edge.item_id, edge.target_item_id) == ("Q999999020", "Q999999030")
 
     def test_remap_by_rule_id_then_rewritten(self):
         rule = GenreEdgeRule.objects.create(
-            user=None,
-            relation="canonical_parent",
-            item_id="Q999999001",
-            parent_item_id=OLD,
-            exclude_other_parents=False,
+            user=None, relation="classification", item_id="Q999999001", target_item_id=OLD, action="assert"
         )
 
-        response = self._report([{"rule_id": str(rule.uuid), "column": "parent_item_id", "from": OLD, "to": NEW}])
+        response = self._report([{"rule_id": str(rule.uuid), "column": "target_item_id", "from": OLD, "to": NEW}])
 
         assert response.json() == {"remappedCount": 1, "reviewCount": 0}
         rule.refresh_from_db()
-        assert rule.parent_item_id == NEW
+        assert rule.target_item_id == NEW
 
     def test_remap_by_rule_id_clashing_then_review_item_with_rule(self):
         rule = GenreEdgeRule.objects.create(
-            user=None,
-            relation="canonical_parent",
-            item_id="Q999999001",
-            parent_item_id=OLD,
-            exclude_other_parents=False,
+            user=None, relation="classification", item_id="Q999999001", target_item_id=OLD, action="assert"
         )
         GenreEdgeRule.objects.create(
-            user=None, relation="secondary_parent", item_id="Q999999001", parent_item_id=NEW, action="add"
+            user=None, relation="classification", item_id="Q999999001", target_item_id=NEW, action="prohibit"
         )
 
-        response = self._report([{"rule_id": str(rule.uuid), "column": "parent_item_id", "from": OLD, "to": NEW}])
+        response = self._report([{"rule_id": str(rule.uuid), "column": "target_item_id", "from": OLD, "to": NEW}])
 
         assert response.json() == {"remappedCount": 0, "reviewCount": 1}
         [item] = self._review()
-        assert (item["ruleId"], item["reason"], item["target"]) == (str(rule.uuid), "redirect_conflict", NEW)
+        assert (item["ruleId"], item["reason"], item["target"]) == (rule.decision_id, "redirect_conflict", NEW)
 
     def test_rule_id_with_list_or_wrong_column_then_400(self):
         rule_id = "00000000-0000-0000-0000-000000000001"
 
         for item in (
-            {"rule_id": rule_id, "list": "canonical_parent", "key": "Q1", "column": "item_id"},
+            {"rule_id": rule_id, "list": "genre_edges", "key": "Q1", "column": "item_id"},
             {"rule_id": rule_id, "column": "overview_item_id"},
         ):
             response = self._report([{**item, "from": OLD, "to": NEW}])
@@ -189,33 +177,35 @@ class TestWikidataResolutions(AppTestCase):
         assert item["key"] is None and item["itemId"] == "LOCAL:blues-rock"
 
     def test_rule_review_reasons_then_stored(self):
-        for reason in ("invalid_rule", "exclusive_parent_regional"):
+        for reason in ("invalid_rule", "unreached_genre"):
             item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": reason}
             assert self._report([], [item]).status_code == status.HTTP_200_OK
             [stored] = self._review()
             assert stored["reason"] == reason
-        item["evidence"] = {"detail": "parent is regional, expected canonical"}
+        item["evidence"] = {"detail": "parent is regional, expected global"}
         assert self._report([], [item]).status_code == status.HTTP_200_OK
-        assert self._review()[0]["evidence"] == {"detail": "parent is regional, expected canonical"}
+        assert self._review()[0]["evidence"] == {"detail": "parent is regional, expected global"}
 
-    def test_unreached_genre_then_stored_in_regional_memberships_with_detail(self):
+    def test_unreached_genre_then_stored_with_detail(self):
+        rule = GenreEdgeRule.objects.create(
+            user=None, relation="classification", item_id="Q999999901", target_item_id="Q999999902", action="assert"
+        )
         item = {
-            "list": "regional_memberships",
-            "key": "LOCAL:orphan-genre\tQ999999902",
-            "column": "child_item_id",
-            "itemId": "LOCAL:orphan-genre",
+            "rule_id": str(rule.uuid),
+            "column": "item_id",
+            "itemId": "Q999999901",
             "reason": "unreached_genre",
-            "evidence": {"detail": "reaches no overview nor canonical root"},
+            "evidence": {"detail": "reaches no overview nor global root"},
         }
 
         response = self._report([], [item])
 
         assert response.status_code == status.HTTP_200_OK, response.content
         stored = CurationReviewItem.objects.get(reason="unreached_genre")
-        assert stored.list_name == "regional_memberships"
+        assert stored.rule_id == rule.pk
         [shown] = self._review()
         assert shown["reason"] == "unreached_genre"
-        assert shown["evidence"] == {"detail": "reaches no overview nor canonical root"}
+        assert shown["evidence"] == {"detail": "reaches no overview nor global root"}
 
     def test_review_evidence_then_round_trips(self):
         evidence = {

@@ -1,28 +1,31 @@
 from collections import defaultdict
 from typing import Any
+from uuid import UUID
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from the_music_tree_grow_contracts.curation_lists import EDGE_PROJECTION_LISTS
 
-from grow.curation.edges import edge_field, find_rule_by_legacy
+from grow.curation.edges import edge_field, edge_rules
 from grow.curation.rows import InvalidRow, RowConflict, check_edit, lock_writes
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 
-LEGACY_EDGE_LISTS = frozenset(EDGE_PROJECTION_LISTS)
-
 
 def _is_edge_item(item: dict[str, Any]) -> bool:
-    return item.get("rule_id") is not None or item.get("list") in LEGACY_EDGE_LISTS
+    return item.get("rule_id") is not None
 
 
 def _rule_of(item: dict[str, Any]) -> GenreEdgeRule | None:
-    """The edge rule a reported item designates, by id or by legacy `(list, key)`; none once an admin removed it."""
-    if item.get("rule_id") is not None:
-        return GenreEdgeRule.objects.filter(user=None, uuid=item["rule_id"]).first()
-    return find_rule_by_legacy(item["list"], item["key"])
+    """The edge rule a reported `rule_id` designates (a `decision_id`, else a uuid); none once an admin removed it."""
+    rule = edge_rules().filter(decision_id=item["rule_id"]).first()
+    if rule is not None:
+        return rule
+    try:
+        rule_uuid = UUID(item["rule_id"])
+    except ValueError:
+        return None
+    return edge_rules().filter(uuid=rule_uuid).first()
 
 
 def _remap_edges(remaps: list[dict[str, Any]], review: list[dict[str, Any]]) -> int:
@@ -102,7 +105,7 @@ def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[s
         reason__in=(
             *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
             *CurationReviewItem.GENRE_ALIAS_REASONS,
-            CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+            *CurationReviewItem.GRAPH_REASONS,
         )
     ).delete()
     review_items = [item for item in map(_review_item, review) if item is not None]

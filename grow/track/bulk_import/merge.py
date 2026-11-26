@@ -74,11 +74,11 @@ WITH staged AS (
 ), adopted AS (
     SELECT c.mbid, l.track_id, l.is_manually_edited FROM candidate c JOIN legacy l USING (youtube_video_id)
 ), genre_by_qid AS (
-    -- A QID imported in both trees resolves to its canonical genre.
+    -- A QID imported in both trees resolves to its global genre.
     SELECT DISTINCT ON (g.wikidata_id) g.wikidata_id, c.uuid
     FROM grow_criteria c JOIN grow_genre g ON g.criteria_ptr_id = c.uuid
     WHERE g.wikidata_id IS NOT NULL AND c.user_id IS NOT DISTINCT FROM %(user)s
-    ORDER BY g.wikidata_id, c.tree_name <> 'canonical', c.uuid
+    ORDER BY g.wikidata_id, c.tree_name <> 'global', c.uuid
 )
 SELECT m.mbid, m.title, m.artist, m.artist_mbid, CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_video_id ELSE m.youtube_video_id END AS youtube_video_id,
     CASE WHEN COALESCE(m.is_manually_edited, a.is_manually_edited, false) THEN locked.youtube_unplayable_reason ELSE m.youtube_unplayable_reason END AS youtube_unplayable_reason,

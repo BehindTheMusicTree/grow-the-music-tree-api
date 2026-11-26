@@ -29,7 +29,7 @@ class TestExactMembershipCounts(AppTestCase):
 
         # The expected sets are independent of the projection and its graph traversal.
         expected = {
-            "canonical": {direct.pk, shared_song.pk},
+            "global": {direct.pk, shared_song.pk},
             "regional": {direct.pk, regional_song.pk},
             "all": {direct.pk, shared_song.pk, regional_song.pk},
         }
@@ -40,7 +40,7 @@ class TestExactMembershipCounts(AppTestCase):
 
         TrackPlaylistRel.objects.filter(playlist=playlist, track=shared_song).delete()
         counts = playlist_counts(None)[playlist.uuid]
-        assert counts.genre_and_subgenres_tracks_count == {"canonical": 1, "regional": 2, "all": 2}
+        assert counts.genre_and_subgenres_tracks_count == {"global": 1, "regional": 2, "all": 2}
         assert TrackPlaylistRel.objects.filter(playlist__criteria_playlist__criteria=shared, track=shared_song).exists()
 
     def test_global_projection_uses_each_playlists_actual_members(self):

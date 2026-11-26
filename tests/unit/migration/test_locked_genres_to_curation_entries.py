@@ -19,6 +19,7 @@ class TestCase(AppTestCase):
         super().setUp()
         self.apps = MigrationLoader(connection).project_state(("grow", "0036_locked_genres_to_curation_entries")).apps
         self.rock = self.model_fixture_factory.create_genre("Rock", wikidata_id="Q8880001")
+        self._as_canonical(self.rock)
 
     def _locked(self, name: str, wikidata_id: str | None, *actions: HistoryAction, **kwargs) -> Genre:
         genre = self.model_fixture_factory.create_genre(
@@ -26,7 +27,14 @@ class TestCase(AppTestCase):
         )
         for action in actions:
             HistoryEntry.objects.record(genre, action=action, actor=self.admin)
+        self._as_canonical(genre)
         return genre
+
+    @staticmethod
+    def _as_canonical(genre: Genre) -> None:
+        """At migration 0036 the global tree was still named `canonical`; regional genres keep their name."""
+        if genre.tree_name == "global":
+            Genre.objects.filter(pk=genre.pk).update(tree_name="canonical")
 
     def _migrate(self) -> None:
         migration_module.locked_genres_to_curation_entries(self.apps, None)

@@ -3,6 +3,11 @@
 ## 0.2.0
 
 - Breaking: `curation_export` no longer carries `genre_alias_version` (the export is always the id-based genre alias contract) nor the deprecated `overview_status_overrides`; `target_item_id` is a required, non-empty `genre_alias` column; `LEGACY_GENRE_ALIAS_COLUMNS` is removed and `is_optional_column` takes the column only.
+- Breaking: genre edge rows of `curation_export` are `decision_id, item_id, relation, target_item_id, action, reason`; `relation` is `classification`, `derivation` or `influence`, `action` is `assert` or `prohibit` (required). `parent_item_id` and `exclude_other_parents` are gone. `EDGE_RELATIONS` and `EDGE_ACTIONS` are exported.
+- Breaking: lists renamed `canonical_roots` → `global_roots` (`CANONICAL_ROOTS_LIST` → `GLOBAL_ROOTS_LIST`), `canonical_parent_additions` → `global_parent_additions`, `canonical_genre_scene` → `global_genre_scene`, `canonical_genre_pop_side` → `global_genre_pop_side`, `forced_canonical_genres` → `forced_global_genres`.
+- Breaking: `regional_memberships` and `genre_derivations` are folded into the genre edges; `EDGE_PROJECTION_LISTS` is removed (its names join `RETIRED_HISTORY_LISTS`).
+- Breaking: `curation_resolutions` no longer accepts the `exclusive_parent_regional` review reason.
+- Breaking: `region_map` genre `relation` `canonical` is renamed `global`.
 
 ## 0.1.1
 

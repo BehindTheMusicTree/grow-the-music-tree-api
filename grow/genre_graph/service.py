@@ -25,6 +25,7 @@ from the_music_tree_genre_kit.genre_graph.storage import (
 )
 
 from grow.bulk_import.progress import report_step
+from grow.genre_graph.cardinality import find_cardinality_violations
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_graph.song_materialization import SongMaterialization, membership_maintenance
 from grow.genre_music.source_gate import lock_catalogue_sources
@@ -58,7 +59,7 @@ def _normalized_graph(payload: dict) -> GenreGraph:
     graph = GenreGraph(payload)
     normalized = graph.to_payload()
     # These arrays are sets of decisions; producer iteration order is not a new revision.
-    for field in ("nodes", "relations", "canonicalRoots"):
+    for field in ("nodes", "relations", "globalRoots"):
         normalized[field].sort(key=lambda row: json.dumps(row, sort_keys=True))
     return GenreGraph(normalized)
 
@@ -79,8 +80,8 @@ def reference_dataset() -> GenreGraphDataset:
         dataset = GenreGraphDataset.objects.get(pk=DATASET_KEY)
     except GenreGraphDataset.DoesNotExist as error:
         raise GraphValidationError("Import the reference graph with an explicit identity mapping first") from error
-    if dataset.payload.get("contractVersion") != 4:
-        raise GraphValidationError("Stored reference graph is not in contract 4: re-import required")
+    if dataset.payload.get("contractVersion") != 5:
+        raise GraphValidationError("Stored reference graph is not in contract 5: re-import required")
     return dataset
 
 
@@ -182,7 +183,7 @@ class KeptGenre:
 def _place_kept_genres(genres: dict, kept: set, nodes: dict) -> list[KeptGenre]:
     """Keep each unbound genre grow holds in the tree under its parent, if that parent is still in the graph.
 
-    A kept genre whose parent is gone becomes a root that no `canonical_roots` entry accepts: the alert tells the
+    A kept genre whose parent is gone becomes a root that no `global_roots` entry accepts: the alert tells the
     curator, and grow never edits the curation. Only kept genres move: bound genres were projected from the graph."""
     inactive_nodes = {node.pk for node in nodes.values() if not node.is_active}
     placed = []
@@ -236,6 +237,21 @@ def _report_kept_genres(kept: list[KeptGenre]) -> None:
     )
 
 
+def _report_cardinality_violations(graph: GenreGraph) -> None:
+    """Replace the `classification_cardinality` alerts by those of this graph, which is published all the same."""
+    reason = CurationReviewItem.Reason.CLASSIFICATION_CARDINALITY
+    CurationReviewItem.objects.filter(reason=reason).delete()
+    CurationReviewItem.objects.bulk_create(
+        CurationReviewItem(
+            column="item_id",
+            item_id=node_id,
+            reason=reason,
+            evidence={"name": graph.node(node_id)["name"], "message": message},
+        )
+        for node_id, message in find_cardinality_violations(graph)
+    )
+
+
 def _publish_revision(
     *,
     dataset,
@@ -283,7 +299,7 @@ def _publish_revision(
         for identity, pk in bindings.items():
             data = graph.node(identity)
             genre = genres.get(pk)
-            tree_name = "canonical" if graph.state(identity) == "canonical" else "regional"
+            tree_name = "global" if graph.state(identity) == "global" else "regional"
             if genre is None:
                 genre = Genre(
                     uuid=pk,
@@ -317,6 +333,7 @@ def _publish_revision(
         placed = _place_kept_genres(genres, set(kept), nodes) if kept is not None else None
     if placed is not None:
         _report_kept_genres(placed)
+    _report_cardinality_violations(graph)
     if initial:
         with report_step("migrate_assignments"):
             _migrate_assignments(dataset)
@@ -340,16 +357,16 @@ def _validate_no_merged_source(graph) -> None:
         )
 
 
-def _check_canonical_roots(graph: GenreGraph, export: CurationExport) -> None:
-    """The graph's `canonicalRoots` are what the export's `canonical_roots` list said, whatever was edited since."""
+def _check_global_roots(graph: GenreGraph, export: CurationExport) -> None:
+    """The graph's `globalRoots` are what the export's `global_roots` list said, whatever was edited since."""
     try:
-        expected = export.canonical_roots
+        expected = export.global_roots
     except ValueError as error:
         raise GraphValidationError(str(error)) from error
-    declared = {root["nodeId"] for root in graph.to_payload()["canonicalRoots"]}
+    declared = {root["nodeId"] for root in graph.to_payload()["globalRoots"]}
     if declared != expected:
         raise GraphValidationError(
-            "canonicalRoots differ from the export's canonical_roots list: "
+            "globalRoots differ from the export's global_roots list: "
             f"only in the graph {sorted(declared - expected)}, only in the export {sorted(expected - declared)}"
         )
 
@@ -388,7 +405,7 @@ def import_reference_graph(
         exported_on = export.exported_on
         if parse_curation_exported_on(payload.get("curationExportedOn")) != exported_on:
             raise GraphValidationError("Curation provenance must match the graph's curationExportedOn")
-        _check_canonical_roots(graph, export)
+        _check_global_roots(graph, export)
     existing = dict(
         Genre.objects.filter(user__isnull=True, semantic_identity__isnull=False).values_list("semantic_identity", "pk")
     )

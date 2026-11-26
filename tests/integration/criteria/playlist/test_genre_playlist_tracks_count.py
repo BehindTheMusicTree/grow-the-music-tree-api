@@ -49,7 +49,7 @@ class TestCase(AppTestCase):
         playlist = GenrePlaylist.objects.get(criteria=root)
         path = reverse("genre-playlist-tracks", kwargs={"pk": playlist.uuid})
 
-        for params in ({}, {"coverage": "genre_only"}, {"subgenres": "all"}, {"subgenres": "canonical"}):
+        for params in ({}, {"coverage": "genre_only"}, {"subgenres": "all"}, {"subgenres": "global"}):
             for country in (None, "FR", "AL", "US"):
                 headers = {"HTTP_X_VIEWER_CONTEXT_TOKEN": "trusted"}
                 if country:
