@@ -9,6 +9,7 @@ from the_music_tree_api_kit.filtering.set.private_unique_resource.PrivateUniqueR
 )
 from the_music_tree_genre_kit.criteria.selection.coverage import parse_coverage
 
+from grow.filtering.filter.ArtistNameFilter import ArtistNameFilter
 from grow.genre_graph.selection import select_songs
 from grow.model.album.Fields import Fields as AlbumFields
 from grow.model.artist.Fields import Fields as ArtistFields
@@ -47,12 +48,7 @@ class SongFilterSet(PrivateUniqueResourceFilterSet):
     }
 
     title = CharFilter(field_name=ModelFields.TITLE, lookup_expr="icontains")
-    artists_name = RelatedObjectCharFilter(
-        primary_field=ArtistFields.NAME_INTERNAL,
-        field_name=ModelFields.ARTISTS,
-        field_name_public=Fields.ARTISTS_NAME,
-        lookup_expr="icontains",
-    )
+    artists_name = ArtistNameFilter(field_name=ModelFields.ARTISTS, field_name_public=Fields.ARTISTS_NAME)
     album_name = RelatedObjectCharFilter(
         primary_field=AlbumFields.NAME_INTERNAL,
         field_name=ModelFields.ALBUM,
