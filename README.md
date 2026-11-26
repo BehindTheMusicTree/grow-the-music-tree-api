@@ -101,7 +101,7 @@ Reads (`GET`) on `/v1/*` and `/health/` are public. Writes (`POST`/`PUT`/`PATCH`
 | Path                          | Description                                          |
 | ----------------------------- | ---------------------------------------------------- |
 | `GET /health/`                | Health check (no auth)                               |
-| `GET /schema/`                | OpenAPI 3 schema of the API (no auth); the committed copy is [`openapi.yaml`](openapi.yaml), regenerated with the command in `AGENTS.md` and checked by the CI job `OpenAPI` |
+| `GET /schema/`                | OpenAPI 3 schema of the API (no auth); the committed copy is [`openapi.yaml`](openapi.yaml), regenerated with the command in `AGENTS.md` and checked by the CI job `API schema check` |
 | `/v1/albums`                  | Albums                                               |
 | `/v1/artists`                 | Artists (list, detail with MusicBrainz details, `image` (`{url, pageUrl, author, license, licenseUrl}` or null; show with its attribution), members, links and release-group albums, `{uuid}/genre-counts/` (sparse per-genre-playlist song counts of the artist's footprint), + `import-runs/`) |
 | `/v1/genealogy`               | `GET` latest music-tradition genealogy document (public; `ETag` = checksum, `304` on `If-None-Match`, 404 before the first import); `POST import/` stores a new snapshot from the pipeline's `4_genealogy.json`, validated against [`genealogy.schema.json`](packages/grow-contracts/src/the_music_tree_grow_contracts/schemas/genealogy.schema.json) (400 on a violation; pipeline key or admin; 201 created, 200 unchanged) |

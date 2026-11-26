@@ -66,8 +66,8 @@ jobs:
       - name: makemigrations --check
         run: uv run django-admin makemigrations grow --check --dry-run
 
-  openapi:
-    name: OpenAPI
+  api-schema:
+    name: API schema check
     runs-on: ubuntu-latest
     env:
       DJANGO_SETTINGS_MODULE: tests.settings
@@ -84,7 +84,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync --all-extras
 
-      - name: Regenerate openapi.yaml
+      - name: Regenerate openapi.yaml (drf-spectacular)
         run: uv run django-admin spectacular --file openapi.yaml --validate
 
       - name: Committed openapi.yaml is current
