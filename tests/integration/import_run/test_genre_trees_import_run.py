@@ -58,8 +58,8 @@ class TestGenreTreesImportRun(AppTestCase):
     def test_import_creates_missing_criterialess_playlists_once(self):
         CriteriaPlaylist.objects.all().delete()
 
-        self._import([("canonical", [POP, ROCK])])
-        self._import([("canonical", [POP, ROCK])])
+        self._import([("global", [POP, ROCK])])
+        self._import([("global", [POP, ROCK])])
 
         assert sorted(CriteriaPlaylist.objects.filter(criteria=None).values_list("type_id", flat=True)) == [0, 1]
 

@@ -913,7 +913,7 @@ def test_retirement_failure_rolls_back_attributions_history_and_bindings(payload
     assert Genre.objects.get(semantic_identity="LOCAL:french-dub").graph_node_id is not None
 
 
-def test_reference_graph_identity_binding_at_canonical_tree_scale(payload):
+def test_reference_graph_identity_binding_at_global_tree_scale(payload):
     large = deepcopy(payload)
     large["nodes"].extend(
         {"id": f"LOCAL:scale-{index}", "name": f"Scale {index}", "kind": "genre"}
