@@ -1,11 +1,13 @@
 from django.urls import reverse
 from rest_framework import status
 
-from grow.curation.rows import InvalidRow, RowConflict, check_edit
+from grow.curation.rows import InvalidRow, RowConflict, check_edit, find_graph_removal_error
 from grow.curation.rule_set import find_rule_set_violations
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 A, B = "Q999991001", "Q999991002"
 
@@ -219,6 +221,7 @@ class TestMergeLocals(AppTestCase):
             values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
             reason="r",
         )
+        _root("LOCAL:x")
         _graph("genre_merges", "LOCAL:x\tQ1", "d1")
 
         assert _violations() == []
@@ -231,6 +234,7 @@ class TestMergeLocals(AppTestCase):
             values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
             reason="r",
         )
+        _root("LOCAL:x")
         _graph("genre_derivations", "LOCAL:x\tQ1", "d1")
 
         assert _violations() == []
@@ -245,3 +249,52 @@ class TestMergeLocals(AppTestCase):
         _graph("genre_merges", "LOCAL:x\tQ1", "d2")
 
         assert _violations() == []
+
+
+class TestLocalGenreGuards(AppTestCase):
+    def _held(self, item_id="LOCAL:x"):
+
+        ModelFixtureFactory(None).create_genre("X", wikidata_id=item_id)
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key=item_id,
+            values={"item_id": item_id, "label": "x", "reason": "r"},
+            reason="r",
+        )
+        _root(item_id)
+
+    def test_unplaced_declared_local_then_violation(self):
+        CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_parent_additions",
+            key="LOCAL:x",
+            values={"item_id": "LOCAL:x", "label": "x", "reason": "r"},
+            reason="r",
+        )
+
+        assert [v.kind for v in _violations()] == ["local_addition_unplaced"]
+
+    def test_deleting_addition_of_held_genre_then_conflict(self):
+
+        self._held()
+        entry = CurationEntry.objects.get(list_name="canonical_parent_additions", key="LOCAL:x")
+
+        assert "LOCAL:x" in find_graph_removal_error(CurationEntry.objects.filter(user=None), entry)
+
+    def test_deleting_root_of_held_genre_then_conflict(self):
+
+        self._held()
+        entry = CurationEntry.objects.get(list_name="canonical_roots", key="LOCAL:x")
+
+        assert "LOCAL:x" in find_graph_removal_error(CurationEntry.objects.filter(user=None), entry)
+
+    def test_deleting_addition_without_genre_then_allowed(self):
+
+        self._held()
+
+        Genre.objects.filter(wikidata_id="LOCAL:x").delete()
+        CurationEntry.objects.filter(list_name="canonical_roots", key="LOCAL:x").delete()
+        entry = CurationEntry.objects.get(list_name="canonical_parent_additions", key="LOCAL:x")
+
+        assert find_graph_removal_error(CurationEntry.objects.filter(user=None), entry) is None

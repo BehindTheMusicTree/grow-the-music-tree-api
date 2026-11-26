@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from django.db import connection, transaction
+from django.db.models import Count
 from django.utils.dateparse import parse_datetime
 from the_music_tree_genre_graph import GenreGraph, GraphValidationError
 from the_music_tree_genre_kit.criteria.type.CriteriaTypePks import CriteriaTypePks
@@ -32,6 +33,7 @@ from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationExport import CurationExport
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
@@ -170,8 +172,81 @@ def _project_display_tree(graph, bindings: dict) -> dict:
     return projected
 
 
+@dataclass(frozen=True)
+class KeptGenre:
+    genre: Genre
+    kept_parent_id: UUID | None
+    root_accepted: bool
+
+
+def _place_kept_genres(genres: dict, kept: set, nodes: dict) -> list[KeptGenre]:
+    """Keep each unbound genre grow holds in the tree under its parent, if that parent is still in the graph.
+
+    A kept genre whose parent is gone becomes a root that no `canonical_roots` entry accepts: the alert tells the
+    curator, and grow never edits the curation. Only kept genres move: bound genres were projected from the graph."""
+    inactive_nodes = {node.pk for node in nodes.values() if not node.is_active}
+    placed = []
+    for pk in kept:
+        genre = genres[pk]
+        parent = genres.get(genre.parent_id) if genre.parent_id else None
+        if parent is None or parent.graph_node_id in inactive_nodes:
+            genre.parent_id = None
+        placed.append(genre)
+    for genre in placed:
+        visited = {genre.pk}
+        root = genre
+        while root.parent_id is not None:
+            if root.parent_id in visited:
+                genre.parent_id = None
+                root = genre
+                break
+            visited.add(root.parent_id)
+            root = genres[root.parent_id]
+        genre.root_id = root.pk
+    Genre.objects.bulk_update(placed, ["parent", "root"], batch_size=250)
+    return [KeptGenre(genre, genre.parent_id, False) for genre in placed]
+
+
+def _report_kept_genres(kept: list[KeptGenre]) -> None:
+    """Replace the `genre_not_in_graph` alerts by those of the genres kept now, so a fixed one disappears."""
+    from the_music_tree_genre_kit.track.Track import Track
+
+    reason = CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH
+    CurationReviewItem.objects.filter(reason=reason).delete()
+    songs = {
+        pk: count
+        for pk, count in Track.objects.filter(user__isnull=True, genre_id__in=[k.genre.pk for k in kept])
+        .values_list("genre_id")
+        .annotate(count=Count("pk"))
+    }
+    CurationReviewItem.objects.bulk_create(
+        CurationReviewItem(
+            column="item_id",
+            item_id=k.genre.wikidata_id or "",
+            reason=reason,
+            evidence={
+                "genreUuid": str(k.genre.pk),
+                "name": k.genre.name,
+                "keptParentUuid": str(k.kept_parent_id) if k.kept_parent_id else None,
+                "rootAccepted": k.root_accepted,
+                "songCount": songs.get(k.genre.pk, 0),
+            },
+        )
+        for k in kept
+    )
+
+
 def _publish_revision(
-    *, dataset, graph, bindings: dict, genres: dict, retirements: dict, exported_on, initial: bool, state
+    *,
+    dataset,
+    graph,
+    bindings: dict,
+    genres: dict,
+    retirements: dict,
+    exported_on,
+    initial: bool,
+    state,
+    kept: frozenset | None = None,
 ) -> None:
     """Record the receipt of a graph revision just written and project it onto the genre rows.
 
@@ -188,6 +263,9 @@ def _publish_revision(
             _backup_assignments(receipt)
     with report_step("publish_graph_revision"):
         nodes = {node.identity: node for node in dataset.nodes.all()}
+        late_bound = (
+            [] if initial else [pk for pk in bindings.values() if pk in genres and genres[pk].graph_node_id is None]
+        )
         # Bind first so distinct concepts can use the same display label.
         projection = []
         bound = []
@@ -236,9 +314,15 @@ def _publish_revision(
             genre.root_id = root_id
             projection.append(genre)
         Genre.objects.bulk_update(projection, ["parent", "root"], batch_size=250)
+        placed = _place_kept_genres(genres, set(kept), nodes) if kept is not None else None
+    if placed is not None:
+        _report_kept_genres(placed)
     if initial:
         with report_step("migrate_assignments"):
             _migrate_assignments(dataset)
+    elif late_bound:
+        with report_step("publish_late_bound_assignments"):
+            _migrate_assignments(dataset, only=late_bound, decision_id="grow-late-binding")
     state.applied_export_on = exported_on
     state.save(update_fields=["applied_export_on"])
     GenreTreeVersion.objects.filter(pk=1).update(token=uuid4())
@@ -318,9 +402,7 @@ def import_reference_graph(
     retirements = {} if retirements is None else retirements
     _validate_retirements(retirements, retired, graph.node_ids)
     genres = dict(Genre.objects.filter(user__isnull=True).in_bulk())
-    unmapped = {pk for pk, genre in genres.items() if genre.semantic_identity is None} - set(bindings.values())
-    if unmapped:
-        raise GraphValidationError(f"Unmapped existing genre UUIDs: {sorted(map(str, unmapped))}")
+    kept = frozenset({pk for pk, genre in genres.items() if genre.semantic_identity is None} - set(bindings.values()))
     for identity, value in mapping.items():
         if value is not None and bindings[identity] not in genres:
             raise GraphValidationError(f"Mapping must reference an existing ownerless genre: {identity}")
@@ -357,6 +439,7 @@ def import_reference_graph(
             exported_on=exported_on,
             initial=current is None,
             state=state,
+            kept=kept,
         )
         changed = materialization.finish()
     if publication_stats is not None:
@@ -601,7 +684,9 @@ def _backup_assignments(receipt: GenreGraphImport) -> None:
         )
 
 
-def _migrate_assignments(dataset) -> None:
+def _migrate_assignments(dataset, *, only: list | None = None, decision_id: str = "grow-explicit-cutover") -> None:
+    """Publish the song assignments of the bound genres; a genre kept without a node keeps `Track.genre_id` alone
+    until a later import binds it (`only` then names the genres bound since)."""
     from the_music_tree_genre_kit.track.Track import Track
 
     quote = connection.ops.quote_name
@@ -610,12 +695,19 @@ def _migrate_assignments(dataset) -> None:
         f"SELECT t.uuid AS track_id, t.genre_id FROM {track} t "
         f"JOIN {song} s ON s.track_id = t.uuid WHERE t.user_id IS NULL AND t.genre_id IS NOT NULL"
     )
+    params: list = []
+    if only is None:
+        criteria = quote(Criteria._meta.db_table)
+        population += f" AND t.genre_id IN (SELECT c.uuid FROM {criteria} c WHERE c.graph_node_id IS NOT NULL)"
+    else:
+        population += f" AND t.genre_id IN ({', '.join(['%s'] * len(only))})"
+        params = [Criteria._meta.pk.get_db_prep_value(pk, connection) for pk in only]
     _publish_legacy_assignments(
         dataset,
         population,
-        [],
+        params,
         {
-            "decisionId": "grow-explicit-cutover",
+            "decisionId": decision_id,
             "source": "existing-genre-uuid",
             "rationale": "Preserve the explicitly mapped existing song assignment",
         },

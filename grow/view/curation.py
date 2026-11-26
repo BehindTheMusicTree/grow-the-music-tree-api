@@ -45,6 +45,7 @@ from grow.curation.essential_songs import LIST_NAME as ESSENTIAL_SONGS_LIST
 from grow.curation.essential_songs import apply_essential_songs
 from grow.curation.genre_aliases import alias_revision, prepare_alias_write, search_alias_targets
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
+from grow.curation.local_genres import find_local_genre_removal_error, stored_entry_keys
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import (
     KEY_SEPARATOR,
@@ -391,6 +392,16 @@ class CurationEdgesView(CurationView):
         return Response(_serialize_edge(rule), status=status.HTTP_201_CREATED)
 
 
+def _check_local_placement_kept(rule: GenreEdgeRule) -> None:
+    """A `LOCAL:` item keeps its canonical parent edge while it is declared: refuse the write that drops it."""
+    if rule.relation != GenreEdgeRule.Relation.CANONICAL_PARENT:
+        return
+    keys = stored_entry_keys()
+    message = find_local_genre_removal_error(keys, edge_rules().exclude(pk=rule.pk), {rule.item_id})
+    if message:
+        raise ValidationError({"row": message})
+
+
 class CurationEdgeView(CurationView):
     permission_classes = [IsCuratorOrAdmin]
 
@@ -408,6 +419,8 @@ class CurationEdgeView(CurationView):
         rule = self._get(uuid)
         serializer = _EdgePatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if "parent_item_id" in serializer.validated_data and serializer.validated_data["parent_item_id"] is None:
+            _check_local_placement_kept(rule)
         try:
             rule = GenreEdgeRule.objects.update_instance(rule, actor=request.user, **serializer.validated_data)
         except (DjangoValidationError, InvalidRow) as e:
@@ -417,7 +430,9 @@ class CurationEdgeView(CurationView):
     @extend_schema(responses=_DELETED)
     @transaction.atomic
     def delete(self, request: Request, uuid: str) -> Response:
-        GenreEdgeRule.objects.delete_instance(self._get(uuid), actor=request.user)
+        rule = self._get(uuid)
+        _check_local_placement_kept(rule)
+        GenreEdgeRule.objects.delete_instance(rule, actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -605,7 +620,11 @@ class _ReviewItemSerializer(_CurationItemSerializer):
             choice
             for choice in CurationReviewItem.Reason.choices
             if choice[0]
-            not in (*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
+            not in (
+                *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
+                *CurationReviewItem.GENRE_ALIAS_REASONS,
+                CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+            )
         ]
     )
     target = _item_id_field(required=False, allow_null=True)

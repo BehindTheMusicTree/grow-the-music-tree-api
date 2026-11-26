@@ -46,6 +46,7 @@ from grow.genre_music.catalogue_verification import derived_song_genres, verify_
 from grow.genre_music.membership import verify_membership_counts
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationExport import CurationExport
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
@@ -142,15 +143,59 @@ def test_null_mapping_refuses_a_genre_owned_by_another_identity(payload):
         service._legacy_genres(["LOCAL:new"])
 
 
-def test_e02_missing_mapping_and_revision_rejected_atomically(payload):
-    factory = ModelFixtureFactory(None)
-    factory.create_genre("Unmapped")
-    with pytest.raises(GraphValidationError, match="Unmapped"):
-        import_graph(payload)
-    with pytest.raises(GraphValidationError, match="explicit identity mapping"):
-        reference_dataset()
-    assert GenreGraphImport.objects.count() == 0
-    assert Genre.objects.count() == 1
+def test_e02_unmapped_genre_kept_with_alert(payload):
+    orphan = ModelFixtureFactory(None).create_genre("Orphan")
+    child = ModelFixtureFactory(None).create_genre("Child", parent=orphan)
+    import_graph(payload)
+    orphan.refresh_from_db()
+    child.refresh_from_db()
+    assert orphan.graph_node_id is None
+    assert orphan.parent_id is None and orphan.root_id == orphan.pk
+    assert child.parent_id == orphan.pk and child.root_id == orphan.pk
+    items = CurationReviewItem.objects.filter(reason="genre_not_in_graph")
+    evidence = {i.evidence["genreUuid"]: i.evidence for i in items}
+    assert evidence[str(orphan.pk)]["rootAccepted"] is False
+    assert evidence[str(child.pk)]["keptParentUuid"] == str(orphan.pk)
+
+
+def test_e02_song_on_kept_genre_keeps_its_genre(payload):
+    kept = ModelFixtureFactory(None).create_genre("Kept")
+    song = ModelFixtureFactory(None).create_song("On kept", kept)
+    import_graph(payload)
+    song.refresh_from_db()
+    kept.refresh_from_db()
+    assert song.genre_id == kept.pk
+    assert kept.graph_node_id is None
+
+
+def test_e02_kept_genre_keeps_parent_in_graph(payload):
+    dataset = import_graph(payload)
+    parent = Genre.objects.get(graph_node__identity="LOCAL:reggae")
+    kept = ModelFixtureFactory(None).create_genre("Kept", parent=parent)
+    mapping = GenreGraphImport.objects.get(pk=dataset.revision).mapping
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] = "Renamed"
+    import_graph(changed, mapping, dataset.revision)
+    kept.refresh_from_db()
+    assert kept.parent_id == parent.pk
+    assert kept.root_id == Genre.objects.get(pk=parent.pk).root_id
+    assert CurationReviewItem.objects.filter(reason="genre_not_in_graph").count() == 1
+
+
+def test_e02_alert_disappears_once_genre_is_gone(payload):
+    dataset = import_graph(payload)
+    kept = ModelFixtureFactory(None).create_genre("Kept")
+    mapping = GenreGraphImport.objects.get(pk=dataset.revision).mapping
+    changed = deepcopy(payload)
+    changed["nodes"][0]["name"] = "Renamed"
+    dataset = import_graph(changed, mapping, dataset.revision)
+    assert CurationReviewItem.objects.filter(reason="genre_not_in_graph").count() == 1
+    Genre.objects.get(pk=kept.pk).delete()
+    mapping = GenreGraphImport.objects.get(pk=dataset.revision).mapping
+    changed = deepcopy(changed)
+    changed["nodes"][0]["name"] = "Renamed again"
+    import_graph(changed, mapping, dataset.revision)
+    assert not CurationReviewItem.objects.filter(reason="genre_not_in_graph").exists()
 
 
 def test_e03_identity_cannot_be_rebound(payload):

@@ -173,6 +173,21 @@ class TestWikidataResolutions(AppTestCase):
         assert item["target"] is None
         assert "reportedOn" in item
 
+    def test_report_then_keeps_genre_not_in_graph_alerts_listed_without_rule(self):
+        CurationReviewItem.objects.create(
+            column="item_id",
+            item_id="LOCAL:blues-rock",
+            reason=CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+            evidence={"genreUuid": "u"},
+        )
+
+        self._report([], [])
+
+        assert CurationReviewItem.objects.filter(reason="genre_not_in_graph").count() == 1
+        [item] = self._review()
+        assert item["reason"] == "genre_not_in_graph"
+        assert item["key"] is None and item["itemId"] == "LOCAL:blues-rock"
+
     def test_rule_review_reasons_then_stored(self):
         for reason in ("invalid_rule", "exclusive_parent_regional"):
             item = {"list": "theme_genres", "key": OLD, "column": "item_id", "itemId": OLD, "reason": reason}

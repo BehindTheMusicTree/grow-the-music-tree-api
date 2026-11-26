@@ -25,6 +25,7 @@ from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.genre_graph.service import GraphPublicationStats, import_reference_graph
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.criteria.Criteria import Criteria
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
@@ -38,6 +39,7 @@ GRAPH_REVISION_MODELS = (
     Playlist,
     CriteriaPlaylist,
     CurationSyncState,
+    CurationReviewItem,
     GenreTreeVersion,
     GenreGraphImport,
     GenreGraphDataset,

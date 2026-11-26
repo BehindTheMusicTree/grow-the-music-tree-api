@@ -28,6 +28,9 @@ class CurationReviewItem(models.Model):
         """A generated overview is kept although its region no longer has any genre."""
         SYNTHETIC_OVERVIEW_RENAMED = "synthetic_overview_renamed"
         """A generated overview is kept under its former name; `target_item_id` is the new item, if any."""
+        GENRE_NOT_IN_GRAPH = "genre_not_in_graph"
+        """A genre grow holds with no node in the reference graph (a `LOCAL:` genre Gold stopped emitting) is kept by
+        the import; `item_id` is its `wikidata_id` (empty if none) and `evidence` its uuid, kept parent and songs."""
 
         ALIAS_TARGET_MISSING = "alias_target_missing"
         ALIAS_TARGET_INELIGIBLE = "alias_target_ineligible"
@@ -66,7 +69,7 @@ class CurationReviewItem(models.Model):
                     models.Q(rule__isnull=True)
                     & models.Q(list_name__isnull=True)
                     & models.Q(key__isnull=True)
-                    & models.Q(reason__startswith="synthetic_overview_")
+                    & (models.Q(reason__startswith="synthetic_overview_") | models.Q(reason="genre_not_in_graph"))
                 ),
                 name="curation_review_item_rule_xor_list_key",
             )

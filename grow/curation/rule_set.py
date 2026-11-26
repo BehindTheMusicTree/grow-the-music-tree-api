@@ -19,6 +19,7 @@ from the_music_tree_grow_contracts.curation_lists import (
 )
 
 from grow.curation.edges import Relation
+from grow.curation.local_genres import is_declared_local_item
 from grow.curation.rows import (
     KEY_SEPARATOR,
     POP_SIDE_LIST,
@@ -96,6 +97,24 @@ def find_undeclared_local_edges(declared: set[str], edges: Iterable[GenreEdgeRul
     return [
         Violation("undeclared_local", f"{item} is used in an edge but declared in no addition list", {item})
         for item in sorted(used - declared)
+    ]
+
+
+def find_unplaced_local_additions(
+    additions: set[str], roots: set[str], edges: Iterable[GenreEdgeRule]
+) -> list[Violation]:
+    """A canonical `LOCAL:` addition with neither a canonical parent edge carrying a parent nor an accepted root
+    entry: the pipeline cannot place the node, and Gold stops emitting it while grow still holds the genre."""
+    parented = {e.item_id for e in edges if e.relation == Relation.CANONICAL_PARENT and e.parent_item_id is not None}
+    return [
+        Violation(
+            "local_addition_unplaced",
+            f"{item} is declared in canonical_parent_additions but has neither a canonical parent nor a "
+            "canonical_roots entry",
+            frozenset({item}),
+        )
+        for item in sorted(additions - parented - roots)
+        if is_declared_local_item(item)
     ]
 
 
@@ -289,6 +308,11 @@ def find_rule_set_violations(entries: models.QuerySet, edges: Iterable[GenreEdge
     violations += find_root_parent_conflicts(canonical_root_items(entries), edges)
     violations += find_excluded_edge_conflicts(excluded_items(entries), edges)
     violations += find_undeclared_local_edges(declared_additions(entries), edges)
+    violations += find_unplaced_local_additions(
+        set(entries.filter(list_name="canonical_parent_additions").values_list("key", flat=True)),
+        canonical_root_items(entries),
+        edges,
+    )
     graph_rows = entries.filter(list_name__in=GRAPH_LISTS).order_by("list_name", "key")
     violations += find_graph_violations(
         [(e.list_name, e.key, e.values) for e in graph_rows], declared_additions(entries)
