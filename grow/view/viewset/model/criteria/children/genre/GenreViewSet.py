@@ -216,7 +216,7 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     @action(detail=False, methods=["post"], url_path="trees/import-runs", permission_classes=[IsPipelineOrAdmin])
     def import_trees(self, request):
         """
-        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        Imports several trees in one asynchronous merge, so a genre that moved between the global and the regional
         tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
         """

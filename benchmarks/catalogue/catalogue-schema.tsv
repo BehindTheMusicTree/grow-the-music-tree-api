@@ -230,11 +230,11 @@ grow_genre_edge_rule|created_on|timestamp with time zone|NO
 grow_genre_edge_rule|updated_on|timestamp with time zone|YES
 grow_genre_edge_rule|relation|character varying|NO
 grow_genre_edge_rule|item_id|character varying|NO
-grow_genre_edge_rule|parent_item_id|character varying|YES
-grow_genre_edge_rule|action|character varying|YES
-grow_genre_edge_rule|exclude_other_parents|boolean|YES
+grow_genre_edge_rule|target_item_id|character varying|NO
+grow_genre_edge_rule|action|character varying|NO
 grow_genre_edge_rule|reason|text|NO
 grow_genre_edge_rule|user_id|integer|YES
+grow_genre_edge_rule|decision_id|character varying|NO
 grow_genre_essential_songs|id|bigint|NO
 grow_genre_essential_songs|genre_id|uuid|NO
 grow_genre_essential_songs|song_id|uuid|NO
@@ -432,7 +432,7 @@ the_music_tree_genre_kit_genregraphevidence|dataset_id|character varying|NO
 the_music_tree_genre_kit_genregraphnode|id|bigint|NO
 the_music_tree_genre_kit_genregraphnode|identity|character varying|NO
 the_music_tree_genre_kit_genregraphnode|is_umbrella|boolean|NO
-the_music_tree_genre_kit_genregraphnode|canonical_state|character varying|YES
+the_music_tree_genre_kit_genregraphnode|state|character varying|YES
 the_music_tree_genre_kit_genregraphnode|dataset_id|character varying|NO
 the_music_tree_genre_kit_genregraphnode|is_active|boolean|NO
 the_music_tree_genre_kit_genregraphrevision|revision|uuid|NO

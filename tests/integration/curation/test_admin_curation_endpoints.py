@@ -296,26 +296,22 @@ class TestCase(AppTestCase):
         url = reverse("genre-secondary-parent", kwargs={"pk": genre.uuid, "parent_uuid": parent.uuid})
         return getattr(self.api_client, method)(url)
 
-    def test_secondary_parent_add_then_remove(self):
+    def test_secondary_parent_between_global_genres_then_400_and_prohibit_recorded(self):
         root = self.model_fixture_factory.create_genre("Music", wikidata_id="Q638")
         genre = self.model_fixture_factory.create_genre("Grunge", wikidata_id="Q11366", parent=root)
         other = self.model_fixture_factory.create_genre("Punk", wikidata_id="Q3071", parent=root)
 
         response = self._secondary("post", genre, other)
 
-        assert response.status_code == status.HTTP_200_OK
-        assert [g.pk for g in genre.secondary_parents.all()] == [other.pk]
-        [rule] = GenreEdgeRule.objects.filter(relation="secondary_parent")
-        assert (rule.item_id, rule.parent_item_id, rule.action) == ("Q11366", "Q3071", "add")
-        genre.refresh_from_db()
-        assert genre.is_manually_edited
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert not genre.secondary_parents.exists()
+        assert not GenreEdgeRule.objects.filter(item_id="Q11366", target_item_id="Q3071").exists()
 
         undo = self._secondary("delete", genre, other)
 
         assert undo.status_code == status.HTTP_200_OK
-        assert not genre.secondary_parents.exists()
-        [rule] = GenreEdgeRule.objects.filter(relation="secondary_parent")
-        assert rule.action == "remove"
+        [rule] = GenreEdgeRule.objects.filter(item_id="Q11366", target_item_id="Q3071")
+        assert (rule.relation, rule.action) == ("classification", "prohibit")
 
     def test_secondary_parent_invalid_then_400(self):
         root = self.model_fixture_factory.create_genre("Music", wikidata_id="Q638")

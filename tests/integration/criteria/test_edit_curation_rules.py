@@ -17,16 +17,16 @@ def _rows(list_name: str) -> list[dict]:
 
 
 def _edges(relation: str | None = None) -> list[tuple]:
-    """`(item_id, parent_item_id, action, exclude_other_parents)` of the test genres' edge rules."""
-    rules = GenreEdgeRule.objects.filter(user=None, item_id__startswith="Q888").order_by("item_id", "parent_item_id")
+    """`(item_id, target_item_id, action)` of the test genres' edge rules."""
+    rules = GenreEdgeRule.objects.filter(user=None, item_id__startswith="Q888").order_by("item_id", "target_item_id")
     if relation:
         rules = rules.filter(relation=relation)
-    return [(r.item_id, r.parent_item_id, r.action, r.exclude_other_parents) for r in rules]
+    return [(r.item_id, r.target_item_id, r.action) for r in rules]
 
 
 def _roots() -> list[str]:
-    """The test genres' accepted canonical roots (the `canonical_roots` list)."""
-    keys = CurationEntry.objects.filter(user=None, list_name="canonical_roots", key__startswith="Q888")
+    """The test genres' accepted canonical roots (the `global_roots` list)."""
+    keys = CurationEntry.objects.filter(user=None, list_name="global_roots", key__startswith="Q888")
     return sorted(keys.values_list("key", flat=True))
 
 
@@ -57,40 +57,20 @@ class TestCase(GenreTestCase):
 
         assert [r["display_label"] for r in _rows("label_overrides")] == ["Punk music"]
 
-    def test_canonical_reparent_then_canonical_parent(self):
+    def test_global_reparent_then_classification_assert(self):
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
-        assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
+        assert _edges("classification") == [("Q888002", "Q888001", "assert")]
         assert GenreEdgeRule.objects.get(item_id="Q888002").reason == REASON
 
-    def test_reparent_onto_secondary_added_parent_then_add_rule_and_edge_dropped(self):
-        self.punk.secondary_parents.add(self.rock)
-        GenreEdgeRule.objects.upsert("secondary_parent", "Q888002", "Q888001", action="add", reason=REASON)
+    def test_reparent_onto_prohibited_parent_then_prohibit_replaced_by_assert(self):
+        GenreEdgeRule.objects.upsert("classification", "Q888002", "Q888001", action="prohibit", reason=REASON)
 
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
-        assert not self.punk.secondary_parents.exists()
-        assert _edges("secondary_parent") == []
-
-    def test_reparent_onto_secondary_removed_parent_then_remove_rule_replaced_by_edge(self):
-        GenreEdgeRule.objects.upsert("secondary_parent", "Q888002", "Q888001", action="remove", reason=REASON)
-
-        response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
-
-        assert response.status_code == status.HTTP_200_OK
-        assert _edges("secondary_parent") == []
-        assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
-
-    def test_reparent_without_actor_onto_secondary_added_parent_then_edge_and_rule_dropped(self):
-        self.punk.secondary_parents.add(self.rock)
-        GenreEdgeRule.objects.upsert("secondary_parent", "Q888002", "Q888001", action="add", reason=REASON)
-
-        Genre.objects.update_instance(self.punk, actor=None, parent=self.rock)
-
-        assert not self.punk.secondary_parents.exists()
-        assert _edges("secondary_parent") == []
+        assert _edges("classification") == [("Q888002", "Q888001", "assert")]
 
     def test_reparent_onto_additional_primary_parent_then_edge_dropped(self):
         region = self.model_fixture_factory.create_genre("Music of Peru", wikidata_id="Q888004", tree_name="regional")
@@ -118,7 +98,7 @@ class TestCase(GenreTestCase):
         assert punk.parent_id is None
         assert punk.is_manually_edited
         assert not punk.is_unaccepted_root
-        assert _edges("canonical_parent") == []
+        assert _edges("classification") == []
         assert _roots() == ["Q888002"]
         entries = HistoryEntry.objects.filter(
             action=HistoryAction.PARENT_CHANGED, content_uuid=punk.uuid, new_value=None
@@ -141,7 +121,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_200_OK
-        assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
+        assert _edges("classification") == [("Q888002", "Q888001", "assert")]
 
     def test_reparent_accepted_root_then_accepted_rule_dropped(self):
         self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
@@ -152,23 +132,23 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert _roots() == []
-        assert _edges("canonical_parent") == [("Q888002", "Q888001", None, True)]
+        assert _edges("classification") == [("Q888002", "Q888001", "assert")]
 
     def test_make_root_of_app_created_genre_then_root_without_rule(self):
         local = self.model_fixture_factory.create_genre("Local genre", parent=self.rock)
 
-        roots_before = CurationEntry.objects.filter(list_name="canonical_roots").count()
+        roots_before = CurationEntry.objects.filter(list_name="global_roots").count()
 
         assert self._make_root(local).status_code == status.HTTP_200_OK
 
         assert Genre.objects.get(pk=local.pk).parent_id is None
-        assert CurationEntry.objects.filter(list_name="canonical_roots").count() == roots_before
+        assert CurationEntry.objects.filter(list_name="global_roots").count() == roots_before
 
     def test_make_root_of_root_then_noop_without_rule(self):
         response = self._make_root(self.rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert _edges("canonical_parent") == []
+        assert _edges("classification") == []
 
     def test_make_root_of_regional_genre_then_400_and_rolled_back(self):
         region = self.model_fixture_factory.create_genre("Music of Peru", wikidata_id="Q888004", tree_name="regional")
@@ -194,17 +174,15 @@ class TestCase(GenreTestCase):
         return Genre.objects.get(name=name)
 
     def _additions(self) -> dict[str, str]:
-        entries = CurationEntry.objects.filter(
-            user=None, list_name="canonical_parent_additions", key__startswith="LOCAL:"
-        )
+        entries = CurationEntry.objects.filter(user=None, list_name="global_parent_additions", key__startswith="LOCAL:")
         return {e.key: e.row["label"] for e in entries if e.key not in self.seeded_locals}
 
     def _local_edges(self) -> list[tuple]:
-        rules = GenreEdgeRule.objects.filter(user=None).order_by("item_id", "parent_item_id")
+        rules = GenreEdgeRule.objects.filter(user=None).order_by("item_id", "target_item_id")
         return [
-            (r.item_id, r.parent_item_id)
+            (r.item_id, r.target_item_id)
             for r in rules
-            if r.item_id.startswith(("Q888", "LOCAL:")) and r.item_id not in self.seeded_locals
+            if r.item_id.startswith(("Q888", "LOCAL:")) and r.item_id not in self.seeded_locals and r.action == "assert"
         ]
 
     def test_reparent_under_app_created_genre_then_parent_adopted_as_local_node(self):
@@ -219,7 +197,6 @@ class TestCase(GenreTestCase):
         assert local.is_manually_edited
         assert self._additions() == {"LOCAL:local-genre": "Local genre"}
         assert self._local_edges() == [("Q888002", "LOCAL:local-genre")]
-        assert GenreEdgeRule.objects.get(item_id="Q888002").exclude_other_parents
         assert HistoryEntry.objects.filter(
             content_uuid=local.pk, action=HistoryAction.UPDATED, new_value__startswith="adopted"
         ).exists()
@@ -324,7 +301,7 @@ class TestCase(GenreTestCase):
 
         assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_200_OK
 
-        GenreEdgeRule.objects.filter(item_id="Q888002").update(parent_item_id="LOCAL:ghost")
+        GenreEdgeRule.objects.filter(item_id="Q888002").update(target_item_id="LOCAL:ghost")
         assert self.api_client.get(path=reverse("curation-export")).status_code == status.HTTP_409_CONFLICT
 
     def test_regional_reparent_then_400(self):
@@ -344,7 +321,7 @@ class TestCase(GenreTestCase):
         assert Genre.objects.get(pk=local.pk).is_manually_edited
         assert not CurationEntry.objects.filter(list_name="label_overrides", values__display_label="Local genre 2")
 
-    def test_accept_root_then_accepted_canonical_roots(self):
+    def test_accept_root_then_global_roots(self):
         Genre.objects.filter(pk=self.punk.pk).update(is_unaccepted_root=True)
 
         response = self.api_client.post(
@@ -354,7 +331,7 @@ class TestCase(GenreTestCase):
         )
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        assert _edges("canonical_parent") == []
+        assert _edges("classification") == []
         assert _roots() == ["Q888002"]
 
     def test_exclude_then_category_list(self):
@@ -392,7 +369,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert _edges("canonical_parent") == []
+        assert _edges("classification") == []
 
     def test_exclude_genre_referenced_by_parent_rule_then_400(self):
         self._put_genre(self.punk.uuid, data={"name": "Punk", "parent": str(self.rock.uuid)})
@@ -401,7 +378,7 @@ class TestCase(GenreTestCase):
             response = self._post_genre_exclude(genre.uuid, "theme")
 
             assert response.status_code == status.HTTP_400_BAD_REQUEST
-            assert "canonical_parent" in str(response.json())
+            assert "classification" in str(response.json())
             assert not Genre.objects.get(pk=genre.pk).is_excluded
 
     def test_exclude_unknown_genre_then_404(self):
@@ -415,7 +392,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "pop"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert _rows("canonical_genre_pop_side") == [
+        assert _rows("global_genre_pop_side") == [
             {"root_item_id": "Q888001", "pop_child_item_id": "Q888003", "reason": REASON}
         ]
         genre = Genre.objects.get(pk=pop_punk.pk)
@@ -431,7 +408,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(pop_punk.uuid, data={"name": "Pop punk", "side": "core"})
 
         assert response.status_code == status.HTTP_200_OK
-        assert _rows("canonical_genre_pop_side") == []
+        assert _rows("global_genre_pop_side") == []
         assert Genre.objects.get(pk=pop_punk.pk).side == "core"
 
     def test_side_to_pop_on_local_grouping_then_rule_with_local_ids(self):
@@ -441,7 +418,7 @@ class TestCase(GenreTestCase):
         assert self._put_genre(pop.uuid, data={"name": "Pop rock", "side": "pop"}).status_code == status.HTTP_200_OK
 
         assert CurationEntry.objects.filter(
-            list_name="canonical_genre_pop_side", key="LOCAL:rock-888\tLOCAL:pop-rock-888"
+            list_name="global_genre_pop_side", key="LOCAL:rock-888\tLOCAL:pop-rock-888"
         ).exists()
 
     def test_second_pop_child_then_400_and_rolled_back(self):
@@ -453,7 +430,7 @@ class TestCase(GenreTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert Genre.objects.get(pk=soft_rock.pk).side != "pop"
-        assert [r["pop_child_item_id"] for r in _rows("canonical_genre_pop_side")] == ["Q888003"]
+        assert [r["pop_child_item_id"] for r in _rows("global_genre_pop_side")] == ["Q888003"]
 
     def test_side_to_pop_off_root_child_then_400(self):
         pop_punk = self.model_fixture_factory.create_genre("Pop punk", wikidata_id="Q888003", parent=self.rock)
@@ -462,7 +439,7 @@ class TestCase(GenreTestCase):
         response = self._put_genre(skate_punk.uuid, data={"name": "Skate punk", "side": "pop"})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert _rows("canonical_genre_pop_side") == []
+        assert _rows("global_genre_pop_side") == []
 
     def test_side_to_pop_under_mainstream_pop_root_then_400(self):
         mainstream = self.model_fixture_factory.create_genre("Mainstream Pop", wikidata_id="Q888010")
@@ -473,7 +450,7 @@ class TestCase(GenreTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "side" in str(response.json())
         assert Genre.objects.get(pk=teen_pop.pk).side != "pop"
-        assert _rows("canonical_genre_pop_side") == []
+        assert _rows("global_genre_pop_side") == []
 
     def test_side_to_pop_on_app_created_genre_then_locked_without_rule(self):
         mine = self.model_fixture_factory.create_genre("My pop", parent=self.rock)
@@ -481,7 +458,7 @@ class TestCase(GenreTestCase):
         assert self._put_genre(mine.uuid, data={"name": "My pop", "side": "pop"}).status_code == status.HTTP_200_OK
 
         assert Genre.objects.get(pk=mine.pk).is_manually_edited
-        assert _rows("canonical_genre_pop_side") == []
+        assert _rows("global_genre_pop_side") == []
 
 
 class TestAdminCreatedGenreAdoption(GenreTestCase):
@@ -496,10 +473,10 @@ class TestAdminCreatedGenreAdoption(GenreTestCase):
         created = Genre.objects.get(uuid=response.json()["uuid"])
         assert created.wikidata_id == "LOCAL:lol-music"
         assert created.is_manually_edited is True
-        additions = CurationEntry.objects.get(user=None, list_name="canonical_parent_additions", key="LOCAL:lol-music")
+        additions = CurationEntry.objects.get(user=None, list_name="global_parent_additions", key="LOCAL:lol-music")
         assert additions.row["label"] == "Lol Music"
-        edge = GenreEdgeRule.objects.get(user=None, relation="canonical_parent", item_id="LOCAL:lol-music")
-        assert edge.parent_item_id == "Q888001"
+        edge = GenreEdgeRule.objects.get(user=None, relation="classification", item_id="LOCAL:lol-music")
+        assert edge.target_item_id == "Q888001"
 
     def test_create_under_app_created_parent_then_ancestors_adopted(self):
         mid = self.model_fixture_factory.create_genre("Mid", parent=self.rock)
@@ -509,8 +486,8 @@ class TestAdminCreatedGenreAdoption(GenreTestCase):
         assert response.status_code == status.HTTP_201_CREATED
         edges = dict(
             GenreEdgeRule.objects.filter(
-                user=None, relation="canonical_parent", item_id__in=["LOCAL:mid", "LOCAL:leaf"]
-            ).values_list("item_id", "parent_item_id")
+                user=None, relation="classification", item_id__in=["LOCAL:mid", "LOCAL:leaf"]
+            ).values_list("item_id", "target_item_id")
         )
         assert edges == {"LOCAL:mid": "Q888001", "LOCAL:leaf": "LOCAL:mid"}
 
@@ -519,7 +496,7 @@ class TestAdminCreatedGenreAdoption(GenreTestCase):
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert not Genre.objects.filter(_name="Orphan").exists()
-        assert not CurationEntry.objects.filter(list_name="canonical_parent_additions", key="LOCAL:orphan").exists()
+        assert not CurationEntry.objects.filter(list_name="global_parent_additions", key="LOCAL:orphan").exists()
 
     def test_create_with_slug_taken_by_existing_genre_or_seeded_list_then_suffixed(self):
         self.model_fixture_factory.create_genre("Squatter", wikidata_id="LOCAL:lol-music")

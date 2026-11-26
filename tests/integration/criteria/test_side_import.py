@@ -12,7 +12,7 @@ class TestCase(GenreTestCase):
         root = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: root_name, Fields.CHILDREN: [child]}
         required = {Fields.ID: "Q373343", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
         tree = [root] if root_name == "Mainstream Pop" else [required, root]
-        return self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree})
+        return self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree})
 
     def test_pop_child_under_mainstream_pop_then_rejected(self):
         response = self._import("Mainstream Pop", "pop")

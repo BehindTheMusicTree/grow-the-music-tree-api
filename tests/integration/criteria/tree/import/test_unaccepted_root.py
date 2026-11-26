@@ -24,7 +24,7 @@ class TestUnacceptedRoot(GenreTestCase):
         self.pala = Genre.objects.get(user=None, wikidata_id="Q15724583")
 
     def _import(self, tree):
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree})
         assert response.status_code == status.HTTP_201_CREATED
 
     def _unaccepted_roots(self):

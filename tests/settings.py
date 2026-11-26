@@ -23,8 +23,8 @@ INSTALLED_APPS = [
 Q_CLUSTER = {
     "name": "gtmt_api_test",
     "sync": True,
-    "timeout": 14400,
-    "retry": 15000,
+    "timeout": 28800,
+    "retry": 30000,
 }
 
 CACHES = {

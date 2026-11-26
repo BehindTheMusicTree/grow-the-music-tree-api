@@ -114,6 +114,12 @@ def _songs_genre_panel_second_page() -> tuple[str, dict]:
     return reverse("song-list"), {**params, **_cursor_param(next_url)}
 
 
+def _songs_by_rare_artist_name() -> tuple[str, dict]:
+    artist = Artist.objects.filter(user__isnull=True, recording_count=1).order_by("musicbrainz_artist_id").first()
+    assert artist, "fixture has no artist credited on a single song"
+    return reverse("song-list"), {"artists_name": artist.name, "with_total": "true", "page_size": SONGS_PAGE_SIZE}
+
+
 PATHS = {
     "genre-playlist-list?page_size=30": lambda: (reverse("genre-playlist-list"), {"page_size": 30}),
     "genre-playlist-list?page_size=100": lambda: (reverse("genre-playlist-list"), {"page_size": 100}),
@@ -142,6 +148,12 @@ PATHS = {
     "songs tracklist (genre, playable, title, third page)": lambda: _songs_tracklist("title", 3),
     "songs tracklist (genre, playable, -albumYear, from)": _songs_tracklist_from,
     "songs genre panel (cursor, second page)": _songs_genre_panel_second_page,
+    # The fixture walks every song in milliseconds; perf/test_artists_name_plan.py and staging guard the scale case.
+    "songs artists_name (rare, with total)": _songs_by_rare_artist_name,
+    "songs artists_name (broad, first page)": lambda: (
+        reverse("song-list"),
+        {"artists_name": "the", "with_total": "false", "page_size": SONGS_PAGE_SIZE},
+    ),
 }
 
 
@@ -184,7 +196,7 @@ TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 @pytest.mark.parametrize("mode", TREE_SLO_MS)
 def test_genre_tree_median_latency_within_slo(mode, perf_record):
     client = AppApiClient()
-    path, params = reverse("genre-playlist-tree"), {"tree_name": "canonical"}
+    path, params = reverse("genre-playlist-tree"), {"tree_name": "global"}
     etag = client.get(path, params)["ETag"]
     headers = {"HTTP_IF_NONE_MATCH": etag} if mode == "not-modified" else {}
 
@@ -378,7 +390,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
             fixture_name, tree = {
                 "Latin": ("Music of Latin America", "regional"),
                 "World": ("World music", "regional"),
-                "Rock": ("Rock music", "canonical"),
+                "Rock": ("Rock music", "global"),
             }[name]
             criteria = genres.get(_name=fixture_name, tree_name=tree)
         route = "genre-detail"
@@ -386,7 +398,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
     alternate_genre = (
         Genre.objects.get(_name="World music", tree_name="regional")
         if name == "Rock"
-        else Genre.objects.get(_name="Rock music", tree_name="canonical")
+        else Genre.objects.get(_name="Rock music", tree_name="global")
     )
     alternate = reverse("genre-detail", kwargs={"pk": alternate_genre.pk})
     written_song = (

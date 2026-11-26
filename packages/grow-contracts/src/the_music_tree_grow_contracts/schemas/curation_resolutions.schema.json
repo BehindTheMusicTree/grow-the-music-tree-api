@@ -28,7 +28,7 @@
           "key": { "type": "string", "minLength": 1 },
           "column": { "type": "string", "minLength": 1 },
           "itemId": { "type": "string", "pattern": "^(Q[0-9]+|LOCAL:[a-z0-9-]+)$" },
-          "reason": { "enum": ["redirect_conflict", "missing", "not_in_tree", "invalid_rule", "exclusive_parent_regional", "unreached_genre"] },
+          "reason": { "enum": ["redirect_conflict", "missing", "not_in_tree", "invalid_rule", "unreached_genre"] },
           "target": { "type": "string", "pattern": "^Q[0-9]+$" },
           "evidence": {
             "type": "object",

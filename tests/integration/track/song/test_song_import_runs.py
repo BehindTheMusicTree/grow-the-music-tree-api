@@ -796,6 +796,16 @@ class TestImportRunMerge(AppTestCase):
         assert all(report.valid for report in verify_catalogue_counts().values())
         assert stored_membership_bucket_counts() == membership_bucket_counts()
 
+    def test_missing_genreless_playlist_then_merge_fails_and_commits_nothing(self):
+        run_id = self._create_run([SONG])
+        GenrePlaylist.objects.filter(user=None, criteria=None).delete()
+
+        response = self.api_client.post(path=f"{RUNS}{run_id}/commit/")
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert ImportAttempt.objects.get(run_id=run_id).state == ImportAttempt.State.FAILED
+        assert not Song.objects.exists()
+
     def test_delta_run_upserts_without_deleting_unlisted_tracks(self):
         rock = self.model_fixture_factory.create_genre("Rock")
         self.model_fixture_factory.create_song(title="Unlisted", genre=rock, youtube_video_id="stalevideo1")

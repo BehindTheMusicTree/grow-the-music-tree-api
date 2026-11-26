@@ -19,7 +19,7 @@ def snapshot_item_ids(snapshots: Iterable[str | None]) -> set[str]:
 
 
 def resolve_item_labels(ids: set[str]) -> dict[str, str]:
-    """Name of each item id, from the canonical tree, else the pipeline's Wikidata catalog, else the name an admin
+    """Name of each item id, from the global tree, else the pipeline's Wikidata catalog, else the name an admin
     gave the item when adding it (an addition not imported yet). An id with no source is absent."""
     if not ids:
         return {}

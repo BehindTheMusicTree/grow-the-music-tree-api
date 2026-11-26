@@ -10,11 +10,11 @@ class TestCase(AppTestCase):
         return {"item_id": "Q404", "scene": scene, "reason": "r"}
 
     def test_scene_entry_with_valid_value_then_created(self):
-        assert CurationEntry.objects.upsert("canonical_genre_scene", self._scene_row("commercial")) == "created"
+        assert CurationEntry.objects.upsert("global_genre_scene", self._scene_row("commercial")) == "created"
 
     def test_scene_entry_with_unknown_value_then_invalid_row(self):
         with self.assertRaises(InvalidRow):
-            CurationEntry.objects.upsert("canonical_genre_scene", self._scene_row("mainstream"))
+            CurationEntry.objects.upsert("global_genre_scene", self._scene_row("mainstream"))
 
     def test_genre_playlist_list_then_scene_on_marked_genre_only(self):
         self.model_fixture_factory.create_genre("Edm", wikidata_id="Q851213", scene="commercial")

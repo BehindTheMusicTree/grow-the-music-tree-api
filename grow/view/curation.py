@@ -23,7 +23,6 @@ from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_grow_contracts.curation_lists import (
     ADDITION_LISTS,
     CURATION_LISTS,
-    EDGE_PROJECTION_LISTS,
     GENRE_ALIAS_LIST,
     ITEM_ID_COLUMNS,
     ITEM_ID_PATTERN,
@@ -33,18 +32,12 @@ from the_music_tree_grow_contracts.curation_lists import (
 
 from grow.authentication.ApiKeyAuthentication import ApiKeyAuthentication
 from grow.authentication.GoogleIdTokenAuthentication import GoogleIdTokenAuthentication
-from grow.curation.edges import (
-    RELATION_BY_LIST,
-    edge_csv_row,
-    edge_rules,
-    find_edge_rules,
-    legacy_key,
-    legacy_list_name,
-)
+from grow.curation.edges import RULE_ITEM_COLUMNS, edge_csv_row, edge_rules, find_edge_rules
 from grow.curation.essential_songs import LIST_NAME as ESSENTIAL_SONGS_LIST
 from grow.curation.essential_songs import apply_essential_songs
 from grow.curation.genre_aliases import alias_revision, prepare_alias_write, search_alias_targets
 from grow.curation.labels import item_ids, resolve_item_labels, snapshot_item_ids
+from grow.curation.local_genres import find_local_genre_removal_error, stored_entry_keys
 from grow.curation.resolutions import apply_wikidata_resolutions
 from grow.curation.rows import (
     KEY_SEPARATOR,
@@ -62,7 +55,7 @@ from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.CurationExport import CurationExport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.curation.CurationSyncState import CurationSyncState
-from grow.model.curation.GenreEdgeRule import GenreEdgeRule
+from grow.model.curation.GenreEdgeRule import DECISION_ID_MAX_LENGTH, GenreEdgeRule
 from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
@@ -89,7 +82,9 @@ from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
 # Every list a history entry or a conflict can name; also the OpenAPI enum `CurationListNameEnum`.
-CURATION_LIST_NAMES = [*CURATION_LISTS, *EDGE_PROJECTION_LISTS]
+EDGE_LIST_NAME = "genre_edges"
+"""The name history and review items give the edge rules."""
+CURATION_LIST_NAMES = [*CURATION_LISTS, EDGE_LIST_NAME]
 
 
 def _entries():
@@ -319,32 +314,29 @@ def _edge_errors(e: DjangoValidationError | InvalidRow) -> dict[str, Any]:
 
 
 class _EdgeSerializer(_StrictSerializer):
-    relation = serializers.ChoiceField(choices=GenreEdgeRule.Relation.choices)
     item_id = _item_id_field()
-    parent_item_id = _item_id_field(required=False, allow_null=True, default=None)
-    action = serializers.ChoiceField(
-        choices=GenreEdgeRule.Action.choices, required=False, allow_null=True, default=None
-    )
-    exclude_other_parents = serializers.BooleanField(required=False, allow_null=True, default=None)
+    relation = serializers.ChoiceField(choices=GenreEdgeRule.Relation.choices)
+    target_item_id = _item_id_field()
+    action = serializers.ChoiceField(choices=GenreEdgeRule.Action.choices)
     reason = serializers.CharField(required=False, allow_blank=True, default="", trim_whitespace=False)
 
 
 class _EdgePatchSerializer(_StrictSerializer):
-    parent_item_id = _item_id_field(required=False, allow_null=True)
-    action = serializers.ChoiceField(choices=GenreEdgeRule.Action.choices, required=False, allow_null=True)
-    exclude_other_parents = serializers.BooleanField(required=False, allow_null=True)
+    relation = serializers.ChoiceField(choices=GenreEdgeRule.Relation.choices, required=False)
+    target_item_id = _item_id_field(required=False)
+    action = serializers.ChoiceField(choices=GenreEdgeRule.Action.choices, required=False)
     reason = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
 
 
 class CurationEdgesView(CurationView):
-    """The curated genre edges (canonical/regional parents, roots, regional overviews, secondary parents)."""
+    """The curated genre edges: classification, derivation and influence decisions, asserted or prohibited."""
 
     permission_classes = [IsCuratorOrAdmin]
 
     @extend_schema(
         operation_id="v1_curation_edges_list",
         parameters=[
-            _query("item_id", description="Edges whose item or parent is this id."),
+            _query("item_id", description="Edges whose item or target is this id."),
             _query("relation", enum=list(GenreEdgeRule.Relation.values)),
             _query("q", description="Matched against the ids, the reason and the ids' genre names."),
             *PAGE_PARAMETERS,
@@ -365,14 +357,14 @@ class CurationEdgesView(CurationView):
             qids = _canonical_genres().filter(_name__icontains=q).exclude(wikidata_id=None).values("wikidata_id")
             queryset = queryset.filter(
                 Q(item_id__icontains=q)
-                | Q(parent_item_id__icontains=q)
+                | Q(target_item_id__icontains=q)
                 | Q(reason__icontains=q)
                 | Q(item_id__in=qids)
-                | Q(parent_item_id__in=qids)
+                | Q(target_item_id__in=qids)
             )
         paginator = AppPagination()
         page = paginator.paginate_queryset(
-            queryset.order_by("item_id", "relation", "parent_item_id"), request, view=self
+            queryset.order_by("item_id", "relation", "target_item_id"), request, view=self
         )
         rules = list(page or [])
         response = paginator.get_paginated_response([_serialize_edge(r) for r in rules])
@@ -389,6 +381,16 @@ class CurationEdgesView(CurationView):
         except (DjangoValidationError, InvalidRow) as e:
             raise ValidationError(_edge_errors(e)) from e
         return Response(_serialize_edge(rule), status=status.HTTP_201_CREATED)
+
+
+def _check_local_placement_kept(rule: GenreEdgeRule) -> None:
+    """A `LOCAL:` item keeps its classification while it is declared: refuse the write that drops it."""
+    if rule.relation != GenreEdgeRule.Relation.CLASSIFICATION or rule.action != GenreEdgeRule.Action.ASSERT:
+        return
+    keys = stored_entry_keys()
+    message = find_local_genre_removal_error(keys, edge_rules().exclude(pk=rule.pk), {rule.item_id})
+    if message:
+        raise ValidationError({"row": message})
 
 
 class CurationEdgeView(CurationView):
@@ -408,6 +410,9 @@ class CurationEdgeView(CurationView):
         rule = self._get(uuid)
         serializer = _EdgePatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        changes = serializer.validated_data
+        if any(changes.get(field, getattr(rule, field)) != getattr(rule, field) for field in ("relation", "action")):
+            _check_local_placement_kept(rule)
         try:
             rule = GenreEdgeRule.objects.update_instance(rule, actor=request.user, **serializer.validated_data)
         except (DjangoValidationError, InvalidRow) as e:
@@ -417,7 +422,9 @@ class CurationEdgeView(CurationView):
     @extend_schema(responses=_DELETED)
     @transaction.atomic
     def delete(self, request: Request, uuid: str) -> Response:
-        GenreEdgeRule.objects.delete_instance(self._get(uuid), actor=request.user)
+        rule = self._get(uuid)
+        _check_local_placement_kept(rule)
+        GenreEdgeRule.objects.delete_instance(rule, actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -428,7 +435,7 @@ class CurationRulesView(CurationView):
     def get(self, request: Request) -> Response:
         item_id = _item_id(request)
         entries = list(find_item_rules(_entries(), item_id).order_by("list_name", "key"))
-        edges = list(find_edge_rules(item_id).order_by("item_id", "relation", "parent_item_id"))
+        edges = list(find_edge_rules(item_id).order_by("item_id", "relation", "target_item_id"))
         return Response(
             {
                 "results": [{"list_name": e.list_name, **_serialize(e)} for e in entries],
@@ -443,7 +450,7 @@ class CurationHistoryView(CurationView):
 
     @extend_schema(
         parameters=[
-            _query("list", description="A curation list, an edge projection list or a retired list."),
+            _query("list", description="A curation list, `genre_edges` or a retired list."),
             _query("entry", OpenApiTypes.UUID),
             _ITEM_ID_QUERY,
             *PAGE_PARAMETERS,
@@ -455,16 +462,15 @@ class CurationHistoryView(CurationView):
         content_types = ContentType.objects.get_for_models(CurationEntry, GenreEdgeRule).values()
         queryset = HistoryEntry.objects.filter(user=None, content_type__in=content_types)
         if "list" in params:
-            if params["list"] not in (*CURATION_LISTS, *EDGE_PROJECTION_LISTS, *RETIRED_HISTORY_LISTS):
+            list_name = params["list"]
+            if list_name not in (*CURATION_LIST_NAMES, *RETIRED_HISTORY_LISTS):
                 raise ValidationError({"list": "Unknown curation list"})
-            # Edits made before migration 0112 stay under the entry content type with a `list_name`; later ones are
-            # edge snapshots carrying a `relation`.
-            matching = _snapshot_has("list_name", params["list"])
-            if params["list"] in RELATION_BY_LIST:
-                matching |= Q(content_type=ContentType.objects.get_for_model(GenreEdgeRule)) & _snapshot_has(
-                    "relation", RELATION_BY_LIST[params["list"]]
-                )
-            queryset = queryset.filter(matching)
+            queryset = queryset.filter(
+                Q(content_type=ContentType.objects.get_for_model(GenreEdgeRule))
+                if list_name == EDGE_LIST_NAME
+                # A retired list's edits stay under the content type with the `list_name` of their time.
+                else _snapshot_has("list_name", list_name)
+            )
         if "entry" in params:
             try:
                 queryset = queryset.filter(content_uuid=uuid.UUID(params["entry"]))
@@ -487,7 +493,7 @@ class CurationHistoryView(CurationView):
 
 
 class CurationStatusView(CurationView):
-    """Which pipeline export the canonical tree was last built from, and how many entries were edited since."""
+    """Which pipeline export the genre trees were last built from, and how many entries were edited since."""
 
     @extend_schema(responses=CurationStatusSerializer)
     def get(self, request: Request) -> Response:
@@ -500,7 +506,7 @@ def _serialize_violation(violation: Violation) -> dict[str, Any]:
 
 
 class CurationExportView(CurationView):
-    """Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+    """Every list, and the genre edge rules (`edges`), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
     `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
     knows which export the imported tree was built from.
@@ -535,9 +541,7 @@ class CurationExportView(CurationView):
             if entry.list_name == GENRE_ALIAS_LIST:
                 revisions[entry.key] = alias_revision(entry)
             export[entry.list_name].append(row)
-        export["edges"] = [
-            edge_csv_row(r) for r in sorted(edge_rules(), key=lambda r: (r.item_id, r.relation, r.parent_item_id or ""))
-        ]
+        export["edges"] = [edge_csv_row(r) for r in edge_rules().order_by("item_id", "relation", "target_item_id")]
         export["exported_on"] = exported_on.isoformat()
         if request.auth.role == "pipeline":
             # The pipeline's copy, kept whole: a later import checks what it was built from against it.
@@ -546,25 +550,29 @@ class CurationExportView(CurationView):
 
 
 class _CurationItemSerializer(serializers.Serializer):
-    """An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or the legacy `list` + `key`)."""
+    """An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or `list` `genre_edges` with its
+    `decision_id` as `key`)."""
 
-    rule_id = serializers.UUIDField(required=False)
+    rule_id = serializers.CharField(max_length=DECISION_ID_MAX_LENGTH, trim_whitespace=False, required=False)
     list = serializers.ChoiceField(choices=CURATION_LIST_NAMES, required=False)
     key = serializers.CharField(max_length=KEY_MAX_LENGTH, trim_whitespace=False, required=False)
     column = serializers.ChoiceField(choices=sorted(ITEM_ID_COLUMNS))
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        if attrs.get("list") == EDGE_LIST_NAME and "key" in attrs and "rule_id" not in attrs:
+            attrs.pop("list")
+            attrs["rule_id"] = attrs.pop("key")
         if "rule_id" in attrs:
             if "list" in attrs or "key" in attrs:
                 raise ValidationError({"rule_id": "Can't be combined with list and key"})
-            if attrs["column"] not in ("item_id", "parent_item_id"):
-                raise ValidationError({"column": "Must be item_id or parent_item_id for a rule_id"})
+            if attrs["column"] not in RULE_ITEM_COLUMNS:
+                raise ValidationError({"column": "Must be item_id or target_item_id for a rule_id"})
             return attrs
         if "list" not in attrs or "key" not in attrs:
             raise ValidationError({"rule_id": "Required unless list and key are given"})
         if attrs["list"] == GENRE_ALIAS_LIST:
             raise ValidationError({"list": "Genre aliases are reviewed through the Gold match report"})
-        columns = {**CURATION_LISTS, **EDGE_PROJECTION_LISTS}[attrs["list"]].columns
+        columns = CURATION_LISTS[attrs["list"]].columns
         if attrs["column"] not in columns:
             raise ValidationError({"column": f"Not a column of {attrs['list']}"})
         return attrs
@@ -605,7 +613,11 @@ class _ReviewItemSerializer(_CurationItemSerializer):
             choice
             for choice in CurationReviewItem.Reason.choices
             if choice[0]
-            not in (*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
+            not in (
+                *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
+                *CurationReviewItem.GENRE_ALIAS_REASONS,
+                *CurationReviewItem.GRAPH_REASONS,
+            )
         ]
     )
     target = _item_id_field(required=False, allow_null=True)
@@ -658,7 +670,7 @@ ITEM_SEARCH_LIMIT = 20
 
 
 class CurationItemsView(CurationView):
-    """Items matching `q` by id or name, for an admin to pick one: the canonical tree, the catalog and pending additions."""
+    """Items matching `q` by id or name, for an admin to pick one: the grow genres, the catalog and pending additions."""
 
     @extend_schema(parameters=[_SEARCH_QUERY], responses=CurationItemsSerializer)
     def get(self, request: Request) -> Response:
@@ -712,12 +724,12 @@ class GenreAliasTargetsView(CurationView):
 
 
 def _review_list(item: CurationReviewItem) -> str | None:
-    """None for a synthetic overview alert, which concerns no list or rule."""
-    return item.list_name or (legacy_list_name(item.rule) if item.rule else None)
+    """None for an alert which concerns no list or rule."""
+    return EDGE_LIST_NAME if item.rule else item.list_name
 
 
 def _review_key(item: CurationReviewItem) -> str | None:
-    return item.key or (legacy_key(item.rule) if item.rule else None)
+    return item.rule.decision_id if item.rule else item.key
 
 
 class CurationReviewView(CurationView):
@@ -732,7 +744,7 @@ class CurationReviewView(CurationView):
         return Response(
             [
                 {
-                    "rule_id": i.rule.uuid if i.rule else None,
+                    "rule_id": i.rule.decision_id if i.rule else None,
                     "list": _review_list(i),
                     "key": _review_key(i),
                     "column": i.column,

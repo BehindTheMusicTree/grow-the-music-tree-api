@@ -31,7 +31,7 @@ class TestCase(AppTestCase):
 
     def test_flag_maps_to_tree_name_and_back(self):
         migration_module.flag_to_tree_name(self.apps, None)
-        assert self._values("tree_name") == ["canonical", "regional"]
+        assert self._values("tree_name") == ["global", "regional"]
 
         self.Criteria.objects.update(allows_multiple_primary_parents=False)
         migration_module.tree_name_to_flag(self.apps, None)

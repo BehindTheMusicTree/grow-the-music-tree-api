@@ -15,7 +15,7 @@ class TestStructure(GenreTestCase):
 
     def test_single_root_then_ok(self):
         data = [{Fields.ID: "Q102", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, self._mainstream_pop_root()]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -31,7 +31,7 @@ class TestStructure(GenreTestCase):
             {Fields.ID: "Q104", Fields.NAME_PUBLIC: "Jazz", Fields.CHILDREN: []},
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -58,7 +58,7 @@ class TestStructure(GenreTestCase):
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -102,7 +102,7 @@ class TestStructure(GenreTestCase):
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -136,7 +136,7 @@ class TestStructure(GenreTestCase):
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)
@@ -188,7 +188,7 @@ class TestStructure(GenreTestCase):
             },
             self._mainstream_pop_root(),
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
 
         genres = Genre.objects.filter(user=None)

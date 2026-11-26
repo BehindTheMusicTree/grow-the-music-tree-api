@@ -47,7 +47,7 @@ class ImportRunSerializer(serializers.Serializer):
 class ImportRunLatestSerializer(serializers.Serializer):
     """The newest run of each kind, `null` when the kind never ran."""
 
-    canonical_tree = ImportRunSerializer(allow_null=True)
+    global_tree = ImportRunSerializer(allow_null=True)
     regional_tree = ImportRunSerializer(allow_null=True)
     songs = ImportRunSerializer(allow_null=True)
     artists = ImportRunSerializer(allow_null=True)

@@ -2,7 +2,7 @@ from django.db import models
 
 from grow.model.import_run.ImportRun import ImportRun
 
-# Not an `ImportRun.Kind`: its runs are recorded per tree (canonical / regional), so `/imports/latest/` never lists it.
+# Not an `ImportRun.Kind`: its runs are recorded per tree (global / regional), so `/imports/latest/` never lists it.
 GENRE_TREES_KIND = "genre_trees"
 GENRE_GRAPH_KIND = "genre_graph"
 

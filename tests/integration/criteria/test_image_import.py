@@ -20,7 +20,7 @@ class TestCase(GenreTestCase):
         if image is not None:
             node["image"] = image
         root = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
-        return self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: [root, node]})
+        return self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: [root, node]})
 
     def test_image_is_imported_then_cleared_when_the_node_drops_it(self):
         assert self._import(IMAGE).status_code == status.HTTP_201_CREATED

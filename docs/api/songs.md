@@ -83,8 +83,8 @@ With inclusive coverage, contract 4 supports `restricted` (direct songs plus res
 `extended` (direct songs plus all accessible descendants), and `expressions` (the additional descendants reached
 by extended coverage). The exact `coverage=genre_only` selects only directly assigned songs and rejects `subgenres`.
 
-For existing clients, `canonical` aliases `restricted`, `all` aliases `extended`, and `regional` selects
-`expressions` plus direct songs. The default is `canonical` for canonical genres and `all` for regional genres.
+For existing clients, `global` aliases `restricted`, `all` aliases `extended`, and `regional` selects
+`expressions` plus direct songs. The default is `global` for global genres and `all` for regional genres.
 Regional genres only accept `all` among the legacy values. Contract 4 scopes work for either tree.
 
 #### Pagination modes

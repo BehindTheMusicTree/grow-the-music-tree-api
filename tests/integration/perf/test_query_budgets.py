@@ -178,7 +178,7 @@ TREE_BUDGETS = {"cold": 6, "warm": 1, "not-modified": 1}
 def _count_tree_queries(**headers) -> int:
     client = AppApiClient()
     with CaptureQueriesContext(connection) as queries:
-        response = client.get(reverse("genre-playlist-tree"), {"tree_name": "canonical"}, **headers)
+        response = client.get(reverse("genre-playlist-tree"), {"tree_name": "global"}, **headers)
     assert response.status_code in (status.HTTP_200_OK, status.HTTP_304_NOT_MODIFIED)
     return QueryCounts.from_queries(queries.captured_queries).assert_protocol(snapshot=True, vendor=connection.vendor)
 
@@ -190,7 +190,7 @@ def test_genre_tree_query_count_is_constant_and_within_budget():
     few_rows = _count_tree_queries()
     _seed_genres(2, 12)
     many_rows = _count_tree_queries()
-    etag = AppApiClient().get(reverse("genre-playlist-tree"), {"tree_name": "canonical"})["ETag"]
+    etag = AppApiClient().get(reverse("genre-playlist-tree"), {"tree_name": "global"})["ETag"]
     counts = {
         "cold": many_rows,
         "warm": _count_tree_queries(),

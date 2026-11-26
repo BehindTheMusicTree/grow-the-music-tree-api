@@ -72,7 +72,7 @@ class TestPipelineRunImportLink(AppTestCase):
 
     def test_trees_import_links_its_attempt(self):
         run = self._run()
-        body = {"trees": [{"treeName": "canonical", "tree": [POP]}]}
+        body = {"trees": [{"treeName": "global", "tree": [POP]}]}
 
         response = self.api_client.post(TREE_RUNS, data=body, format="json", **self._header(run.uuid))
 
