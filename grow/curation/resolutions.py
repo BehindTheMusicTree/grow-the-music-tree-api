@@ -99,7 +99,11 @@ def apply_wikidata_resolutions(remaps: list[dict[str, Any]], review: list[dict[s
         CurationEntry.objects.update_instance(entry, actor=None, key=parsed.key, values=parsed.values)
         remapped += len(applied)
     CurationReviewItem.objects.exclude(
-        reason__in=(*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
+        reason__in=(
+            *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
+            *CurationReviewItem.GENRE_ALIAS_REASONS,
+            CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+        )
     ).delete()
     review_items = [item for item in map(_review_item, review) if item is not None]
     CurationReviewItem.objects.bulk_create(review_items)

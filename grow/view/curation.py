@@ -620,7 +620,11 @@ class _ReviewItemSerializer(_CurationItemSerializer):
             choice
             for choice in CurationReviewItem.Reason.choices
             if choice[0]
-            not in (*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS)
+            not in (
+                *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
+                *CurationReviewItem.GENRE_ALIAS_REASONS,
+                CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+            )
         ]
     )
     target = _item_id_field(required=False, allow_null=True)

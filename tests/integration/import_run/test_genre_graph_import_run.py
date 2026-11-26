@@ -28,6 +28,7 @@ from grow.genre_graph.bulk_import.merge import (
     merge_reference_graph_import_run,
 )
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
@@ -152,8 +153,8 @@ def test_revision_changed_between_post_and_merge_then_failed_with_conflict_and_c
     assert not GenreGraphImportPayload.objects.exists()
 
 
-def test_unmapped_existing_genre_then_failed_with_the_validation_message(payload):
-    ModelFixtureFactory(None).create_genre("Orphan")
+def test_unmapped_existing_genre_then_kept_with_alert(payload):
+    orphan = ModelFixtureFactory(None).create_genre("Orphan")
     api = client("pipeline")
 
     with patch("grow.view.genre_graph.enqueue_merge"):
@@ -161,14 +162,13 @@ def test_unmapped_existing_genre_then_failed_with_the_validation_message(payload
     run = BulkImportRun.objects.get()
     attempt = ImportAttempt.objects.get()
 
-    with pytest.raises(GraphValidationError):
-        merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
+    merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
 
-    failed = status_of(api, response.json()["taskId"])
-    assert failed["status"] == "failed"
-    assert failed["error"].startswith("GraphValidationError: Unmapped existing genre UUIDs: [")
-    assert not GenreGraphDataset.objects.exists()
-    assert not ImportReceipt.objects.filter(pk=run.pk).exists()
+    assert status_of(api, response.json()["taskId"])["status"] != "failed"
+    orphan.refresh_from_db()
+    assert orphan.graph_node_id is None
+    item = CurationReviewItem.objects.get(reason="genre_not_in_graph")
+    assert item.evidence["genreUuid"] == str(orphan.pk)
 
 
 def test_unlisted_merge_error_then_failed_with_the_generic_message(payload):
