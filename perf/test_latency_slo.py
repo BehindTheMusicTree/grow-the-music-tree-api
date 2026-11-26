@@ -196,7 +196,7 @@ TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 @pytest.mark.parametrize("mode", TREE_SLO_MS)
 def test_genre_tree_median_latency_within_slo(mode, perf_record):
     client = AppApiClient()
-    path, params = reverse("genre-playlist-tree"), {"tree_name": "canonical"}
+    path, params = reverse("genre-playlist-tree"), {"tree_name": "global"}
     etag = client.get(path, params)["ETag"]
     headers = {"HTTP_IF_NONE_MATCH": etag} if mode == "not-modified" else {}
 
@@ -390,7 +390,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
             fixture_name, tree = {
                 "Latin": ("Music of Latin America", "regional"),
                 "World": ("World music", "regional"),
-                "Rock": ("Rock music", "canonical"),
+                "Rock": ("Rock music", "global"),
             }[name]
             criteria = genres.get(_name=fixture_name, tree_name=tree)
         route = "genre-detail"
@@ -398,7 +398,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
     alternate_genre = (
         Genre.objects.get(_name="World music", tree_name="regional")
         if name == "Rock"
-        else Genre.objects.get(_name="Rock music", tree_name="canonical")
+        else Genre.objects.get(_name="Rock music", tree_name="global")
     )
     alternate = reverse("genre-detail", kwargs={"pk": alternate_genre.pk})
     written_song = (

@@ -7,7 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import connection
 from django.urls import reverse
 from rest_framework import status
-from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS, EDGE_PROJECTION_LISTS
+from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 
 from grow.curation.rows import WRITE_LOCK_ID, InvalidRow
 from grow.model.curation.CurationEntry import CurationEntry
@@ -33,6 +33,13 @@ class TestCase(AppTestCase):
     def _create(self, row: dict, list_name: str = "theme_genres"):
         return self.api_client.post(path=self._entries_url(list_name), data={"row": row})
 
+    def _edge(self, item_id: str, target_item_id: str, action: str = "assert", relation: str = "classification"):
+        return self.api_client.post(
+            path=reverse("curation-edges"),
+            data={"relation": relation, "itemId": item_id, "targetItemId": target_item_id, "action": action},
+            format="json",
+        )
+
     def _history(self, uuid) -> list[HistoryEntry]:
         return list(
             HistoryEntry.objects.filter(
@@ -46,7 +53,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
         lists = {lst["name"]: lst for lst in response.json()}
         assert set(lists) == set(CURATION_LISTS)
-        assert lists["canonical_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
+        assert lists["global_genre_pop_side"]["keyColumns"] == ["root_item_id", "pop_child_item_id"]
 
     def test_cultural_place_override_round_trip(self):
         name = "cultural_place_overrides"
@@ -135,10 +142,10 @@ class TestCase(AppTestCase):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self.model_fixture_factory.create_genre("Blues", wikidata_id="Q999999992")
         self._create(
-            {"root_item_id": "Q999999991", "pop_child_item_id": "Q999999992", "reason": "r"}, "canonical_genre_pop_side"
+            {"root_item_id": "Q999999991", "pop_child_item_id": "Q999999992", "reason": "r"}, "global_genre_pop_side"
         )
 
-        response = self.api_client.get(path=self._entries_url("canonical_genre_pop_side"), data={"q": "Q99999999"})
+        response = self.api_client.get(path=self._entries_url("global_genre_pop_side"), data={"q": "Q99999999"})
 
         labels = response.json()["labels"]
 
@@ -147,10 +154,15 @@ class TestCase(AppTestCase):
     def test_rules_then_entries_referencing_item_by_key_value_and_composite_key(self):
         self.model_fixture_factory.create_genre("Rock", wikidata_id="Q999999991")
         self._create(ITEM)
-        GenreEdgeRule.objects.upsert(
-            "canonical_parent", "Q999999992", "Q999999991", exclude_other_parents=False, reason="r"
+        # Stored directly: the validated paths refuse an edge into an excluded genre.
+        GenreEdgeRule.objects.bulk_create(
+            [
+                GenreEdgeRule(
+                    user=None, relation=relation, item_id=item, target_item_id="Q999999991", action="assert", reason="r"
+                )
+                for relation, item in (("classification", "Q999999992"), ("influence", "Q999999993"))
+            ]
         )
-        GenreEdgeRule.objects.upsert("secondary_parent", "Q999999993", "Q999999991", action="add", reason="r")
         self._create({**ITEM, "item_id": "Q9999999910"})
 
         response = self.api_client.get(path=reverse("curation-rules"), data={"item_id": "Q999999991"})
@@ -160,8 +172,8 @@ class TestCase(AppTestCase):
             ("theme_genres", "Q999999991"),
         ]
         assert [(r["row"]["relation"], r["row"]["item_id"]) for r in response.json()["edges"]] == [
-            ("canonical_parent", "Q999999992"),
-            ("secondary_parent", "Q999999993"),
+            ("classification", "Q999999992"),
+            ("influence", "Q999999993"),
         ]
         assert response.json()["labels"] == {"Q999999991": "Rock"}
 
@@ -219,19 +231,17 @@ class TestCase(AppTestCase):
     def test_composite_key_then_split_back(self):
         row = {"root_item_id": "Q11399", "pop_child_item_id": "LOCAL:test-pop-child", "reason": "r"}
 
-        response = self._create(row, "canonical_genre_pop_side")
+        response = self._create(row, "global_genre_pop_side")
 
         assert response.status_code == status.HTTP_201_CREATED
         assert response.json()["row"] == row
         assert CurationEntry.objects.get(uuid=response.json()["uuid"]).key == "Q11399\tLOCAL:test-pop-child"
 
     def test_second_pop_child_for_root_then_400(self):
-        self._create(
-            {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}, "canonical_genre_pop_side"
-        )
+        self._create({"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}, "global_genre_pop_side")
 
         response = self._create(
-            {"root_item_id": "Q11399", "pop_child_item_id": "Q1072283", "reason": "r"}, "canonical_genre_pop_side"
+            {"root_item_id": "Q11399", "pop_child_item_id": "Q1072283", "reason": "r"}, "global_genre_pop_side"
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -239,10 +249,10 @@ class TestCase(AppTestCase):
 
     def test_patch_pop_child_of_same_root_then_200(self):
         row = {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}
-        uuid = self._create(row, "canonical_genre_pop_side").json()["uuid"]
+        uuid = self._create(row, "global_genre_pop_side").json()["uuid"]
 
         response = self.api_client.patch(
-            self._entry_url(uuid, "canonical_genre_pop_side"),
+            self._entry_url(uuid, "global_genre_pop_side"),
             {"row": {**row, "pop_child_item_id": "Q1072283"}},
             format="json",
         )
@@ -251,12 +261,12 @@ class TestCase(AppTestCase):
 
     def test_upsert_second_pop_child_for_root_then_invalid(self):
         CurationEntry.objects.upsert(
-            "canonical_genre_pop_side", {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}
+            "global_genre_pop_side", {"root_item_id": "Q11399", "pop_child_item_id": "Q484641", "reason": "r"}
         )
 
         with self.assertRaises(InvalidRow):
             CurationEntry.objects.upsert(
-                "canonical_genre_pop_side",
+                "global_genre_pop_side",
                 {"root_item_id": "Q11399", "pop_child_item_id": "Q1072283", "reason": "r"},
             )
 
@@ -537,54 +547,34 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "LOCAL:ghost" in str(response.json())
 
-    def test_r21_contradicting_pair_and_reused_decision_then_rejected(self):
-        name = "regional_memberships"
-        pair = {"child_item_id": "Q1", "parent_item_id": "Q2", "action": "add", **PROVENANCE}
-
-        added = self._create(pair, name)
-        prohibited = self._create({**pair, "action": "prohibit", "decision_id": "d-9"}, name)
-        reused = self._create({**pair, "child_item_id": "Q3"}, name)
+    def test_r21_contradicting_pair_then_rejected(self):
+        added = self._edge("Q1", "Q2")
+        prohibited = self._edge("Q1", "Q2", action="prohibit")
 
         assert added.status_code == status.HTTP_201_CREATED
         assert prohibited.status_code == status.HTTP_400_BAD_REQUEST
-        assert reused.status_code == status.HTTP_400_BAD_REQUEST
-        assert "d-1" in str(reused.json())
 
     def test_local_genre_membership_exported_without_expression_styles(self):
         declare = {"item_id": "LOCAL:french-dub", "kind": "genre", "label": "French dub", **PROVENANCE}
-        membership = {
-            "child_item_id": "LOCAL:french-dub",
-            "parent_item_id": "Q2",
-            "action": "add",
-            **PROVENANCE,
-            "decision_id": "d-2",
-        }
 
         rejected = self._create({**declare, "kind": "expression"}, "local_identities")
         assert rejected.status_code == status.HTTP_400_BAD_REQUEST
         assert self._create(declare, "local_identities").status_code == status.HTTP_201_CREATED
-        assert self._create(membership, "regional_memberships").status_code == status.HTTP_201_CREATED
+        assert self._edge("LOCAL:french-dub", "Q2").status_code == status.HTTP_201_CREATED
         retired_list = self.api_client.get(path=reverse("curation-entries", kwargs={"list_name": "expression_styles"}))
         assert retired_list.status_code == status.HTTP_404_NOT_FOUND
         export = self.api_client.get(path=reverse("curation-export"))
         assert export.status_code == status.HTTP_200_OK
         payload = export.json()
         assert "expression_styles" not in payload
-        assert [r["child_item_id"] for r in payload["regional_memberships"]] == ["LOCAL:french-dub"]
+        assert [r["target_item_id"] for r in payload["edges"] if r["item_id"] == "LOCAL:french-dub"] == ["Q2"]
 
     def _declared_and_referenced_local(self):
         declare = self._create(
             {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE}, "local_identities"
         )
-        membership = {
-            "child_item_id": "Q1",
-            "parent_item_id": "LOCAL:x",
-            "action": "add",
-            **PROVENANCE,
-            "decision_id": "d-2",
-        }
         assert declare.status_code == status.HTTP_201_CREATED
-        assert self._create(membership, "regional_memberships").status_code == status.HTTP_201_CREATED
+        assert self._edge("Q1", "LOCAL:x").status_code == status.HTTP_201_CREATED
         return declare.json()["uuid"]
 
     def test_delete_referenced_local_identity_then_rejected_and_kept(self):
@@ -605,7 +595,7 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert CurationEntry.objects.get(uuid=uuid).key == "LOCAL:x"
 
-    def _addition(self, list_name: str = "canonical_parent_additions") -> CurationEntry:
+    def _addition(self, list_name: str = "global_parent_additions") -> CurationEntry:
         return CurationEntry.objects.create(
             user=None,
             list_name=list_name,
@@ -630,7 +620,7 @@ class TestCase(AppTestCase):
     def test_delete_addition_of_held_local_genre_then_rejected_and_kept(self):
         addition = self._held_local()
 
-        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "global_parent_additions"))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "LOCAL:x" in str(response.json())
@@ -640,7 +630,7 @@ class TestCase(AppTestCase):
         addition = self._held_local()
 
         response = self.api_client.patch(
-            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            path=self._entry_url(addition.uuid, "global_parent_additions"),
             data={"row": {"item_id": "LOCAL:y"}},
             format="json",
         )
@@ -652,13 +642,13 @@ class TestCase(AppTestCase):
         self._held_local()
         root = CurationEntry.objects.create(
             user=None,
-            list_name="canonical_roots",
+            list_name="global_roots",
             key="LOCAL:x",
             values={"decision_id": "d-1", "decision_source": "gold"},
             reason="r",
         )
 
-        response = self.api_client.delete(path=self._entry_url(root.uuid, "canonical_roots"))
+        response = self.api_client.delete(path=self._entry_url(root.uuid, "global_roots"))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert CurationEntry.objects.filter(uuid=root.uuid).exists()
@@ -666,14 +656,14 @@ class TestCase(AppTestCase):
     def test_delete_addition_of_removed_local_genre_then_accepted(self):
         addition = self._addition()
 
-        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "global_parent_additions"))
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_delete_edge_placing_held_local_genre_then_rejected(self):
         self._held_local()
         rule = GenreEdgeRule.objects.create(
-            user=None, relation="canonical_parent", item_id="LOCAL:x", parent_item_id="Q1", exclude_other_parents=False
+            user=None, relation="classification", item_id="LOCAL:x", target_item_id="Q1", action="assert"
         )
 
         response = self.api_client.delete(path=reverse("curation-edge", kwargs={"uuid": rule.uuid}))
@@ -684,19 +674,19 @@ class TestCase(AppTestCase):
     def test_unparent_edge_of_held_local_genre_then_rejected(self):
         self._held_local()
         rule = GenreEdgeRule.objects.create(
-            user=None, relation="canonical_parent", item_id="LOCAL:x", parent_item_id="Q1", exclude_other_parents=False
+            user=None, relation="classification", item_id="LOCAL:x", target_item_id="Q1", action="assert"
         )
 
         response = self.api_client.patch(
-            path=reverse("curation-edge", kwargs={"uuid": rule.uuid}), data={"parentItemId": None}, format="json"
+            path=reverse("curation-edge", kwargs={"uuid": rule.uuid}), data={"targetItemId": None}, format="json"
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         rule.refresh_from_db()
-        assert rule.parent_item_id == "Q1"
+        assert rule.target_item_id == "Q1"
 
     def test_delete_addition_named_by_merge_then_rejected_and_kept(self):
-        for list_name in ("canonical_parent_additions", "regional_overview_additions"):
+        for list_name in ("global_parent_additions", "regional_overview_additions"):
             with self.subTest(list_name=list_name):
                 CurationEntry.objects.filter(user=None).delete()
                 addition = self._addition(list_name)
@@ -713,7 +703,7 @@ class TestCase(AppTestCase):
         self._merge_from_local()
 
         response = self.api_client.patch(
-            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            path=self._entry_url(addition.uuid, "global_parent_additions"),
             data={"row": {"item_id": "LOCAL:y"}},
             format="json",
         )
@@ -726,7 +716,7 @@ class TestCase(AppTestCase):
         self._merge_from_local()
 
         response = self.api_client.patch(
-            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            path=self._entry_url(addition.uuid, "global_parent_additions"),
             data={"row": {"label": "Y"}},
             format="json",
         )
@@ -734,21 +724,21 @@ class TestCase(AppTestCase):
         assert response.status_code == status.HTTP_200_OK
 
     def test_delete_one_of_two_declarations_named_by_merge_then_accepted(self):
-        first = self._addition("canonical_parent_additions")
+        first = self._addition("global_parent_additions")
         self._addition("regional_overview_additions")
         self._merge_from_local()
 
-        response = self.api_client.delete(path=self._entry_url(first.uuid, "canonical_parent_additions"))
+        response = self.api_client.delete(path=self._entry_url(first.uuid, "global_parent_additions"))
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_delete_addition_named_by_edge_then_rejected(self):
         addition = self._addition()
         GenreEdgeRule.objects.create(
-            user=None, relation="canonical_parent", item_id="Q1", parent_item_id="LOCAL:x", exclude_other_parents=False
+            user=None, relation="classification", item_id="Q1", target_item_id="LOCAL:x", action="assert"
         )
 
-        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "global_parent_additions"))
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert CurationEntry.objects.filter(uuid=addition.uuid).exists()
@@ -756,7 +746,7 @@ class TestCase(AppTestCase):
     def test_delete_or_relabel_unreferenced_addition_then_accepted(self):
         addition = self._addition()
         relabel = self.api_client.patch(
-            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            path=self._entry_url(addition.uuid, "global_parent_additions"),
             data={"row": {"label": "Y"}},
             format="json",
         )
@@ -764,22 +754,15 @@ class TestCase(AppTestCase):
 
         self._merge_from_local()
         CurationEntry.objects.filter(list_name="genre_merges").delete()
-        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "global_parent_additions"))
 
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_graph_lists_round_trip_and_validation(self):
         rows = {
             "local_identities": {"item_id": "LOCAL:x", "kind": "overview", "label": "X", **PROVENANCE},
-            "canonical_roots": {"item_id": "Q1", **PROVENANCE},
-            "regional_memberships": {
-                "child_item_id": "Q1",
-                "parent_item_id": "LOCAL:x",
-                "action": "add",
-                **PROVENANCE,
-            },
+            "global_roots": {"item_id": "Q1", **PROVENANCE},
             "regional_anchorings": {"item_id": "Q4", "overview_item_id": "LOCAL:x", **PROVENANCE},
-            "genre_derivations": {"item_id": "Q6", "origin_item_id": "Q7", **PROVENANCE},
         }
         for index, (name, row) in enumerate(rows.items()):
             assert self._create({**row, "decision_id": f"ok-{index}"}, name).status_code == status.HTTP_201_CREATED
@@ -791,28 +774,23 @@ class TestCase(AppTestCase):
             ).status_code
             == status.HTTP_400_BAD_REQUEST
         )
-        for name in ("regional_memberships", "regional_anchorings", "genre_derivations"):
+        for name in ("regional_anchorings",):
             row = rows[name]
             first_column = CURATION_LISTS[name].key[0]
             second_column = CURATION_LISTS[name].key[1]
             same = {**row, second_column: row[first_column], "decision_id": "same"}
             assert self._create(same, name).status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_regional_memberships_contradiction_cycle_and_undeclared_local_rejected(self):
-        name = "regional_memberships"
-        add = {"child_item_id": "Q1", "parent_item_id": "Q2", "action": "add", **PROVENANCE}
-        assert self._create({**add, "decision_id": "m1"}, name).status_code == status.HTTP_201_CREATED
+    def test_classification_edges_contradiction_cycle_and_undeclared_local_rejected(self):
+        assert self._edge("Q1", "Q2").status_code == status.HTTP_201_CREATED
 
-        prohibit = self._create({**add, "action": "prohibit", "decision_id": "m2"}, name)
-        cycle = self._create({**add, "child_item_id": "Q2", "parent_item_id": "Q1", "decision_id": "m3"}, name)
-        undeclared = self._create(
-            {**add, "child_item_id": "Q3", "parent_item_id": "LOCAL:nowhere", "decision_id": "m4"}, name
-        )
-        reused = self._create({**add, "child_item_id": "Q5", "decision_id": "m1"}, name)
+        prohibit = self._edge("Q1", "Q2", action="prohibit")
+        cycle = self._edge("Q2", "Q1")
+        undeclared = self._edge("Q3", "LOCAL:nowhere")
 
-        for rejected in (prohibit, cycle, undeclared, reused):
-            assert rejected.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT)
-        assert CurationEntry.objects.filter(list_name=name).count() == 1
+        for rejected in (prohibit, cycle, undeclared):
+            assert rejected.status_code in (status.HTTP_400_BAD_REQUEST, status.HTTP_409_CONFLICT), rejected.content
+        assert GenreEdgeRule.objects.filter(user=None, item_id__in=["Q1", "Q2", "Q3"]).count() == 1
 
     def test_tradition_link_override_then_kind_and_action_enumerated(self):
         row = {
@@ -867,27 +845,27 @@ class TestCase(AppTestCase):
         assert self.api_client.get(path=reverse("curation-lists")).status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_then_csv_rows_snake_case(self):
-        GenreEdgeRule.objects.upsert(
-            "canonical_parent", ITEM["item_id"], "Q11399", exclude_other_parents=False, reason="r"
-        )
+        GenreEdgeRule.objects.upsert("classification", ITEM["item_id"], "Q11399", action="assert", reason="r")
 
         export = self.api_client.get(path=reverse("curation-export")).json()
 
         assert set(export) == {*CURATION_LISTS, "edges", "exported_on"}
         assert not {
             "canonical_parent",
-            "accepted_canonical_roots",
+            "accepted_global_roots",
             "regional_genre_parent",
             "regional_overviews",
             "secondary_parents",
+            "regional_memberships",
+            "genre_derivations",
         } & set(export)
         edge = next(e for e in export["edges"] if e["item_id"] == ITEM["item_id"])
         assert edge == {
-            "relation": "canonical_parent",
+            "decision_id": edge["decision_id"],
             "item_id": ITEM["item_id"],
-            "parent_item_id": "Q11399",
-            "action": "",
-            "exclude_other_parents": "",
+            "relation": "classification",
+            "target_item_id": "Q11399",
+            "action": "assert",
             "reason": "r",
         }
 

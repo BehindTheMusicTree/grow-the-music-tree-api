@@ -54,9 +54,9 @@ class TestCase(AppTestCase):
 
     def test_etag_changes_with_git_commit(self):
         with override_settings(GIT_COMMIT="aaa"):
-            first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+            first = self.api_client.get(TREE_PATH, {"tree_name": "global"})
         with override_settings(GIT_COMMIT="bbb"):
-            second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+            second = self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=first["ETag"])
 
         assert second.status_code == status.HTTP_200_OK
         assert second["ETag"] != first["ETag"]
@@ -68,7 +68,7 @@ class TestCase(AppTestCase):
             patch("django.core.cache.cache.set", side_effect=down),
             self.assertLogs(level="WARNING"),
         ):
-            response = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+            response = self.api_client.get(TREE_PATH, {"tree_name": "global"})
 
         assert response.status_code == status.HTTP_200_OK
         assert "Rock" in [row["criteria"] and row["criteria"]["name"] for row in response.json()]
@@ -83,7 +83,7 @@ class TestCase(AppTestCase):
         self.model_fixture_factory.create_song(title="Song", genre=punk)
         self.model_fixture_factory.create_tag("Live")
 
-        for tree_name in ("canonical", "regional"):
+        for tree_name in ("global", "regional"):
             tree = self.api_client.get(TREE_PATH, {"tree_name": tree_name})
             listed = self.api_client.get(reverse("genre-playlist-list"), {"tree_name": tree_name, "page_size": 1000})
 
@@ -101,7 +101,7 @@ class TestCase(AppTestCase):
         Genre.objects.filter(pk=self.rock.pk).update(is_unaccepted_root=True)
         self.model_fixture_factory.create_genre("Jazz")
 
-        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "global"}).json()
         flags = {row["criteria"]["name"] if row["criteria"] else None: row["isUnacceptedRoot"] for row in rows}
 
         assert flags == {"Rock": True, "Punk": False, "Jazz": False, None: False}
@@ -119,22 +119,22 @@ class TestCase(AppTestCase):
         assert self.api_client.get(TREE_PATH, {"tree_name": "bogus"}).status_code == status.HTTP_400_BAD_REQUEST
 
     def test_tree_returns_304_when_etag_matches(self):
-        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
-        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+        first = self.api_client.get(TREE_PATH, {"tree_name": "global"})
+        second = self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=first["ETag"])
 
         assert second.status_code == status.HTTP_304_NOT_MODIFIED
         assert second["ETag"] == first["ETag"]
 
     def test_tree_returns_304_when_weak_etag_matches(self):
-        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
-        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=f"W/{first['ETag']}")
+        first = self.api_client.get(TREE_PATH, {"tree_name": "global"})
+        second = self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=f"W/{first['ETag']}")
 
         assert second.status_code == status.HTTP_304_NOT_MODIFIED
 
     def test_tree_reflects_writes_after_cache_fill(self):
-        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        first = self.api_client.get(TREE_PATH, {"tree_name": "global"})
         self.model_fixture_factory.create_genre("Jazz")
-        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+        second = self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=first["ETag"])
 
         assert second.status_code == status.HTTP_200_OK
         assert "Jazz" in [row["criteria"] and row["criteria"]["name"] for row in second.json()]
@@ -144,7 +144,7 @@ class TestCase(AppTestCase):
         punk = Genre.objects.get(name="Punk")
         Genre.objects.filter(pk=punk.pk).update(parent=jazz, root=jazz)
 
-        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "global"}).json()
         punk_row = next(row for row in rows if row["criteria"] and row["criteria"]["name"] == "Punk")
         jazz_playlist_uuid = str(GenrePlaylist.objects.get(criteria=jazz).uuid)
 
@@ -174,14 +174,14 @@ class TestCase(AppTestCase):
     def test_track_genre_update_invalidates_cached_tree_without_membership_changes(self):
         track = self.model_fixture_factory.create_song(title="Song", genre=self.rock)
         punk = Genre.objects.get(name="Punk")
-        first = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        first = self.api_client.get(TREE_PATH, {"tree_name": "global"})
         with connection.cursor() as cursor:
             cursor.execute(
                 "UPDATE the_music_tree_genre_kit_track SET genre_id = %s WHERE uuid = %s",
                 [punk.pk.hex, track.pk.hex],
             )
 
-        second = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=first["ETag"])
+        second = self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=first["ETag"])
         assert second.status_code == status.HTTP_200_OK
         assert second["ETag"] != first["ETag"]
 
@@ -206,7 +206,7 @@ class TestCase(AppTestCase):
 
     def test_every_table_the_tree_reads_has_a_trigger(self):
         with CaptureQueriesContext(connection) as queries:
-            self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+            self.api_client.get(TREE_PATH, {"tree_name": "global"})
         read = {t for q in queries.captured_queries for t in re.findall(r'(?:FROM|JOIN) "(\w+)"', q["sql"])}
 
         assert read - UNTRACKED_READS.keys() <= TRACKED_TABLES

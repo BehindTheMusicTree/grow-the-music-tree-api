@@ -16,7 +16,7 @@ Authentication: `X-API-Key` header (single static key, `PIPELINE_API_KEY`).
 
 `GET {base}`
 
-`?treeName=canonical|regional` picks one genre tree. `canonical` also returns the Genreless
+`?treeName=global|regional` picks one genre tree. `global` also returns the Genreless
 playlist. An unknown value returns 400.
 
 Each playlist (here, in Retrieve, and in `{base}tree/`) carries `tracksCount`, its playable songs, and
@@ -26,10 +26,10 @@ curation edit and deletion.
 
 #### Tree
 
-`GET {base}tree/?treeName=canonical|regional`
+`GET {base}tree/?treeName=global|regional`
 
 Every genre playlist of the tree, with `tracksCount` and `viewsCount` as above, plus `songsCount` (all
-canonical songs in the primary subtree, playable or not: what `library/songs/?genre=<uuid>` lists). In the canonical tree,
+canonical songs in the primary subtree, playable or not: what `library/songs/?genre=<uuid>` lists). In the global tree,
 the Genreless playlist's `songsCount` is the songs without a genre.
 
 #### Retrieve

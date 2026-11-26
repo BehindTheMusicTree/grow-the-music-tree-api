@@ -26,7 +26,11 @@ def load_trees(exported_on: str) -> list[dict]:
     trees = []
     for fixture in TREES:
         with gzip.open(FIXTURES / fixture) as file:
-            trees.append({**json.load(file), "curationExportedOn": exported_on})
+            tree = json.load(file)
+            # The pinned exports predate the rename of the "canonical" tree to "global".
+            if tree["treeName"] == "canonical":
+                tree["treeName"] = "global"
+            trees.append({**tree, "curationExportedOn": exported_on})
     return trees
 
 
@@ -63,11 +67,11 @@ def build_graph(trees: list[dict]) -> dict:
     tree_of = {node["id"]: tree for tree, node, _ in flat}
     for tree, node, nesting in flat:
         accepted = [nesting] if nesting else []
-        # A regional node reachable from a canonical one would become canonical: keep its regional parents only.
+        # A regional node reachable from a global one would become global: keep its regional parents only.
         accepted += [
             p
             for p in node.get("primaryParents", [])
-            if p in ids and p not in accepted and p != node["id"] and (tree == "canonical" or tree_of[p] == tree)
+            if p in ids and p not in accepted and p != node["id"] and (tree == "global" or tree_of[p] == tree)
         ]
         parents[node["id"]] = accepted
         if accepted:
@@ -82,20 +86,20 @@ def build_graph(trees: list[dict]) -> dict:
         for child, accepted in parents.items()
         for parent in accepted
     ]
-    roots = [child for child, accepted in parents.items() if not accepted and tree_of[child] == "canonical"]
-    # Non-canonical nodes must reach an overview: one synthetic overview holds every regional root.
+    roots = [child for child, accepted in parents.items() if not accepted and tree_of[child] == "global"]
+    # Non-global nodes must reach an overview: one synthetic overview holds every regional root.
     relations += [
         {
             "childId": child,
             "parentId": OVERVIEW_ID,
-            "type": "regional_membership",
+            "type": "classification",
             "provenance": _provenance(f"regional-membership-{child}", "Regional tree root, approximate conversion."),
         }
         for child, accepted in parents.items()
-        if not accepted and tree_of[child] != "canonical"
+        if not accepted and tree_of[child] != "global"
     ]
     return {
-        "contractVersion": 4,
+        "contractVersion": 5,
         "curationExportedOn": trees[0]["curationExportedOn"],
         "nodes": [
             {
@@ -117,9 +121,9 @@ def build_graph(trees: list[dict]) -> dict:
             }
         ],
         "relations": relations,
-        # The importer derives Genre.tree_name from canonicity: only roots listed here (and their descendants) are canonical.
-        "canonicalRoots": [
-            {"nodeId": root, "provenance": _provenance(f"canonical-root-{root}", "Gold tree root.")} for root in roots
+        # The importer derives Genre.tree_name from the global state: only these roots and their descendants are global.
+        "globalRoots": [
+            {"nodeId": root, "provenance": _provenance(f"global-root-{root}", "Gold tree root.")} for root in roots
         ],
     }
 
@@ -135,12 +139,12 @@ def identity_mapping(graph: dict, genres: list[dict]) -> dict[str, None]:
 
 
 def resolve_songs(trees: list[dict], songs: list[dict]) -> dict[str, str | None]:
-    """musicbrainz_recording_id → Gold id. The canonical tree wins over the regional one; a name that is
+    """musicbrainz_recording_id → Gold id. The global tree wins over the regional one; a name that is
     ambiguous inside one tree, or absent from both, is an error unless pinned in UNRESOLVED_GENRE_NAMES."""
     by_tree: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
     for tree, node, _ in flatten(trees):
         by_tree[tree][node["name"].lower()].append(node["id"])
-    order = sorted(by_tree, key=lambda tree: tree != "canonical")
+    order = sorted(by_tree, key=lambda tree: tree != "global")
     resolved: dict[str, str | None] = {}
     unresolved: dict[str, int] = defaultdict(int)
     for song in songs:

@@ -651,14 +651,14 @@ paths:
   /v1/curation/edges/:
     get:
       operationId: v1_curation_edges_list
-      description: The curated genre edges (canonical/regional parents, roots, regional
-        overviews, secondary parents).
+      description: 'The curated genre edges: classification, derivation and influence
+        decisions, asserted or prohibited.'
       parameters:
       - in: query
         name: item_id
         schema:
           type: string
-        description: Edges whose item or parent is this id.
+        description: Edges whose item or target is this id.
       - in: query
         name: page
         schema:
@@ -679,10 +679,9 @@ paths:
         schema:
           type: string
           enum:
-          - canonical_parent
-          - regional_genre_parent
-          - regional_overview
-          - secondary_parent
+          - classification
+          - derivation
+          - influence
       tags:
       - v1
       security:
@@ -697,8 +696,8 @@ paths:
           description: ''
     post:
       operationId: v1_curation_edges_create
-      description: The curated genre edges (canonical/regional parents, roots, regional
-        overviews, secondary parents).
+      description: 'The curated genre edges: classification, derivation and influence
+        decisions, asserted or prohibited.'
       tags:
       - v1
       requestBody:
@@ -798,7 +797,7 @@ paths:
     get:
       operationId: v1_curation_export_retrieve
       description: |-
-        Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+        Every list, and the genre edge rules (`edges`), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
         `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
         knows which export the imported tree was built from.
@@ -814,7 +813,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  canonical_parent_additions:
+                  global_parent_additions:
                     type: array
                     items:
                       type: object
@@ -901,7 +900,7 @@ paths:
                       - display_label
                       - reason
                       additionalProperties: false
-                  forced_canonical_genres:
+                  forced_global_genres:
                     type: array
                     items:
                       type: object
@@ -979,7 +978,7 @@ paths:
                       - decision_source
                       - reason
                       additionalProperties: false
-                  canonical_roots:
+                  global_roots:
                     type: array
                     items:
                       type: object
@@ -998,39 +997,6 @@ paths:
                           minLength: 1
                       required:
                       - item_id
-                      - decision_id
-                      - decision_source
-                      - reason
-                      additionalProperties: false
-                  regional_memberships:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        child_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        parent_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        action:
-                          type: string
-                          enum:
-                          - add
-                          - prohibit
-                        decision_id:
-                          type: string
-                          minLength: 1
-                        decision_source:
-                          type: string
-                          minLength: 1
-                        reason:
-                          type: string
-                          minLength: 1
-                      required:
-                      - child_item_id
-                      - parent_item_id
-                      - action
                       - decision_id
                       - decision_source
                       - reason
@@ -1085,33 +1051,6 @@ paths:
                       required:
                       - source_item_id
                       - target_item_id
-                      - decision_id
-                      - decision_source
-                      - reason
-                      additionalProperties: false
-                  genre_derivations:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        origin_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        decision_id:
-                          type: string
-                          minLength: 1
-                        decision_source:
-                          type: string
-                          minLength: 1
-                        reason:
-                          type: string
-                          minLength: 1
-                      required:
-                      - item_id
-                      - origin_item_id
                       - decision_id
                       - decision_source
                       - reason
@@ -1249,7 +1188,7 @@ paths:
                       - item_id
                       - reason
                       additionalProperties: false
-                  canonical_genre_scene:
+                  global_genre_scene:
                     type: array
                     items:
                       type: object
@@ -1300,7 +1239,7 @@ paths:
                       - musicbrainz_tag_name
                       - reason
                       additionalProperties: false
-                  canonical_genre_pop_side:
+                  global_genre_pop_side:
                     type: array
                     items:
                       type: object
@@ -1833,58 +1772,52 @@ paths:
                     items:
                       type: object
                       properties:
-                        relation:
+                        decision_id:
                           type: string
-                          enum:
-                          - canonical_parent
-                          - regional_genre_parent
-                          - regional_overview
-                          - secondary_parent
+                          minLength: 1
                         item_id:
                           type: string
                           minLength: 1
-                        parent_item_id:
+                        relation:
+                          type: string
+                          enum:
+                          - classification
+                          - derivation
+                          - influence
+                        target_item_id:
                           type: string
                           minLength: 1
                         action:
                           type: string
                           enum:
-                          - add
-                          - remove
-                          - ''
-                        exclude_other_parents:
-                          type: string
-                          enum:
-                          - 'true'
-                          - ''
+                          - assert
+                          - prohibit
                         reason:
                           type: string
                       required:
-                      - relation
+                      - decision_id
                       - item_id
-                      - parent_item_id
+                      - relation
+                      - target_item_id
                       - action
-                      - exclude_other_parents
                       - reason
                       additionalProperties: false
                   exported_on:
                     type: string
                     format: date-time
                 required:
-                - canonical_parent_additions
+                - global_parent_additions
                 - capitalized_words
                 - duplicate_genres
                 - indigenous_to_exclusions
                 - label_overrides
-                - forced_canonical_genres
+                - forced_global_genres
                 - out_of_scope_genres
                 - overview_reclassifications
                 - local_identities
-                - canonical_roots
-                - regional_memberships
+                - global_roots
                 - regional_anchorings
                 - genre_merges
-                - genre_derivations
                 - regional_overview_types
                 - regional_overview_additions
                 - synthetic_overview_resolutions
@@ -1892,10 +1825,10 @@ paths:
                 - theme_genres
                 - umbrella_non_stylistic_genres
                 - umbrella_stylistic_genres
-                - canonical_genre_scene
+                - global_genre_scene
                 - accepted_non_genre_tags
                 - musicbrainz_free_genre_tags
-                - canonical_genre_pop_side
+                - global_genre_pop_side
                 - genre_alias
                 - genre_disambiguation
                 - genre_disambiguation_context
@@ -1974,7 +1907,7 @@ paths:
         name: list
         schema:
           type: string
-        description: A curation list, an edge projection list or a retired list.
+        description: A curation list, `genre_edges` or a retired list.
       - in: query
         name: page
         schema:
@@ -2001,7 +1934,7 @@ paths:
     get:
       operationId: v1_curation_items_retrieve
       description: 'Items matching `q` by id or name, for an admin to pick one: the
-        canonical tree, the catalog and pending additions.'
+        grow genres, the catalog and pending additions.'
       parameters:
       - in: query
         name: q
@@ -2082,7 +2015,7 @@ paths:
   /v1/curation/status/:
     get:
       operationId: v1_curation_status_retrieve
-      description: Which pipeline export the canonical tree was last built from, and
+      description: Which pipeline export the genre trees were last built from, and
         how many entries were edited since.
       tags:
       - v1
@@ -2262,10 +2195,10 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       - in: query
         name: updated_on
@@ -2408,7 +2341,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -3131,12 +3064,12 @@ paths:
         name: tree_name
         schema:
           enum:
-          - canonical
+          - global
           - regional
           type: string
           minLength: 1
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       tags:
       - v1
@@ -3156,7 +3089,7 @@ paths:
       operationId: v1_genres_tree_retrieve
       description: |-
         Returns the tree of the criteria matching the required
-        `treeName` query parameter (`canonical`/`regional`).
+        `treeName` query parameter (`global`/`regional`).
         The structure follows the format:
         {
           "name": "Criteria name",
@@ -3173,7 +3106,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -3221,7 +3154,7 @@ paths:
     post:
       operationId: v1_genres_trees_import_runs_create
       description: |-
-        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        Imports several trees in one asynchronous merge, so a genre that moved between the global and the regional
         tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
       parameters:
@@ -4318,8 +4251,8 @@ paths:
           type: string
           enum:
           - artists
-          - canonical_tree
           - genealogy
+          - global_tree
           - region_map
           - regional_tree
           - songs
@@ -5074,10 +5007,10 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       - in: query
         name: updated_on
@@ -5446,7 +5379,7 @@ paths:
       operationId: v1_tags_tree_retrieve
       description: |-
         Returns the tree of the criteria matching the required
-        `treeName` query parameter (`canonical`/`regional`).
+        `treeName` query parameter (`global`/`regional`).
         The structure follows the format:
         {
           "name": "Criteria name",
@@ -5463,7 +5396,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -6035,16 +5968,12 @@ components:
         * `duplicate` - duplicate
     ColumnEnum:
       enum:
-      - child_item_id
       - context_item_id
       - expression_item_id
       - genre_item_id
       - item_id
-      - origin_item_id
       - over_item_id
       - overview_item_id
-      - parent_id
-      - parent_item_id
       - pop_child_item_id
       - replacement_item_id
       - root_item_id
@@ -6053,16 +5982,12 @@ components:
       - target_item_id
       type: string
       description: |-
-        * `child_item_id` - child_item_id
         * `context_item_id` - context_item_id
         * `expression_item_id` - expression_item_id
         * `genre_item_id` - genre_item_id
         * `item_id` - item_id
-        * `origin_item_id` - origin_item_id
         * `over_item_id` - over_item_id
         * `overview_item_id` - overview_item_id
-        * `parent_id` - parent_id
-        * `parent_item_id` - parent_item_id
         * `pop_child_item_id` - pop_child_item_id
         * `replacement_item_id` - replacement_item_id
         * `root_item_id` - root_item_id
@@ -6862,20 +6787,18 @@ components:
       - name
     CurationListNameEnum:
       enum:
-      - canonical_parent_additions
+      - global_parent_additions
       - capitalized_words
       - duplicate_genres
       - indigenous_to_exclusions
       - label_overrides
-      - forced_canonical_genres
+      - forced_global_genres
       - out_of_scope_genres
       - overview_reclassifications
       - local_identities
-      - canonical_roots
-      - regional_memberships
+      - global_roots
       - regional_anchorings
       - genre_merges
-      - genre_derivations
       - regional_overview_types
       - regional_overview_additions
       - synthetic_overview_resolutions
@@ -6883,10 +6806,10 @@ components:
       - theme_genres
       - umbrella_non_stylistic_genres
       - umbrella_stylistic_genres
-      - canonical_genre_scene
+      - global_genre_scene
       - accepted_non_genre_tags
       - musicbrainz_free_genre_tags
-      - canonical_genre_pop_side
+      - global_genre_pop_side
       - genre_alias
       - genre_disambiguation
       - genre_disambiguation_context
@@ -6910,26 +6833,21 @@ components:
       - tradition_placement_overrides
       - tradition_extra_places
       - tradition_link_overrides
-      - canonical_parent
-      - regional_genre_parent
-      - regional_overviews
-      - secondary_parents
+      - genre_edges
       type: string
       description: |-
-        * `canonical_parent_additions` - canonical_parent_additions
+        * `global_parent_additions` - global_parent_additions
         * `capitalized_words` - capitalized_words
         * `duplicate_genres` - duplicate_genres
         * `indigenous_to_exclusions` - indigenous_to_exclusions
         * `label_overrides` - label_overrides
-        * `forced_canonical_genres` - forced_canonical_genres
+        * `forced_global_genres` - forced_global_genres
         * `out_of_scope_genres` - out_of_scope_genres
         * `overview_reclassifications` - overview_reclassifications
         * `local_identities` - local_identities
-        * `canonical_roots` - canonical_roots
-        * `regional_memberships` - regional_memberships
+        * `global_roots` - global_roots
         * `regional_anchorings` - regional_anchorings
         * `genre_merges` - genre_merges
-        * `genre_derivations` - genre_derivations
         * `regional_overview_types` - regional_overview_types
         * `regional_overview_additions` - regional_overview_additions
         * `synthetic_overview_resolutions` - synthetic_overview_resolutions
@@ -6937,10 +6855,10 @@ components:
         * `theme_genres` - theme_genres
         * `umbrella_non_stylistic_genres` - umbrella_non_stylistic_genres
         * `umbrella_stylistic_genres` - umbrella_stylistic_genres
-        * `canonical_genre_scene` - canonical_genre_scene
+        * `global_genre_scene` - global_genre_scene
         * `accepted_non_genre_tags` - accepted_non_genre_tags
         * `musicbrainz_free_genre_tags` - musicbrainz_free_genre_tags
-        * `canonical_genre_pop_side` - canonical_genre_pop_side
+        * `global_genre_pop_side` - global_genre_pop_side
         * `genre_alias` - genre_alias
         * `genre_disambiguation` - genre_disambiguation
         * `genre_disambiguation_context` - genre_disambiguation_context
@@ -6964,10 +6882,7 @@ components:
         * `tradition_placement_overrides` - tradition_placement_overrides
         * `tradition_extra_places` - tradition_extra_places
         * `tradition_link_overrides` - tradition_link_overrides
-        * `canonical_parent` - canonical_parent
-        * `regional_genre_parent` - regional_genre_parent
-        * `regional_overviews` - regional_overviews
-        * `secondary_parents` - secondary_parents
+        * `genre_edges` - genre_edges
     CurationListRule:
       type: object
       description: 'A curation entry or an edge rule: `row` keeps the list''s snake_case
@@ -7000,13 +6915,12 @@ components:
       properties:
         ruleId:
           type: string
-          format: uuid
           nullable: true
-          description: Set for an edge rule.
+          description: An edge rule's decision_id.
         list:
           type: string
           nullable: true
-          description: Null for a synthetic overview alert.
+          description: Null for an alert about no list or rule.
         key:
           type: string
           nullable: true
@@ -7396,12 +7310,12 @@ components:
       - wikidataId
     GenreEdgeActionEnum:
       enum:
-      - add
-      - remove
+      - assert
+      - prohibit
       type: string
       description: |-
-        * `add` - Add
-        * `remove` - Remove
+        * `assert` - Assert
+        * `prohibit` - Prohibit
     GenreExclude:
       type: object
       properties:
@@ -8068,7 +7982,7 @@ components:
       - runId
     ImportRunKindEnum:
       enum:
-      - canonical_tree
+      - global_tree
       - regional_tree
       - songs
       - artists
@@ -8077,7 +7991,7 @@ components:
       - region_map
       type: string
       description: |-
-        * `canonical_tree` - Canonical Tree
+        * `global_tree` - Global Tree
         * `regional_tree` - Regional Tree
         * `songs` - Songs
         * `artists` - Artists
@@ -8088,7 +8002,7 @@ components:
       type: object
       description: The newest run of each kind, `null` when the kind never ran.
       properties:
-        canonicalTree:
+        globalTree:
           allOf:
           - $ref: '#/components/schemas/ImportRun'
           nullable: true
@@ -8118,8 +8032,8 @@ components:
           nullable: true
       required:
       - artists
-      - canonicalTree
       - genealogy
+      - globalTree
       - regionMap
       - regionalTree
       - songs
@@ -8737,18 +8651,13 @@ components:
     Patched_EdgePatch:
       type: object
       properties:
-        parentItemId:
+        relation:
+          $ref: '#/components/schemas/RelationEnum'
+        targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
         action:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/GenreEdgeActionEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        excludeOtherParents:
-          type: boolean
-          nullable: true
+          $ref: '#/components/schemas/GenreEdgeActionEnum'
         reason:
           type: string
     PipelineRun:
@@ -9185,16 +9094,14 @@ components:
       - revision
     RelationEnum:
       enum:
-      - canonical_parent
-      - regional_genre_parent
-      - regional_overview
-      - secondary_parent
+      - classification
+      - derivation
+      - influence
       type: string
       description: |-
-        * `canonical_parent` - Canonical Parent
-        * `regional_genre_parent` - Regional Genre Parent
-        * `regional_overview` - Regional Overview
-        * `secondary_parent` - Secondary Parent
+        * `classification` - Classification
+        * `derivation` - Derivation
+        * `influence` - Influence
     RoleEnum:
       enum:
       - admin
@@ -9876,21 +9783,21 @@ components:
       - uuid
     TreeEnum:
       enum:
-      - canonical
+      - global
       - regional
       - local
       type: string
       description: |-
-        * `canonical` - canonical
+        * `global` - global
         * `regional` - regional
         * `local` - local
     TreeNameEnum:
       enum:
-      - canonical
+      - global
       - regional
       type: string
       description: |-
-        * `canonical` - Canonical
+        * `global` - Global
         * `regional` - Regional
     TriggerEnum:
       enum:
@@ -10053,29 +9960,24 @@ components:
     _Edge:
       type: object
       properties:
-        relation:
-          $ref: '#/components/schemas/RelationEnum'
         itemId:
           type: string
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
-        parentItemId:
+        relation:
+          $ref: '#/components/schemas/RelationEnum'
+        targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
         action:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/GenreEdgeActionEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        excludeOtherParents:
-          type: boolean
-          nullable: true
+          $ref: '#/components/schemas/GenreEdgeActionEnum'
         reason:
           type: string
           default: ''
       required:
+      - action
       - itemId
       - relation
+      - targetItemId
     _Evidence:
       type: object
       properties:
@@ -10189,12 +10091,13 @@ components:
       - artist
     _Remap:
       type: object
-      description: An item id of a curation entry (`list` + `key`) or of an edge rule
-        (`rule_id`, or the legacy `list` + `key`).
+      description: |-
+        An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or `list` `genre_edges` with its
+        `decision_id` as `key`).
       properties:
         ruleId:
           type: string
-          format: uuid
+          maxLength: 255
         list:
           $ref: '#/components/schemas/CurationListNameEnum'
         key:
@@ -10214,12 +10117,13 @@ components:
       - to
     _ReviewItem:
       type: object
-      description: An item id of a curation entry (`list` + `key`) or of an edge rule
-        (`rule_id`, or the legacy `list` + `key`).
+      description: |-
+        An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or `list` `genre_edges` with its
+        `decision_id` as `key`).
       properties:
         ruleId:
           type: string
-          format: uuid
+          maxLength: 255
         list:
           $ref: '#/components/schemas/CurationListNameEnum'
         key:
@@ -10250,7 +10154,6 @@ components:
       - missing
       - not_in_tree
       - invalid_rule
-      - exclusive_parent_regional
       - unreached_genre
       type: string
       description: |-
@@ -10258,7 +10161,6 @@ components:
         * `missing` - Missing
         * `not_in_tree` - Not In Tree
         * `invalid_rule` - Invalid Rule
-        * `exclusive_parent_regional` - Exclusive Parent Regional
         * `unreached_genre` - Unreached Genre
     _WikidataItem:
       type: object

@@ -48,7 +48,7 @@ class TestCase(AppTestCase):
         return [result["criteria"] and result["criteria"]["name"] for result in response.json()["results"]]
 
     def test_list_genre_playlists_filtered_by_canonical_tree_includes_genreless(self):
-        assert sorted(self._list_names_by_tree_name("canonical"), key=str) == [None, "Rock"]
+        assert sorted(self._list_names_by_tree_name("global"), key=str) == [None, "Rock"]
 
     def test_list_genre_playlists_filtered_by_regional_tree_excludes_genreless(self):
         assert self._list_names_by_tree_name("regional") == ["Italian progressive rock"]

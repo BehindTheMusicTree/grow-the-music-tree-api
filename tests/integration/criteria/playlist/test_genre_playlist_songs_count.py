@@ -40,7 +40,7 @@ class TestCase(AppTestCase):
         assert all(report.valid for report in verify_catalogue_counts().values())
 
     def tree_songs_counts(self) -> dict[str, tuple[int, int]]:
-        response = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})
+        response = self.api_client.get(TREE_PATH, {"tree_name": "global"})
         assert response.status_code == status.HTTP_200_OK
         return {row["name"]: (row["songsCount"], row["tracksCount"]) for row in response.json()}
 
@@ -65,20 +65,18 @@ class TestCase(AppTestCase):
         assert counts["Punk"] == (2, 1)
         assert counts["Rock"] == (3, 1)
         assert counts["Jazz"] == (0, 0)
-        rows = {
-            row["name"]: row["catalogue"] for row in self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
-        }
+        rows = {row["name"]: row["catalogue"] for row in self.api_client.get(TREE_PATH, {"tree_name": "global"}).json()}
         assert rows["Rock"] == {
             "genreOnlyTracksCount": 1,
-            "genreAndSubgenresTracksCount": {"canonical": 3, "regional": 1, "all": 3},
+            "genreAndSubgenresTracksCount": {"global": 3, "regional": 1, "all": 3},
         }
         assert rows["Punk"] == {
             "genreOnlyTracksCount": 2,
-            "genreAndSubgenresTracksCount": {"canonical": 2, "regional": 2, "all": 2},
+            "genreAndSubgenresTracksCount": {"global": 2, "regional": 2, "all": 2},
         }
         assert rows["Jazz"] == {
             "genreOnlyTracksCount": 0,
-            "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 0, "all": 0},
+            "genreAndSubgenresTracksCount": {"global": 0, "regional": 0, "all": 0},
         }
         self.assert_exact()
 
@@ -98,11 +96,11 @@ class TestCase(AppTestCase):
         self.assert_exact()
 
     def test_count_change_bumps_the_tree_etag(self):
-        etag = self.api_client.get(TREE_PATH, {"tree_name": "canonical"})["ETag"]
+        etag = self.api_client.get(TREE_PATH, {"tree_name": "global"})["ETag"]
 
         self.factory.create_song(title="Song", genre=self.jazz)
 
-        assert self.api_client.get(TREE_PATH, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=etag).status_code == 200
+        assert self.api_client.get(TREE_PATH, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=etag).status_code == 200
 
     def test_other_owner_songs_are_not_counted(self):
         self.factory.create_song(title="Private", genre=self.jazz, user=User.objects.create(username="other-user"))

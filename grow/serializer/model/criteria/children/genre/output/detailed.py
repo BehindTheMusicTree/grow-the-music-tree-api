@@ -26,7 +26,7 @@ class GenreDetailedSerializer(CriteriaDetailedSerializer):
     @extend_schema_field(serializers.IntegerField())
     def get_tracks_count(self, instance):
         scopes = self.summary["catalogue"]["genre_and_subgenres_tracks_count"]
-        return scopes.get("canonical", scopes["all"])
+        return scopes.get("global", scopes["all"])
 
     @extend_schema_field(GenreCataloguePlaylistSerializer)
     def get_criteria_playlist(self, instance):

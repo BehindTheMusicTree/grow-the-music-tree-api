@@ -10,7 +10,7 @@ from grow.genre_music.selection import SubgenreScope, parse_subgenres
 from grow.model.criteria.children.genre.Genre import Genre
 
 _LEGACY_SCOPES = {
-    SubgenreScope.CANONICAL: GraphScope.RESTRICTED,
+    SubgenreScope.GLOBAL: GraphScope.RESTRICTED,
     SubgenreScope.REGIONAL: GraphScope.EXPRESSIONS,
     SubgenreScope.ALL: GraphScope.EXTENDED,
 }
@@ -40,12 +40,12 @@ def select_songs(songs: QuerySet, *, genre_id, coverage: CriteriaCoverage, subge
     if not node.is_active:
         return songs.none()
     if coverage == CriteriaCoverage.ONLY:
-        parse_subgenres(subgenres, coverage, "canonical")
+        parse_subgenres(subgenres, coverage, "global")
         return select_tracks(songs, node=node, include_descendants=False)
     if subgenres in GraphScope:
         return select_tracks(songs, node=node, scope=GraphScope(subgenres))
 
-    tree = "canonical" if node.canonical_state == "canonical" else "regional"
+    tree = "global" if node.state == "global" else "regional"
     legacy_scope = parse_subgenres(subgenres, coverage, tree)
     selected = select_tracks(songs, node=node, scope=_LEGACY_SCOPES[legacy_scope])
     if legacy_scope == SubgenreScope.REGIONAL:

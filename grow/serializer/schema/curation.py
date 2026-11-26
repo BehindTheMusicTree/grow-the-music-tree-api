@@ -97,7 +97,7 @@ class CurationItemsSerializer(serializers.Serializer):
 
 
 class GenreAliasTargetItemSerializer(CurationItemSerializer):
-    tree = serializers.ChoiceField(choices=["canonical", "regional", "local"])
+    tree = serializers.ChoiceField(choices=["global", "regional", "local"])
 
 
 class GenreAliasTargetsSerializer(serializers.Serializer):
@@ -107,8 +107,8 @@ class GenreAliasTargetsSerializer(serializers.Serializer):
 
 
 class CurationReviewItemSerializer(serializers.Serializer):
-    rule_id = serializers.UUIDField(allow_null=True, help_text="Set for an edge rule.")
-    list = serializers.CharField(allow_null=True, help_text="Null for a synthetic overview alert.")
+    rule_id = serializers.CharField(allow_null=True, help_text="An edge rule's decision_id.")
+    list = serializers.CharField(allow_null=True, help_text="Null for an alert about no list or rule.")
     key = serializers.CharField(allow_null=True)
     column = serializers.CharField()
     item_id = serializers.CharField()

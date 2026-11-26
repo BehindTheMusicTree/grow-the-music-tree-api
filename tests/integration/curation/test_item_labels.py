@@ -29,8 +29,8 @@ class TestItemLabels(AppTestCase):
         WikidataItem.objects.bulk_create(
             [WikidataItem(item_id=TREE, label="Rock music"), WikidataItem(item_id=PRUNED, label="Cosplay")]
         )
-        _entry("canonical_parent_additions", ADDED, label="Test node")
-        _entry("canonical_parent_additions", TREE, label="Stale")
+        _entry("global_parent_additions", ADDED, label="Test node")
+        _entry("global_parent_additions", TREE, label="Stale")
 
         labels = resolve_item_labels({TREE, PRUNED, ADDED, "Q1"})
 
@@ -88,7 +88,7 @@ class TestItemLabels(AppTestCase):
     def test_search_then_items_from_tree_catalog_and_additions_by_name_or_id(self):
         self.model_fixture_factory.create_genre("Zyx", wikidata_id=TREE)
         WikidataItem.objects.create(item_id=PRUNED, label="Zyx cosplay")
-        _entry("canonical_parent_additions", ADDED, label="Zyx steady")
+        _entry("global_parent_additions", ADDED, label="Zyx steady")
 
         by_name = self.api_client.get(path=reverse("curation-items"), data={"q": "zyx"})
         by_id = self.api_client.get(path=reverse("curation-items"), data={"q": PRUNED.lower()})
@@ -111,5 +111,5 @@ class TestItemLabels(AppTestCase):
 
         specs = {lst["name"]: lst["columnSpecs"] for lst in response.json()}
         assert "canonical_parent" not in specs
-        assert {"name": "label", "kind": "text", "optional": False} in specs["canonical_parent_additions"]
+        assert {"name": "label", "kind": "text", "optional": False} in specs["global_parent_additions"]
         assert {"name": "genre_item_id", "kind": "item_id", "optional": True} in specs["song_genre"]

@@ -1,6 +1,6 @@
 """A `LOCAL:` genre held by grow (a canonical `Genre` row with no Gold node of its own) stays in the reference graph
-only while its curation rules still declare and place it: an `canonical_parent_additions` entry, plus a
-`canonical_parent` edge with a parent or a `canonical_roots` entry. These guards refuse the writes that would drop
+only while its curation rules still declare and place it: a `global_parent_additions` entry, plus a
+classification rule placing it under a genre or a `global_roots` entry. These guards refuse the writes that would drop
 one of them while the genre exists, so the import never meets a held genre Gold stopped emitting."""
 
 from collections.abc import Iterable
@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 
 GENERATED_OVERVIEW_PREFIX = "LOCAL:region-"
-ADDITIONS = "canonical_parent_additions"
-ROOTS = "canonical_roots"
+ADDITIONS = "global_parent_additions"
+ROOTS = "global_roots"
 
 EntryKeys = dict[str, set[str]]
 
@@ -58,11 +58,18 @@ def stored_entry_keys(exclude_pk: Any = None) -> EntryKeys:
 
 
 def placed_items(keys: EntryKeys, edges: Iterable[GenreEdgeRule]) -> set[str]:
-    """The items with a canonical parent edge carrying a parent, or an accepted root entry."""
+    """The items a classification assert places under a genre, or with an accepted root entry."""
+    from grow.curation.rule_set import known_kinds
+    from grow.model.curation.CurationEntry import CurationEntry
     from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 
-    parented = {e.item_id for e in edges if e.relation == GenreEdgeRule.Relation.CANONICAL_PARENT and e.parent_item_id}
-    return parented | keys[ROOTS]
+    asserts = [
+        e
+        for e in edges
+        if e.relation == GenreEdgeRule.Relation.CLASSIFICATION and e.action == GenreEdgeRule.Action.ASSERT
+    ]
+    kinds = known_kinds(CurationEntry.objects.filter(user=None), {e.target_item_id for e in asserts})
+    return {e.item_id for e in asserts if kinds.get(e.target_item_id) != "overview"} | keys[ROOTS]
 
 
 def find_local_genre_violations(
@@ -89,7 +96,7 @@ def find_local_genre_violations(
             violations.append(
                 Violation(
                     "local_genre_unplaced",
-                    f"{label} exists but would have neither a canonical parent nor a {ROOTS} entry: delete the genre "
+                    f"{label} exists but would have neither a global parent nor a {ROOTS} entry: delete the genre "
                     "(this removes its rules) or alias it",
                     frozenset({item_id}),
                 )
@@ -107,6 +114,6 @@ def find_local_genre_removal_error(keys: EntryKeys, edges: Iterable[GenreEdgeRul
         return None
     edges = list(edges)
     violations = find_local_genre_violations(keys, edges, held_local_genres(items))
-    violations += find_unplaced_local_additions(keys[ADDITIONS], keys[ROOTS], edges)
+    violations += find_unplaced_local_additions(keys[ADDITIONS], placed_items(keys, edges))
     violations = involving(violations, items)
     return violations[0].message if violations else None

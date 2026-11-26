@@ -10,7 +10,7 @@ from grow.model.pipeline_run.PipelineRunRequestManager import PipelineRunRequest
 class PipelineRunRequest(models.Model):
     """A pipeline run request, claimed and executed by the pipeline's poller one at a time.
 
-    `curation` rebuilds the canonical tree and songs from current curation; `full` is the nightly run or an
+    `curation` rebuilds the genre trees and songs from current curation; `full` is the nightly run or an
     admin-requested full ingestion; `sync` (admin-only) replays the last complete Gold output into grow. `trigger` records the origin: `manual` (by `requested_by`) or `scheduled`.
     """
 

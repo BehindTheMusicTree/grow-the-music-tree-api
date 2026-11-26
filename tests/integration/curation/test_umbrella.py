@@ -5,6 +5,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from grow.curation.rows import InvalidRow
+from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.curation.CurationEntry import CurationEntry
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.song_graph import install_song_graph
@@ -83,6 +84,7 @@ class TestCase(AppTestCase):
         for key in ("pop rock\tpop", "pop rock\trock", "punk\tpop", "punk\trock"):
             CurationEntry.objects.create(user=None, list_name="genre_precedence", key=key, values={}, reason=reason)
 
+        Genre.objects.update(tree_name="canonical")  # migration 0065 predates the rename to `global`
         migration.convert_precedence(apps, None)
 
         keys = sorted(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True))
@@ -94,6 +96,7 @@ class TestCase(AppTestCase):
         for key in ("nope\trock", "pop punk\tpunk rock"):
             CurationEntry.objects.create(user=None, list_name="genre_precedence", key=key, values={}, reason="r")
 
+        Genre.objects.update(tree_name="canonical")  # migration 0065 predates the rename to `global`
         migration.convert_precedence(apps, None)
 
         assert list(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True)) == []
@@ -105,6 +108,7 @@ class TestCase(AppTestCase):
             user=None, list_name="genre_precedence", key="punk rock\trock", values={}, reason="r"
         )
 
+        Genre.objects.update(tree_name="canonical")  # migration 0065 predates the rename to `global`
         migration.convert_precedence(apps, None)
 
         assert list(CurationEntry.objects.filter(list_name="genre_precedence").values_list("key", flat=True)) == [

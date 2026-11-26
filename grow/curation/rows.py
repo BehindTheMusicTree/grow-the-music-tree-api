@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from django.db import connections, models
 from django.utils import timezone
+from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_grow_contracts.curation_lists import (
     ADDITION_LISTS,
     BOOL_COLUMNS,
@@ -34,9 +35,9 @@ from the_music_tree_grow_contracts.curation_lists import (
 from grow.curation.local_genres import GENERATED_OVERVIEW_PREFIX
 
 KEY_SEPARATOR = "\t"
-POP_SIDE_LIST = "canonical_genre_pop_side"
+POP_SIDE_LIST = "global_genre_pop_side"
 UMBRELLA_LIST = "umbrella_stylistic_genres"
-SCENE_LIST = "canonical_genre_scene"
+SCENE_LIST = "global_genre_scene"
 EDGES_FILE = "genre_edges"
 SEED_DIR = Path(__file__).parent / "seed"
 WRITE_LOCK_ID = 0x63757261  # pg advisory lock key, "cura"
@@ -263,19 +264,19 @@ def scene_split_error(scenes: dict[str, str], parents: dict[str, str], item_id: 
 def find_scene_split_error(
     queryset: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None
 ) -> str | None:
-    """Why a scene row `parsed` would break a scene split, if it would. A canonical parent edge is checked by
+    """Why a scene row `parsed` would break a scene split, if it would. A classification rule is checked by
     `grow.curation.edges.find_edge_scene_split_error`."""
     if list_name != SCENE_LIST:
         return None
-    from grow.curation.edges import canonical_parents
+    from grow.curation.edges import global_parents
 
     scenes = dict(queryset.exclude(pk=exclude_pk).filter(list_name=SCENE_LIST).values_list("key", "values__scene"))
     scenes[parsed.key] = parsed.values["scene"]
-    return scene_split_error(scenes, canonical_parents(), parsed.key)
+    return scene_split_error(scenes, global_parents(), parsed.key)
 
 
 def find_umbrella_leaf_error(list_name: str, key: str) -> str | None:
-    """Why `key` can't be an umbrella, if it can't: a canonical genre without children leaves its songs no sub-genre.
+    """Why `key` can't be an umbrella, if it can't: a global genre without children leaves its songs no sub-genre.
 
     A genre not imported yet passes; the pipeline's own checks reject it."""
     if list_name != UMBRELLA_LIST:
@@ -283,7 +284,7 @@ def find_umbrella_leaf_error(list_name: str, key: str) -> str | None:
     from grow.model.criteria.children.genre.Genre import Genre
     from grow.model.criteria.Criteria import Criteria
 
-    genre = Genre.objects.filter(user=None, tree_name="canonical", wikidata_id=key).first()
+    genre = Genre.objects.filter(user=None, tree_name=CriteriaTreeName.GLOBAL, wikidata_id=key).first()
     if genre is None:
         return None
     has_children = Criteria.objects.filter(
@@ -317,14 +318,13 @@ def find_excluded_edge_error(entries: models.QuerySet, list_name: str, key: str)
 
 
 def find_root_edge_error(entries: models.QuerySet, list_name: str, key: str) -> str | None:
-    """Why `key` can't become an accepted canonical root, if it can't: a curated edge still gives it a parent."""
-    if list_name != "canonical_roots":
+    """Why `key` can't become an accepted global root, if it can't: a curated edge still classifies it under a genre."""
+    if list_name != "global_roots":
         return None
     from grow.curation.edges import edge_rules
-    from grow.curation.rule_set import find_root_parent_conflicts, find_root_regional_conflicts
+    from grow.curation.rule_set import find_root_parent_conflicts
 
-    edges = list(edge_rules())
-    violations = find_root_regional_conflicts({key}, edges) + find_root_parent_conflicts({key}, edges)
+    violations = find_root_parent_conflicts({key}, entries, edge_rules())
     return violations[0].message if violations else None
 
 
@@ -337,7 +337,11 @@ def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow
         if local_error:
             return local_error
     if list_name in ADDITION_LISTS and exclude_pk is not None:
-        return _addition_removal_error(entries, renamed) if renamed is not None else None
+        return _declaration_removal_error(entries, renamed) if renamed is not None else None
+    if list_name == "local_identities":
+        identity_error = _identity_edge_error(entries, parsed, renamed)
+        if identity_error:
+            return identity_error
     if list_name not in GRAPH_LISTS:
         return None
     from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
@@ -360,7 +364,11 @@ def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None
     if local_error:
         return local_error
     if entry.list_name in ADDITION_LISTS:
-        return _addition_removal_error(entries, entry)
+        return _declaration_removal_error(entries, entry)
+    if entry.list_name == "local_identities":
+        edge_error = _declaration_removal_error(entries, entry)
+        if edge_error:
+            return edge_error
     if entry.list_name not in GRAPH_LISTS:
         return None
     from grow.curation.rule_set import declared_additions, find_graph_violations, graph_row_items, involving
@@ -392,30 +400,40 @@ def _local_genre_error(entry: Any, replacement_key: str | None = None) -> str | 
     return find_local_genre_removal_error(keys, edge_rules(), {entry.key})
 
 
-def _addition_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
-    """Why dropping the addition `entry` would leave its `LOCAL:` item undeclared in a merge or an edge, if it would."""
+def _declaration_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
+    """Why dropping the addition or local identity `entry` would leave its `LOCAL:` item undeclared in a merge or an
+    edge, if it would."""
     from grow.curation.edges import edge_rules
-    from grow.curation.rule_set import declared_additions, find_graph_violations, find_undeclared_local_edges, involving
+    from grow.curation.rule_set import (
+        declared_additions,
+        declared_edge_items,
+        find_graph_violations,
+        find_undeclared_local_edges,
+        involving,
+    )
 
-    declared = declared_additions(entries.exclude(pk=entry.pk))
-    rows = [(e.list_name, e.key, e.values) for e in entries.filter(list_name__in=GRAPH_LISTS)]
-    violations = find_graph_violations(rows, declared) + find_undeclared_local_edges(declared, edge_rules())
+    others = entries.exclude(pk=entry.pk)
+    rows = [(e.list_name, e.key, e.values) for e in others.filter(list_name__in=GRAPH_LISTS)]
+    violations = find_graph_violations(rows, declared_additions(others))
+    violations += find_undeclared_local_edges(declared_edge_items(others), edge_rules())
     violations = involving(violations, {entry.key})
     return violations[0].message if violations else None
 
 
-def find_membership_contradiction(entries: models.QuerySet, list_name: str, parsed: ParsedRow) -> str | None:
-    """Why a membership `parsed` contradicts the stored one on the same pair, if it does."""
-    if list_name != "regional_memberships":
-        return None
-    stored = entries.filter(list_name=list_name, key=parsed.key).first()
-    if stored is None or stored.values.get("action") == parsed.values["action"]:
-        return None
-    child, parent = parsed.key.split(KEY_SEPARATOR)
-    return (
-        f"{child} -> {parent} is already `{stored.values.get('action')}`; "
-        f"`{parsed.values['action']}` would contradict it"
-    )
+def _identity_edge_error(entries: models.QuerySet, parsed: ParsedRow, renamed: Any) -> str | None:
+    """Why writing the local identity `parsed` would break the edges naming it, if it would: the kind it declares may
+    not fit them, and a renamed identity leaves their item undeclared."""
+    if renamed is not None:
+        removal_error = _declaration_removal_error(entries, renamed)
+        if removal_error:
+            return removal_error
+    from grow.curation.edges import find_edge_rules
+    from grow.curation.rule_set import find_edge_kind_violations, known_kinds
+
+    edges = list(find_edge_rules(parsed.key))
+    kinds = known_kinds(entries, {item for e in edges for item in (e.item_id, e.target_item_id)})
+    violations = find_edge_kind_violations({**kinds, parsed.key: parsed.values["kind"]}, edges)
+    return violations[0].message if violations else None
 
 
 def check_upsert(
@@ -463,9 +481,6 @@ def check_edit(entries: models.QuerySet, list_name: str, row: dict[str, Any], ex
     Raises `InvalidRow` or `RowConflict`."""
     parsed = parse_row(list_name, row)
     lock_writes(entries)
-    contradiction = find_membership_contradiction(entries.exclude(pk=exclude_pk), list_name, parsed)
-    if contradiction:
-        raise RowConflict(contradiction)
     if entries.filter(list_name=list_name, key=parsed.key).exclude(pk=exclude_pk).exists():
         raise RowConflict(f"An entry with this key already exists in {list_name}")
     conflict = find_exclusivity_conflict(entries, list_name, parsed.key, exclude_pk)

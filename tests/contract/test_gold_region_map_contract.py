@@ -19,7 +19,7 @@ FULL_REGION = _region(
     zoneIds=["Q91"],
     cityIds=["Q90"],
     mainBbox=[0, 0, 1, 1],
-    genres=[{"itemId": GENRE, "relation": "canonical"}, {"itemId": TRADITION, "relation": "tradition"}],
+    genres=[{"itemId": GENRE, "relation": "global"}, {"itemId": TRADITION, "relation": "tradition"}],
 )
 SAMPLES = {
     "region_map": _index(

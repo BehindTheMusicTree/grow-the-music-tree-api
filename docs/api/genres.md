@@ -19,7 +19,7 @@ identity (never by label), or creates a genre. Several genres sharing that `wiki
 to another identity, answer 400 and change nothing.
 
 A genre created in the admin without a `wikidata_id` is adopted as a local node: it gets `wikidata_id`
-`LOCAL:<slug>`, a `canonical_parent_additions` row and a parent edge, so the pipelines recreate the node under the
+`LOCAL:<slug>`, a `global_parent_additions` row and a parent edge, so the pipelines recreate the node under the
 same id and this import binds it. Creating a regional or excluded genre, or a root without a parent, answers 400
 (`treeName` and `parent` fields respectively), since neither can be expressed as a `LOCAL:` node. Migration `0154`
 adopts the existing app-created genres the same way; a genre whose chain has no adoptable parent is skipped and logged.
@@ -46,7 +46,7 @@ adopts the existing app-created genres the same way; a genre whose chain has no 
 
 `PUT {base}{id}/` with `parent: null` (admin only)
 
-Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-backed genre it also replaces the item's `canonical_parent` edge with a parentless one (a root), so the next pipeline import keeps it a root. The genre is locked, `isUnacceptedRoot` is cleared and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 for regional or excluded genres; a genre that is already a root is a no-op. Giving the root a parent again (`PUT` with a non-null `parent`) replaces that parentless edge, since an item holds a single `canonical_parent` edge.
+Detaches a global genre from its parent so it becomes a root. For a Wikidata-backed genre it deletes the item's curated `classification` asserts (memberships of overviews stay) and records a `global_roots` entry, so the next pipeline import keeps it a root. The genre is locked, `isUnacceptedRoot` is cleared and a `parent_changed` history entry (`newValue` null) is recorded. Returns 400 for regional or excluded genres; a genre that is already a root is a no-op. Giving the root a parent again (`PUT` with a non-null `parent`) deletes the `global_roots` entry and the replaced curated parent edge, upserts a `classification` assert to the new parent and `prohibit`s the parents the reference graph gave other than the new one.
 
 #### Delete
 
@@ -54,7 +54,7 @@ Detaches a canonical genre from its parent so it becomes a root. For a Wikidata-
 
 #### Tree
 
-`GET {base}tree/?treeName=canonical|regional`
+`GET {base}tree/?treeName=global|regional`
 
 `treeName` is required; a missing or unknown value returns 400.
 
@@ -88,7 +88,7 @@ with `manage.py set_user_pseudo <email> <pseudo>`.
 
 `POST {base}tree/import/`
 
-Body: `{"treeName": "canonical"|"regional", "tree": [...]}`. `treeName` is required. Only
+Body: `{"treeName": "global"|"regional", "tree": [...]}`. `treeName` is required. Only
 `regional` nodes may carry several `primaryParents`.
 
 An `X-API-Key` import also requires `curationExportedOn` (ISO 8601): the curation export's

@@ -13,16 +13,16 @@ from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 @pytest.fixture
 def graph():
     trees = {
-        "root": "canonical",
-        "canonical": "canonical",
+        "root": "global",
+        "global": "global",
         "regional": "regional",
         "diamond": "regional",
-        "behind_regional": "canonical",
+        "behind_regional": "global",
     }
     edges = [
-        ("root", "canonical"),
+        ("root", "global"),
         ("root", "regional"),
-        ("canonical", "diamond"),
+        ("global", "diamond"),
         ("regional", "diamond"),
         ("regional", "behind_regional"),
     ]
@@ -31,16 +31,16 @@ def graph():
 
 def test_canonical_scopes_follow_primary_paths_and_deduplicate(graph):
     trees, edges = graph
-    assert selected_genres("root", trees, edges, SubgenreScope.CANONICAL) == {"root", "canonical"}
+    assert selected_genres("root", trees, edges, SubgenreScope.GLOBAL) == {"root", "global"}
     assert selected_genres("root", trees, edges, SubgenreScope.REGIONAL) == {"root", "regional", "diamond"}
-    assert selected_genres("root", trees, edges, SubgenreScope.ALL) == {"root", "canonical", "regional", "diamond"}
+    assert selected_genres("root", trees, edges, SubgenreScope.ALL) == {"root", "global", "regional", "diamond"}
 
 
 def test_regional_selection_includes_all_descendants(graph):
     trees, edges = graph
     assert selected_genres("regional", trees, edges, SubgenreScope.ALL) == {"regional", "diamond", "behind_regional"}
     with pytest.raises(ValueError, match="Regional genres require the all scope"):
-        selected_genres("regional", trees, edges, SubgenreScope.CANONICAL)
+        selected_genres("regional", trees, edges, SubgenreScope.GLOBAL)
 
 
 def test_selection_rejects_incomplete_graph(graph):

@@ -24,7 +24,7 @@ from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 CURATION_EXPORTED_ON = "curation_exported_on"
 
 TREE_IMPORT_RUN_KINDS = {
-    CriteriaTreeName.CANONICAL: ImportRun.Kind.CANONICAL_TREE,
+    CriteriaTreeName.GLOBAL: ImportRun.Kind.GLOBAL_TREE,
     CriteriaTreeName.REGIONAL: ImportRun.Kind.REGIONAL_TREE,
 }
 
@@ -70,7 +70,7 @@ def merge_genre_trees_import_run(
     run_id: int, user_id: int | None, record: bool, attempt_id: int | None = None
 ) -> dict[str, Any]:
     """
-    Imports the run's trees (canonical and regional) in one `import_criteria_trees` call, so a genre that moved
+    Imports the run's trees (global and regional) in one `import_criteria_trees` call, so a genre that moved
     between them keeps its pk and songs. A pipeline run (`record`) also marks its curation export applied and records
     one `ImportRun` per tree. Everything commits together with the run's receipt, or not at all.
     """

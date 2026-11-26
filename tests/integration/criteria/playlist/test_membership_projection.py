@@ -90,11 +90,11 @@ class TestMembershipProjection(AppTestCase):
         TrackPlaylistRel.objects.filter(playlist=playlist, track=song).delete()
         expected = {
             "genreOnlyTracksCount": 0,
-            "genreAndSubgenresTracksCount": {"canonical": 0, "regional": 0, "all": 0},
+            "genreAndSubgenresTracksCount": {"global": 0, "regional": 0, "all": 0},
         }
         catalogue = {
             "genreOnlyTracksCount": 0,
-            "genreAndSubgenresTracksCount": {"canonical": 1, "regional": 0, "all": 1},
+            "genreAndSubgenresTracksCount": {"global": 1, "regional": 0, "all": 1},
         }
         for route in ("genre-playlist-detail", "playlist-detail"):
             response = self.api_client.get(reverse(route, kwargs={"pk": playlist.pk}))
@@ -108,7 +108,7 @@ class TestMembershipProjection(AppTestCase):
             row = next(row for row in data if row["uuid"] == str(playlist.pk))
             assert {key: row[key] for key in expected} == expected
             assert row["catalogue"] == catalogue
-        tree = self.api_client.get(reverse("genre-playlist-tree"), {"tree_name": "canonical"}).json()
+        tree = self.api_client.get(reverse("genre-playlist-tree"), {"tree_name": "global"}).json()
         row = next(row for row in tree if row["uuid"] == str(playlist.pk))
         assert {key: row[key] for key in expected} == expected
         assert row["catalogue"] == catalogue

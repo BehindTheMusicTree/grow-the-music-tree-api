@@ -37,7 +37,7 @@ def artist_catalogue_counts(artist_id: UUID, snapshot: GenreTreeSnapshot | None 
     """Scoped counts for every genre, zero-filled."""
     snapshot = snapshot if snapshot is not None else genre_tree_snapshot()
     counts = {
-        genre: GenreScopedCounts(0, {"canonical": 0, "regional": 0, "all": 0} if tree == "canonical" else {"all": 0})
+        genre: GenreScopedCounts(0, {"global": 0, "regional": 0, "all": 0} if tree == "global" else {"all": 0})
         for genre, tree in snapshot.tree_names.items()
     }
     counts.update(artist_nonzero_catalogue_counts(artist_exact_counts(artist_id), snapshot))

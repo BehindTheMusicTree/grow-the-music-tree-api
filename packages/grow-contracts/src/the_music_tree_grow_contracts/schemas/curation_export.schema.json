@@ -4,7 +4,7 @@
   "title": "Curation export",
   "type": "object",
   "properties": {
-    "canonical_parent_additions": {
+    "global_parent_additions": {
       "type": "array",
       "items": {
         "type": "object",
@@ -124,7 +124,7 @@
         "additionalProperties": false
       }
     },
-    "forced_canonical_genres": {
+    "forced_global_genres": {
       "type": "array",
       "items": {
         "type": "object",
@@ -231,7 +231,7 @@
         "additionalProperties": false
       }
     },
-    "canonical_roots": {
+    "global_roots": {
       "type": "array",
       "items": {
         "type": "object",
@@ -255,50 +255,6 @@
         },
         "required": [
           "item_id",
-          "decision_id",
-          "decision_source",
-          "reason"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "regional_memberships": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "child_item_id": {
-            "type": "string",
-            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
-          },
-          "parent_item_id": {
-            "type": "string",
-            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "add",
-              "prohibit"
-            ]
-          },
-          "decision_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "decision_source": {
-            "type": "string",
-            "minLength": 1
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "child_item_id",
-          "parent_item_id",
-          "action",
           "decision_id",
           "decision_source",
           "reason"
@@ -371,42 +327,6 @@
         "required": [
           "source_item_id",
           "target_item_id",
-          "decision_id",
-          "decision_source",
-          "reason"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "genre_derivations": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "item_id": {
-            "type": "string",
-            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
-          },
-          "origin_item_id": {
-            "type": "string",
-            "pattern": "^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$"
-          },
-          "decision_id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "decision_source": {
-            "type": "string",
-            "minLength": 1
-          },
-          "reason": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "item_id",
-          "origin_item_id",
           "decision_id",
           "decision_source",
           "reason"
@@ -597,7 +517,7 @@
         "additionalProperties": false
       }
     },
-    "canonical_genre_scene": {
+    "global_genre_scene": {
       "type": "array",
       "items": {
         "type": "object",
@@ -668,7 +588,7 @@
         "additionalProperties": false
       }
     },
-    "canonical_genre_pop_side": {
+    "global_genre_pop_side": {
       "type": "array",
       "items": {
         "type": "object",
@@ -1390,36 +1310,31 @@
       "items": {
         "type": "object",
         "properties": {
-          "relation": {
+          "decision_id": {
             "type": "string",
-            "enum": [
-              "canonical_parent",
-              "regional_genre_parent",
-              "regional_overview",
-              "secondary_parent"
-            ]
+            "minLength": 1
           },
           "item_id": {
             "type": "string",
             "minLength": 1
           },
-          "parent_item_id": {
+          "relation": {
+            "type": "string",
+            "enum": [
+              "classification",
+              "derivation",
+              "influence"
+            ]
+          },
+          "target_item_id": {
             "type": "string",
             "minLength": 1
           },
           "action": {
             "type": "string",
             "enum": [
-              "add",
-              "remove",
-              ""
-            ]
-          },
-          "exclude_other_parents": {
-            "type": "string",
-            "enum": [
-              "true",
-              ""
+              "assert",
+              "prohibit"
             ]
           },
           "reason": {
@@ -1427,11 +1342,11 @@
           }
         },
         "required": [
-          "relation",
+          "decision_id",
           "item_id",
-          "parent_item_id",
+          "relation",
+          "target_item_id",
           "action",
-          "exclude_other_parents",
           "reason"
         ],
         "additionalProperties": false
@@ -1443,20 +1358,18 @@
     }
   },
   "required": [
-    "canonical_parent_additions",
+    "global_parent_additions",
     "capitalized_words",
     "duplicate_genres",
     "indigenous_to_exclusions",
     "label_overrides",
-    "forced_canonical_genres",
+    "forced_global_genres",
     "out_of_scope_genres",
     "overview_reclassifications",
     "local_identities",
-    "canonical_roots",
-    "regional_memberships",
+    "global_roots",
     "regional_anchorings",
     "genre_merges",
-    "genre_derivations",
     "regional_overview_types",
     "regional_overview_additions",
     "synthetic_overview_resolutions",
@@ -1464,10 +1377,10 @@
     "theme_genres",
     "umbrella_non_stylistic_genres",
     "umbrella_stylistic_genres",
-    "canonical_genre_scene",
+    "global_genre_scene",
     "accepted_non_genre_tags",
     "musicbrainz_free_genre_tags",
-    "canonical_genre_pop_side",
+    "global_genre_pop_side",
     "genre_alias",
     "genre_disambiguation",
     "genre_disambiguation_context",

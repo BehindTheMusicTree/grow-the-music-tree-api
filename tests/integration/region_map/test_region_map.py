@@ -43,7 +43,7 @@ def _region(region_id: str = "Q142", genres: list[dict] | None = None, **overrid
         "centroid": [0.5, 0.5],
         "overviewItemId": None,
         "inheritedOverviewItemId": None,
-        "genres": [{"itemId": GENRE, "relation": "canonical"}] if genres is None else genres,
+        "genres": [{"itemId": GENRE, "relation": "global"}] if genres is None else genres,
         "songCount": 1,
         "genreCount": 1,
         **overrides,
@@ -209,7 +209,7 @@ class TestRegionMapGenres(AppTestCase):
     def _index_with(self, *, genres: list[str], overview: str | None = None) -> None:
         region = {
             "id": "france",
-            "genres": [{"itemId": item_id, "rule": "anchor", "relation": "canonical"} for item_id in genres],
+            "genres": [{"itemId": item_id, "rule": "anchor", "relation": "global"} for item_id in genres],
             "overviewItemId": overview,
             "inheritedOverviewItemId": None,
         }
@@ -231,7 +231,7 @@ class TestRegionMapGenres(AppTestCase):
                 "wikidataId": "Q1",
                 "uuid": str(chanson.uuid),
                 "name": "Chanson",
-                "treeName": CriteriaTreeName.CANONICAL,
+                "treeName": CriteriaTreeName.GLOBAL,
                 "genrePlaylistUuid": str(chanson.criteria_playlist.uuid),
                 "isUmbrella": False,
                 "viewsCount": 0,
@@ -399,7 +399,7 @@ class TestRegionMapImportRun(AppTestCase):
         assert not RegionMapSnapshot.objects.exists()
 
     def test_unknown_genre_fails_but_tradition_allowed(self):
-        unknown = [{"itemId": "Q404", "relation": "canonical"}]
+        unknown = [{"itemId": "Q404", "relation": "global"}]
         tradition = [{"itemId": TRADITION, "relation": "tradition"}]
 
         self._refused(_parts(_index([_region(genres=unknown)])))

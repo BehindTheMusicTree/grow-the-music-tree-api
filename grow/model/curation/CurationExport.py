@@ -37,8 +37,8 @@ class CurationExport(models.Model):
         return export
 
     @property
-    def canonical_roots(self) -> set[str]:
+    def global_roots(self) -> set[str]:
         """The accepted roots the export carried."""
         if self.snapshot is None:
-            raise ValueError("This export predates snapshots: its canonical roots were not recorded")
-        return {row["item_id"] for row in self.snapshot["canonical_roots"]}
+            raise ValueError("This export predates snapshots: its global roots were not recorded")
+        return {row["item_id"] for row in self.snapshot["global_roots"]}

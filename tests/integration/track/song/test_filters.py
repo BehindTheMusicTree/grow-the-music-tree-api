@@ -338,7 +338,7 @@ class TestCase(AppTestCase):
         region = self.model_fixture_factory.create_genre("Region")
         self._install_graph(
             {regional: [regional_song], region: []},
-            relations=[(regional, self.rock, "classification"), (regional, region, "regional_membership")],
+            relations=[(regional, self.rock, "classification"), (regional, region, "classification")],
             node_overrides={region: {"kind": "overview"}},
         )
         genre = str(self.rock.uuid)
@@ -355,6 +355,6 @@ class TestCase(AppTestCase):
             {"genre": genre, "coverage": "genre_only", "subgenres": "all"},
             {"genre": genre, "coverage": "genre_only", "subgenres": "expressions"},
             {"genre": genre, "subgenres": "invalid"},
-            {"genre": str(regional.uuid), "subgenres": "canonical"},
+            {"genre": str(regional.uuid), "subgenres": "global"},
         ):
             assert self.api_client.get(reverse(self.list_endpoint), params).status_code == 400

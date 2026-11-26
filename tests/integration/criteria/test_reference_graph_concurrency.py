@@ -48,7 +48,7 @@ def reference_configuration(db):
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     original = import_graph(payload)
     mapping = deepcopy(GenreGraphImport.objects.get(pk=original.revision).mapping)
@@ -85,7 +85,7 @@ def test_concurrent_retirements_cannot_overwrite_reviewed_graph():
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publication():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     genre = ModelFixtureFactory(None).create_genre("Legacy genre")
     song = ModelFixtureFactory(None).create_song("Legacy song", genre)
     mapping = {node["id"]: None for node in payload["nodes"]}
@@ -145,7 +145,7 @@ def test_song_import_waits_for_graph_activation_then_rejects_unreviewed_publicat
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_playlist_tree_response_and_etag_share_one_snapshot(monkeypatch):
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     dataset = import_graph(payload)
     genre = Genre.objects.get(graph_node__dataset=dataset, graph_node__identity="LOCAL:dub")
@@ -169,14 +169,14 @@ def test_playlist_tree_response_and_etag_share_one_snapshot(monkeypatch):
     monkeypatch.setattr(module, "_tree_rows", rows_after_update)
     client = APIClient()
     path = reverse("genre-playlist-list") + "tree/"
-    response = client.get(path, {"tree_name": "canonical"})
+    response = client.get(path, {"tree_name": "global"})
     assert response.status_code == 200
     names = {row["name"] for row in response.json()}
     assert original_name in names
     assert changed_name not in names
     old_etag = response["ETag"]
     monkeypatch.setattr(module, "_tree_rows", original_rows)
-    response = client.get(path, {"tree_name": "canonical"}, HTTP_IF_NONE_MATCH=old_etag)
+    response = client.get(path, {"tree_name": "global"}, HTTP_IF_NONE_MATCH=old_etag)
     assert response.status_code == 200
     assert response["ETag"] != old_etag
     assert changed_name in {row["name"] for row in response.json()}
@@ -185,7 +185,7 @@ def test_playlist_tree_response_and_etag_share_one_snapshot(monkeypatch):
 @pytest.mark.postgres
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_assignment_api_edits_preserve_the_winners_complete_evidence():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     GenreTreeVersion.objects.get_or_create(pk=1, defaults={"token": uuid4()})
     song = ModelFixtureFactory(None).create_song("Concurrent assignment", None)
     import_graph(payload)
@@ -227,7 +227,7 @@ def test_concurrent_assignment_api_edits_preserve_the_winners_complete_evidence(
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("operation", ["insert", "update", "delete"])
 def test_direct_evidence_dml_takes_source_gate_before_dataset(operation):
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     original = import_graph(payload)
     genre = Genre.objects.get(semantic_identity="LOCAL:french-dub")
     song = ModelFixtureFactory(None).create_song("With evidence", None)
@@ -294,7 +294,7 @@ def test_direct_evidence_dml_takes_source_gate_before_dataset(operation):
 @pytest.mark.postgres
 @pytest.mark.django_db
 def test_first_publication_raises_session_limits_for_its_transaction():
-    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json").read_text())
+    payload = json.loads((Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json").read_text())
     import_graph(payload)
     with connections["default"].cursor() as cursor:
         cursor.execute(

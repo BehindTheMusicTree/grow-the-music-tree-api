@@ -8,7 +8,7 @@ from grow.model.history.HistoryEntry import HistoryEntry
 
 
 class CurationSyncState(models.Model):
-    """Singleton: which curation export the canonical tree was last built from (exports themselves: `CurationExport`)."""
+    """Singleton: which curation export the genre trees were last built from (exports themselves: `CurationExport`)."""
 
     applied_export_on = models.DateTimeField(null=True)
     genre_alias_publication = models.JSONField(null=True)

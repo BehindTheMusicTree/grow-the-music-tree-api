@@ -49,7 +49,7 @@ def reference_configuration(db):
 
 @pytest.fixture
 def payload():
-    path = Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json"
+    path = Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json"
     payload = json.loads(path.read_text())
     record_graph_export(payload)
     return payload
@@ -97,6 +97,24 @@ def test_bootstrap_import_then_success_with_both_revisions_and_initial_backup(pa
     assert not GenreGraphImportPayload.objects.exists()
     attempt = ImportAttempt.objects.get(kind=GENRE_GRAPH_KIND)
     assert {step["label"] for step in attempt.completed_steps} >= {"backup_assignments", "migrate_assignments"}
+
+
+def test_two_lineage_parents_then_import_succeeds_with_cardinality_alerts(payload):
+    payload["relations"].append(
+        {
+            "childId": "LOCAL:roots",
+            "parentId": "LOCAL:dub",
+            "type": "classification",
+            "provenance": {"decisionId": "extra-parent", "source": "test", "rationale": "second parent"},
+        }
+    )
+
+    response = client("pipeline").post(runs_url(), body(payload), format="json")
+
+    polled = status_of(client("pipeline"), response.json()["taskId"])
+    assert polled["status"] == "success", polled
+    alerts = CurationReviewItem.objects.filter(reason=CurationReviewItem.Reason.CLASSIFICATION_CARDINALITY)
+    assert list(alerts.values_list("item_id", flat=True)) == ["LOCAL:roots"]
 
 
 def test_permissions(payload):

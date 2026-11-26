@@ -165,8 +165,8 @@ def _tree_rows(queryset, artist_id: UUID | None = None) -> list[dict]:
         counts = membership_counts.get(row["uuid"])
         if counts is None:
             empty_scopes = {"all": 0}
-            if row["criteria"] and row["criteria"]["tree_name"] == "canonical":
-                empty_scopes.update(canonical=0, regional=0)
+            if row["criteria"] and row["criteria"]["tree_name"] == "global":
+                empty_scopes.update({"global": 0, "regional": 0})
             counts = GenreScopedCounts(0, empty_scopes)
         row["genre_only_tracks_count"] = counts.genre_only_tracks_count
         row["genre_and_subgenres_tracks_count"] = counts.genre_and_subgenres_tracks_count
@@ -240,7 +240,7 @@ class GenrePlaylistViewSet(CriteriaPlaylistViewSet):
                 raise ValidationError({"subgenres": "Genreless has no subgenres."})
             return Q(**{f"{field}__isnull": True})
         if coverage == CriteriaCoverage.ONLY:
-            parse_subgenres(self.request.query_params.get("subgenres"), coverage, "canonical")
+            parse_subgenres(self.request.query_params.get("subgenres"), coverage, "global")
             return Q(**{field: playlist.criteria_id})
         scope = parse_subgenres(self.request.query_params.get("subgenres"), coverage, playlist.criteria.tree_name)
         selected = selected_genres_query(

@@ -2,9 +2,28 @@ from dataclasses import dataclass
 from typing import Literal
 
 ADDITION_LABEL_COLUMN = "label"
-CANONICAL_ROOTS_LIST = "canonical_roots"
-RETIRED_HISTORY_LISTS = frozenset({"expression_styles"})
-EDGE_COLUMNS = ("relation", "item_id", "parent_item_id", "action", "exclude_other_parents", "reason")
+GLOBAL_ROOTS_LIST = "global_roots"
+RETIRED_HISTORY_LISTS = frozenset(
+    {
+        "expression_styles",
+        "canonical_roots",
+        "canonical_parent_additions",
+        "canonical_genre_scene",
+        "canonical_genre_pop_side",
+        "forced_canonical_genres",
+        "regional_memberships",
+        "genre_derivations",
+        "canonical_parent",
+        "regional_genre_parent",
+        "regional_overviews",
+        "secondary_parents",
+    }
+)
+"""Lists that no longer exist (renamed, folded into the edges, or the legacy edge projections), still readable in the
+curation history."""
+EDGE_RELATIONS = ("classification", "derivation", "influence")
+EDGE_ACTIONS = ("assert", "prohibit")
+EDGE_COLUMNS = ("decision_id", "item_id", "relation", "target_item_id", "action", "reason")
 """Columns of an exported genre edge rule, and the header order of `genre_edges.csv`."""
 
 ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
@@ -13,21 +32,17 @@ ITEM_ID_PATTERN = r"Q[0-9]+|LOCAL:[a-z0-9-]+"
 ITEM_ID_COLUMNS = frozenset(
     {
         "item_id",
-        "parent_item_id",
         "overview_item_id",
-        "parent_id",
         "genre_item_id",
         "over_item_id",
         "context_item_id",
         "root_item_id",
         "pop_child_item_id",
         "replacement_item_id",
-        "child_item_id",
         "expression_item_id",  # Kept for the history of expression_styles.
         "style_item_id",
         "source_item_id",
         "target_item_id",
-        "origin_item_id",
     }
 )
 GRAPH_ITEM_ID_PATTERN = r"Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*"
@@ -45,10 +60,9 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
     "federated_state_overrides": {"action": ("add", "remove")},
     "place_relation_overrides": {"extent": ("full", "partial", "reject")},
     "tradition_link_overrides": {"kind": ("lineage", "association"), "action": ("add", "remove")},
-    "canonical_genre_scene": {"scene": ("commercial", "underground")},
+    "global_genre_scene": {"scene": ("commercial", "underground")},
     "synthetic_overview_resolutions": {"action": ("replace", "remove")},
     "regional_overview_types": {"overview_type": ("current", "historical")},
-    "regional_memberships": {"action": ("add", "prohibit")},
     "local_identities": {"kind": ("genre", "overview")},
     "region_overrides": {"region_id": ("americas", "europe", "africa", "asia", "oceania", "religions")},
     "entity_additions": {
@@ -57,7 +71,7 @@ COLUMN_CHOICES: dict[str, dict[str, tuple[str, ...]]] = {
 }
 """Per list, the closed set of values of its enumerated columns."""
 INT_COLUMNS = frozenset({"start_year", "end_year"})
-BOOL_COLUMNS = frozenset({"exclude_other_parents", "is_default", "is_cultural"})
+BOOL_COLUMNS = frozenset({"is_default", "is_cultural"})
 OPTIONAL_COLUMNS = frozenset(
     {
         "genre_item_id",
@@ -141,7 +155,7 @@ def _graph_list(key: tuple[str, ...], values: tuple[str, ...], description: str)
 
 
 CURATION_LISTS: dict[str, CurationList] = {
-    "canonical_parent_additions": _addition_list("Synthetic canonical parent items the pipeline adds to the tree."),
+    "global_parent_additions": _addition_list("Synthetic global parent items the pipeline adds to the tree."),
     "capitalized_words": CurationList(
         "wikidata",
         ("word",),
@@ -156,8 +170,8 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("item_id", "display_label", "reason"),
         "Explicit display label for an item, overriding sentence-casing.",
     ),
-    "forced_canonical_genres": _item_list(
-        "Genres kept canonical although a parent is regional; their own regional sources are ignored."
+    "forced_global_genres": _item_list(
+        "Genres kept global although a parent is regional; their own regional sources are ignored."
     ),
     "out_of_scope_genres": _item_list("Items that aren't a music genre at all (Wikidata misclassification), pruned."),
     "overview_reclassifications": _item_list("Genre items reclassified as regional overview items."),
@@ -166,16 +180,11 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("kind", "label"),
         "Identity of a `LOCAL:` item of the regional graph, which Wikidata lacks: a `genre` or an `overview`.",
     ),
-    "canonical_roots": _graph_list(
+    "global_roots": _graph_list(
         ("item_id",),
         (),
-        "Genres accepted as roots of the canonical tree; any other root is flagged for review. The graph's "
-        "`canonicalRoots` must equal this list.",
-    ),
-    "regional_memberships": _graph_list(
-        ("child_item_id", "parent_item_id"),
-        ("action",),
-        "Regional membership of an item in a parent: `add` attaches it to an overview, `prohibit` forbids the pair.",
+        "Genres accepted as roots of the global tree; any other root is flagged for review. The graph's "
+        "`globalRoots` must equal this list.",
     ),
     "regional_anchorings": _graph_list(
         ("item_id", "overview_item_id"),
@@ -187,12 +196,6 @@ CURATION_LISTS: dict[str, CurationList] = {
         (),
         "A node merged into another through the graph: the source's relations, display children and attributions "
         "move to the target and the source is retired.",
-    ),
-    "genre_derivations": _graph_list(
-        ("item_id", "origin_item_id"),
-        (),
-        "A genre derived from another (e.g. electro-folk from folk): the graph's `derivation` relation, which "
-        "grants no access, population or root. Takes priority over the Wikidata and MusicBrainz-derived ones.",
     ),
     "regional_overview_types": _graph_list(
         ("item_id",),
@@ -211,18 +214,18 @@ CURATION_LISTS: dict[str, CurationList] = {
     "technique_genres": _item_list("Compositional or performance techniques, not genres, pruned."),
     "theme_genres": _item_list("Items organized around a subject, theme or subculture rather than a sound, pruned."),
     "umbrella_non_stylistic_genres": _item_list(
-        "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as canonical nodes, "
+        "Appellations without a coherent style (e.g. French touch) or genres too broad to keep as global nodes, "
         "dropped."
     ),
     "umbrella_stylistic_genres": _item_list(
-        "Canonical genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
+        "Global genres kept in the tree only to group sub-genres: no song is assigned to them directly.",
         source="gold",
     ),
-    "canonical_genre_scene": CurationList(
+    "global_genre_scene": CurationList(
         "gold",
         ("item_id",),
         ("item_id", "scene", "reason"),
-        "Canonical genres the front displays as the commercial or the underground side of their parent.",
+        "Global genres the front displays as the commercial or the underground side of their parent.",
     ),
     "accepted_non_genre_tags": CurationList(
         "gold",
@@ -236,11 +239,11 @@ CURATION_LISTS: dict[str, CurationList] = {
         ("musicbrainz_tag_name", "reason"),
         "Free MusicBrainz tags that are not official MusicBrainz genres but are kept as genre tags.",
     ),
-    "canonical_genre_pop_side": CurationList(
+    "global_genre_pop_side": CurationList(
         "gold",
         ("root_item_id", "pop_child_item_id"),
         ("root_item_id", "pop_child_item_id", "reason"),
-        "Direct children of a canonical root exported on its pop side.",
+        "Direct children of a global root exported on its pop side.",
     ),
     GENRE_ALIAS_LIST: CurationList(
         "gold",
@@ -391,43 +394,12 @@ CURATION_LISTS: dict[str, CurationList] = {
     ),
 }
 
-EDGE_PROJECTION_LISTS: dict[str, CurationList] = {
-    "canonical_parent": _item_list(
-        "Forced canonical parent genre of an item, optionally dropping its other canonical parents.",
-        "parent_item_id",
-        "exclude_other_parents",
-    ),
-    "regional_genre_parent": _item_list(
-        "Forced regional parent genre (not an overview) of an item, optionally dropping its other regional genre "
-        "parents.",
-        "parent_item_id",
-        "exclude_other_parents",
-    ),
-    "regional_overviews": CurationList(
-        "wikidata",
-        ("item_id", "overview_item_id"),
-        ("item_id", "reason", "overview_item_id", "exclude_other_parents"),
-        "Adds a `music of <place>` overview item as a regional parent of an item; `exclude_other_parents` keeps only "
-        "the curated overviews.",
-    ),
-    "secondary_parents": CurationList(
-        "gold",
-        ("item_id", "parent_id"),
-        ("item_id", "parent_id", "action", "reason"),
-        "Secondary parent edges of an item: `add` exports an extra parent as secondary, `remove` drops one.",
-    ),
-}
-"""The legacy edge lists, now stored as `GenreEdgeRule` rows: no longer `CurationEntry` rows nor served by the generic
-curation CRUD, nor exported (the export carries `edges`). Kept to designate a rule by its legacy `(list, key)`."""
-
 GRAPH_LISTS = frozenset(
     {
         "local_identities",
-        "canonical_roots",
-        "regional_memberships",
+        "global_roots",
         "regional_anchorings",
         "genre_merges",
-        "genre_derivations",
         "regional_overview_types",
     }
 )
@@ -435,10 +407,10 @@ GRAPH_LISTS = frozenset(
 (grow's `curation/rule_set.py`). `local_identities` precedes the other graph lists in `CURATION_LISTS` so a CSV import declares an identity
 before any row uses it."""
 
-GRAPH_PAIR_LISTS = frozenset({"regional_memberships", "regional_anchorings", "genre_merges", "genre_derivations"})
+GRAPH_PAIR_LISTS = frozenset({"regional_anchorings", "genre_merges"})
 """Graph lists keyed by two item ids, which must differ."""
 
-ADDITION_LISTS = frozenset({"canonical_parent_additions", "regional_overview_additions"})
+ADDITION_LISTS = frozenset({"global_parent_additions", "regional_overview_additions"})
 """Lists whose rows create a node: their `label` is the item's only name until it reaches the tree."""
 
 ITEM_PAIR_LISTS = frozenset({"genre_precedence"})

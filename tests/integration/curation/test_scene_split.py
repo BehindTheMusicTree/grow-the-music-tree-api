@@ -11,7 +11,7 @@ UNDERGROUND = "LOCAL:split-underground"
 
 
 def _canonical_parent(item_id: str, parent: str) -> str:
-    return GenreEdgeRule.objects.upsert("canonical_parent", item_id, parent, exclude_other_parents=True, reason="r")
+    return GenreEdgeRule.objects.upsert("classification", item_id, parent, action="assert", reason="r")
 
 
 def _scene(item_id: str, scene: str) -> dict[str, str]:
@@ -23,11 +23,11 @@ class TestCase(GenreTestCase):
         super().setUp()
         for item_id in (SPLIT, UNDERGROUND):
             CurationEntry.objects.upsert(
-                "canonical_parent_additions", {"item_id": item_id, "label": item_id, "reason": "r"}
+                "global_parent_additions", {"item_id": item_id, "label": item_id, "reason": "r"}
             )
         # Scenes first: a node still holding a non-scene child can't become a split.
         for item_id, scene in ((COMMERCIAL, "commercial"), (UNDERGROUND, "underground")):
-            CurationEntry.objects.upsert("canonical_genre_scene", _scene(item_id, scene))
+            CurationEntry.objects.upsert("global_genre_scene", _scene(item_id, scene))
         for item_id in (COMMERCIAL, UNDERGROUND):
             _canonical_parent(item_id, SPLIT)
 
@@ -35,45 +35,45 @@ class TestCase(GenreTestCase):
         with self.assertRaises(InvalidRow) as raised:
             _canonical_parent("Q777002", SPLIT)
 
-        assert "can't be its direct child" in raised.exception.errors["parent_item_id"]
+        assert "can't be its direct child" in raised.exception.errors["target_item_id"]
 
     def test_canonical_parent_under_a_scene_then_created(self):
         assert _canonical_parent("Q777002", COMMERCIAL) == "created"
 
     def test_second_scene_node_of_same_scene_then_invalid_row(self):
-        CurationEntry.objects.upsert("canonical_genre_scene", _scene("Q777003", "commercial"))
+        CurationEntry.objects.upsert("global_genre_scene", _scene("Q777003", "commercial"))
 
         with self.assertRaises(InvalidRow) as raised:
             _canonical_parent("Q777003", SPLIT)
 
-        assert "already has a commercial scene child" in raised.exception.errors["parent_item_id"]
+        assert "already has a commercial scene child" in raised.exception.errors["target_item_id"]
 
     def test_scene_on_third_child_of_split_then_invalid_row(self):
         GenreEdgeRule.objects.bulk_create(  # bypasses the manager's own split check
             [
                 GenreEdgeRule(
                     user=None,
-                    relation="canonical_parent",
+                    relation="classification",
                     item_id="Q777004",
-                    parent_item_id=SPLIT,
-                    exclude_other_parents=True,
+                    target_item_id=SPLIT,
+                    action="assert",
                 )
             ]
         )
 
         with self.assertRaises(InvalidRow):
-            CurationEntry.objects.upsert("canonical_genre_scene", _scene("Q777004", "commercial"))
+            CurationEntry.objects.upsert("global_genre_scene", _scene("Q777004", "commercial"))
 
     def test_editing_a_scene_node_then_unchanged(self):
-        assert CurationEntry.objects.upsert("canonical_genre_scene", _scene(COMMERCIAL, "commercial")) == "unchanged"
+        assert CurationEntry.objects.upsert("global_genre_scene", _scene(COMMERCIAL, "commercial")) == "unchanged"
 
     def test_scene_node_swapping_scene_then_row_conflict(self):
-        entry = CurationEntry.objects.get(user=None, list_name="canonical_genre_scene", key=COMMERCIAL)
+        entry = CurationEntry.objects.get(user=None, list_name="global_genre_scene", key=COMMERCIAL)
 
         with self.assertRaises(RowConflict):
             check_edit(
                 CurationEntry.objects.filter(user=None),
-                "canonical_genre_scene",
+                "global_genre_scene",
                 _scene(COMMERCIAL, "underground"),
                 entry.pk,
             )
