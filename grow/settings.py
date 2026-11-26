@@ -79,8 +79,9 @@ Q_CLUSTER = {
     "workers": 1,
     # The songs import merge takes ~10 min per 1M songs on Postgres, ~10M songs per full sync; retry must
     # exceed timeout, and max_attempts=1 stops a timed-out import from being re-run (default 0 = retry forever).
-    "timeout": 14400,
-    "retry": 15000,
+    # The first genre graph import (one-shot, ~16M assignments) takes ~5-5.5 h.
+    "timeout": 28800,
+    "retry": 30000,
     "max_attempts": 1,
     "redis": {
         "host": _redis_url.hostname,
