@@ -16,7 +16,7 @@ class TestCase(GenreTestCase):
             Fields.CHILDREN: [],
         }
         root = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
-        return self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: [root, node]})
+        return self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: [root, node]})
 
     def test_non_http_summary_source_url_is_rejected(self):
         response = self._import_node_with_source_url("ftp://example.com/edm")

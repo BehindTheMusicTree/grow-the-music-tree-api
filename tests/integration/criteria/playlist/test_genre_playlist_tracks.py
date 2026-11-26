@@ -173,5 +173,5 @@ class TestCase(AppTestCase):
                 str(direct.uuid),
                 str(descendant.uuid),
             }
-        for scope in ("canonical", "regional"):
+        for scope in ("global", "regional"):
             assert self.api_client.get(path, {"subgenres": scope}).status_code == 400

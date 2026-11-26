@@ -25,7 +25,7 @@ class TestCase(AppTestCase):
     def test_anonymous_get_tree_on_empty_dataset_then_200(self):
         self.api_client.credentials()
 
-        response = self.api_client.get(path=reverse("genre-list") + "tree/", data={"tree_name": "canonical"})
+        response = self.api_client.get(path=reverse("genre-list") + "tree/", data={"tree_name": "global"})
 
         assert response.status_code == status.HTTP_200_OK
 

@@ -44,6 +44,8 @@ class TestCase(AppTestCase):
 
     def test_import_command_then_idempotent_upsert(self):
         total = CurationEntry.objects.count() + GenreEdgeRule.objects.count()
+        # Migrated edges carry the decision ids of their former entries; the seed CSV carries its own.
+        call_command("import_curation_csvs", str(SEED_DIR), stdout=StringIO())
         out = StringIO()
 
         call_command("import_curation_csvs", str(SEED_DIR), stdout=out)
@@ -53,6 +55,8 @@ class TestCase(AppTestCase):
 
     def test_import_command_changed_row_then_updated_with_history(self):
         entry = CurationEntry.objects.filter(list_name="theme_genres").first()
+        # Migrated edges carry the decision ids of their former entries; the seed CSV carries its own.
+        call_command("import_curation_csvs", str(SEED_DIR), stdout=StringIO())
         old_updated_on = entry.updated_on
         CurationEntry.objects.filter(pk=entry.pk).update(reason="stale reason")
         out = StringIO()
@@ -91,12 +95,12 @@ class TestCase(AppTestCase):
             directory = Path(d)
             for path in SEED_DIR.glob("*.csv"):
                 shutil.copy(path, directory)
-            (directory / "regional_memberships.csv").unlink()
+            (directory / "genre_edges.csv").unlink()
 
             try:
                 call_command("import_curation_csvs", str(directory), stdout=StringIO())
             except CommandError as e:
-                assert "regional_memberships" in str(e)
+                assert "genre_edges" in str(e)
             else:
                 raise AssertionError("expected CommandError")
 

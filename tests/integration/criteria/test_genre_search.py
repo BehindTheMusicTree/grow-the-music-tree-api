@@ -59,7 +59,7 @@ class TestGenreSearch(TransactionTestCase):
             "uuid": str(punk.uuid),
             "name": "Punk rock",
             "wikidata_id": "Q3071",
-            "tree_name": CriteriaTreeName.CANONICAL,
+            "tree_name": CriteriaTreeName.GLOBAL,
             "genre_playlist_uuid": str(punk.criteria_playlist.uuid),
             "is_umbrella": False,
             "root": {"uuid": str(rock.uuid), "name": "Rock"},
@@ -101,7 +101,7 @@ class TestGenreSearch(TransactionTestCase):
         self.genre("Jazz in France", tree_name=CriteriaTreeName.REGIONAL)
 
         assert self.names("jazz", tree_name=CriteriaTreeName.REGIONAL) == ["Jazz in France"]
-        assert self.names("jazz", tree_name=CriteriaTreeName.CANONICAL) == ["Jazz"]
+        assert self.names("jazz", tree_name=CriteriaTreeName.GLOBAL) == ["Jazz"]
         assert sorted(self.names("jazz")) == ["Jazz", "Jazz in France"]
 
     def test_unaccepted_root_subtree_excluded(self):

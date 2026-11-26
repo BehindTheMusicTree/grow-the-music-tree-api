@@ -83,32 +83,48 @@ With inclusive coverage, contract 4 supports `restricted` (direct songs plus res
 `extended` (direct songs plus all accessible descendants), and `expressions` (the additional descendants reached
 by extended coverage). The exact `coverage=genre_only` selects only directly assigned songs and rejects `subgenres`.
 
-For existing clients, `canonical` aliases `restricted`, `all` aliases `extended`, and `regional` selects
-`expressions` plus direct songs. The default is `canonical` for canonical genres and `all` for regional genres.
+For existing clients, `global` aliases `restricted`, `all` aliases `extended`, and `regional` selects
+`expressions` plus direct songs. The default is `global` for global genres and `all` for regional genres.
 Regional genres only accept `all` among the legacy values. Contract 4 scopes work for either tree.
+
+#### Pagination modes
+
+- Requests without `page` use cursor pagination, with or without `genre`: follow `next`, whose `cursor` is opaque and
+  versioned. Pages follow `ordering`; without it they sort by `uuid`, or by `title` with `artist`. `page`, `totalPages`
+  and `previous` are null, and so is `overallTotal` unless `with_total=true`.
+- `from=<song uuid>` starts the first cursor page at that song (included) in the active order; 404 if it is not in the
+  filtered list. `next` replaces it with the cursor, so it is rejected together with `cursor`. With `from`,
+  `with_total=true` counts the songs from that one on, and `next` drops `with_total`.
+- A cursor is only valid with the `ordering` it was issued for. An invalid or mismatched cursor returns 400.
+- Numbered pages (`page`, `page_size`; deprecated) include a total by default. Use `page` with `with_total=false` to
+  skip the count; both `overallTotal` and `totalPages` are then null, and without `ordering` these pages sort by `uuid`.
+  `ordering` and `from` are honored, and `from` starts at the anchor in that active order.
+- `with_total` accepts only `true` or `false`. `pagination=cursor` is deprecated and has no effect; another
+  `pagination` value, or `cursor` with `page`, returns 400.
 
 #### List by artist
 
+An explicit `page` selects the numbered pagination used by released artist panels and playback queues. This mode
+accepts `playable`, `genre`, `from`, `coverage` and `subgenres`, with the same filters as the general song list. Its
+response includes page numbers and, by default, the total.
+
 `GET {base}?artist=<uuid>&ordering=title|-albumYear&cursor=<opaque>&page_size=<n>`
 
-Only `artist`, `ordering` (default `title`), `cursor`, `page_size` and `with_total` are accepted; any other parameter
-returns 400, as do an unknown ordering or an invalid cursor. Pages are keyset pages: `next` carries the `cursor` of the
-following page and is null on the last one. `count`, `page` and `totalPages` are null, `previous` is always null.
-Songs without an album year come last under `-albumYear`.
+Without `page`, pages are cursor pages as above, ordered by `title` unless `ordering` says otherwise. When the request
+has only `artist`, `ordering` (`title` or `-albumYear`), `from`, `cursor`, `pagination`, `page_size` and `with_total`,
+it is read from the artist index below, which suits large artist catalogues. Any other filter or ordering takes the
+general cursor query. Songs without an album year come last under `-albumYear`.
 
-The page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort
+The indexed page is read from `grow_artist_song` (one row per artist and credited song, with the title and album year sort
 keys), so the cost stays flat for an artist with 100 k+ songs. The songs and artists merges keep it current in their
-transaction, and so do the song, album and credit ORM writes. While it is unbuilt the merges skip it, and the endpoint
-returns 503 (no fallback to the unindexed query). `manage.py rebuild_artist_song` builds it; `--check` prints the drift
-from the songs and fails if there is any.
+transaction, and so do the song, album and credit ORM writes. While the projection is unbuilt, the merges skip it and the projection-backed artist cursor returns 503.
+`manage.py rebuild_artist_song` builds the projection. The `--check` option reports any drift and fails when it finds a difference.
 
 #### Import
 
 See the songs import runs in the [README](../../README.md#api) and `grow/track/bulk_import/`.
 
-The legacy song import protocol resolves a single genre by name or QID. Creating a legacy run returns 400 once the semantic reference graph exists. A worker also checks this condition under the catalogue publication gate before merging a previously staged run. If a graph was activated during the upload, the attempt fails before changing catalogue data. Rejected run creation preserves existing uploads. A legacy run staged before graph activation is rejected at commit without enqueueing a worker or changing catalogue data; a later valid run abandons and cleans up its staging.
-
-Semantic staging is a preview: uploads are accepted, but **commit remains disabled** until catalogue, playlist and search publication share the semantic assignment authority. Do not activate a production graph or change the pipeline uploader on this basis.
+Song imports require a published reference graph, reviewed revisions and a complete assignment stream. A request using the legacy song import protocol returns 400. An accepted commit queues publication and returns 202.
 
 Create a semantic run at `POST songs/import-runs/` with `mode`, `graphRevision`, `membershipRevision` and `expectedParts`. Both revisions must be the explicitly reviewed UUIDs from the reference graph API; a stale review returns 409 before abandoning existing uploads. `expectedParts` declares the number of zero-based parts in each stream, for example `{"songs": 2, "assignments": 2}`. A delta also declares `deletions` as 0 or 1; an empty delta explicitly declares all three counts as 0. Full runs require at least one song part.
 

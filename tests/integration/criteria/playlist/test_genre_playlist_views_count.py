@@ -75,7 +75,7 @@ class TestCase(AppTestCase):
     def test_tree_exposes_views_count(self):
         self.model_fixture_factory.create_song(title="A", genre=self.punk, youtube_view_count=40)
 
-        rows = self.api_client.get(TREE_PATH, {"tree_name": "canonical"}).json()
+        rows = self.api_client.get(TREE_PATH, {"tree_name": "global"}).json()
         views = {row["criteria"]["name"]: row["viewsCount"] for row in rows if row["criteria"]}
 
         assert views == {"Rock": 40, "Punk": 40}

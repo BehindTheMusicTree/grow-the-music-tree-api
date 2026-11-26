@@ -68,7 +68,7 @@ uv run mypy grow packages/grow-contracts/src
 uv run django-admin makemigrations grow --check --dry-run
 ```
 
-The latency SLO suite (README, "Performance") runs in CI (job `Perf`, required, gates auto-merge; skipped, which counts as passing, when a PR only touches non-runtime files, see README "Performance"); don't run it locally before a PR. Run it locally only to debug a red `Perf` or to test a change not meant to merge.
+The latency SLO suite (README, "Performance") runs in CI (required gate `Perf` over job `Perf run`, gates auto-merge; `Perf run` is skipped and the gate passes when a PR only touches non-runtime files, see README "Performance"); don't run it locally before a PR. Run it locally only to debug a red `Perf` or to test a change not meant to merge.
 
 These are the same checks CI runs (`.github/workflows/validate.yml`, jobs `Lint`, `Migration check`, `Pytest`) on every PR to `main` or `develop`.
 

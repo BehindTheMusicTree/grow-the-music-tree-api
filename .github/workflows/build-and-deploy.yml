@@ -84,7 +84,7 @@ jobs:
     steps:
       - name: Wait for import drain
         if: ${{ !inputs.skip_import_drain }}
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: staging
@@ -103,7 +103,7 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: staging
@@ -120,7 +120,7 @@ jobs:
 
       # api first: the worker's tasks depend on the migrated schema.
       - name: Trigger gtmt-api deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: staging
@@ -135,7 +135,7 @@ jobs:
           health_check_origin_ip: ${{ vars.APP_ORIGIN_IP }}
 
       - name: Trigger worker deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v6.6.0
         with:
           app_name: worker
           coolify_environment: staging
@@ -156,7 +156,7 @@ jobs:
     steps:
       - name: Wait for import drain
         if: ${{ !inputs.skip_import_drain }}
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: production
@@ -175,7 +175,7 @@ jobs:
       # healthcheck window (a slow one would otherwise roll the deploy back). App containers only
       # run `migrate --check`.
       - name: Run migrations
-        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v4.6.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/run-coolify-oneshot@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: production
@@ -191,7 +191,7 @@ jobs:
           discord_webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL_STATUS_ALERTS_PROD }}
 
       - name: Trigger gtmt-api deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v6.6.0
         with:
           app_name: gtmt-api
           coolify_environment: production
@@ -206,7 +206,7 @@ jobs:
           health_check_origin_ip: ${{ vars.APP_ORIGIN_IP }}
 
       - name: Trigger worker deploy
-        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v4.5.0
+        uses: BehindTheMusicTree/github-workflows/.github/actions/trigger-coolify-deploy@v6.6.0
         with:
           app_name: worker
           coolify_environment: production

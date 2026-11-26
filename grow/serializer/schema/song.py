@@ -23,6 +23,7 @@ class SongImportRunCreateRequestSerializer(ImportRunCreateRequestSerializer):
 class SongPreviousGenreSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
     genre = serializers.UUIDField(allow_null=True)
+    undoable = serializers.BooleanField(help_text="Always false. Use the response's undo token to restore the edit.")
 
 
 class SongAssignGenreResultSerializer(serializers.Serializer):

@@ -1,5 +1,5 @@
 {
-  "contractVersion": 4,
+  "contractVersion": 5,
   "curationExportedOn": "2026-11-14T00:00:00Z",
   "nodes": [
     {
@@ -218,7 +218,7 @@
     {
       "childId": "LOCAL:french-reggae",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-french-reggae-france",
         "source": "fixture:regional-graph-v4",
@@ -248,7 +248,7 @@
     {
       "childId": "LOCAL:brittany",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-brittany-france",
         "source": "fixture:regional-graph-v4",
@@ -258,7 +258,7 @@
     {
       "childId": "LOCAL:breton-rock",
       "parentId": "LOCAL:brittany",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-breton-rock-brittany",
         "source": "fixture:regional-graph-v4",
@@ -268,7 +268,7 @@
     {
       "childId": "LOCAL:breton-rock",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-breton-rock-france",
         "source": "fixture:regional-graph-v4",
@@ -288,7 +288,7 @@
     {
       "childId": "LOCAL:french-reggae-fusion",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-french-reggae-fusion-france",
         "source": "fixture:regional-graph-v4",
@@ -298,7 +298,7 @@
     {
       "childId": "LOCAL:kingdom-france",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-kingdom-france-france",
         "source": "fixture:regional-graph-v4",
@@ -318,7 +318,7 @@
     {
       "childId": "LOCAL:jamaican-dub",
       "parentId": "LOCAL:jamaica",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-jamaican-dub-jamaica",
         "source": "fixture:regional-graph-v4",
@@ -338,7 +338,7 @@
     {
       "childId": "LOCAL:french-dub",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-french-dub-france",
         "source": "fixture:regional-graph-v4",
@@ -358,7 +358,7 @@
     {
       "childId": "LOCAL:british-dub",
       "parentId": "LOCAL:britain",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-british-dub-britain",
         "source": "fixture:regional-graph-v4",
@@ -378,7 +378,7 @@
     {
       "childId": "LOCAL:jamaican-roots",
       "parentId": "LOCAL:jamaica",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-jamaican-roots-jamaica",
         "source": "fixture:regional-graph-v4",
@@ -398,7 +398,7 @@
     {
       "childId": "LOCAL:french-roots",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-french-roots-france",
         "source": "fixture:regional-graph-v4",
@@ -408,7 +408,7 @@
     {
       "childId": "LOCAL:france",
       "parentId": "LOCAL:world",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-france-world",
         "source": "fixture:regional-graph-v4",
@@ -418,7 +418,7 @@
     {
       "childId": "LOCAL:jamaica",
       "parentId": "LOCAL:world",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-jamaica-world",
         "source": "fixture:regional-graph-v4",
@@ -428,7 +428,7 @@
     {
       "childId": "LOCAL:britain",
       "parentId": "LOCAL:world",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "regional_membership-britain-world",
         "source": "fixture:regional-graph-v4",
@@ -438,7 +438,7 @@
     {
       "childId": "LOCAL:usa",
       "parentId": "LOCAL:world",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "reggae-entry",
         "source": "fixture:regional-graph-v4",
@@ -448,7 +448,7 @@
     {
       "childId": "LOCAL:country",
       "parentId": "LOCAL:usa",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "reggae-entry",
         "source": "fixture:regional-graph-v4",
@@ -478,7 +478,7 @@
     {
       "childId": "LOCAL:french-country",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "reggae-entry",
         "source": "fixture:regional-graph-v4",
@@ -498,7 +498,7 @@
     {
       "childId": "LOCAL:french-bluegrass",
       "parentId": "LOCAL:france",
-      "type": "regional_membership",
+      "type": "classification",
       "provenance": {
         "decisionId": "reggae-entry",
         "source": "fixture:regional-graph-v4",
@@ -506,7 +506,7 @@
       }
     }
   ],
-  "canonicalRoots": [
+  "globalRoots": [
     {
       "nodeId": "LOCAL:reggae",
       "provenance": {

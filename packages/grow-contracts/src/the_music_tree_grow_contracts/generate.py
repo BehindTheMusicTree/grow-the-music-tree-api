@@ -1,6 +1,6 @@
 """Writes `curation_export.schema.json` from the curation list specs.
 
-Describes the `GET /v1/curation/export/?genre_alias_version=2` response: CSV-ready rows, so every field is a string,
+Describes the `GET /v1/curation/export/` response: CSV-ready rows, so every field is a string,
 booleans being "true" or "" and a blank optional field "". Every column is present in every row.
 """
 
@@ -11,7 +11,9 @@ from the_music_tree_grow_contracts import SCHEMAS_DIR
 from the_music_tree_grow_contracts.curation_lists import (
     COLUMN_CHOICES,
     CURATION_LISTS,
+    EDGE_ACTIONS,
     EDGE_COLUMNS,
+    EDGE_RELATIONS,
     ENTITY_ID_PATTERN,
     GENRE_ALIAS_LIST,
     GRAPH_ITEM_ID_PATTERN,
@@ -27,7 +29,6 @@ SCHEMA_ID = (
 )
 QID_PATTERN = r"Q[0-9]+"
 INT_PATTERN = r"\s*(?:-?[1-9][0-9]*|0)\s*"
-EDGE_RELATIONS = ("canonical_parent", "regional_genre_parent", "regional_overview", "secondary_parent")
 
 
 def _object(properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -77,11 +78,11 @@ def _list_schema(list_name: str) -> dict[str, Any]:
 
 def _edge_schema() -> dict[str, Any]:
     columns = {
-        "relation": {"type": "string", "enum": list(EDGE_RELATIONS)},
+        "decision_id": _non_empty(),
         "item_id": _non_empty(),
-        "parent_item_id": _non_empty(),
-        "action": {"type": "string", "enum": ["add", "remove", ""]},
-        "exclude_other_parents": {"type": "string", "enum": ["true", ""]},
+        "relation": {"type": "string", "enum": list(EDGE_RELATIONS)},
+        "target_item_id": _non_empty(),
+        "action": {"type": "string", "enum": list(EDGE_ACTIONS)},
         "reason": {"type": "string"},
     }
     return _object({column: columns[column] for column in EDGE_COLUMNS})
@@ -91,13 +92,7 @@ def build_curation_export_schema() -> dict[str, Any]:
     properties: dict[str, Any] = {name: _list_schema(name) for name in CURATION_LISTS}
     properties["edges"] = _rows(_edge_schema())
     properties["exported_on"] = {"type": "string", "format": "date-time"}
-    properties["genre_alias_version"] = {"const": 2}
     required = list(properties)
-    # Deprecated projection of `regional_overview_types`, optional so that dropping it breaks no consumer.
-    properties["overview_status_overrides"] = {
-        "deprecated": True,
-        **_rows(_object({"item_id": _non_empty(), "status": _non_empty(), "reason": _non_empty()})),
-    }
     return {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$id": SCHEMA_ID,

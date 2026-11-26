@@ -11,7 +11,7 @@ from tests.utils.curation_export import export_curation
 from tests.utils.song_graph import install_song_graph
 
 TREE_PAYLOAD = {
-    Fields.TREE_NAME: "canonical",
+    Fields.TREE_NAME: "global",
     Fields.TREE: [
         {Fields.ID: qid, Fields.NAME_PUBLIC: n, Fields.CHILDREN: []}
         for qid, n in (("Q11399", "Rock"), ("Q373342", "Mainstream Pop"))

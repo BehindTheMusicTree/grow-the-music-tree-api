@@ -1,10 +1,4 @@
-import json
-from io import StringIO
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
 from django.conf import settings
-from django.core.management import call_command
 from django.urls import reverse
 from django.utils.dateparse import parse_datetime
 from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
@@ -17,7 +11,7 @@ from tests.utils.AppApiClient import AppApiClient
 from tests.utils.AppTestCase import AppTestCase
 
 TARGETS = [
-    {"id": "Q1", "label": "Same label", "tree": "canonical"},
+    {"id": "Q1", "label": "Same label", "tree": "global"},
     {"id": "Q2", "label": "Same label", "tree": "regional"},
     {"id": "LOCAL:sound", "label": "Local sound", "tree": "local"},
 ]
@@ -26,16 +20,19 @@ TARGETS = [
 class TestGenreAliasTargets(AppTestCase):
     def create_legacy(self, key="legacy", label="Local sound"):
         return CurationEntry.objects.create(
-            list_name="genre_alias", key=key, values={"wikidata_genre_name": label}, reason="original"
+            list_name="genre_alias",
+            key=key,
+            values={"wikidata_genre_name": label, "target_item_id": "LOCAL:sound"},
+            reason="original",
         )
 
     def publish(self):
         pipeline = self.api_client
         pipeline.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
-        response = pipeline.get(reverse("curation-export"), {"genre_alias_version": 2})
+        response = pipeline.get(reverse("curation-export"))
         assert response.status_code == 200
         payload = response.json()
-        assert payload["genre_alias_version"] == 2
+        assert "genre_alias_version" not in payload
         CurationSyncState.objects.filter(pk=1).update(applied_export_on=parse_datetime(payload["exported_on"]))
         return payload
 
@@ -43,14 +40,14 @@ class TestGenreAliasTargets(AppTestCase):
         entry = self.create_legacy()
         untouched = self.create_legacy("untouched")
         export = self.publish()
-        assert export["genre_alias"][0]["target_item_id"] == ""
+        assert export["genre_alias"][0]["target_item_id"] == "LOCAL:sound"
         CurationEntry.objects.update_instance(entry, reason="edited after the export")
 
         issue = {
-            "targetItemId": None,
+            "targetItemId": "LOCAL:sound",
             "lastKnownLabel": "Local sound",
-            "reason": "alias_legacy_unmigrated",
-            "evidence": {"legacyStatus": "unique", "candidateItemIds": ["LOCAL:sound"]},
+            "reason": "alias_target_missing",
+            "evidence": {},
             "exposure": {"recording": 1, "releaseGroup": 1, "artist": 0, "any": 1},
         }
         report = {
@@ -79,8 +76,7 @@ class TestGenreAliasTargets(AppTestCase):
         ]
         review_url = reverse("curation-review")
         admin = AppApiClient()
-        assert admin.get(review_url).json() == []
-        items = admin.get(review_url, {"genre_alias_version": 2}).json()
+        items = admin.get(review_url).json()
         assert items[0]["evidence"]["entryUuid"] == str(untouched.uuid)
         CurationEntry.objects.update_instance(untouched, reason="reviewed")
         assert not CurationReviewItem.objects.filter(list_name="genre_alias").exists()
@@ -97,16 +93,6 @@ class TestGenreAliasTargets(AppTestCase):
         result = response.json()
         assert result["row"] == {**row, "target_item_id": "Q2", "wikidata_genre_name": "Same label"}
 
-        old_client = {
-            **row,
-            "musicbrainz_genre_name": "old-client",
-            "target_item_id": "",
-            "wikidata_genre_name": "Local sound",
-        }
-        response = self.api_client.post(entries, {"row": old_client})
-        assert response.status_code == 201, response.json()
-        assert response.json()["row"]["target_item_id"] == "LOCAL:sound"
-
         state.genre_alias_publication = {"targets": [{**TARGETS[1], "label": "New label"}]}
         state.save(update_fields=["genre_alias_publication"])
         entry = reverse("curation-entry", kwargs={"list_name": "genre_alias", "uuid": result["uuid"]})
@@ -115,34 +101,6 @@ class TestGenreAliasTargets(AppTestCase):
         assert response.json()["row"]["target_item_id"] == "Q2"
         assert response.json()["row"]["wikidata_genre_name"] == "Same label"
         assert self.api_client.patch(entry, {"row": {"target_item_id": ""}}, format="json").status_code == 400
-        v1 = self.api_client.get(reverse("curation-export")).json()
-        assert "target_item_id" not in v1["genre_alias"][0]
-
-    def test_legacy_editor_can_retarget_a_migrated_alias_by_exact_unique_label(self):
-        state = CurationSyncState.load()
-        state.genre_alias_publication = {"targets": TARGETS}
-        state.save(update_fields=["genre_alias_publication"])
-        entries = reverse("curation-entries", kwargs={"list_name": "genre_alias"})
-        response = self.api_client.post(
-            entries,
-            {"row": {"musicbrainz_genre_name": "legacy-editor", "target_item_id": "Q2", "reason": "original"}},
-        )
-        assert response.status_code == 201, response.json()
-        current = response.json()
-        entry = reverse("curation-entry", kwargs={"list_name": "genre_alias", "uuid": current["uuid"]})
-        response = self.api_client.patch(
-            entry,
-            {"row": {**current["row"], "wikidata_genre_name": "Local sound"}},
-            format="json",
-        )
-        assert response.status_code == 200, response.json()
-        assert response.json()["row"]["target_item_id"] == "LOCAL:sound"
-        response = self.api_client.patch(
-            entry,
-            {"row": {**response.json()["row"], "wikidata_genre_name": "Same label"}},
-            format="json",
-        )
-        assert response.status_code == 400, response.json()
 
     def test_picker_lists_both_eligible_homonyms_and_reports_unavailable_catalogue(self):
         url = reverse("genre-alias-targets")
@@ -158,28 +116,3 @@ class TestGenreAliasTargets(AppTestCase):
         assert found.status_code == 200
         assert found.json()["results"] == TARGETS[:2]
         assert self.api_client.get(url, {"q": "LOCAL:sound"}).json()["results"] == TARGETS[2:]
-
-    def test_backfill_checks_exact_candidates_and_preserves_old_row(self):
-        entry = self.create_legacy()
-        self.create_legacy("homonym", "Same label")
-        state = CurationSyncState.load()
-        state.genre_alias_publication = {"curation_exported_on": "2026-11-13T12:00:00+00:00", "targets": TARGETS}
-        state.save(update_fields=["genre_alias_publication"])
-        simulation = StringIO()
-        call_command("backfill_genre_alias_targets", stdout=simulation)
-        by_key = {row["key"]: row["status"] for row in json.loads(simulation.getvalue())["rows"]}
-        assert by_key == {"homonym": "ambiguous", "legacy": "convertible"}
-        with TemporaryDirectory() as directory:
-            plan_path = Path(directory) / "plan.json"
-            plan_path.write_text(simulation.getvalue())
-            for status in ("updated", "already_migrated"):
-                outcome = StringIO()
-                call_command("backfill_genre_alias_targets", apply_plan=plan_path, stdout=outcome)
-                assert json.loads(outcome.getvalue()) == {str(entry.uuid): status}
-        entry.refresh_from_db()
-        assert entry.row == {
-            "musicbrainz_genre_name": "legacy",
-            "wikidata_genre_name": "Local sound",
-            "target_item_id": "LOCAL:sound",
-            "reason": "original",
-        }

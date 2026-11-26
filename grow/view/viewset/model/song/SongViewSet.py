@@ -3,7 +3,7 @@ from uuid import UUID
 from drf_spectacular.utils import OpenApiResponse, extend_schema, extend_schema_view
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ParseError, ValidationError
+from rest_framework.exceptions import NotFound, ParseError, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
@@ -38,18 +38,21 @@ from grow.track.bulk_import.part_loader import load_part
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from grow.track.bulk_import.SongImportStaging import SongImportStaging
 from grow.view.pagination.OptionalTotalPagination import (
-    CURSOR_ORDERING,
+    CURSOR_PARAM,
     OptionalTotalPagination,
+    next_cursor_link,
     wants_cursor,
-    wants_no_total,
+    wants_total,
 )
+from grow.view.pagination.song_cursor import SongCursor, cursor_ordering
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.viewset.GrowModelViewSet import GrowModelViewSet
 from grow.view.viewset.mixin.BulkImportRunMixin import assignment_part_upload_action, bulk_import_run_actions
 from grow.view.viewset.model.HistoryActionMixin import HistoryActionMixin
 from grow.youtube_regions import viewer_country
 
-ARTIST_LIST_PARAMS = {"artist", "ordering", "cursor", "page_size", "with_total"}
+ARTIST_CURSOR_PARAMS = {"artist", "ordering", "cursor", "pagination", "page_size", "with_total", "from"}
+ARTIST_PAGE_PARAMS = {"page", "playable", "genre", "coverage", "subgenres"}
 
 
 @extend_schema_view(
@@ -121,25 +124,46 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
     def _list_graph_songs(self):
         # Songs without semantic attributions remain available for later curation.
         queryset = self.get_queryset()
-        if "artist" in self.request.query_params:
+        params = self.request.query_params
+        cursor_mode = wants_cursor(self.request)
+        if not cursor_mode and CURSOR_PARAM in params:
+            raise ParseError("`cursor` and `page` are mutually exclusive.")
+        if "artist" in params and not cursor_mode:
+            return self._list_numbered_artist_songs(queryset)
+        if self._reads_artist_index():
             return self._list_artist_songs(queryset)
-        if wants_cursor(self.request):
-            params = self.request.query_params
-            if "genre" not in params or "ordering" in params or "from" in params:
-                raise ParseError("Cursor pagination requires `genre` and supports neither `ordering` nor `from`.")
-            # UUID order also supports songs with no legacy genre assignment.
-            queryset = queryset.order_by(*CURSOR_ORDERING)
-        elif wants_no_total(self.request):
-            queryset = queryset.order_by("pk")
         return self._get_paginated_list_response(queryset)
 
-    def _list_artist_songs(self, queryset):
-        """`?artist`: a keyset page read from `grow_artist_song`, whose cost doesn't grow with the artist's size."""
+    def _reads_artist_index(self) -> bool:
+        """The `ArtistSong` index serves a plain artist list; any other filter or ordering takes the generic keyset.
+
+        Every page of a list must take the same path: `next` only adds `cursor` and drops `from` and `with_total`,
+        all of which the index accepts.
+        """
         params = self.request.query_params
-        unsupported = set(params) - ARTIST_LIST_PARAMS
+        return (
+            wants_cursor(self.request)
+            and "artist" in params
+            and set(params) <= ARTIST_CURSOR_PARAMS
+            and cursor_ordering(params) in artist_song_page.ORDERINGS
+        )
+
+    def _list_numbered_artist_songs(self, queryset):
+        unsupported = set(self.request.query_params) - ((ARTIST_CURSOR_PARAMS - {CURSOR_PARAM}) | ARTIST_PAGE_PARAMS)
         if unsupported:
-            raise ParseError(f"`artist` supports only {sorted(ARTIST_LIST_PARAMS)}, not {sorted(unsupported)}.")
-        ordering = params.get("ordering", artist_song_page.DEFAULT_ORDERING)
+            raise ParseError(f"Unsupported artist song filters: {sorted(unsupported)}.")
+        response = self._get_paginated_list_response(queryset)
+        if response.data[PaginatedResponseFields.PAGE] == 2:
+            # DRF omits page=1 from the previous link, but here it selects numbered pagination.
+            previous_key = PaginatedResponseFields.PREVIOUS
+            response.data[previous_key] = replace_query_param(response.data[previous_key], "page", 1)
+        return response
+
+    def _list_artist_songs(self, queryset):
+        """Read one indexed cursor page of an artist's songs."""
+        params = self.request.query_params
+        with_total = wants_total(self.request)
+        ordering = cursor_ordering(params)
         if ordering not in artist_song_page.ORDERINGS:
             raise ParseError(f"`ordering` with `artist` must be one of {list(artist_song_page.ORDERINGS)}.")
         try:
@@ -147,10 +171,24 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
         except ValueError as error:
             raise ParseError("Invalid artist.") from error
         raw_cursor = params.get("cursor")
-        cursor = artist_song_page.Cursor.decode(raw_cursor, ordering) if raw_cursor else None
+        cursor = SongCursor.decode(raw_cursor, ordering) if raw_cursor else None
+        from_id = None
+        if params.get("from"):
+            if "cursor" in params:
+                raise ParseError("`from` and `cursor` are mutually exclusive.")
+            try:
+                from_id = UUID(params["from"])
+            except ValueError as error:
+                raise ParseError("Invalid `from`.") from error
         ArtistSong.objects.require_ready()
+        start = None
+        if from_id:
+            start = artist_song_page.anchor(artist_id, ordering, from_id)
+            if start is None:
+                raise NotFound(f"Song {from_id} is not in this list.")
+        total = artist_song_page.count(artist_id, ordering, start) if with_total else None
         size = self.paginator.get_page_size(self.request)
-        found = artist_song_page.page(artist_id, ordering, cursor, size + 1)
+        found = artist_song_page.page(artist_id, ordering, start or cursor, size + 1, inclusive=start is not None)
         has_next = len(found) > size
         found = found[:size]
         serializer_class = self._require_serializer(SerializerType.SIMPLE)
@@ -163,14 +201,10 @@ class SongViewSet(HistoryActionMixin, GrowModelViewSet[Song]):
             many=True,
             context=self.get_serializer_context(),
         ).data
-        next_link = (
-            replace_query_param(self.request.build_absolute_uri(), "cursor", found[-1][1].encode())
-            if has_next
-            else None
-        )
+        next_link = next_cursor_link(self.request, found[-1][1].encode()) if has_next else None
         return Response(
             {
-                PaginatedResponseFields.OVERALL_TOTAL: None,
+                PaginatedResponseFields.OVERALL_TOTAL: total,
                 PaginatedResponseFields.NEXT: next_link,
                 PaginatedResponseFields.PREVIOUS: None,
                 PaginatedResponseFields.RESULTS: data,

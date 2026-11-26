@@ -2,7 +2,7 @@ from django.db import models
 
 from grow.model.import_run.ImportRun import ImportRun
 
-# Not an `ImportRun.Kind`: its runs are recorded per tree (canonical / regional), so `/imports/latest/` never lists it.
+# Not an `ImportRun.Kind`: its runs are recorded per tree (global / regional), so `/imports/latest/` never lists it.
 GENRE_TREES_KIND = "genre_trees"
 GENRE_GRAPH_KIND = "genre_graph"
 
@@ -32,6 +32,10 @@ class BulkImportRun(models.Model):
     graph_revision = models.UUIDField(null=True)
     membership_revision = models.UUIDField(null=True)
     expected_parts = models.JSONField(null=True)
+    # The pipeline run this import was made for (`X-Pipeline-Run-Request`), copied onto each attempt.
+    pipeline_run_request = models.ForeignKey(
+        "grow.PipelineRunRequest", null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
 
     class Meta:
         db_table = "grow_bulk_import_run"

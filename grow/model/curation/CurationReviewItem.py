@@ -15,12 +15,9 @@ class CurationReviewItem(models.Model):
         INVALID_RULE = "invalid_rule"
         """The rule contradicts Wikidata (accepted root classed regional, parent on the wrong axis, wrong overview
         flag, ...), so the pipeline dropped it from the run. `evidence` carries the detail."""
-        EXCLUSIVE_PARENT_REGIONAL = "exclusive_parent_regional"
-        """A `canonical_parent` with `exclude_other_parents` whose item still ends up regional: the exclusion cannot
-        hold, so the item belongs in `forced_canonical_genres`."""
         UNREACHED_GENRE = "unreached_genre"
-        """A regional genre that reaches neither a 'music of <place>' overview nor an accepted canonical root through
-        its parents: the admin adds a `regional_memberships` rule, accepts it in `canonical_roots` or prunes it."""
+        """A regional genre that reaches neither a 'music of <place>' overview nor an accepted global root through
+        its parents: the admin adds a classification edge, accepts it in `global_roots` or prunes it."""
         SYNTHETIC_OVERVIEW_SUPERSEDED = "synthetic_overview_superseded"
         """A generated `LOCAL:region-*` overview is kept although Wikidata now has an overview for its region
         (`target_item_id`): the admin chooses a `synthetic_overview_resolutions` entry."""
@@ -28,18 +25,24 @@ class CurationReviewItem(models.Model):
         """A generated overview is kept although its region no longer has any genre."""
         SYNTHETIC_OVERVIEW_RENAMED = "synthetic_overview_renamed"
         """A generated overview is kept under its former name; `target_item_id` is the new item, if any."""
+        GENRE_NOT_IN_GRAPH = "genre_not_in_graph"
+        """A genre grow holds with no node in the reference graph (a `LOCAL:` genre Gold stopped emitting) is kept by
+        the import; `item_id` is its `wikidata_id` (empty if none) and `evidence` its uuid, kept parent and songs."""
+        CLASSIFICATION_CARDINALITY = "classification_cardinality"
+        """A genre of the imported graph with too many lineage parents: a global genre has at most one (none for a
+        global root) and a regional genre at most one global parent. Reported, never rejected."""
 
         ALIAS_TARGET_MISSING = "alias_target_missing"
         ALIAS_TARGET_INELIGIBLE = "alias_target_ineligible"
         ALIAS_SOURCE_AUTO_RESOLVED = "alias_source_auto_resolved"
-        ALIAS_LEGACY_UNMIGRATED = "alias_legacy_unmigrated"
 
     GENRE_ALIAS_REASONS = (
         Reason.ALIAS_TARGET_MISSING,
         Reason.ALIAS_TARGET_INELIGIBLE,
         Reason.ALIAS_SOURCE_AUTO_RESOLVED,
-        Reason.ALIAS_LEGACY_UNMIGRATED,
     )
+    GRAPH_REASONS = (Reason.GENRE_NOT_IN_GRAPH, Reason.CLASSIFICATION_CARDINALITY)
+    """Alerts grow computes when it imports the reference graph; the pipeline's reports neither send nor clear them."""
     SYNTHETIC_OVERVIEW_REASONS = (
         Reason.SYNTHETIC_OVERVIEW_SUPERSEDED,
         Reason.SYNTHETIC_OVERVIEW_ORPHANED,
@@ -68,7 +71,10 @@ class CurationReviewItem(models.Model):
                     models.Q(rule__isnull=True)
                     & models.Q(list_name__isnull=True)
                     & models.Q(key__isnull=True)
-                    & models.Q(reason__startswith="synthetic_overview_")
+                    & (
+                        models.Q(reason__startswith="synthetic_overview_")
+                        | models.Q(reason__in=["genre_not_in_graph", "classification_cardinality"])
+                    )
                 ),
                 name="curation_review_item_rule_xor_list_key",
             )

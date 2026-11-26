@@ -75,7 +75,7 @@ REGIONAL_NODES = [
 
 def _tree_files(exported_on: str) -> list[dict]:
     return [
-        {"treeName": "canonical", "curationExportedOn": exported_on, "tree": CANONICAL_NODES},
+        {"treeName": "global", "curationExportedOn": exported_on, "tree": CANONICAL_NODES},
         {
             "treeName": "regional",
             "curationExportedOn": exported_on,

@@ -49,7 +49,7 @@ class TestCase(AppTestCase):
         item_id = f"LOCAL:{genre.pk}"
         CurationEntry.objects.create(
             user=None,
-            list_name="canonical_parent_additions",
+            list_name="global_parent_additions",
             key=item_id,
             values={"item_id": item_id, "label": genre.name, "reason": "test"},
         )

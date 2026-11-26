@@ -1,37 +1,47 @@
-import base64
-import binascii
-from uuid import UUID
+from urllib.parse import parse_qs, urlsplit
 
 from rest_framework.exceptions import ParseError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.utils.urls import remove_query_param, replace_query_param
+from the_music_tree_api_kit.utils.data_transformer import to_snake_case
 from the_music_tree_api_kit.view.pagination.AppPagination import AppPagination
 from the_music_tree_api_kit.view.pagination.PaginatedResponseFields import PaginatedResponseFields
 
+from grow.view.pagination.keyset import SORT_KEY, seek
+from grow.view.pagination.song_cursor import PK_ORDERING, SongCursor, cursor_ordering
+
 NO_TOTAL_PARAM = "with_total"
 CURSOR_PARAM = "cursor"
-CURSOR_ORDERING = ("uuid",)
+PAGINATION_PARAM = "pagination"
+CURSOR_MODE = "cursor"
 
 
-def wants_no_total(request: Request) -> bool:
-    return request.query_params.get(NO_TOTAL_PARAM) == "false"
+def wants_total(request: Request) -> bool | None:
+    value = request.query_params.get(NO_TOTAL_PARAM)
+    if value not in (None, "true", "false"):
+        raise ParseError(f"`{NO_TOTAL_PARAM}` must be `true` or `false`.")
+    return None if value is None else value == "true"
 
 
 def wants_cursor(request: Request) -> bool:
-    """Keyset mode: no total and no explicit page (a `page` param keeps the OFFSET path for older clients)."""
-    return wants_no_total(request) and "page" not in request.query_params
+    """Cursor pagination is the default; `page` selects the numbered pages released clients still use."""
+    mode = request.query_params.get(PAGINATION_PARAM)
+    if mode is not None and mode != CURSOR_MODE:
+        raise ParseError(f"`{PAGINATION_PARAM}` only accepts `{CURSOR_MODE}`.")
+    return "page" not in request.query_params
 
 
-def _encode_cursor(uuid: UUID) -> str:
-    return base64.urlsafe_b64encode(str(uuid).encode()).decode()
-
-
-def _decode_cursor(value: str) -> UUID:
-    try:
-        return UUID(base64.urlsafe_b64decode(value.encode()).decode())
-    except (ValueError, binascii.Error, UnicodeDecodeError) as error:
-        raise ParseError("Invalid cursor.") from error
+def next_cursor_link(request: Request, cursor: str) -> str:
+    url = request.build_absolute_uri()
+    if request.query_params.get("from"):
+        # `from` only positions the first page; the cursor takes over. The total counted the list from that song, so
+        # later pages don't recount a different one. The URL keeps the client's spelling, which
+        # CamelToSnakeMiddleware only normalizes in `request.GET`.
+        for param in parse_qs(urlsplit(url).query, keep_blank_values=True):
+            if to_snake_case(param) in ("from", NO_TOTAL_PARAM):
+                url = remove_query_param(url, param)
+    return replace_query_param(url, CURSOR_PARAM, cursor)
 
 
 class _NoLastPage:
@@ -44,8 +54,9 @@ class OptionalTotalPagination(AppPagination):
     """`?withTotal=false` (seen as `with_total` after CamelToSnakeMiddleware) skips the COUNT(*): fetches one extra row to know whether a next page exists."""
 
     def paginate_queryset(self, queryset, request, view=None):
-        self._no_total = wants_no_total(request)
         self._cursor_mode = wants_cursor(request)
+        with_total = wants_total(request)
+        self._no_total = self._cursor_mode or with_total is False
         if not self._no_total:
             return super().paginate_queryset(queryset, request, view)
         self.request = request
@@ -59,29 +70,39 @@ class OptionalTotalPagination(AppPagination):
         return rows[: self._size]
 
     def _paginate_keyset(self, queryset, request):
-        """`queryset` must be ordered by CURSOR_ORDERING: the next page is a single index range scan, whatever the depth."""
+        """`queryset` must be ordered by `ordering` (SORT_KEY annotated) or, without it, by pk."""
         self._number = None
+        ordering = cursor_ordering(request.query_params)  # already validated by the filterset
+        keyed = ordering != PK_ORDERING
+        self._total = queryset.count() if wants_total(request) else None
         raw_cursor = request.query_params.get(CURSOR_PARAM)
         if raw_cursor:
-            queryset = queryset.filter(uuid__gt=_decode_cursor(raw_cursor))
+            cursor = SongCursor.decode(raw_cursor, ordering)
+            queryset = seek(
+                queryset,
+                cursor.key,
+                cursor.song_id,
+                descending=ordering.startswith("-"),
+                inclusive=False,
+                keyed=keyed,
+            )
         rows = list(queryset[: self._size + 1])
         self._has_next = len(rows) > self._size
         rows = rows[: self._size]
-        self._next_cursor = _encode_cursor(rows[-1].uuid) if self._has_next else None
+        self._next_cursor = None
+        if self._has_next:
+            last = rows[-1]
+            self._next_cursor = SongCursor(ordering, getattr(last, SORT_KEY) if keyed else None, last.pk).encode()
         return rows
 
     def get_paginated_response(self, data):
         if not self._no_total:
             return super().get_paginated_response(data)
         if self._cursor_mode:
-            next_link = (
-                replace_query_param(self.request.build_absolute_uri(), CURSOR_PARAM, self._next_cursor)
-                if self._has_next
-                else None
-            )
+            next_link = next_cursor_link(self.request, self._next_cursor) if self._has_next else None
             return Response(
                 {
-                    PaginatedResponseFields.OVERALL_TOTAL: None,
+                    PaginatedResponseFields.OVERALL_TOTAL: self._total,
                     PaginatedResponseFields.NEXT: next_link,
                     PaginatedResponseFields.PREVIOUS: None,
                     PaginatedResponseFields.RESULTS: data,
@@ -92,13 +113,7 @@ class OptionalTotalPagination(AppPagination):
             )
         url = self.request.build_absolute_uri()
         next_link = replace_query_param(url, self.page_query_param, self._number + 1) if self._has_next else None
-        previous_link = None
-        if self._number > 1:
-            previous_link = (
-                remove_query_param(url, self.page_query_param)
-                if self._number == 2
-                else replace_query_param(url, self.page_query_param, self._number - 1)
-            )
+        previous_link = replace_query_param(url, self.page_query_param, self._number - 1) if self._number > 1 else None
         return Response(
             {
                 PaginatedResponseFields.OVERALL_TOTAL: None,
@@ -128,7 +143,7 @@ class OptionalTotalPagination(AppPagination):
             "properties": {
                 PaginatedResponseFields.OVERALL_TOTAL: {
                     **nullable_int,
-                    "description": "Null with `with_total=false` and in cursor mode.",
+                    "description": "Null with `with_total=false`, and in cursor mode unless `with_total=true`.",
                 },
                 PaginatedResponseFields.NEXT: link,
                 PaginatedResponseFields.PREVIOUS: link,
@@ -149,14 +164,28 @@ class OptionalTotalPagination(AppPagination):
                 "name": NO_TOTAL_PARAM,
                 "required": False,
                 "in": "query",
-                "description": "`false` skips the total count; without `page` it also switches to cursor pagination.",
+                "description": (
+                    "With `page`, `false` skips the total count. Without `page` (cursor mode) the total is only "
+                    "counted with `true`."
+                ),
                 "schema": {"type": "boolean"},
+            },
+            {
+                "name": PAGINATION_PARAM,
+                "required": False,
+                "in": "query",
+                "description": "Deprecated and without effect: requests without `page` use cursor pagination.",
+                "deprecated": True,
+                "schema": {"type": "string", "enum": [CURSOR_MODE]},
             },
             {
                 "name": CURSOR_PARAM,
                 "required": False,
                 "in": "query",
-                "description": "Opaque cursor from the previous page's `next` link, in cursor mode.",
+                "description": (
+                    "Opaque cursor from the previous page's `next` link; only valid with the same `ordering`, and "
+                    "not with `page` or `from`."
+                ),
                 "schema": {"type": "string"},
             },
         ]

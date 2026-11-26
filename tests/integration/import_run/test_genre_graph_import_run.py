@@ -28,6 +28,7 @@ from grow.genre_graph.bulk_import.merge import (
     merge_reference_graph_import_run,
 )
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
+from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
@@ -48,7 +49,7 @@ def reference_configuration(db):
 
 @pytest.fixture
 def payload():
-    path = Path(__file__).parents[2] / "fixtures/genre_graph/regional-v4.json"
+    path = Path(__file__).parents[2] / "fixtures/genre_graph/regional-v5.json"
     payload = json.loads(path.read_text())
     record_graph_export(payload)
     return payload
@@ -96,6 +97,24 @@ def test_bootstrap_import_then_success_with_both_revisions_and_initial_backup(pa
     assert not GenreGraphImportPayload.objects.exists()
     attempt = ImportAttempt.objects.get(kind=GENRE_GRAPH_KIND)
     assert {step["label"] for step in attempt.completed_steps} >= {"backup_assignments", "migrate_assignments"}
+
+
+def test_two_lineage_parents_then_import_succeeds_with_cardinality_alerts(payload):
+    payload["relations"].append(
+        {
+            "childId": "LOCAL:roots",
+            "parentId": "LOCAL:dub",
+            "type": "classification",
+            "provenance": {"decisionId": "extra-parent", "source": "test", "rationale": "second parent"},
+        }
+    )
+
+    response = client("pipeline").post(runs_url(), body(payload), format="json")
+
+    polled = status_of(client("pipeline"), response.json()["taskId"])
+    assert polled["status"] == "success", polled
+    alerts = CurationReviewItem.objects.filter(reason=CurationReviewItem.Reason.CLASSIFICATION_CARDINALITY)
+    assert list(alerts.values_list("item_id", flat=True)) == ["LOCAL:roots"]
 
 
 def test_permissions(payload):
@@ -152,8 +171,8 @@ def test_revision_changed_between_post_and_merge_then_failed_with_conflict_and_c
     assert not GenreGraphImportPayload.objects.exists()
 
 
-def test_unmapped_existing_genre_then_failed_with_the_validation_message(payload):
-    ModelFixtureFactory(None).create_genre("Orphan")
+def test_unmapped_existing_genre_then_kept_with_alert(payload):
+    orphan = ModelFixtureFactory(None).create_genre("Orphan")
     api = client("pipeline")
 
     with patch("grow.view.genre_graph.enqueue_merge"):
@@ -161,14 +180,13 @@ def test_unmapped_existing_genre_then_failed_with_the_validation_message(payload
     run = BulkImportRun.objects.get()
     attempt = ImportAttempt.objects.get()
 
-    with pytest.raises(GraphValidationError):
-        merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
+    merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
 
-    failed = status_of(api, response.json()["taskId"])
-    assert failed["status"] == "failed"
-    assert failed["error"].startswith("GraphValidationError: Unmapped existing genre UUIDs: [")
-    assert not GenreGraphDataset.objects.exists()
-    assert not ImportReceipt.objects.filter(pk=run.pk).exists()
+    assert status_of(api, response.json()["taskId"])["status"] != "failed"
+    orphan.refresh_from_db()
+    assert orphan.graph_node_id is None
+    item = CurationReviewItem.objects.get(reason="genre_not_in_graph")
+    assert item.evidence["genreUuid"] == str(orphan.pk)
 
 
 def test_unlisted_merge_error_then_failed_with_the_generic_message(payload):

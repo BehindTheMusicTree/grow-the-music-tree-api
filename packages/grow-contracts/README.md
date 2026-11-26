@@ -15,7 +15,7 @@ from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS, EDGE_CO
 | `genealogy` | Music tradition genealogy import |
 | `region_map`, `hidden_regions`, `synthesized_overview_alerts` | Files of a region map import |
 | `curation_resolutions` | Curation resolutions the pipeline reports |
-| `curation_export` | `GET /v1/curation/export/?genre_alias_version=2` response |
+| `curation_export` | `GET /v1/curation/export/` response |
 
 `curation_export.schema.json` is generated from `curation_lists.py`. After changing a list, regenerate it from the
 repository root:

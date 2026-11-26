@@ -1,5 +1,6 @@
 import statistics
 import time
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from django.core.cache import cache
@@ -49,7 +50,12 @@ VIEWER_HEADERS = {"HTTP_X_VIEWER_CONTEXT_TOKEN": VIEWER_TOKEN, "HTTP_X_VIEWER_CO
 HEADERS = {
     "genre-playlist-tracks (front: viewer FR, coverage+subgenres)": VIEWER_HEADERS,
     "genre-playlist-tracks (front: viewer FR, genre_only)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, title, first page)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, title, third page)": VIEWER_HEADERS,
+    "songs tracklist (genre, playable, -albumYear, from)": VIEWER_HEADERS,
+    "songs genre panel (cursor, second page)": VIEWER_HEADERS,
 }
+SONGS_PAGE_SIZE = 100
 
 
 def _large_playlist(name: str) -> str:
@@ -64,6 +70,54 @@ def _largest_artist_genre_counts() -> str:
 def _artist_songs(ordering: str) -> tuple[str, dict]:
     artist = Artist.objects.get(_name="Canned Heat", user__isnull=True)
     return reverse("song-list"), {"artist": str(artist.uuid), "ordering": ordering, "page_size": 100}
+
+
+def _songs_get(params: dict) -> dict:
+    response = AppApiClient().get(reverse("song-list"), params, **VIEWER_HEADERS)
+    assert response.status_code == status.HTTP_200_OK, response.content[:500]
+    return response.json()
+
+
+def _largest_genre_uuid() -> str:
+    return str(largest_genre_playlist().criteria.uuid)
+
+
+def _songs_tracklist(ordering: str, page: int) -> tuple[str, dict]:
+    params = {"genre": _largest_genre_uuid(), "playable": "true", "ordering": ordering, "page_size": SONGS_PAGE_SIZE}
+    if page == 1:
+        return reverse("song-list"), {**params, "with_total": "true"}
+    # Later pages are reached by cursor, without recounting; walking there is not timed.
+    cursor: dict = {}
+    for _ in range(page - 1):
+        next_url = _songs_get({**params, **cursor})["next"]
+        assert next_url, f"largest genre has fewer than {page} pages of playable songs"
+        cursor = _cursor_param(next_url)
+    return reverse("song-list"), {**params, **cursor}
+
+
+def _cursor_param(next_url: str) -> dict:
+    return {"cursor": parse_qs(urlparse(next_url).query)["cursor"][0]}
+
+
+def _songs_tracklist_from() -> tuple[str, dict]:
+    genre = _largest_genre_uuid()
+    base = {"genre": genre, "playable": "true", "ordering": "-albumYear", "page_size": SONGS_PAGE_SIZE}
+    anchor_page = _songs_get({**base, "page": 2})["results"]
+    assert len(anchor_page) > 50, "largest genre has fewer than 150 playable songs"
+    return reverse("song-list"), {**base, "from": anchor_page[49]["uuid"], "with_total": "true"}
+
+
+def _songs_genre_panel_second_page() -> tuple[str, dict]:
+    params = {"genre": _largest_genre_uuid(), "with_total": "false", "page_size": SONGS_PAGE_SIZE}
+    next_url = _songs_get(params)["next"]
+    assert next_url, "largest genre has a single page of songs"
+    return reverse("song-list"), {**params, **_cursor_param(next_url)}
+
+
+def _songs_by_rare_artist_name() -> tuple[str, dict]:
+    artist = Artist.objects.filter(user__isnull=True, recording_count=1).order_by("musicbrainz_artist_id").first()
+    assert artist, "fixture has no artist credited on a single song"
+    return reverse("song-list"), {"artists_name": artist.name, "with_total": "true", "page_size": SONGS_PAGE_SIZE}
 
 
 PATHS = {
@@ -89,11 +143,22 @@ PATHS = {
         _large_playlist("genre-playlist-tracks"),
         {"page_size": 100, "coverage": "genre_only"},
     ),
+    # No SLO yet: reported as "pending calibration" so the A/B tracks them before the cursor change.
+    "songs tracklist (genre, playable, title, first page)": lambda: _songs_tracklist("title", 1),
+    "songs tracklist (genre, playable, title, third page)": lambda: _songs_tracklist("title", 3),
+    "songs tracklist (genre, playable, -albumYear, from)": _songs_tracklist_from,
+    "songs genre panel (cursor, second page)": _songs_genre_panel_second_page,
+    # The fixture walks every song in milliseconds; perf/test_artists_name_plan.py and staging guard the scale case.
+    "songs artists_name (rare, with total)": _songs_by_rare_artist_name,
+    "songs artists_name (broad, first page)": lambda: (
+        reverse("song-list"),
+        {"artists_name": "the", "with_total": "false", "page_size": SONGS_PAGE_SIZE},
+    ),
 }
 
 
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.parametrize("scenario", SLO_MS)
+@pytest.mark.parametrize("scenario", PATHS)
 def test_median_latency_within_slo(scenario, perf_record, settings):
     settings.VIEWER_CONTEXT_TOKEN = VIEWER_TOKEN
     path, params = PATHS[scenario]()
@@ -117,8 +182,10 @@ def test_median_latency_within_slo(scenario, perf_record, settings):
     p50 = statistics.median(timings)
     p95 = statistics.quantiles(timings, n=20)[-1]
     print(f"\n{scenario:<38} queries={max(query_counts):>5}  p50={p50:8.1f}ms  p95={p95:8.1f}ms")
-    perf_record(scenario, timings, slo_ms=SLO_MS[scenario], queries=max(query_counts))
-    assert_within_slo(p50, SLO_MS[scenario])
+    slo_ms = SLO_MS.get(scenario)
+    perf_record(scenario, timings, slo_ms=slo_ms, queries=max(query_counts))
+    if slo_ms is not None:
+        assert_within_slo(p50, slo_ms)
 
 
 # Cold serializes the whole ~1.7k-row tree; warm and not-modified only read the version token.
@@ -129,7 +196,7 @@ TREE_SLO_MS = {"cold": 1100, "warm": 10, "not-modified": 10}
 @pytest.mark.parametrize("mode", TREE_SLO_MS)
 def test_genre_tree_median_latency_within_slo(mode, perf_record):
     client = AppApiClient()
-    path, params = reverse("genre-playlist-tree"), {"tree_name": "canonical"}
+    path, params = reverse("genre-playlist-tree"), {"tree_name": "global"}
     etag = client.get(path, params)["ETag"]
     headers = {"HTTP_IF_NONE_MATCH": etag} if mode == "not-modified" else {}
 
@@ -323,7 +390,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
             fixture_name, tree = {
                 "Latin": ("Music of Latin America", "regional"),
                 "World": ("World music", "regional"),
-                "Rock": ("Rock music", "canonical"),
+                "Rock": ("Rock music", "global"),
             }[name]
             criteria = genres.get(_name=fixture_name, tree_name=tree)
         route = "genre-detail"
@@ -331,7 +398,7 @@ def test_criteria_detail_latency(name, mode, perf_record):
     alternate_genre = (
         Genre.objects.get(_name="World music", tree_name="regional")
         if name == "Rock"
-        else Genre.objects.get(_name="Rock music", tree_name="canonical")
+        else Genre.objects.get(_name="Rock music", tree_name="global")
     )
     alternate = reverse("genre-detail", kwargs={"pk": alternate_genre.pk})
     written_song = (

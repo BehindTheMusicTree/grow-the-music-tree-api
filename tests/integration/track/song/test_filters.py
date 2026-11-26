@@ -1,3 +1,8 @@
+from unittest import mock
+from urllib.parse import parse_qs, urlparse
+
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 from the_music_tree_genre_kit.track.YoutubeUnplayableReason import YoutubeUnplayableReason
@@ -45,6 +50,67 @@ class TestCase(AppTestCase):
     def test_filter_by_artists_name(self):
         self._install_graph()
         assert self._list_uuids(artists_name="pink floyd") == {str(self.matching_track.uuid)}
+
+    def test_filter_by_artists_name_lists_a_song_once_when_several_artists_match(self):
+        floyd_guest = self.model_fixture_factory.create_artist("Pink Floyd Guest")
+        type(self.matching_track).objects.get(pk=self.matching_track.pk).artists.add(floyd_guest)
+        self._install_graph()
+        for params in ({}, {"withTotal": "true"}, {"page": 1}):
+            response = self.api_client.get(
+                path=reverse(self.list_endpoint), data={"artists_name": "pink floyd", **params}
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert [t["uuid"] for t in response.data["results"]] == [str(self.matching_track.uuid)]
+            if params:
+                assert response.data["overallTotal"] == 1
+
+    def test_filter_by_artists_name_folds_accents_and_case(self):
+        beyonce = self.model_fixture_factory.create_artist("Beyoncé")
+        halo = self.model_fixture_factory.create_song(title="Halo", genre=self.rock, artists=[beyonce])
+        self._install_graph({self.rock: [self.matching_track, halo]})
+        assert self._list_uuids(artists_name="BEYONCE") == {str(halo.uuid)}
+        assert self._list_uuids(artists_name="yoncé") == {str(halo.uuid)}
+
+    def test_filter_by_artists_name_escapes_like_wildcards(self):
+        self._install_graph()
+        assert self._list_uuids(artists_name="pink%floyd") == set()
+        assert self._list_uuids(artists_name="pink_floyd") == set()
+
+    def test_filter_by_artists_name_without_a_matching_artist_skips_the_song_query(self):
+        self._install_graph()
+        with CaptureQueriesContext(connection) as captured:
+            assert self._list_uuids(artists_name="zzyzx") == set()
+        assert not any("grow_song" in query["sql"] for query in captured.captured_queries)
+
+    def _artists_name_song_query(self, value: str, **limits) -> tuple[list[str], str]:
+        floyd_guest = self.model_fixture_factory.create_artist("Pink Floyd Guest")
+        type(self.matching_track).objects.get(pk=self.matching_track.pk).artists.add(floyd_guest)
+        # The songs import merge maintains recording_count; set it as that merge would.
+        type(floyd_guest).objects.filter(pk__in=[floyd_guest.pk, self.pink_floyd.pk]).update(recording_count=1)
+        self._install_graph()
+        module = "grow.filtering.filter.ArtistNameFilter"
+        with (
+            mock.patch(f"{module}.MAX_LISTED_ARTISTS", limits.get("artists", 1_000)),
+            mock.patch(f"{module}.MAX_LISTED_SONGS", limits.get("songs", 10_000)),
+            CaptureQueriesContext(connection) as captured,
+        ):
+            response = self.api_client.get(path=reverse(self.list_endpoint), data={"artists_name": value})
+        assert response.status_code == status.HTTP_200_OK
+        songs = [query["sql"] for query in captured.captured_queries if '"grow_song"' in query["sql"]]
+        return [track["uuid"] for track in response.data["results"]], songs[-1]
+
+    def test_filter_by_a_rare_artists_name_filters_on_the_matching_artist_ids(self):
+        uuids, sql = self._artists_name_song_query("pink floyd")
+        assert uuids == [str(self.matching_track.uuid)]
+        assert "grow_search_norm" not in sql
+        assert self.pink_floyd.uuid.hex in sql
+
+    def test_filter_by_a_broad_artists_name_matches_the_folded_name_per_row(self):
+        for limits in ({"artists": 1}, {"songs": 1}):
+            uuids, sql = self._artists_name_song_query("pink floyd", **limits)
+            assert uuids == [str(self.matching_track.uuid)]
+            assert "grow_search_norm" in sql
+            assert self.pink_floyd.uuid.hex not in sql
 
     def test_filter_by_album_name(self):
         self._install_graph()
@@ -131,12 +197,88 @@ class TestCase(AppTestCase):
         self._with_years()
         Song = type(self.matching_track)
 
+        for mode in ({}, {"page": 1}, {"page": 1, "withTotal": "false"}):
+            for ordering in ("title", "-title", "albumYear", "-albumYear", None):
+                params = {**mode, **({"ordering": ordering} if ordering else {})}
+                full = self._titles(**params)
+                for index, title in enumerate(full):
+                    anchor = str(Song.objects.get(title=title).pk)
+                    assert self._titles(**params, **{"from": anchor}) == full[index:], (mode, ordering, title)
+
+    def test_without_total_defaults_to_pk_order(self):
+        self._install_graph()
+        self._with_years()
+        Song = type(self.matching_track)
+        expected = [song.title for song in Song.objects.order_by("pk")]
+
+        for mode in ({}, {"page": 1, "withTotal": "false"}):
+            assert self._titles(**mode) == expected
+            assert self._titles(**mode, ordering="title") == sorted(expected)
+
+    def _walk(self, **params):
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={**params, "pageSize": 2})
+        seen = []
+        while True:
+            assert response.status_code == status.HTTP_200_OK, response.data
+            seen += [track["title"] for track in response.data["results"]]
+            if response.data["next"] is None:
+                return seen
+            assert "from=" not in response.data["next"]
+            response = self.api_client.get(response.data["next"])
+
+    def test_cursor_pages_walk_every_ordering_without_gaps_or_repeats(self):
+        self._install_graph()
+        self._with_years()
+        Song = type(self.matching_track)
+
         for ordering in ("title", "-title", "albumYear", "-albumYear", None):
             params = {"ordering": ordering} if ordering else {}
             full = self._titles(**params)
-            for index, title in enumerate(full):
-                anchor = str(Song.objects.get(title=title).pk)
-                assert self._titles(**params, **{"from": anchor}) == full[index:], (ordering, title)
+            assert self._walk(**params) == full, ordering
+            anchor = str(Song.objects.get(title=full[2]).pk)
+            assert self._walk(**params, **{"from": anchor}) == full[2:], ordering
+
+    def test_cursor_total_is_counted_only_on_request(self):
+        self._install_graph()
+        path = reverse(self.list_endpoint)
+
+        statements: list[str] = []
+
+        def record(execute, sql, params, many, context):
+            statements.append(sql)
+            return execute(sql, params, many, context)
+
+        with connection.execute_wrapper(record):
+            uncounted = self.api_client.get(path=path, data={"pageSize": 1})
+        uncounted_queries = len(statements)
+        with connection.execute_wrapper(record):
+            counted = self.api_client.get(path=path, data={"pageSize": 1, "withTotal": "true"})
+        counted_queries = len(statements) - uncounted_queries
+        second = self.api_client.get(counted.data["next"])
+
+        assert uncounted.data["overallTotal"] is None
+        assert counted.data["overallTotal"] == second.data["overallTotal"] == 2
+        assert counted_queries == uncounted_queries + 1
+
+    def test_invalid_total_then_400(self):
+        self._install_graph()
+        response = self.api_client.get(path=reverse(self.list_endpoint), data={"withTotal": "maybe"})
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_cursor_with_from_or_another_ordering_then_400(self):
+        self._install_graph()
+        path = reverse(self.list_endpoint)
+        first = self.api_client.get(path=path, data={"ordering": "title", "pageSize": 1})
+        cursor = parse_qs(urlparse(first.data["next"]).query)["cursor"][0]
+
+        for params in (
+            {"ordering": "title", "cursor": cursor, "from": str(self.matching_track.pk)},
+            {"ordering": "-albumYear", "cursor": cursor},
+            {"cursor": cursor},
+        ):
+            response = self.api_client.get(path=path, data=params)
+            assert response.status_code == status.HTTP_400_BAD_REQUEST, params
 
     def test_from_anchor_filtered_out_then_404(self):
         self._install_graph()
@@ -196,7 +338,7 @@ class TestCase(AppTestCase):
         region = self.model_fixture_factory.create_genre("Region")
         self._install_graph(
             {regional: [regional_song], region: []},
-            relations=[(regional, self.rock, "classification"), (regional, region, "regional_membership")],
+            relations=[(regional, self.rock, "classification"), (regional, region, "classification")],
             node_overrides={region: {"kind": "overview"}},
         )
         genre = str(self.rock.uuid)
@@ -213,6 +355,6 @@ class TestCase(AppTestCase):
             {"genre": genre, "coverage": "genre_only", "subgenres": "all"},
             {"genre": genre, "coverage": "genre_only", "subgenres": "expressions"},
             {"genre": genre, "subgenres": "invalid"},
-            {"genre": str(regional.uuid), "subgenres": "canonical"},
+            {"genre": str(regional.uuid), "subgenres": "global"},
         ):
             assert self.api_client.get(reverse(self.list_endpoint), params).status_code == 400

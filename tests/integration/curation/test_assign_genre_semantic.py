@@ -32,7 +32,7 @@ class TestCase(AppTestCase):
         response = self._assign([song], rock)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": None, "undoable": False}]
         assert song_genre(Song.objects.get(pk=song.pk)) == rock
         assert Song.objects.get(pk=song.pk).genre_id is None
 
@@ -67,7 +67,7 @@ class TestCase(AppTestCase):
 
         response = self._assign([song], jazz)
 
-        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(rock.uuid)}]
+        assert response.json()["previous"] == [{"uuid": str(song.uuid), "genre": str(rock.uuid), "undoable": False}]
         assert song_genre(song) == jazz
         assert GenreGraphAttribution.objects.filter(track_id=song.pk).count() == 1
 

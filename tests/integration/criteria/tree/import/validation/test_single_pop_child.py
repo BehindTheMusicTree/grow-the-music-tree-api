@@ -30,7 +30,7 @@ class TestSinglePopChild(GenreTestCase):
                 ],
             },
         ]
-        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "canonical", Fields.TREE: tree_data})
+        response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: tree_data})
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert self.bad_request_result_field_errors[0]["code"] == FieldValidationErrorCode.REFERENCE_INVALID

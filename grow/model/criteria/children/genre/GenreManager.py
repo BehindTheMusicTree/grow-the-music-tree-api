@@ -16,11 +16,12 @@ from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager impor
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
 from the_music_tree_genre_kit.criteria.Fields import Fields
-from the_music_tree_grow_contracts.curation_lists import ADDITION_LISTS, CANONICAL_ROOTS_LIST, EXCLUDED_GENRE_LISTS
+from the_music_tree_grow_contracts.curation_lists import ADDITION_LISTS, EXCLUDED_GENRE_LISTS, GLOBAL_ROOTS_LIST
 
 from grow.curation.admin_rules import admin_provenance, invalid, upsert_admin_rule
-from grow.curation.edges import find_edge_parent_rule
+from grow.curation.edges import classification_asserts, find_edge_parent_rule, find_edge_rules, global_parents
 from grow.curation.rows import KEY_SEPARATOR, POP_SIDE_LIST, InvalidRow, lock_writes
+from grow.curation.rule_set import known_kinds
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
@@ -75,7 +76,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         slug = slug.strip("-") or "genre"
         taken = set(
             CurationEntry.objects.filter(
-                user=None, list_name__in=(*ADDITION_LISTS, "local_identities", CANONICAL_ROOTS_LIST)
+                user=None, list_name__in=(*ADDITION_LISTS, "local_identities", GLOBAL_ROOTS_LIST)
             ).values_list("key", flat=True)
         )
         candidate, n = f"LOCAL:{slug}", 1
@@ -89,7 +90,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         recursively, so are its app-created ancestors), so the edge rules can name it and the next run rebuilds it."""
         if self._is_pipeline_item(genre):
             return genre.wikidata_id
-        if genre.tree_name != CriteriaTreeName.CANONICAL or genre.is_excluded:
+        if genre.tree_name != CriteriaTreeName.GLOBAL or genre.is_excluded:
             raise self._invalid("parent", "A regional or excluded genre can't become a new parent")
         # `parent` is the base `Criteria` row: the adoption reads the `Genre` fields.
         parent_item_id = (
@@ -97,7 +98,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         item_id = self._mint_local_id(genre.name)
         upsert_admin_rule(
-            "canonical_parent_additions",
+            "global_parent_additions",
             {
                 "item_id": item_id,
                 "label": genre.name,
@@ -108,7 +109,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         genre.wikidata_id = item_id
         genre.save(update_fields=["wikidata_id"])
         self._lock(genre)
-        self._place_canonical(genre, parent_item_id, actor)
+        self._place_global(genre, parent_item_id, actor)
         HistoryEntry.objects.record(
             genre, action=HistoryAction.UPDATED, actor=actor, new_value=f"adopted into curation as {item_id}"
         )
@@ -133,16 +134,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         row = {"item_id": instance.wikidata_id, **row}
         upsert_admin_rule(list_name, row, actor)
 
-    def _upsert_edge(
-        self,
-        instance: Genre,
-        relation: str,
-        parent_item_id: str | None,
-        actor: Any,
-        *,
-        action: str | None = None,
-        exclude_other_parents: bool | None = None,
-    ) -> None:
+    def _upsert_edge(self, instance: Genre, relation: str, target_item_id: str, actor: Any, *, action: str) -> None:
         """Mirrors an admin edit of a pipeline item's parent into the edge rules the pipeline reads."""
         if not self._is_pipeline_item(instance):
             return
@@ -150,9 +142,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             GenreEdgeRule.objects.upsert(
                 relation,
                 instance.wikidata_id,
-                parent_item_id,
+                target_item_id,
                 action=action,
-                exclude_other_parents=exclude_other_parents,
                 reason=f"grow admin edit by {actor.profile.pseudo}",
                 actor=actor,
             )
@@ -162,38 +153,80 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         except ValidationError as e:
             raise invalid("parent", f"Can't record this edit as a {relation} edge: {'; '.join(e.messages)}") from e
 
-    def _place_canonical(self, instance: Genre, parent_item_id: str | None, actor: Any) -> None:
-        """Mirrors an admin canonical placement of a pipeline item: under a parent (an edge) or as an accepted root
-        (the `canonical_roots` list). One canonical assertion per item, so each replaces the other."""
+    def _place_global(self, instance: Genre, parent_item_id: str | None, actor: Any) -> None:
+        """Mirrors an admin global placement of a pipeline item: under a parent (a classification assert) or as an
+        accepted root (the `global_roots` list). A global genre has one parent at most, so each replaces the other,
+        and the parent the reference graph gives it is prohibited, or the sources would bring it back."""
         if not self._is_pipeline_item(instance):
             return
-        self._place_canonical_by_id(instance.wikidata_id, parent_item_id, actor)
+        former = self._graph_parents(instance.wikidata_id) if parent_item_id is not None else frozenset()
+        self._place_global_by_id(instance.wikidata_id, parent_item_id, actor, former=former)
 
     @staticmethod
-    def _place_canonical_by_id(item_id: str, parent_item_id: str | None, actor: Any) -> None:
-        roots = CurationEntry.objects.filter(user=None, list_name=CANONICAL_ROOTS_LIST, key=item_id)
+    def _graph_parents(item_id: str) -> frozenset[str]:
+        """The item's parents in the reference graph; none before the first import or for an item it doesn't hold."""
+        from the_music_tree_genre_kit.genre_graph.models import GenreGraphDataset
+
+        from grow.genre_graph.service import DATASET_KEY, reference_dataset
+
+        if not GenreGraphDataset.objects.filter(pk=DATASET_KEY).exists():
+            return frozenset()
+        # Read straight from the payload: building a `GenreGraph` validates and copies the whole ~1,700-node graph,
+        # which made a reparent several times slower.
+        payload = reference_dataset().payload
+        kinds = {node["id"]: node["kind"] for node in payload["nodes"]}
+        if kinds.get(item_id) != "genre":
+            return frozenset()
+        return frozenset(
+            relation["parentId"]
+            for relation in payload["relations"]
+            if relation["type"] == "classification"
+            and relation["childId"] == item_id
+            and kinds.get(relation["parentId"]) == "genre"
+        )
+
+    @staticmethod
+    def _place_global_by_id(
+        item_id: str, parent_item_id: str | None, actor: Any, *, former: frozenset[str] = frozenset()
+    ) -> None:
+        roots = CurationEntry.objects.filter(user=None, list_name=GLOBAL_ROOTS_LIST, key=item_id)
+        asserts = list(classification_asserts().filter(item_id=item_id))
+        kinds = known_kinds(CurationEntry.objects.filter(user=None), {rule.target_item_id for rule in asserts})
         try:
             if parent_item_id is None:
-                for rule in GenreEdgeRule.objects.filter(
-                    user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id=item_id
-                ):
-                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+                # Memberships of overviews stay; a root has no classification under a genre.
+                for rule in asserts:
+                    if kinds.get(rule.target_item_id) != "overview":
+                        GenreEdgeRule.objects.delete_instance(rule, actor=actor)
                 upsert_admin_rule(
-                    CANONICAL_ROOTS_LIST,
+                    GLOBAL_ROOTS_LIST,
                     {"item_id": item_id, "decision_id": f"grow-admin:root:{item_id}", "decision_source": "grow-admin"},
                     actor,
                 )
                 return
             for root in roots:
                 CurationEntry.objects.delete_instance(root, actor=actor)
+            replaced = {global_parents().get(item_id)} - {parent_item_id, None}
+            for rule in asserts:
+                if rule.target_item_id in replaced:
+                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
             GenreEdgeRule.objects.upsert(
-                GenreEdgeRule.Relation.CANONICAL_PARENT,
+                GenreEdgeRule.Relation.CLASSIFICATION,
                 item_id,
                 parent_item_id,
-                exclude_other_parents=True,
+                action=GenreEdgeRule.Action.ASSERT,
                 reason=f"grow admin edit by {actor.profile.pseudo}",
                 actor=actor,
             )
+            for former_item_id in sorted(former - {parent_item_id}):
+                GenreEdgeRule.objects.upsert(
+                    GenreEdgeRule.Relation.CLASSIFICATION,
+                    item_id,
+                    former_item_id,
+                    action=GenreEdgeRule.Action.PROHIBIT,
+                    reason=f"grow-admin: reparented to {parent_item_id}",
+                    actor=actor,
+                )
         except InvalidRow as e:
             message = next(iter(e.errors.values()))
             raise invalid("parent", f"Can't record this placement of {item_id}: {message}") from e
@@ -203,9 +236,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def _reparent_target(self, instance: Genre, actor: Any) -> str | None:
         """The parent item id of an admin reparent (None for a root), or a 400 when no edge can express it."""
         parent_excluded = self.filter(pk=instance.parent_id).values_list("is_excluded", flat=True).first() or False
-        if instance.tree_name != CriteriaTreeName.CANONICAL:
-            # The new parent may be a regional overview (`regional_overviews`) or a regional genre
-            # (`regional_genre_parent`), which grow can't tell apart.
+        if instance.tree_name != CriteriaTreeName.GLOBAL:
+            # The new parent may be a regional overview or a regional genre, which grow can't tell apart.
             message = "Regional genres can't be reparented here; edit the regional curation lists instead"
         elif instance.is_excluded or parent_excluded:
             message = "An excluded genre can't be reparented or be a new parent; the pipeline prunes it"
@@ -226,9 +258,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def _adopt_created(self, instance: Genre, actor: Any) -> None:
         """An admin-created genre has no pipeline item, so the reference graph sync would reject it as unmapped:
         it becomes a curated `LOCAL:` node (with its app-created ancestors) the next run rebuilds under the same id."""
-        if instance.tree_name != CriteriaTreeName.CANONICAL or instance.is_excluded:
+        if instance.tree_name != CriteriaTreeName.GLOBAL or instance.is_excluded:
             raise self._invalid(
-                "tree_name", "Only a canonical genre can be created here; regional genres come from curation"
+                "tree_name", "Only a global genre can be created here; regional genres come from curation"
             )
         if instance.parent_id is None:
             raise self._invalid("parent", "A genre created without a wikidata id needs a parent")
@@ -248,9 +280,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
         if actor is not None:
             if self._is_pipeline_item(instance):
-                # One canonical assertion per item: the edge replaces a root or an earlier parent, and an edge of
-                # the same pair in another relation (such as a secondary `add`).
-                self._place_canonical(instance, self._reparent_target(instance, actor), actor)
+                self._place_global(instance, self._reparent_target(instance, actor), actor)
             instance.is_unaccepted_root = False
             instance.save(update_fields=["is_unaccepted_root"])
             self._lock(instance)
@@ -263,10 +293,9 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         )
 
     @staticmethod
-    def _links_without_new_parent(instance: Genre, new_parent: Genre, kwargs: dict[str, Any]) -> bool:
+    def _drop_new_parent_links(instance: Genre, new_parent: Genre, kwargs: dict[str, Any]) -> None:
         """A parent can only be linked once: when `new_parent` is already a secondary or additional primary parent,
-        puts that field minus it in `kwargs`. Returns whether it was a secondary parent."""
-        was_secondary = False
+        puts that field minus it in `kwargs`."""
         for field in ("secondary_parents", "additional_primary_parents"):
             if field in kwargs or (
                 field == "additional_primary_parents" and not instance.allows_multiple_primary_parents
@@ -275,24 +304,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             links = list(getattr(instance, field).all())
             if any(p.pk == new_parent.pk for p in links):
                 kwargs[field] = [p for p in links if p.pk != new_parent.pk]
-                was_secondary = was_secondary or field == "secondary_parents"
-        return was_secondary
-
-    def _drop_secondary_add_rule(self, instance: Genre, anchor_parent_pk: Any, actor: Any) -> None:
-        """The `add` rule of an edge that became the main parent would make gold raise on the duplicate. A `remove`
-        rule is kept by an actor-less move, it applies again if the main parent later moves away."""
-        anchor_parent_item_id = self.filter(pk=anchor_parent_pk).values_list("wikidata_id", flat=True).first()
-        if instance.wikidata_id is None or anchor_parent_item_id is None:
-            return
-        rules = GenreEdgeRule.objects.filter(
-            user=None,
-            relation=GenreEdgeRule.Relation.SECONDARY_PARENT,
-            item_id=instance.wikidata_id,
-            parent_item_id=anchor_parent_item_id,
-            action=GenreEdgeRule.Action.ADD,
-        )
-        for rule in rules:
-            GenreEdgeRule.objects.delete_instance(rule, actor=actor)
 
     def _on_renamed(self, instance: Genre, *, old_name: str, actor: Any = None) -> None:
         if actor is not None:
@@ -309,10 +320,10 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     @staticmethod
     def _relabel_addition(instance: Genre, actor: Any) -> None:
         entry = CurationEntry.objects.filter(
-            user=None, list_name="canonical_parent_additions", key=instance.wikidata_id
+            user=None, list_name="global_parent_additions", key=instance.wikidata_id
         ).first()
         if entry is not None:
-            upsert_admin_rule("canonical_parent_additions", {**entry.row, "label": instance.name}, actor)
+            upsert_admin_rule("global_parent_additions", {**entry.row, "label": instance.name}, actor)
 
     def _release_local_items(self, instances: list[Genre], actor: Any) -> None:
         """Deleting a curated `LOCAL:` node splices it out of the edge rules like the kit does for the rows: its
@@ -321,11 +332,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             return
         gone = {i.wikidata_id for i in instances if self._is_local_item(i)}
         # Snapshot before any deletion: a chain of deleted nodes splices to the nearest surviving ancestor.
-        parent_of = dict(
-            GenreEdgeRule.objects.filter(
-                user=None, relation=GenreEdgeRule.Relation.CANONICAL_PARENT, item_id__in=gone
-            ).values_list("item_id", "parent_item_id")
-        )
+        parent_of = {item: parent for item, parent in global_parents().items() if item in gone}
 
         def survivor(item_id: str) -> str | None:
             parent = parent_of.get(item_id)
@@ -333,21 +340,24 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
                 parent = parent_of.get(parent)
             return parent
 
+        # A regional child's classification under a deleted node is only dropped: it is not a global placement.
+        regional_items = set(
+            self.filter(user=None, tree_name=CriteriaTreeName.REGIONAL).values_list("wikidata_id", flat=True)
+        )
         for item_id in sorted(gone):
             new_parent = survivor(item_id)
-            for rule in list(GenreEdgeRule.objects.filter(user=None, parent_item_id=item_id)):
-                if rule.relation == GenreEdgeRule.Relation.CANONICAL_PARENT:
-                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
-                    if rule.item_id not in gone:
-                        self._place_canonical_by_id(rule.item_id, new_parent, actor)
-                else:
-                    GenreEdgeRule.objects.delete_instance(rule, actor=actor)
-            for rule in list(GenreEdgeRule.objects.filter(user=None, item_id=item_id)):
-                GenreEdgeRule.objects.delete_instance(rule, actor=actor)
-            for entry in list(
-                CurationEntry.objects.filter(
-                    user=None, key=item_id, list_name__in=[*ADDITION_LISTS, CANONICAL_ROOTS_LIST]
+            for rule in list(find_edge_rules(item_id)):
+                places_child = (
+                    rule.target_item_id == item_id
+                    and rule.relation == GenreEdgeRule.Relation.CLASSIFICATION
+                    and rule.action == GenreEdgeRule.Action.ASSERT
+                    and rule.item_id not in gone | regional_items
                 )
+                GenreEdgeRule.objects.delete_instance(rule, actor=actor)
+                if places_child:
+                    self._place_global_by_id(rule.item_id, new_parent, actor)
+            for entry in list(
+                CurationEntry.objects.filter(user=None, key=item_id, list_name__in=[*ADDITION_LISTS, GLOBAL_ROOTS_LIST])
             ):
                 CurationEntry.objects.delete_instance(entry, actor=actor)
 
@@ -366,7 +376,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
     def _write_pop_side_rule(self, instance: Genre, actor: Any) -> None:
         """Unlike the wikidata lists, the pop-side list applies to the gold tree, so `LOCAL:` grouping nodes count."""
         root_item_id = self.filter(pk=instance.root.pk).values_list("wikidata_id", flat=True).first()
-        if instance.tree_name != CriteriaTreeName.CANONICAL or instance.wikidata_id is None or root_item_id is None:
+        if instance.tree_name != CriteriaTreeName.GLOBAL or instance.wikidata_id is None or root_item_id is None:
             return
         if instance.side == CriteriaSide.POP:
             row = {"root_item_id": root_item_id, "pop_child_item_id": instance.wikidata_id}
@@ -472,7 +482,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             if rule is not None:
                 raise self._invalid(
                     "category",
-                    f"Remove the {rule.relation} edge {rule.item_id} -> {rule.parent_item_id} first; "
+                    f"Remove the {rule.relation} edge {rule.item_id} -> {rule.target_item_id} first; "
                     "it references this genre",
                 )
             self._upsert_rule(instance, EXCLUDED_GENRE_LISTS[category], actor)
@@ -560,7 +570,7 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             genre.save(update_fields=["is_unaccepted_root"])
             self._lock(genre)
             if actor is not None:
-                self._place_canonical(genre, None, actor)
+                self._place_global(genre, None, actor)
             HistoryEntry.objects.record(genre, action=HistoryAction.ROOT_ACCEPTED, actor=actor)
 
     @transaction.atomic
@@ -574,7 +584,8 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             song.pk for song in kwargs["essential_songs"]
         ] != self._essential_track_pks(instance)
         new_parent = kwargs.get("parent")
-        dropped_secondary_edge = new_parent is not None and self._links_without_new_parent(instance, new_parent, kwargs)
+        if new_parent is not None:
+            self._drop_new_parent_links(instance, new_parent, kwargs)
         if summary_changed:
             kwargs["summary_source_url"] = None
         if actor is not None and essential_songs_changed:
@@ -583,8 +594,6 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
         updated = super().update_instance(instance, actor=actor, **kwargs)
         if essential_songs is not None:
             self.set_essential_songs(updated, essential_songs)
-        if dropped_secondary_edge:
-            self._drop_secondary_add_rule(updated, new_parent.pk, actor)
         if (updated.side or CriteriaSide.CORE) != old_side:
             self._on_side_changed(updated, old_side=old_side, actor=actor)
         if actor is not None:
@@ -637,14 +646,16 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
             raise self._invalid("parent", "The main parent can't also be a secondary parent")
         if instance.wikidata_id is None or parent.wikidata_id is None:
             raise self._invalid("parent", "Secondary parents are only recorded between wikidata-backed genres")
+        if add and instance.tree_name == CriteriaTreeName.GLOBAL and parent.tree_name == CriteriaTreeName.GLOBAL:
+            raise self._invalid("parent", "A global genre has one parent: move it instead of adding a second one")
         others = [other for other in instance.secondary_parents.all() if other.pk != parent.pk]
         updated = self.update_instance(instance, actor=actor, secondary_parents=[*others, parent] if add else others)
         self._upsert_edge(
             instance,
-            GenreEdgeRule.Relation.SECONDARY_PARENT,
+            GenreEdgeRule.Relation.CLASSIFICATION,
             parent.wikidata_id,
             actor,
-            action=GenreEdgeRule.Action.ADD if add else GenreEdgeRule.Action.REMOVE,
+            action=GenreEdgeRule.Action.ASSERT if add else GenreEdgeRule.Action.PROHIBIT,
         )
         self._lock(updated)
         return updated

@@ -11,7 +11,7 @@ class GenreScopedCounts:
     @property
     def default_count(self):
         values = self.genre_and_subgenres_tracks_count
-        return values.get("canonical", values["all"])
+        return values.get("global", values["all"])
 
 
 def catalogue_counts(exact: dict, graph=None, *, selections=None) -> dict:

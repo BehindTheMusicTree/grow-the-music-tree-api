@@ -304,6 +304,13 @@ paths:
       operationId: v1_artists_import_runs_create
       description: 'Accepted modes: full, delta. Abandons every uncommitted run of
         the same kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -644,14 +651,14 @@ paths:
   /v1/curation/edges/:
     get:
       operationId: v1_curation_edges_list
-      description: The curated genre edges (canonical/regional parents, roots, regional
-        overviews, secondary parents).
+      description: 'The curated genre edges: classification, derivation and influence
+        decisions, asserted or prohibited.'
       parameters:
       - in: query
         name: item_id
         schema:
           type: string
-        description: Edges whose item or parent is this id.
+        description: Edges whose item or target is this id.
       - in: query
         name: page
         schema:
@@ -672,10 +679,9 @@ paths:
         schema:
           type: string
           enum:
-          - canonical_parent
-          - regional_genre_parent
-          - regional_overview
-          - secondary_parent
+          - classification
+          - derivation
+          - influence
       tags:
       - v1
       security:
@@ -690,8 +696,8 @@ paths:
           description: ''
     post:
       operationId: v1_curation_edges_create
-      description: The curated genre edges (canonical/regional parents, roots, regional
-        overviews, secondary parents).
+      description: 'The curated genre edges: classification, derivation and influence
+        decisions, asserted or prohibited.'
       tags:
       - v1
       requestBody:
@@ -791,19 +797,10 @@ paths:
     get:
       operationId: v1_curation_export_retrieve
       description: |-
-        Every list, and the edges (the genre edge rules, replacing the five legacy edge lists), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
+        Every list, and the genre edge rules (`edges`), as CSV-ready rows (header order, snake_case, booleans as "true"/""): the pipeline's input.
 
         `exported_on` is the export's instant: the pipeline carries it into Gold and sends it back on tree import, so grow
         knows which export the imported tree was built from.
-      parameters:
-      - in: query
-        name: genre_alias_version
-        schema:
-          type: string
-          enum:
-          - '1'
-          - '2'
-        description: Defaults to 1.
       tags:
       - v1
       security:
@@ -816,7 +813,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  canonical_parent_additions:
+                  global_parent_additions:
                     type: array
                     items:
                       type: object
@@ -903,7 +900,7 @@ paths:
                       - display_label
                       - reason
                       additionalProperties: false
-                  forced_canonical_genres:
+                  forced_global_genres:
                     type: array
                     items:
                       type: object
@@ -981,7 +978,7 @@ paths:
                       - decision_source
                       - reason
                       additionalProperties: false
-                  canonical_roots:
+                  global_roots:
                     type: array
                     items:
                       type: object
@@ -1000,39 +997,6 @@ paths:
                           minLength: 1
                       required:
                       - item_id
-                      - decision_id
-                      - decision_source
-                      - reason
-                      additionalProperties: false
-                  regional_memberships:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        child_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        parent_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        action:
-                          type: string
-                          enum:
-                          - add
-                          - prohibit
-                        decision_id:
-                          type: string
-                          minLength: 1
-                        decision_source:
-                          type: string
-                          minLength: 1
-                        reason:
-                          type: string
-                          minLength: 1
-                      required:
-                      - child_item_id
-                      - parent_item_id
-                      - action
                       - decision_id
                       - decision_source
                       - reason
@@ -1087,33 +1051,6 @@ paths:
                       required:
                       - source_item_id
                       - target_item_id
-                      - decision_id
-                      - decision_source
-                      - reason
-                      additionalProperties: false
-                  genre_derivations:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        origin_item_id:
-                          type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-                        decision_id:
-                          type: string
-                          minLength: 1
-                        decision_source:
-                          type: string
-                          minLength: 1
-                        reason:
-                          type: string
-                          minLength: 1
-                      required:
-                      - item_id
-                      - origin_item_id
                       - decision_id
                       - decision_source
                       - reason
@@ -1251,7 +1188,7 @@ paths:
                       - item_id
                       - reason
                       additionalProperties: false
-                  canonical_genre_scene:
+                  global_genre_scene:
                     type: array
                     items:
                       type: object
@@ -1302,7 +1239,7 @@ paths:
                       - musicbrainz_tag_name
                       - reason
                       additionalProperties: false
-                  canonical_genre_pop_side:
+                  global_genre_pop_side:
                     type: array
                     items:
                       type: object
@@ -1334,16 +1271,16 @@ paths:
                           minLength: 1
                         target_item_id:
                           type: string
-                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)?$
+                          pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
                         reason:
                           type: string
                           minLength: 1
                       required:
                       - musicbrainz_genre_name
                       - wikidata_genre_name
+                      - target_item_id
                       - reason
                       additionalProperties: false
-                      description: '`target_item_id` is present only with `genre_alias_version=2`.'
                   genre_disambiguation:
                     type: array
                     items:
@@ -1835,80 +1772,52 @@ paths:
                     items:
                       type: object
                       properties:
-                        relation:
+                        decision_id:
                           type: string
-                          enum:
-                          - canonical_parent
-                          - regional_genre_parent
-                          - regional_overview
-                          - secondary_parent
+                          minLength: 1
                         item_id:
                           type: string
                           minLength: 1
-                        parent_item_id:
+                        relation:
+                          type: string
+                          enum:
+                          - classification
+                          - derivation
+                          - influence
+                        target_item_id:
                           type: string
                           minLength: 1
                         action:
                           type: string
                           enum:
-                          - add
-                          - remove
-                          - ''
-                        exclude_other_parents:
-                          type: string
-                          enum:
-                          - 'true'
-                          - ''
+                          - assert
+                          - prohibit
                         reason:
                           type: string
                       required:
-                      - relation
+                      - decision_id
                       - item_id
-                      - parent_item_id
+                      - relation
+                      - target_item_id
                       - action
-                      - exclude_other_parents
                       - reason
                       additionalProperties: false
                   exported_on:
                     type: string
                     format: date-time
-                  genre_alias_version:
-                    enum:
-                    - 2
-                    description: Present only with `genre_alias_version=2`.
-                  overview_status_overrides:
-                    type: array
-                    deprecated: true
-                    description: Legacy projection of `regional_overview_types`.
-                    items:
-                      type: object
-                      properties:
-                        item_id:
-                          type: string
-                        status:
-                          type: string
-                        reason:
-                          type: string
-                      required:
-                      - item_id
-                      - status
-                      - reason
-                      additionalProperties: false
                 required:
-                - canonical_parent_additions
+                - global_parent_additions
                 - capitalized_words
                 - duplicate_genres
                 - indigenous_to_exclusions
                 - label_overrides
-                - forced_canonical_genres
+                - forced_global_genres
                 - out_of_scope_genres
                 - overview_reclassifications
                 - local_identities
-                - canonical_roots
-                - regional_memberships
+                - global_roots
                 - regional_anchorings
                 - genre_merges
-                - genre_derivations
                 - regional_overview_types
                 - regional_overview_additions
                 - synthetic_overview_resolutions
@@ -1916,10 +1825,10 @@ paths:
                 - theme_genres
                 - umbrella_non_stylistic_genres
                 - umbrella_stylistic_genres
-                - canonical_genre_scene
+                - global_genre_scene
                 - accepted_non_genre_tags
                 - musicbrainz_free_genre_tags
-                - canonical_genre_pop_side
+                - global_genre_pop_side
                 - genre_alias
                 - genre_disambiguation
                 - genre_disambiguation_context
@@ -1945,7 +1854,6 @@ paths:
                 - tradition_link_overrides
                 - edges
                 - exported_on
-                - overview_status_overrides
                 additionalProperties: false
           description: ''
         '409':
@@ -1999,7 +1907,7 @@ paths:
         name: list
         schema:
           type: string
-        description: A curation list, an edge projection list or a retired list.
+        description: A curation list, `genre_edges` or a retired list.
       - in: query
         name: page
         schema:
@@ -2026,7 +1934,7 @@ paths:
     get:
       operationId: v1_curation_items_retrieve
       description: 'Items matching `q` by id or name, for an admin to pick one: the
-        canonical tree, the catalog and pending additions.'
+        grow genres, the catalog and pending additions.'
       parameters:
       - in: query
         name: q
@@ -2068,15 +1976,6 @@ paths:
       operationId: v1_curation_review_list
       description: The curation item ids the pipeline's last report couldn't resolve,
         for an admin to fix.
-      parameters:
-      - in: query
-        name: genre_alias_version
-        schema:
-          type: string
-          enum:
-          - '1'
-          - '2'
-        description: 2 includes the genre alias reviews.
       tags:
       - v1
       security:
@@ -2116,7 +2015,7 @@ paths:
   /v1/curation/status/:
     get:
       operationId: v1_curation_status_retrieve
-      description: Which pipeline export the canonical tree was last built from, and
+      description: Which pipeline export the genre trees were last built from, and
         how many entries were edited since.
       tags:
       - v1
@@ -2296,10 +2195,10 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       - in: query
         name: updated_on
@@ -2442,7 +2341,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -3030,6 +2929,13 @@ paths:
         Queues a reference graph import (same body as `PUT genres/graph/`) and answers 202 `{taskId}`; the merge runs in the
         worker, so the initial cutover over every song is not bound by the web `statement_timeout`. The checks here only
         fail fast: the worker repeats them under its locks.
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -3158,12 +3064,12 @@ paths:
         name: tree_name
         schema:
           enum:
-          - canonical
+          - global
           - regional
           type: string
           minLength: 1
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       tags:
       - v1
@@ -3183,7 +3089,7 @@ paths:
       operationId: v1_genres_tree_retrieve
       description: |-
         Returns the tree of the criteria matching the required
-        `treeName` query parameter (`canonical`/`regional`).
+        `treeName` query parameter (`global`/`regional`).
         The structure follows the format:
         {
           "name": "Criteria name",
@@ -3200,7 +3106,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -3248,9 +3154,16 @@ paths:
     post:
       operationId: v1_genres_trees_import_runs_create
       description: |-
-        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        Imports several trees in one asynchronous merge, so a genre that moved between the global and the regional
         tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -3481,8 +3394,8 @@ paths:
       - name: cursor
         required: false
         in: query
-        description: Opaque cursor from the previous page's `next` link, in cursor
-          mode.
+        description: Opaque cursor from the previous page's `next` link; only valid
+          with the same `ordering`, and not with `page` or `from`.
         schema:
           type: string
       - in: query
@@ -3533,6 +3446,16 @@ paths:
         description: Number of results to return per page.
         schema:
           type: integer
+      - name: pagination
+        required: false
+        in: query
+        description: 'Deprecated and without effect: requests without `page` use cursor
+          pagination.'
+        deprecated: true
+        schema:
+          type: string
+          enum:
+          - cursor
       - in: query
         name: playable
         schema:
@@ -3573,8 +3496,8 @@ paths:
       - name: with_total
         required: false
         in: query
-        description: '`false` skips the total count; without `page` it also switches
-          to cursor pagination.'
+        description: With `page`, `false` skips the total count. Without `page` (cursor
+          mode) the total is only counted with `true`.
         schema:
           type: boolean
       tags:
@@ -3872,6 +3795,13 @@ paths:
       operationId: v1_library_songs_songs_import_runs_create
       description: 'Accepted modes: full, delta. Abandons every uncommitted run of
         the same kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -4321,8 +4251,8 @@ paths:
           type: string
           enum:
           - artists
-          - canonical_tree
           - genealogy
+          - global_tree
           - region_map
           - regional_tree
           - songs
@@ -4549,6 +4479,8 @@ paths:
   /v1/pipeline/runs/latest/:
     get:
       operationId: v1_pipeline_runs_latest_retrieve
+      description: The newest run, with the progress of its linked import and typical
+        stage durations.
       tags:
       - v1
       security:
@@ -4559,7 +4491,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PipelineRun'
+                $ref: '#/components/schemas/PipelineRunLatest'
           description: ''
         '204':
           description: No run was ever requested.
@@ -4877,6 +4809,13 @@ paths:
       operationId: v1_regions_map_import_runs_create
       description: 'Accepted modes: full. Abandons every uncommitted run of the same
         kind.'
+      parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       tags:
       - v1
       requestBody:
@@ -5068,10 +5007,10 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         description: |-
-          * `canonical` - Canonical
+          * `global` - Global
           * `regional` - Regional
       - in: query
         name: updated_on
@@ -5440,7 +5379,7 @@ paths:
       operationId: v1_tags_tree_retrieve
       description: |-
         Returns the tree of the criteria matching the required
-        `treeName` query parameter (`canonical`/`regional`).
+        `treeName` query parameter (`global`/`regional`).
         The structure follows the format:
         {
           "name": "Criteria name",
@@ -5457,7 +5396,7 @@ paths:
         schema:
           type: string
           enum:
-          - canonical
+          - global
           - regional
         required: true
       tags:
@@ -5620,15 +5559,8 @@ components:
         automaticItemId:
           type: string
           pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
-        candidateItemIds:
-          type: array
-          items:
-            type: string
-            pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
         currentLabel:
           type: string
-        legacyStatus:
-          $ref: '#/components/schemas/LegacyStatusEnum'
     AliasExposure:
       type: object
       properties:
@@ -5656,11 +5588,9 @@ components:
           type: string
         targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[1-9][0-9]*|LOCAL:[a-z0-9]+(?:-[a-z0-9]+)*)$
         lastKnownLabel:
           type: string
-          nullable: true
         reason:
           $ref: '#/components/schemas/AliasIssueReasonEnum'
         exposure:
@@ -5679,13 +5609,11 @@ components:
       - alias_target_missing
       - alias_target_ineligible
       - alias_source_auto_resolved
-      - alias_legacy_unmigrated
       type: string
       description: |-
         * `alias_target_missing` - alias_target_missing
         * `alias_target_ineligible` - alias_target_ineligible
         * `alias_source_auto_resolved` - alias_source_auto_resolved
-        * `alias_legacy_unmigrated` - alias_legacy_unmigrated
     AliasReview:
       type: object
       properties:
@@ -6040,16 +5968,12 @@ components:
         * `duplicate` - duplicate
     ColumnEnum:
       enum:
-      - child_item_id
       - context_item_id
       - expression_item_id
       - genre_item_id
       - item_id
-      - origin_item_id
       - over_item_id
       - overview_item_id
-      - parent_id
-      - parent_item_id
       - pop_child_item_id
       - replacement_item_id
       - root_item_id
@@ -6058,16 +5982,12 @@ components:
       - target_item_id
       type: string
       description: |-
-        * `child_item_id` - child_item_id
         * `context_item_id` - context_item_id
         * `expression_item_id` - expression_item_id
         * `genre_item_id` - genre_item_id
         * `item_id` - item_id
-        * `origin_item_id` - origin_item_id
         * `over_item_id` - over_item_id
         * `overview_item_id` - overview_item_id
-        * `parent_id` - parent_id
-        * `parent_item_id` - parent_item_id
         * `pop_child_item_id` - pop_child_item_id
         * `replacement_item_id` - replacement_item_id
         * `root_item_id` - root_item_id
@@ -6867,20 +6787,18 @@ components:
       - name
     CurationListNameEnum:
       enum:
-      - canonical_parent_additions
+      - global_parent_additions
       - capitalized_words
       - duplicate_genres
       - indigenous_to_exclusions
       - label_overrides
-      - forced_canonical_genres
+      - forced_global_genres
       - out_of_scope_genres
       - overview_reclassifications
       - local_identities
-      - canonical_roots
-      - regional_memberships
+      - global_roots
       - regional_anchorings
       - genre_merges
-      - genre_derivations
       - regional_overview_types
       - regional_overview_additions
       - synthetic_overview_resolutions
@@ -6888,10 +6806,10 @@ components:
       - theme_genres
       - umbrella_non_stylistic_genres
       - umbrella_stylistic_genres
-      - canonical_genre_scene
+      - global_genre_scene
       - accepted_non_genre_tags
       - musicbrainz_free_genre_tags
-      - canonical_genre_pop_side
+      - global_genre_pop_side
       - genre_alias
       - genre_disambiguation
       - genre_disambiguation_context
@@ -6915,26 +6833,21 @@ components:
       - tradition_placement_overrides
       - tradition_extra_places
       - tradition_link_overrides
-      - canonical_parent
-      - regional_genre_parent
-      - regional_overviews
-      - secondary_parents
+      - genre_edges
       type: string
       description: |-
-        * `canonical_parent_additions` - canonical_parent_additions
+        * `global_parent_additions` - global_parent_additions
         * `capitalized_words` - capitalized_words
         * `duplicate_genres` - duplicate_genres
         * `indigenous_to_exclusions` - indigenous_to_exclusions
         * `label_overrides` - label_overrides
-        * `forced_canonical_genres` - forced_canonical_genres
+        * `forced_global_genres` - forced_global_genres
         * `out_of_scope_genres` - out_of_scope_genres
         * `overview_reclassifications` - overview_reclassifications
         * `local_identities` - local_identities
-        * `canonical_roots` - canonical_roots
-        * `regional_memberships` - regional_memberships
+        * `global_roots` - global_roots
         * `regional_anchorings` - regional_anchorings
         * `genre_merges` - genre_merges
-        * `genre_derivations` - genre_derivations
         * `regional_overview_types` - regional_overview_types
         * `regional_overview_additions` - regional_overview_additions
         * `synthetic_overview_resolutions` - synthetic_overview_resolutions
@@ -6942,10 +6855,10 @@ components:
         * `theme_genres` - theme_genres
         * `umbrella_non_stylistic_genres` - umbrella_non_stylistic_genres
         * `umbrella_stylistic_genres` - umbrella_stylistic_genres
-        * `canonical_genre_scene` - canonical_genre_scene
+        * `global_genre_scene` - global_genre_scene
         * `accepted_non_genre_tags` - accepted_non_genre_tags
         * `musicbrainz_free_genre_tags` - musicbrainz_free_genre_tags
-        * `canonical_genre_pop_side` - canonical_genre_pop_side
+        * `global_genre_pop_side` - global_genre_pop_side
         * `genre_alias` - genre_alias
         * `genre_disambiguation` - genre_disambiguation
         * `genre_disambiguation_context` - genre_disambiguation_context
@@ -6969,10 +6882,7 @@ components:
         * `tradition_placement_overrides` - tradition_placement_overrides
         * `tradition_extra_places` - tradition_extra_places
         * `tradition_link_overrides` - tradition_link_overrides
-        * `canonical_parent` - canonical_parent
-        * `regional_genre_parent` - regional_genre_parent
-        * `regional_overviews` - regional_overviews
-        * `secondary_parents` - secondary_parents
+        * `genre_edges` - genre_edges
     CurationListRule:
       type: object
       description: 'A curation entry or an edge rule: `row` keeps the list''s snake_case
@@ -7005,13 +6915,12 @@ components:
       properties:
         ruleId:
           type: string
-          format: uuid
           nullable: true
-          description: Set for an edge rule.
+          description: An edge rule's decision_id.
         list:
           type: string
           nullable: true
-          description: Null for a synthetic overview alert.
+          description: Null for an alert about no list or rule.
         key:
           type: string
           nullable: true
@@ -7401,12 +7310,12 @@ components:
       - wikidataId
     GenreEdgeActionEnum:
       enum:
-      - add
-      - remove
+      - assert
+      - prohibit
       type: string
       description: |-
-        * `add` - Add
-        * `remove` - Remove
+        * `assert` - Assert
+        * `prohibit` - Prohibit
     GenreExclude:
       type: object
       properties:
@@ -8073,7 +7982,7 @@ components:
       - runId
     ImportRunKindEnum:
       enum:
-      - canonical_tree
+      - global_tree
       - regional_tree
       - songs
       - artists
@@ -8082,7 +7991,7 @@ components:
       - region_map
       type: string
       description: |-
-        * `canonical_tree` - Canonical Tree
+        * `global_tree` - Global Tree
         * `regional_tree` - Regional Tree
         * `songs` - Songs
         * `artists` - Artists
@@ -8093,7 +8002,7 @@ components:
       type: object
       description: The newest run of each kind, `null` when the kind never ran.
       properties:
-        canonicalTree:
+        globalTree:
           allOf:
           - $ref: '#/components/schemas/ImportRun'
           nullable: true
@@ -8123,8 +8032,8 @@ components:
           nullable: true
       required:
       - artists
-      - canonicalTree
       - genealogy
+      - globalTree
       - regionMap
       - regionalTree
       - songs
@@ -8216,16 +8125,6 @@ components:
       - expectedRevision
       - provenance
       - revision
-    LegacyStatusEnum:
-      enum:
-      - unique
-      - ambiguous
-      - missing
-      type: string
-      description: |-
-        * `unique` - unique
-        * `ambiguous` - ambiguous
-        * `missing` - missing
     ManualPlaylistDetailed:
       type: object
       properties:
@@ -8321,187 +8220,251 @@ components:
     PaginatedAlbumSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/AlbumSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedArtistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/ArtistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedCriteriaPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaPlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedCriteriaSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/CriteriaSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedGenreSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/GenreSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedManualPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/ManualPlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedPlayDetailedList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/PlayDetailed'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedPlaylistSimpleList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/PlaylistSimple'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PaginatedSongDetailedList:
       type: object
       required:
@@ -8516,7 +8479,7 @@ components:
         overallTotal:
           type: integer
           nullable: true
-          description: Null with `with_total=false` and in cursor mode.
+          description: Null with `with_total=false`, and in cursor mode unless `with_total=true`.
         next:
           type: string
           format: uri
@@ -8542,26 +8505,34 @@ components:
     PaginatedTrackPlaylistRelInPageList:
       type: object
       required:
-      - count
+      - overallTotal
+      - next
+      - previous
       - results
+      - page
+      - pageSize
+      - totalPages
       properties:
-        count:
+        overallTotal:
           type: integer
-          example: 123
         next:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=4
         previous:
           type: string
           nullable: true
           format: uri
-          example: http://api.example.org/accounts/?page=2
         results:
           type: array
           items:
             $ref: '#/components/schemas/TrackPlaylistRelInPage'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
     PatchedCriteriaPut:
       type: object
       description: |-
@@ -8680,18 +8651,13 @@ components:
     Patched_EdgePatch:
       type: object
       properties:
-        parentItemId:
+        relation:
+          $ref: '#/components/schemas/RelationEnum'
+        targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
         action:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/GenreEdgeActionEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        excludeOtherParents:
-          type: boolean
-          nullable: true
+          $ref: '#/components/schemas/GenreEdgeActionEnum'
         reason:
           type: string
     PipelineRun:
@@ -8705,7 +8671,7 @@ components:
         trigger:
           $ref: '#/components/schemas/TriggerEnum'
         status:
-          $ref: '#/components/schemas/PipelineRunStatusEnum'
+          $ref: '#/components/schemas/Status18bEnum'
         stage:
           nullable: true
           oneOf:
@@ -8779,6 +8745,84 @@ components:
         * `curation` - Curation
         * `full` - Full
         * `sync` - Sync
+    PipelineRunLatest:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PipelineRunKindEnum'
+        trigger:
+          $ref: '#/components/schemas/TriggerEnum'
+        status:
+          $ref: '#/components/schemas/Status18bEnum'
+        stage:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStageEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        stageCurrent:
+          type: integer
+          nullable: true
+        stageTotal:
+          type: integer
+          nullable: true
+        stepTelemetry:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          description: '`StepTelemetry` of a full run.'
+        error:
+          type: string
+          nullable: true
+        requestedOn:
+          type: string
+          format: date-time
+        startedOn:
+          type: string
+          format: date-time
+          nullable: true
+        heartbeatOn:
+          type: string
+          format: date-time
+          nullable: true
+        finishedOn:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: email
+          nullable: true
+        cancelRequested:
+          type: boolean
+        activeImport:
+          nullable: true
+          description: Progress of the newest import attempt made for the run, plus
+            `bootstrap`.
+        typicalStageSeconds:
+          nullable: true
+          description: Median seconds per stage by telemetry chain over recent succeeded
+            full runs.
+      required:
+      - activeImport
+      - cancelRequested
+      - error
+      - finishedOn
+      - heartbeatOn
+      - kind
+      - requestedBy
+      - requestedOn
+      - stage
+      - stageCurrent
+      - stageTotal
+      - startedOn
+      - status
+      - stepTelemetry
+      - trigger
+      - typicalStageSeconds
+      - uuid
     PipelineRunPage:
       type: object
       properties:
@@ -8858,24 +8902,6 @@ components:
         * `merging_artists` - Merging Artists
         * `uploading_region_map` - Uploading Region Map
         * `merging_region_map` - Merging Region Map
-    PipelineRunStatusEnum:
-      enum:
-      - queued
-      - running
-      - succeeded
-      - failed
-      - superseded
-      - cancelled
-      - expired
-      type: string
-      description: |-
-        * `queued` - Queued
-        * `running` - Running
-        * `succeeded` - Succeeded
-        * `failed` - Failed
-        * `superseded` - Superseded
-        * `cancelled` - Cancelled
-        * `expired` - Expired
     PlayDetailed:
       type: object
       description: |-
@@ -9068,16 +9094,14 @@ components:
       - revision
     RelationEnum:
       enum:
-      - canonical_parent
-      - regional_genre_parent
-      - regional_overview
-      - secondary_parent
+      - classification
+      - derivation
+      - influence
       type: string
       description: |-
-        * `canonical_parent` - Canonical Parent
-        * `regional_genre_parent` - Regional Genre Parent
-        * `regional_overview` - Regional Overview
-        * `secondary_parent` - Secondary Parent
+        * `classification` - Classification
+        * `derivation` - Derivation
+        * `influence` - Influence
     RoleEnum:
       enum:
       - admin
@@ -9415,8 +9439,13 @@ components:
           type: string
           format: uuid
           nullable: true
+        undoable:
+          type: boolean
+          description: Always false. Use the response's undo token to restore the
+            edit.
       required:
       - genre
+      - undoable
       - uuid
     SongSearchResult:
       type: object
@@ -9596,6 +9625,24 @@ components:
         * `succeeded` - succeeded
         * `failed` - failed
         * `cancelled` - cancelled
+    Status18bEnum:
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      - superseded
+      - cancelled
+      - expired
+      type: string
+      description: |-
+        * `queued` - Queued
+        * `running` - Running
+        * `succeeded` - Succeeded
+        * `failed` - Failed
+        * `superseded` - Superseded
+        * `cancelled` - Cancelled
+        * `expired` - Expired
     StepTelemetry:
       type: object
       properties:
@@ -9736,21 +9783,21 @@ components:
       - uuid
     TreeEnum:
       enum:
-      - canonical
+      - global
       - regional
       - local
       type: string
       description: |-
-        * `canonical` - canonical
+        * `global` - global
         * `regional` - regional
         * `local` - local
     TreeNameEnum:
       enum:
-      - canonical
+      - global
       - regional
       type: string
       description: |-
-        * `canonical` - Canonical
+        * `global` - Global
         * `regional` - Regional
     TriggerEnum:
       enum:
@@ -9913,29 +9960,24 @@ components:
     _Edge:
       type: object
       properties:
-        relation:
-          $ref: '#/components/schemas/RelationEnum'
         itemId:
           type: string
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
-        parentItemId:
+        relation:
+          $ref: '#/components/schemas/RelationEnum'
+        targetItemId:
           type: string
-          nullable: true
           pattern: ^(?:Q[0-9]+|LOCAL:[a-z0-9-]+)$
         action:
-          nullable: true
-          oneOf:
-          - $ref: '#/components/schemas/GenreEdgeActionEnum'
-          - $ref: '#/components/schemas/NullEnum'
-        excludeOtherParents:
-          type: boolean
-          nullable: true
+          $ref: '#/components/schemas/GenreEdgeActionEnum'
         reason:
           type: string
           default: ''
       required:
+      - action
       - itemId
       - relation
+      - targetItemId
     _Evidence:
       type: object
       properties:
@@ -10049,12 +10091,13 @@ components:
       - artist
     _Remap:
       type: object
-      description: An item id of a curation entry (`list` + `key`) or of an edge rule
-        (`rule_id`, or the legacy `list` + `key`).
+      description: |-
+        An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or `list` `genre_edges` with its
+        `decision_id` as `key`).
       properties:
         ruleId:
           type: string
-          format: uuid
+          maxLength: 255
         list:
           $ref: '#/components/schemas/CurationListNameEnum'
         key:
@@ -10074,12 +10117,13 @@ components:
       - to
     _ReviewItem:
       type: object
-      description: An item id of a curation entry (`list` + `key`) or of an edge rule
-        (`rule_id`, or the legacy `list` + `key`).
+      description: |-
+        An item id of a curation entry (`list` + `key`) or of an edge rule (`rule_id`, or `list` `genre_edges` with its
+        `decision_id` as `key`).
       properties:
         ruleId:
           type: string
-          format: uuid
+          maxLength: 255
         list:
           $ref: '#/components/schemas/CurationListNameEnum'
         key:
@@ -10110,7 +10154,6 @@ components:
       - missing
       - not_in_tree
       - invalid_rule
-      - exclusive_parent_regional
       - unreached_genre
       type: string
       description: |-
@@ -10118,7 +10161,6 @@ components:
         * `missing` - Missing
         * `not_in_tree` - Not In Tree
         * `invalid_rule` - Invalid Rule
-        * `exclusive_parent_regional` - Exclusive Parent Regional
         * `unreached_genre` - Unreached Genre
     _WikidataItem:
       type: object

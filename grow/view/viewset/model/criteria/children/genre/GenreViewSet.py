@@ -47,6 +47,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.SongCurationManager import SongCurationManager
+from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
 from grow.serializer.model.criteria.children.genre.input.exclude import GenreExcludeSerializer
@@ -117,6 +118,7 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
     ),
     import_trees=extend_schema(
         request=inline_serializer("GenreTreesImportRequest", {"trees": GenreTreeImportFileSerializer(many=True)}),
+        parameters=[HEADER_PARAMETER],
         responses=_TASK_ID_BODY,
     ),
     exclude=extend_schema(request=GenreExcludeSerializer, responses=GenreDetailedSerializer),
@@ -214,12 +216,13 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
     @action(detail=False, methods=["post"], url_path="trees/import-runs", permission_classes=[IsPipelineOrAdmin])
     def import_trees(self, request):
         """
-        Imports several trees in one asynchronous merge, so a genre that moved between the canonical and the regional
+        Imports several trees in one asynchronous merge, so a genre that moved between the global and the regional
         tree keeps its pk and songs. The body is `{trees: [<Gold tree file>]}`, each entry exactly what `tree/import/`
         takes. A pipeline entry carries its own `curationExportedOn` (popped like there), equal across entries.
         """
         owner = get_request_owner(request)
         record = request.auth.role == "pipeline"
+        pipeline_run = linked_pipeline_run(request)
         body = request.data if _is_json_object(request.data) else {}
         unknown = sorted(set(body) - {"trees"})
         if unknown:
@@ -248,7 +251,11 @@ class GenreViewSet(HistoryActionMixin, CriteriaViewSet):
             stale.delete()
             now = timezone.now()
             run = BulkImportRun.objects.create(
-                kind=GENRE_TREES_KIND, committed_on=now, user_id=owner and owner.pk, record=record
+                kind=GENRE_TREES_KIND,
+                committed_on=now,
+                user_id=owner and owner.pk,
+                record=record,
+                pipeline_run_request=pipeline_run,
             )
             GenreTreeImportPayload.objects.create(run_id=run.pk, payload=json.loads(json.dumps(payload, default=str)))
             attempt = queue_attempt(run)

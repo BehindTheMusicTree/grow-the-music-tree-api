@@ -47,7 +47,7 @@ class ImportRunSerializer(serializers.Serializer):
 class ImportRunLatestSerializer(serializers.Serializer):
     """The newest run of each kind, `null` when the kind never ran."""
 
-    canonical_tree = ImportRunSerializer(allow_null=True)
+    global_tree = ImportRunSerializer(allow_null=True)
     regional_tree = ImportRunSerializer(allow_null=True)
     songs = ImportRunSerializer(allow_null=True)
     artists = ImportRunSerializer(allow_null=True)
@@ -75,6 +75,15 @@ class PipelineRunSerializer(serializers.Serializer):
     finished_on = serializers.DateTimeField(allow_null=True)
     requested_by = serializers.EmailField(allow_null=True)
     cancel_requested = serializers.BooleanField()
+
+
+class PipelineRunLatestSerializer(PipelineRunSerializer):
+    active_import = serializers.JSONField(
+        allow_null=True, help_text="Progress of the newest import attempt made for the run, plus `bootstrap`."
+    )
+    typical_stage_seconds = serializers.JSONField(
+        allow_null=True, help_text="Median seconds per stage by telemetry chain over recent succeeded full runs."
+    )
 
 
 PipelineRunPageSerializer = paginated_serializer("PipelineRunPage", PipelineRunSerializer)
