@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `manage.py reset_catalogue --confirm <db>` empties the catalogue (songs, artists, genres, playlists, graph, import state) in one `TRUNCATE` and keeps curation, users, run history and the curation history, so the next import starts from an empty base. It refuses while an import or pipeline run is active, or when user-owned data exists without `--include-user-data`; `--dry-run` lists the tables. Tests cover the wipe, the refusals and the table classification.
+
+### Fixed
+
+- The genre tree import creates the Genreless and Tagless playlists when missing, and the song import fails with an explicit error instead of silently leaving genreless songs out of every playlist when the Genreless playlist is absent.
+
 ### Changed
 
 - **Breaking (#623):** the canonical genre tree is now the `global` tree. `treeName` and the subgenre count keys are `global`, `SubgenreScope` is `global`, `ImportRun` kind `canonical_tree` is `global_tree` (stored runs migrated; `/imports/latest/` field `globalTree`), the curation lists `canonical_roots`, `canonical_parent_additions`, `canonical_genre_scene`, `canonical_genre_pop_side` and `forced_canonical_genres` are `global_*` (migrated), and the `region_map` genre `relation` `canonical` is `global` (`grow-contracts` 0.2.0). The reference-data sense of "canonical" (`user IS NULL`) is unchanged.

@@ -82,6 +82,7 @@ def _merge(run_id: int, user_id: int | None, record: bool) -> dict[str, Any]:
     payload = GenreTreeImportPayload.objects.get(run_id=run_id).payload
     trees = payload["trees"]
     user = get_user_model().objects.get(pk=user_id) if user_id is not None else None
+    CriteriaPlaylist.objects.ensure_criterialess(user)
     state = CurationSyncState.load()
     if record:
         state.applied_export_on = parse_curation_exported_on(payload.get(CURATION_EXPORTED_ON))

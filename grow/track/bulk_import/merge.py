@@ -562,6 +562,11 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
         # Serialize graph activation with publication, including runs uploaded before activation.
         lock_catalogue_sources()
         require_complete_run(run)
+        if not CriteriaPlaylist.objects.filter(
+            user_id=params["user"], criteria__isnull=True, type_id=params["genre_type"]
+        ).exists():
+            # Without it the song import files no genreless song in any playlist, and says nothing.
+            raise ValueError("genre tree not imported: genreless playlist missing")
         dataset = stack.enter_context(
             assignment_write_transaction(expected_graph=run.graph_revision, expected_membership=run.membership_revision)
         )
