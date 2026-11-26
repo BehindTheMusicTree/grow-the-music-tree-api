@@ -8,5 +8,9 @@ def test_schema_reasons_match_the_wikidata_resolution_review_reasons():
         load_schema("curation_resolutions")["properties"]["review"]["items"]["properties"]["reason"]["enum"]
     )
 
-    other_reports = {*CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS, *CurationReviewItem.GENRE_ALIAS_REASONS}
+    other_reports = {
+        *CurationReviewItem.SYNTHETIC_OVERVIEW_REASONS,
+        *CurationReviewItem.GENRE_ALIAS_REASONS,
+        CurationReviewItem.Reason.GENRE_NOT_IN_GRAPH,
+    }
     assert schema_reasons == {str(reason) for reason in CurationReviewItem.Reason if reason not in other_reports}
