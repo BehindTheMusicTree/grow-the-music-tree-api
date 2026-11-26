@@ -1,5 +1,4 @@
 from io import StringIO
-from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -10,6 +9,7 @@ from django.db import connection
 from django.test import TransactionTestCase
 from the_music_tree_genre_kit.criteria.type.CriteriaType import CriteriaType
 
+from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.management.commands.reset_catalogue import wiped_tables
 from grow.model.curation.CurationEntry import CurationEntry
@@ -106,12 +106,18 @@ class TestResetCatalogue(TransactionTestCase):
             self.reset()
         assert Song.objects.count() == 1
 
-    def test_live_import_then_refused(self):
-        with patch("grow.management.commands.reset_catalogue.live_attempts") as live:
-            live.return_value = [type("A", (), {"run_id": 1, "kind": "songs"})()]
-            with pytest.raises(CommandError, match="imports still running"):
-                self.reset()
+    def test_pending_import_then_refused(self):
+        ImportAttempt.objects.create(run_id=1, task_id="t", kind="songs", mode="full", attempt=1)
+        with pytest.raises(CommandError, match="imports still pending"):
+            self.reset()
         assert Song.objects.count() == 1
+
+    def test_finished_import_does_not_block(self):
+        ImportAttempt.objects.create(
+            run_id=1, task_id="t", kind="songs", mode="full", attempt=1, state=ImportAttempt.State.SUCCEEDED
+        )
+        self.reset()
+        assert Song.objects.count() == 0
 
     def test_user_data_then_refused_unless_included(self):
         CriteriaPlaylist.objects.ensure_criterialess(self.admin)

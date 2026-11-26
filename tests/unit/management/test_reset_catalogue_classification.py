@@ -33,4 +33,4 @@ def test_wiped_tables_have_no_duplicates_and_skip_other_apps():
 
 def test_user_data_checks_target_wiped_tables():
     assert "grow_play" in wiped_tables()
-    assert len(USER_DATA_CHECKS) == 5
+    assert len(USER_DATA_CHECKS) == 7

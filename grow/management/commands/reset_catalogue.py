@@ -2,7 +2,7 @@ from django.apps import apps
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 
-from grow.management.commands.wait_for_import_drain import live_attempts
+from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 
@@ -26,11 +26,19 @@ KEEP_TABLES = frozenset(
 PARTIAL_TABLES = frozenset({"grow_history_entry", "grow_curation_sync_state"})
 KEPT_HISTORY_MODELS = ("curationentry", "genreedgerule")
 
+TERMINAL_ATTEMPT_STATES = (
+    ImportAttempt.State.SUCCEEDED,
+    ImportAttempt.State.FAILED,
+    ImportAttempt.State.INTERRUPTED,
+)
+
 # Rows owned by a user: the reset refuses to drop them silently.
 USER_DATA_CHECKS = {
     "tracks owned by a user": "SELECT EXISTS (SELECT 1 FROM the_music_tree_genre_kit_track WHERE user_id IS NOT NULL)",
     "playlists owned by a user": "SELECT EXISTS (SELECT 1 FROM the_music_tree_genre_kit_playlist WHERE user_id IS NOT NULL)",
     "criteria owned by a user": "SELECT EXISTS (SELECT 1 FROM grow_criteria WHERE user_id IS NOT NULL)",
+    "artists owned by a user": "SELECT EXISTS (SELECT 1 FROM grow_artist WHERE user_id IS NOT NULL)",
+    "albums owned by a user": "SELECT EXISTS (SELECT 1 FROM grow_album WHERE user_id IS NOT NULL)",
     "manual playlists": "SELECT EXISTS (SELECT 1 FROM grow_manual_playlist)",
     "plays": "SELECT EXISTS (SELECT 1 FROM grow_play)",
 }
@@ -82,18 +90,18 @@ class Command(BaseCommand):
         self.stdout.write(f"Emptied {len(tables)} tables.")
 
     def _check_idle(self) -> None:
-        live = live_attempts()
-        if live:
-            raise CommandError(f"imports still running: {[f'run={a.run_id} kind={a.kind}' for a in live]}")
+        # Any non-terminal attempt blocks, lock held or not: a freshly queued merge has no lock and no receipt yet
+        # and waits in the broker (Redis in prod), so it cannot be seen from the database otherwise.
+        pending = ImportAttempt.objects.exclude(state__in=TERMINAL_ATTEMPT_STATES).order_by("run_id", "attempt")
+        if pending:
+            raise CommandError(
+                f"imports still pending: {[f'run={a.run_id} kind={a.kind} state={a.state}' for a in pending]}"
+            )
         active = PipelineRunRequest.objects.filter(
             status__in=[PipelineRunRequest.Status.QUEUED, PipelineRunRequest.Status.RUNNING]
         ).count()
         if active:
             raise CommandError(f"{active} pipeline run request(s) queued or running")
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT EXISTS (SELECT 1 FROM django_q_ormq)")
-            if cursor.fetchone()[0]:
-                raise CommandError("django-q tasks are waiting in the queue")
 
     def _check_no_user_data(self) -> None:
         found = []
