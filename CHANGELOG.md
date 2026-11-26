@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Genre graph import: a genre missing from the export (a held `LOCAL:` genre) no longer fails the import with `Unmapped existing genre UUIDs`. It is kept, placed under its parent when that parent is in the graph (else as a non-accepted root), keeps its songs, and is reported to the curator as a `genre_not_in_graph` review item (migration `0167`) that disappears once the genre is gone. Tests in `test_reference_graph.py` and `test_genre_graph_import_run.py`.
 - ci: the `OpenAPI` job of `validate.yml` is now `api-schema`, shown as `API schema check` (a stack-neutral name like `Migration check`). It is temporarily not required on `develop`, until BehindTheMusicTree/github-config requires `API schema check`. Refs BehindTheMusicTree/github-config#97.
 - ci(perf): the required `Perf` check is now a scoped gate job over `Perf route` and the renamed heavy job `Perf run` (skipped for non-runtime PRs; a failed route fails the gate instead of running in full). The check name is unchanged. Refs BehindTheMusicTree/github-config#97.
 - ci(coverage): coverage now goes through the shared `coverage` workflow (line threshold 85, Postgres tests included) and a `Tests success` gate aggregating `pytest` and `coverage`; the nightly `schedule` trigger of `validate.yml` is removed. Refs BehindTheMusicTree/github-config#97.
@@ -21,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- Curation writes that would orphan a held `LOCAL:` genre are refused (400, or 409 on export): deleting or renaming its `canonical_parent_additions` or `canonical_roots` entry, or deleting or unparenting its `canonical_parent` edge, while the `Genre` row exists. Tests in `test_curation_api.py` and `test_rule_set.py`.
 - `GET library/songs/?artists_name=` no longer times out on a rare name (#619): a name matching at most 1,000 artists crediting at most 10,000 songs is resolved to those artists through the `folded_name` trigram index first, a broader one keeps the walk in page order. `artists_name` and `GET library/albums/?album_artist_name=` now match accent- and case-folded names, like artist search (`beyonce` finds `Beyoncé`). Covered by `tests/integration/track/song/test_filters.py`, `tests/integration/album/test_albums.py` and `perf/test_artists_name_plan.py`; two `artists_name` Perf scenarios await calibration.
 - `GET library/songs/?artists_name=` lists a song once, and counts it once, when several of its artists match (genre kit v0.72.6, api-kit v0.12.5: `RelatedObjectCharFilter` filters through an `EXISTS` subquery instead of repeating rows across the many-to-many join). Covered by `tests/integration/track/song/test_filters.py`, on numbered and cursor pages.
 

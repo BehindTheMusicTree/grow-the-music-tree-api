@@ -16,6 +16,7 @@ from grow.model.history.HistoryAction import HistoryAction
 from grow.model.history.HistoryEntry import HistoryEntry
 from tests.integration.permission.test_google_id_token_auth import VERIFY, VIEWER_CLAIMS
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.ModelFixtureFactory import ModelFixtureFactory
 
 ITEM = {"item_id": "Q999999991", "reason": "testing"}
 PROVENANCE = {"decision_id": "d-1", "decision_source": "gold", "reason": "testing"}
@@ -621,6 +622,78 @@ class TestCase(AppTestCase):
             values={"decision_id": "d-1", "decision_source": "gold"},
             reason="r",
         )
+
+    def _held_local(self) -> CurationEntry:
+        ModelFixtureFactory(None).create_genre("X", wikidata_id="LOCAL:x", user=None)
+        return self._addition()
+
+    def test_delete_addition_of_held_local_genre_then_rejected_and_kept(self):
+        addition = self._held_local()
+
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "LOCAL:x" in str(response.json())
+        assert CurationEntry.objects.filter(uuid=addition.uuid).exists()
+
+    def test_rename_addition_of_held_local_genre_then_rejected(self):
+        addition = self._held_local()
+
+        response = self.api_client.patch(
+            path=self._entry_url(addition.uuid, "canonical_parent_additions"),
+            data={"row": {"item_id": "LOCAL:y"}},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.get(uuid=addition.uuid).key == "LOCAL:x"
+
+    def test_delete_root_placing_held_local_genre_then_rejected(self):
+        self._held_local()
+        root = CurationEntry.objects.create(
+            user=None,
+            list_name="canonical_roots",
+            key="LOCAL:x",
+            values={"decision_id": "d-1", "decision_source": "gold"},
+            reason="r",
+        )
+
+        response = self.api_client.delete(path=self._entry_url(root.uuid, "canonical_roots"))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert CurationEntry.objects.filter(uuid=root.uuid).exists()
+
+    def test_delete_addition_of_removed_local_genre_then_accepted(self):
+        addition = self._addition()
+
+        response = self.api_client.delete(path=self._entry_url(addition.uuid, "canonical_parent_additions"))
+
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_delete_edge_placing_held_local_genre_then_rejected(self):
+        self._held_local()
+        rule = GenreEdgeRule.objects.create(
+            user=None, relation="canonical_parent", item_id="LOCAL:x", parent_item_id="Q1", exclude_other_parents=False
+        )
+
+        response = self.api_client.delete(path=reverse("curation-edge", kwargs={"uuid": rule.uuid}))
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert GenreEdgeRule.objects.filter(pk=rule.pk).exists()
+
+    def test_unparent_edge_of_held_local_genre_then_rejected(self):
+        self._held_local()
+        rule = GenreEdgeRule.objects.create(
+            user=None, relation="canonical_parent", item_id="LOCAL:x", parent_item_id="Q1", exclude_other_parents=False
+        )
+
+        response = self.api_client.patch(
+            path=reverse("curation-edge", kwargs={"uuid": rule.uuid}), data={"parentItemId": None}, format="json"
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        rule.refresh_from_db()
+        assert rule.parent_item_id == "Q1"
 
     def test_delete_addition_named_by_merge_then_rejected_and_kept(self):
         for list_name in ("canonical_parent_additions", "regional_overview_additions"):

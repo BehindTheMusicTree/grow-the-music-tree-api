@@ -158,6 +158,16 @@ def test_e02_unmapped_genre_kept_with_alert(payload):
     assert evidence[str(child.pk)]["keptParentUuid"] == str(orphan.pk)
 
 
+def test_e02_song_on_kept_genre_keeps_its_genre(payload):
+    kept = ModelFixtureFactory(None).create_genre("Kept")
+    song = ModelFixtureFactory(None).create_song("On kept", kept)
+    import_graph(payload)
+    song.refresh_from_db()
+    kept.refresh_from_db()
+    assert song.genre_id == kept.pk
+    assert kept.graph_node_id is None
+
+
 def test_e02_kept_genre_keeps_parent_in_graph(payload):
     dataset = import_graph(payload)
     parent = Genre.objects.get(graph_node__identity="LOCAL:reggae")
