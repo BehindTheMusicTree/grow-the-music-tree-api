@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 
+- `GET library/songs/?artists_name=` no longer times out on a rare name (#619): a name matching at most 1,000 artists crediting at most 10,000 songs is resolved to those artists through the `folded_name` trigram index first, a broader one keeps the walk in page order. `artists_name` and `GET library/albums/?album_artist_name=` now match accent- and case-folded names, like artist search (`beyonce` finds `Beyoncé`). Covered by `tests/integration/track/song/test_filters.py`, `tests/integration/album/test_albums.py` and `perf/test_artists_name_plan.py`; two `artists_name` Perf scenarios await calibration.
 - `GET library/songs/?artists_name=` lists a song once, and counts it once, when several of its artists match (genre kit v0.72.6, api-kit v0.12.5: `RelatedObjectCharFilter` filters through an `EXISTS` subquery instead of repeating rows across the many-to-many join). Covered by `tests/integration/track/song/test_filters.py`, on numbered and cursor pages.
 
 ### Deprecated

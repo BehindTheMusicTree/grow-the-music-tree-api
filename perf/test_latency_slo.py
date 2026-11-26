@@ -114,6 +114,12 @@ def _songs_genre_panel_second_page() -> tuple[str, dict]:
     return reverse("song-list"), {**params, **_cursor_param(next_url)}
 
 
+def _songs_by_rare_artist_name() -> tuple[str, dict]:
+    artist = Artist.objects.filter(user__isnull=True, recording_count=1).order_by("musicbrainz_artist_id").first()
+    assert artist, "fixture has no artist credited on a single song"
+    return reverse("song-list"), {"artists_name": artist.name, "with_total": "true", "page_size": SONGS_PAGE_SIZE}
+
+
 PATHS = {
     "genre-playlist-list?page_size=30": lambda: (reverse("genre-playlist-list"), {"page_size": 30}),
     "genre-playlist-list?page_size=100": lambda: (reverse("genre-playlist-list"), {"page_size": 100}),
@@ -142,6 +148,12 @@ PATHS = {
     "songs tracklist (genre, playable, title, third page)": lambda: _songs_tracklist("title", 3),
     "songs tracklist (genre, playable, -albumYear, from)": _songs_tracklist_from,
     "songs genre panel (cursor, second page)": _songs_genre_panel_second_page,
+    # The fixture walks every song in milliseconds; perf/test_artists_name_plan.py and staging guard the scale case.
+    "songs artists_name (rare, with total)": _songs_by_rare_artist_name,
+    "songs artists_name (broad, first page)": lambda: (
+        reverse("song-list"),
+        {"artists_name": "the", "with_total": "false", "page_size": SONGS_PAGE_SIZE},
+    ),
 }
 
 
