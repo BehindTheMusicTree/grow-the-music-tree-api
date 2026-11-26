@@ -31,6 +31,8 @@ from the_music_tree_grow_contracts.curation_lists import (
     is_optional_column,
 )
 
+from grow.curation.local_genres import GENERATED_OVERVIEW_PREFIX
+
 KEY_SEPARATOR = "\t"
 POP_SIDE_LIST = "canonical_genre_pop_side"
 UMBRELLA_LIST = "umbrella_stylistic_genres"
@@ -70,7 +72,7 @@ def _parse_bool(value: Any) -> bool:
 
 
 def _check_synthetic_overview_resolution(parsed: dict[str, Any], errors: dict[str, str]) -> None:
-    if not parsed["item_id"].startswith("LOCAL:region-"):
+    if not parsed["item_id"].startswith(GENERATED_OVERVIEW_PREFIX):
         errors["item_id"] = "Must be a generated LOCAL:region-<slug> overview"
     replacement = parsed["replacement_item_id"]
     if parsed["action"] == "replace" and not replacement:
@@ -329,8 +331,12 @@ def find_root_edge_error(entries: models.QuerySet, list_name: str, key: str) -> 
 def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow, exclude_pk: Any = None) -> str | None:
     """Why `parsed` would break a regional graph invariant, if it would: only the violations touching its own items,
     and those of the entry at `exclude_pk` it replaces (a renamed local identity may still be referenced)."""
+    renamed = entries.filter(pk=exclude_pk).exclude(key=parsed.key).first() if exclude_pk is not None else None
+    if renamed is not None:
+        local_error = _local_genre_error(renamed, replacement_key=parsed.key)
+        if local_error:
+            return local_error
     if list_name in ADDITION_LISTS and exclude_pk is not None:
-        renamed = entries.filter(pk=exclude_pk).exclude(key=parsed.key).first()
         return _addition_removal_error(entries, renamed) if renamed is not None else None
     if list_name not in GRAPH_LISTS:
         return None
@@ -350,6 +356,9 @@ def find_graph_error(entries: models.QuerySet, list_name: str, parsed: ParsedRow
 
 def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
     """Why deleting `entry` would break a regional graph invariant, if it would (e.g. a still-referenced local identity)."""
+    local_error = _local_genre_error(entry)
+    if local_error:
+        return local_error
     if entry.list_name in ADDITION_LISTS:
         return _addition_removal_error(entries, entry)
     if entry.list_name not in GRAPH_LISTS:
@@ -362,6 +371,25 @@ def find_graph_removal_error(entries: models.QuerySet, entry: Any) -> str | None
         graph_row_items(entry.list_name, entry.key, entry.values).values(),
     )
     return violations[0].message if violations else None
+
+
+def _local_genre_error(entry: Any, replacement_key: str | None = None) -> str | None:
+    """Why dropping `entry` (an addition or an accepted root, renamed to `replacement_key` if given) would leave a
+    `LOCAL:` genre undeclared or unplaced, if it would."""
+    from grow.curation.edges import edge_rules
+    from grow.curation.local_genres import (
+        ADDITIONS,
+        ROOTS,
+        find_local_genre_removal_error,
+        stored_entry_keys,
+    )
+
+    if entry.list_name not in (ADDITIONS, ROOTS):
+        return None
+    keys = stored_entry_keys(exclude_pk=entry.pk)
+    if replacement_key is not None:
+        keys[entry.list_name].add(replacement_key)
+    return find_local_genre_removal_error(keys, edge_rules(), {entry.key})
 
 
 def _addition_removal_error(entries: models.QuerySet, entry: Any) -> str | None:
