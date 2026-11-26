@@ -12,7 +12,6 @@ from django.db.models import Count, F, QuerySet
 from django.db.models.functions import Coalesce
 from the_music_tree_api_kit.exception.validation.app.AppValidationException import AppValidationException
 from the_music_tree_api_kit.exception.validation.FieldValidationErrorCode import FieldValidationErrorCode
-from the_music_tree_genre_graph import GenreGraph
 from the_music_tree_genre_kit.criteria.children.genre.AbstractGenreManager import AbstractGenreManager
 from the_music_tree_genre_kit.criteria.CriteriaSide import CriteriaSide
 from the_music_tree_genre_kit.criteria.CriteriaTreeName import CriteriaTreeName
@@ -172,8 +171,19 @@ class GenreManager(AbstractGenreManager, CriteriaManager):
 
         if not GenreGraphDataset.objects.filter(pk=DATASET_KEY).exists():
             return frozenset()
-        graph = GenreGraph(reference_dataset().payload)
-        return graph.parents(item_id, "lineage") if item_id in graph.node_ids else frozenset()
+        # Read straight from the payload: building a `GenreGraph` validates and copies the whole ~1,700-node graph,
+        # which made a reparent several times slower.
+        payload = reference_dataset().payload
+        kinds = {node["id"]: node["kind"] for node in payload["nodes"]}
+        if kinds.get(item_id) != "genre":
+            return frozenset()
+        return frozenset(
+            relation["parentId"]
+            for relation in payload["relations"]
+            if relation["type"] == "classification"
+            and relation["childId"] == item_id
+            and kinds.get(relation["parentId"]) == "genre"
+        )
 
     @staticmethod
     def _place_global_by_id(
