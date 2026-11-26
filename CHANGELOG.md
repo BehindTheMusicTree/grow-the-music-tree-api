@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `manage.py reset_catalogue --confirm <db>` empties the catalogue (songs, artists, genres, playlists, graph, import state) in one `TRUNCATE` and keeps curation, users, run history and the curation history, so the next import starts from an empty base. It refuses while an import or pipeline run is active, or when user-owned data exists without `--include-user-data`; `--dry-run` lists the tables. Tests cover the wipe, the refusals and the table classification.
+
+### Fixed
+
+- The genre tree import creates the Genreless and Tagless playlists when missing, and the song import fails with an explicit error instead of silently leaving genreless songs out of every playlist when the Genreless playlist is absent.
+
 ### Changed
 
 - Genre graph import: a genre missing from the export (a held `LOCAL:` genre) no longer fails the import with `Unmapped existing genre UUIDs`. It is kept, placed under its parent when that parent is in the graph (else as a non-accepted root), keeps its songs, and is reported to the curator as a `genre_not_in_graph` review item (migration `0167`) that disappears once the genre is gone. Tests in `test_reference_graph.py` and `test_genre_graph_import_run.py`.

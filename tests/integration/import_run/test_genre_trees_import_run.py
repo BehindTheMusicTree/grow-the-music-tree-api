@@ -13,6 +13,7 @@ from grow.genre_music.catalogue_verification import verify_catalogue_counts
 from grow.genre_tree.bulk_import.GenreTreeImportPayload import GenreTreeImportPayload
 from grow.model.criteria.children.genre.Genre import Genre
 from grow.model.import_run.ImportRun import ImportRun
+from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation, record_export
 
@@ -53,6 +54,14 @@ class TestGenreTreesImportRun(AppTestCase):
         song.refresh_from_db()
         assert song.genre_id == Genre.objects.get(wikidata_id="Q1059").pk
         assert all(report.valid for report in verify_catalogue_counts().values())
+
+    def test_import_creates_missing_criterialess_playlists_once(self):
+        CriteriaPlaylist.objects.all().delete()
+
+        self._import([("canonical", [POP, ROCK])])
+        self._import([("canonical", [POP, ROCK])])
+
+        assert sorted(CriteriaPlaylist.objects.filter(criteria=None).values_list("type_id", flat=True)) == [0, 1]
 
     def test_regional_node_with_parents_then_additional_primary_and_secondary_parents_stored(self):
         # Regression: api-kit < 0.12.1 emptied every non-empty list, so these links were silently dropped.

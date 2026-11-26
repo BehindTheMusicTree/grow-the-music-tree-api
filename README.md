@@ -156,6 +156,16 @@ Before rolling back to the previous Grow version, remove or restore any regional
 
 A [Bruno](https://www.usebruno.com/) collection for manual testing is at [`bruno/Track/`](bruno/Track/) — open it in the Bruno app, select the `local` environment, and set the `API_KEY` secret to your `PIPELINE_API_KEY`.
 
+## Operations: resetting the catalogue
+
+`manage.py reset_catalogue --confirm <database name>` empties the catalogue (songs, artists, genres, playlists, graph, import state) in a single `TRUNCATE`, so the next pipeline run imports into an empty base. Curation (entries, edge rules, exports), users, pipeline run history and the curation history are kept. The tree import recreates the Genreless and Tagless playlists.
+
+- `--confirm <db>` is required and must match the database name.
+- `--dry-run` lists the tables and estimated row counts, then exits.
+- `--include-user-data` is required when user-owned tracks, playlists or plays exist; without it the command refuses.
+- It refuses while an import or a pipeline run is active (wait for `wait_for_import_drain`).
+- Back up the kept tables first, then run the genre tree import before the songs and artists imports.
+
 ## Tests
 
 ```bash
