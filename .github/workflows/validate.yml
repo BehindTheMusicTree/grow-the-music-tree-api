@@ -69,6 +69,8 @@ jobs:
   api-schema:
     name: API schema check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       DJANGO_SETTINGS_MODULE: tests.settings
       PYTHONPATH: .
