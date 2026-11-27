@@ -98,7 +98,7 @@ def test_public_revision_reads_only_the_graph_token(payload, published):
     assert len(queries) == 1
     columns, source = queries[0]["sql"].split(" FROM ", 1)
     assert source.startswith(f'"{GenreGraphDataset._meta.db_table}"')
-    assert columns == f'SELECT "{GenreGraphDataset._meta.db_table}"."revision"'
+    assert columns.removesuffix(' AS "revision"') == f'SELECT "{GenreGraphDataset._meta.db_table}"."revision"'
 
 
 def test_bootstrap_import_then_success_with_both_revisions_and_initial_backup(payload):
