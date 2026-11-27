@@ -109,5 +109,9 @@ def publish_assignments(*, run_id: int, dataset) -> None:
         # The kit compares complete sets through correlated lookups for each track.
         cursor.execute(f"CREATE INDEX ON {d} (track_id, node_id, evidence_id)")
         cursor.execute(f"ANALYZE {d}")
-        publish_staged_attributions(dataset=dataset, population=population, assignments=desired, on_step=report_step)
+        # Chunked like the initial graph import: deferred constraint checks drain after each chunk (the first also
+        # drains those of the songs the merge inserted) instead of a 31M-track first load queuing them until commit.
+        publish_staged_attributions(
+            dataset=dataset, population=population, assignments=desired, chunk_size=1_000_000, on_step=report_step
+        )
         cursor.execute(f"DROP TABLE {d}, {f}, {p}")
