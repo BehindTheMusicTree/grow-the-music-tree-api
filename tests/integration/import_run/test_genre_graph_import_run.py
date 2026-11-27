@@ -271,6 +271,12 @@ def test_tables_written_by_the_import_are_all_analyzed(payload):
             response = api.post(runs_url(), request, format="json")
         assert response.status_code == 202, response.content
         run = BulkImportRun.objects.get()
+        assert GenreGraphImportPayload.objects.get(run_id=run.pk).payload == {
+            "graph": request["graph"],
+            "mapping": request["mapping"],
+            "expected_revision": request["expectedRevision"],
+            "retirements": request.get("retirements"),
+        }
         attempt = ImportAttempt.objects.get(run_id=run.pk)
         with CaptureQueriesContext(connection) as queries:
             result = merge_reference_graph_import_run(run.pk, run.user_id, run.record, attempt_id=attempt.pk)
