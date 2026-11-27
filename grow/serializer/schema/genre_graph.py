@@ -1,6 +1,10 @@
 from rest_framework import serializers
 
 
+class GraphRevisionSerializer(serializers.Serializer):
+    revision = serializers.UUIDField(allow_null=True)
+
+
 class GraphTokensSerializer(serializers.Serializer):
     revision = serializers.UUIDField()
     membership_revision = serializers.UUIDField()

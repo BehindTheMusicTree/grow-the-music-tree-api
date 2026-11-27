@@ -313,7 +313,13 @@ takes exclusive source-table locks; its operational window must be measured on r
 Semantic song-assignment staging is available as a preview with reviewed revisions and durable part receipts; commit remains disabled pending the catalogue, playlist and search cutover. See the [song import contract](docs/api/songs.md#import). Legacy imports remain blocked once a reference graph is active.
 
 `GET /v1/genres/graph/` returns the graph, semantic identity-to-genre UUID
-mapping, graph `revision` and `membershipRevision`. Pipeline/admin `PUT` accepts
+mapping, graph `revision` and `membershipRevision`. To get only the expected
+revision for a graph write, use the public `GET /v1/genres/graph/revision/`. It
+returns HTTP 200 with `{"revision": "<uuid>"}`, or `{"revision": null}` before
+the first publication, and sets `Cache-Control: no-store`. Reviewed song imports
+still use both revisions returned by the graph write or its task result.
+
+Pipeline/admin `PUT` accepts
 `graph`, a complete `mapping` (existing genre UUID or `null`),
 and `expectedRevision` (`null` for the initial import). The graph must carry the
 current curation export timestamp. A `null` identity keeps its existing

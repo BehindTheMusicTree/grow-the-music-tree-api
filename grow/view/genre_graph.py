@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 
 from django.conf import settings
@@ -18,7 +17,6 @@ from the_music_tree_genre_kit.genre_graph.assignments import assignment_snapshot
 from the_music_tree_genre_kit.genre_graph.models import (
     GenreGraphAssignmentState,
     GenreGraphAttributionRevision,
-    GenreGraphDataset,
 )
 from the_music_tree_genre_kit.genre_graph.storage import (
     GraphRevisionConflict,
@@ -37,6 +35,7 @@ from grow.genre_graph.service import (
     DATASET_KEY,
     import_reference_graph,
     reference_dataset,
+    reference_graph_revision,
     restore_initial_assignments,
     restore_reference_graph,
     restore_song_attributions,
@@ -47,6 +46,7 @@ from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
 from grow.serializer.schema.genre_graph import (
     GraphAssignmentTokensSerializer,
+    GraphRevisionSerializer,
     GraphTokensSerializer,
     ReferenceGraphSerializer,
     SongAttributionsSerializer,
@@ -163,6 +163,17 @@ class ReferenceGraphView(GraphView):
         return Response(_tokens(dataset))
 
 
+class ReferenceGraphRevisionView(GraphView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(responses=GraphRevisionSerializer)
+    def get(self, request):
+        revision = reference_graph_revision()
+        return Response(
+            {"revision": str(revision) if revision is not None else None}, headers={"Cache-Control": "no-store"}
+        )
+
+
 class ReferenceGraphImportRunsView(GraphView):
     """
     Queues a reference graph import (same body as `PUT genres/graph/`) and answers 202 `{taskId}`; the merge runs in the
@@ -183,8 +194,7 @@ class ReferenceGraphImportRunsView(GraphView):
         data = serializer.validated_data
         GenreGraph(data["graph"])
         expected = data["expected_revision"]
-        current = GenreGraphDataset.objects.filter(pk=DATASET_KEY).values_list("revision", flat=True).first()
-        if current != expected:
+        if reference_graph_revision() != expected:
             raise GraphRevisionConflict("Reference graph revision changed; reload before importing")
         owner = get_request_owner(request)
         pipeline_run = linked_pipeline_run(request)
@@ -216,7 +226,7 @@ class ReferenceGraphImportRunsView(GraphView):
                 record=False,
                 pipeline_run_request=pipeline_run,
             )
-            GenreGraphImportPayload.objects.create(run_id=run.pk, payload=json.loads(json.dumps(body)))
+            GenreGraphImportPayload.objects.create(run_id=run.pk, payload=body)
             attempt = queue_attempt(run)
         enqueue_merge(merge_reference_graph_import_run, run, attempt)
         return Response({"taskId": attempt.task_id}, status=status.HTTP_202_ACCEPTED)

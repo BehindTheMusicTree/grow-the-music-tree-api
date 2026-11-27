@@ -3002,6 +3002,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/GraphTokens'
           description: ''
+  /v1/genres/graph/revision/:
+    get:
+      operationId: v1_genres_graph_revision_retrieve
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GraphRevision'
+          description: ''
   /v1/genres/name-conflicts/:
     get:
       operationId: v1_genres_name_conflicts_list
@@ -7820,6 +7836,15 @@ components:
           format: uuid
       required:
       - expectedRevision
+      - revision
+    GraphRevision:
+      type: object
+      properties:
+        revision:
+          type: string
+          format: uuid
+          nullable: true
+      required:
       - revision
     GraphTokens:
       type: object

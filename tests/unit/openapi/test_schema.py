@@ -84,6 +84,15 @@ def test_genre_operations_have_typed_responses(schema):
     assert "tree_name" in tree_params
 
 
+def test_graph_revision_is_a_public_required_nullable_uuid(schema):
+    path = "/v1/genres/graph/revision/"
+    assert {} in schema["paths"][path]["get"]["security"]
+    component = _ok_body(schema, path)["$ref"].rsplit("/", 1)[-1]
+    response = schema["components"]["schemas"][component]
+    assert response["required"] == ["revision"]
+    assert response["properties"] == {"revision": {"type": "string", "format": "uuid", "nullable": True}}
+
+
 def test_library_viewsets_generate_without_errors():
     GENERATOR_STATS.reset()
     with GENERATOR_STATS.silence():
