@@ -91,6 +91,8 @@ class TestSemanticImportMerge(AppTestCase):
 
         new = Song.objects.get(musicbrainz_recording_id=MBID)
         assert new.genre_id is None  # the legacy column is never written by a reviewed run
+        # Inserted with the fill trigger off: the materialisation step derives it from the published assignment.
+        assert new.membership_genre_id == self.rock.pk
         assert set(assignment_snapshot(dataset=self.dataset, track_id=new.pk)) == {self._identity(self.rock)}
         assert list(
             TrackPlaylistRel.objects.filter(playlist=self.rock.criteria_playlist)
