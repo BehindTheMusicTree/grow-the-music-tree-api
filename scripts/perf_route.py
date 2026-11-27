@@ -12,7 +12,6 @@ SKIP_SUFFIXES = (".md",)
 SKIP_FILES = frozenset(
     {
         "LICENSE",
-        ".github/org-conformance.json",
         ".github/release-policy.json",
         ".github/workflows/validate.yml",
         ".github/workflows/catalogue-benchmark.yml",
