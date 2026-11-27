@@ -75,6 +75,10 @@ def _curation_state() -> CurationSyncState:
     return state
 
 
+def reference_graph_revision() -> UUID | None:
+    return GenreGraphDataset.objects.filter(pk=DATASET_KEY).values_list("revision", flat=True).first()
+
+
 def reference_dataset() -> GenreGraphDataset:
     try:
         dataset = GenreGraphDataset.objects.get(pk=DATASET_KEY)

@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Public `GET /v1/genres/graph/revision/` returns the current graph revision, or null before publication, without loading the graph or its bindings.
 - `manage.py reset_catalogue --confirm <db>` empties the catalogue (songs, artists, genres, playlists, graph, import state) in one `TRUNCATE` and keeps curation, users, run history and the curation history, so the next import starts from an empty base. It refuses while an import or pipeline run is active, or when user-owned data exists without `--include-user-data`; `--dry-run` lists the tables. Tests cover the wipe, the refusals and the table classification.
 
 ### Fixed
@@ -22,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Async graph submissions persist the validated JSON directly, avoiding an extra encode and decode of the graph in the web worker.
 - **Breaking (#623):** the canonical genre tree is now the `global` tree. `treeName` and the subgenre count keys are `global`, `SubgenreScope` is `global`, `ImportRun` kind `canonical_tree` is `global_tree` (stored runs migrated; `/imports/latest/` field `globalTree`), the curation lists `canonical_roots`, `canonical_parent_additions`, `canonical_genre_scene`, `canonical_genre_pop_side` and `forced_canonical_genres` are `global_*` (migrated), and the `region_map` genre `relation` `canonical` is `global` (`grow-contracts` 0.2.0). The reference-data sense of "canonical" (`user IS NULL`) is unchanged.
 - **Breaking (#623):** genre edge rules are typed: `relation` is `classification|derivation|influence`, `action` is `assert|prohibit`, with `item_id` and `target_item_id` (the `exclude_other_parents` flag is gone; a prohibit replaces it). The `regional_memberships` and `genre_derivations` curation lists are folded into edges (migration `0169`, keeping their `decision_id`), and the seed `genre_edges.csv` has the new columns. Rule uniques exclude `user` (SQLite ignores `nulls_distinct=False`). `_drop_secondary_add_rule` is removed.
 - **Breaking (#623):** the genre graph is built to contract 5 (genre kit v0.73.1: `globalRoots`, membership = `classification` to an overview). An admin secondary parent between global genres is now refused (400).

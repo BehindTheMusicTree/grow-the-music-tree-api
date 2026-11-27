@@ -25,6 +25,7 @@ from grow.view.genre_graph import (
     InitialAssignmentsRestoreView,
     ReferenceGraphImportRunsView,
     ReferenceGraphRestoreView,
+    ReferenceGraphRevisionView,
     ReferenceGraphView,
     SongAttributionsRestoreView,
     SongAttributionsView,
@@ -83,6 +84,11 @@ urlpatterns = [
 
 urlpatterns += [
     path(f"{settings.API_ROOT_BASE}genres/graph/", ReferenceGraphView.as_view(), name="reference-graph"),
+    path(
+        f"{settings.API_ROOT_BASE}genres/graph/revision/",
+        ReferenceGraphRevisionView.as_view(),
+        name="reference-graph-revision",
+    ),
     path(
         f"{settings.API_ROOT_BASE}genres/graph/import-runs/",
         ReferenceGraphImportRunsView.as_view(),

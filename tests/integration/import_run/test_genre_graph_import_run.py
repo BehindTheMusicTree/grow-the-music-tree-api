@@ -1,12 +1,14 @@
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from pathlib import Path
+from threading import Barrier
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from django.db import connection
+from django.db import connection, connections
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
@@ -75,6 +77,28 @@ def runs_url():
 
 def status_of(api, task_id):
     return api.get(reverse("genre-list") + f"graph/import/{task_id}/status/").json()
+
+
+@pytest.mark.parametrize("published", [False, True])
+def test_public_revision_reads_only_the_graph_token(payload, published):
+    revision = None
+    if published:
+        response = client("pipeline").post(runs_url(), body(payload), format="json")
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        polled = status_of(client("pipeline"), response.json()["taskId"])
+        assert polled["status"] == "success"
+        revision = polled["result"]["revision"]
+
+    with CaptureQueriesContext(connection) as queries:
+        response = APIClient().get(reverse("reference-graph-revision"))
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"revision": revision}
+    assert response["Cache-Control"] == "no-store"
+    assert len(queries) == 1
+    columns, source = queries[0]["sql"].split(" FROM ", 1)
+    assert source.startswith(f'"{GenreGraphDataset._meta.db_table}"')
+    assert columns == f'SELECT "{GenreGraphDataset._meta.db_table}"."revision"'
 
 
 def test_bootstrap_import_then_success_with_both_revisions_and_initial_backup(payload):
@@ -148,6 +172,31 @@ def test_second_post_while_one_is_queued_then_409(payload):
 
     assert second.status_code == status.HTTP_409_CONFLICT
     assert BulkImportRun.objects.filter(kind=GENRE_GRAPH_KIND).count() == 1
+
+
+@pytest.mark.postgres
+def test_concurrent_posts_queue_only_one_attempt(payload):
+    barrier = Barrier(2)
+
+    def submit():
+        try:
+            api = client("pipeline")
+            with connection.cursor() as cursor:
+                cursor.execute("SET statement_timeout = '10s'")
+            barrier.wait(timeout=10)
+            return api.post(runs_url(), body(payload), format="json")
+        finally:
+            connections.close_all()
+
+    with patch("grow.view.genre_graph.enqueue_merge") as enqueue, ThreadPoolExecutor(max_workers=2) as pool:
+        responses = [pool.submit(submit) for _ in range(2)]
+        results = [pending.result(timeout=20) for pending in responses]
+
+    assert sorted(response.status_code for response in results) == [202, 409]
+    assert BulkImportRun.objects.filter(kind=GENRE_GRAPH_KIND).count() == 1
+    assert GenreGraphImportPayload.objects.count() == 1
+    assert ImportAttempt.objects.filter(kind=GENRE_GRAPH_KIND).count() == 1
+    enqueue.assert_called_once()
 
 
 def test_revision_changed_between_post_and_merge_then_failed_with_conflict_and_cleaned_up(payload):
