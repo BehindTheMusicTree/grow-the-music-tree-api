@@ -2,6 +2,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
+from unittest import mock
 from uuid import uuid4
 
 import pytest
@@ -20,6 +21,7 @@ from the_music_tree_genre_kit.genre_graph.storage import GraphRevisionConflict
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
+from grow.track.bulk_import import assignment_publication
 from grow.track.bulk_import.assignment_publication import assignment_write_transaction, publish_assignments
 from grow.track.bulk_import.SongAssignmentStaging import SongAssignmentStaging
 from tests.integration.criteria.test_reference_graph import import_graph
@@ -64,6 +66,17 @@ def publish(dataset, songs, *, locked=(), graph=None, membership=None):
             [(s.musicbrainz_recording_id, s.pk, s.pk in locked) for s in songs],
         )
         publish_assignments(run_id=1, dataset=locked_dataset)
+
+
+def test_publication_is_chunked(population):
+    dataset, songs = population
+    stage(songs, [{}, {"LOCAL:roots": [EVIDENCE]}, {}])
+    with mock.patch.object(
+        assignment_publication, "publish_staged_attributions", wraps=assignment_publication.publish_staged_attributions
+    ) as spy:
+        publish(dataset, songs)
+    assert spy.call_args.kwargs["chunk_size"] == 1_000_000
+    assert set(assignment_snapshot(dataset=dataset, track_id=songs[1].pk)) == {"LOCAL:roots"}
 
 
 def test_multiple_evidence_empty_sets_locked_songs_and_idempotent_retry(population):

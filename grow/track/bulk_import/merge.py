@@ -599,11 +599,13 @@ def _merge(run_id: int, params: dict, record: bool) -> tuple[dict[str, Any], boo
                 if step[0] not in {"delete_artist_song_links", "upsert_artist_song", "delete_artist_song"}
             ]
         cut = [label for label, _ in steps].index(PUBLISH_AFTER) + 1
-        timings += run_steps(cursor, steps[:cut], params)
-        started = perf_counter()
-        # The publication rewrites attributions in bulk: the song triggers stand down and one set-based step
-        # materialises the new genres for the songs this run touched.
+        timings += run_steps(cursor, steps[: cut - 1], params)
+        # The song triggers stand down from the song inserts to the materialisation, which recomputes every genre this
+        # run touched (new songs included) in one set-based step: per-row, the fill trigger derived each new song's
+        # genre before its attribution existed, a lookup per row on a first load of 31M songs.
         cursor.execute("SELECT set_config('grow.membership_maintenance', 'on', true)")
+        timings += run_steps(cursor, steps[cut - 1 : cut], params)
+        started = perf_counter()
         with report_step("publish_assignments"):
             publish_assignments(run_id=run_id, dataset=dataset)
         with report_step("materialize_song_genres"):
