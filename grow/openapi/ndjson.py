@@ -78,6 +78,7 @@ def artist_upload_row(producer_row: dict[str, Any]) -> dict[str, Any]:
         item.pop("additionalProperties")
     properties["origin"]["required"] = ["name", "source"]
     properties["origin"].pop("additionalProperties")
+    properties["origin"]["properties"]["musicbrainz_area_id"] = {}
     image = properties["image"]["oneOf"][1]
     image["required"] = ["url", "page_url", "license"]
     image.pop("additionalProperties")

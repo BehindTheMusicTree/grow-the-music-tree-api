@@ -15,7 +15,7 @@ def legacy_region_map() -> dict[str, Any]:
     # Old indexes were checked before storage, then served byte for byte even after the format changed.
     genre = object_schema({"itemId": _STRING}, closed=False)
     region = object_schema({"genres": {"type": "array", "items": genre}}, closed=False)
-    hidden_region = object_schema({"id": _STRING, "name": _STRING, "kind": _STRING}, closed=False)
+    hidden_region = object_schema({"id": _STRING}, closed=False)
     return {
         "type": "object",
         "description": "Index archived before the current region map contract. Hidden regions may be inline.",

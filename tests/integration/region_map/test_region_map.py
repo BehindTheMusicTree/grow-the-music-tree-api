@@ -153,6 +153,11 @@ class TestRegionMapReads(AppTestCase):
             assert revalidated.status_code == status.HTTP_304_NOT_MODIFIED
             assert_response_matches_schema(revalidated, INDEX)
 
+    def test_legacy_inline_hidden_region_with_only_id_matches_schema(self):
+        document = {"tileset": TILESET, "regions": [], "hiddenRegions": [{"id": "Q1"}]}
+        _snapshot(json.dumps(document).encode())
+        assert assert_response_matches_schema(self.public.get(INDEX), INDEX) == document
+
     def test_each_encoding_revalidates_only_with_its_own_etag(self):
         snapshot = _snapshot(b'{"regions":[]}')
         plain, gzipped = f'"{snapshot.checksum}"', f'"{snapshot.checksum}-gzip"'

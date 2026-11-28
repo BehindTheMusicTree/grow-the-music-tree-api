@@ -86,6 +86,9 @@ def test_artist_part_media_schema_matches_the_row_loader():
     invalid = {**SAMPLE, "name": None}
     assert _accepted_by_row(SAMPLE) and validator.is_valid(SAMPLE)
     assert not _accepted_by_row(invalid) and not validator.is_valid(invalid)
+    old_origin = {**SAMPLE, "origin": {**SAMPLE["origin"], "musicbrainz_area_id": None}}
+    assert _accepted_by_row(old_origin) and validator.is_valid(old_origin)
+    assert not _valid_for_schema(old_origin)
 
 
 def _mutated(path: tuple, value) -> dict:

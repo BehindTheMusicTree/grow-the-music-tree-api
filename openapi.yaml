@@ -12480,8 +12480,7 @@ components:
             name:
               type: string
               minLength: 1
-            musicbrainz_area_id:
-              $ref: '#/components/schemas/ArtistImportRow_mbid'
+            musicbrainz_area_id: {}
             kind:
               type:
               - string
@@ -12695,14 +12694,8 @@ components:
             properties:
               id:
                 type: string
-              name:
-                type: string
-              kind:
-                type: string
             required:
             - id
-            - name
-            - kind
     RegionMapImportRow:
       oneOf:
       - type: object
