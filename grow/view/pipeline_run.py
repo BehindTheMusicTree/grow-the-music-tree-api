@@ -308,9 +308,11 @@ class PipelineRunView(CurationView):
 
 
 class GoldFingerprintsSerializer(serializers.Serializer):
-    manifest_sha256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", required=False)
-    songs_snapshot_sha256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", required=False)
-    artists_snapshot_sha256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", required=False)
+    manifest_sha_256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", source="manifest_sha256", required=False)
+    songs_snapshot_sha_256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", source="songs_snapshot_sha256", required=False)
+    artists_snapshot_sha_256 = serializers.RegexField(
+        r"^[0-9a-f]{64}\Z", source="artists_snapshot_sha256", required=False
+    )
     songs_run_id = serializers.IntegerField(min_value=1, required=False)
 
     def validate(self, attrs):

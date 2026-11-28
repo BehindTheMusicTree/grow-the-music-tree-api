@@ -228,13 +228,13 @@ class TestPipelineRun(AppTestCase):
     def test_historical_gold_attestation_is_pipeline_only_and_immutable(self):
         source = self._failed_gold(attested=False)
         url = reverse("pipeline-gold-fingerprints", kwargs={"uuid": source.uuid})
-        data = {"manifest_sha256": "a" * 64, "songs_snapshot_sha256": "b" * 64, "songs_run_id": 142}
+        data = {"manifestSha256": "a" * 64, "songsSnapshotSha256": "b" * 64, "songsRunId": 142}
         assert self.api_client.patch(url, data=data, format="json").status_code == 403
-        assert self.pipeline.patch(url, data={**data, "songs_run_id": 143}, format="json").status_code == 409
+        assert self.pipeline.patch(url, data={**data, "songsRunId": 143}, format="json").status_code == 409
         for _ in range(2):
             response = self.pipeline.patch(url, data=data, format="json")
             assert response.status_code == 204, response.content
-        conflict = self.pipeline.patch(url, data={**data, "manifest_sha256": "c" * 64}, format="json")
+        conflict = self.pipeline.patch(url, data={**data, "manifestSha256": "c" * 64}, format="json")
         assert conflict.status_code == 409, conflict.content
         assert self._resume_artists(source).status_code == 201
 
@@ -255,7 +255,7 @@ class TestPipelineRun(AppTestCase):
         uuid = self._resume_artists(source).json()["uuid"]
         assert self._claim().status_code == 200
         fingerprints = reverse("pipeline-gold-fingerprints", kwargs={"uuid": uuid})
-        response = self.pipeline.patch(fingerprints, data={"artists_snapshot_sha256": "c" * 64}, format="json")
+        response = self.pipeline.patch(fingerprints, data={"artistsSnapshotSha256": "c" * 64}, format="json")
         assert response.status_code == 204, response.content
         artists = reverse("artist-list") + "import-runs/"
         header = {"HTTP_X_PIPELINE_RUN_REQUEST": uuid}
