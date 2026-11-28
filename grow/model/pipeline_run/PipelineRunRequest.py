@@ -18,6 +18,7 @@ class PipelineRunRequest(models.Model):
         CURATION = "curation"
         FULL = "full"
         SYNC = "sync"
+        SYNC_ARTISTS = "sync_artists"
 
     class Trigger(models.TextChoices):
         MANUAL = "manual"
@@ -66,6 +67,11 @@ class PipelineRunRequest(models.Model):
     heartbeat_on = models.DateTimeField(null=True)
     cancel_requested_on = models.DateTimeField(null=True)
     finished_on = models.DateTimeField(null=True)
+
+    source_run = models.ForeignKey("self", null=True, on_delete=models.PROTECT, related_name="artist_recoveries")
+    manifest_sha256 = models.CharField(max_length=64, null=True)
+    songs_snapshot_sha256 = models.CharField(max_length=64, null=True)
+    artists_snapshot_sha256 = models.CharField(max_length=64, null=True)
 
     objects = PipelineRunRequestManager()
 

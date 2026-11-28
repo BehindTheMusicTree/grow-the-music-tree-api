@@ -17,7 +17,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ParseError, ValidationError
+from rest_framework.exceptions import ParseError, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from the_music_tree_api_kit.private.get_request_owner import get_request_owner
 
@@ -31,6 +31,14 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.pipeline_run.artists_recovery import (
+    ARTISTS,
+    SONGS,
+    Kind,
+    RecoveryConflict,
+    guard_catalogue_import,
+    lock_recovery_admission,
+)
 from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.serializer.schema.common import (
     CountSerializer,
@@ -243,9 +251,24 @@ def bulk_import_run_actions(
         pipeline_run = linked_pipeline_run(request)
         metadata = run_metadata(request.data, mode) if kind == ImportRun.Kind.SONGS else {}
         with transaction.atomic():
-            if kind == ImportRun.Kind.SONGS:
+            if kind == SONGS:
                 lock_catalogue_sources()
                 require_reviewed_contract(metadata)
+            if kind in (SONGS, ARTISTS):
+                lock_recovery_admission()
+                guard_catalogue_import(kind, pipeline_run, mode=mode)
+            if pipeline_run is not None and pipeline_run.kind == Kind.SYNC_ARTISTS:
+                if kind != ARTISTS:
+                    raise RecoveryConflict("Cette demande est réservée à l'import artistes.")
+                if request.auth.role != "pipeline":
+                    raise PermissionDenied
+                existing = BulkImportRun.objects.filter(
+                    kind=ARTISTS,
+                    committed_on=None,
+                    pipeline_run_request__source_run_id=pipeline_run.source_run_id,
+                ).first()
+                if existing is not None:
+                    return Response({"run_id": existing.pk}, status=status.HTTP_201_CREATED)
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
             # because committed_on is the enqueue time and a run can wait one full merge in the single-worker queue
@@ -305,7 +328,7 @@ def bulk_import_run_actions(
 
     @extend_schema(
         request=None,
-        parameters=[_RUN_ID_PARAM],
+        parameters=[_RUN_ID_PARAM, *([HEADER_PARAMETER] if kind == ARTISTS else [])],
         responses={status.HTTP_202_ACCEPTED: TaskIdSerializer},
         description="Queues the merge; poll its status with the returned task id.",
     )
@@ -319,16 +342,40 @@ def bulk_import_run_actions(
         owner = get_request_owner(request)
         user_id, record = owner and owner.pk, request.auth.role == "pipeline"
         with transaction.atomic():
-            if kind == ImportRun.Kind.SONGS:
+            if kind == SONGS:
                 lock_catalogue_sources()
+            if kind in (SONGS, ARTISTS):
+                lock_recovery_admission()
+            if kind == ARTISTS:
+                attempt = (
+                    ImportAttempt.objects.filter(
+                        run_id=run_id, kind=ARTISTS, pipeline_run_request__kind=Kind.SYNC_ARTISTS
+                    )
+                    .select_related("pipeline_run_request")
+                    .order_by("-attempt")
+                    .first()
+                )
+                if attempt is not None:
+                    recovery = recovery_import_request(request, attempt.pipeline_run_request.source_run_id)
+                    guard_catalogue_import(kind, recovery, mode=attempt.mode, submitted=True)
+                    return Response({"task_id": attempt.task_id}, status=status.HTTP_202_ACCEPTED)
             run = uncommitted_run(run_id, lock=True)
+            if kind in (SONGS, ARTISTS):
+                linked = run.pipeline_run_request
+                if linked is not None and linked.kind == Kind.SYNC_ARTISTS:
+                    linked = recovery_import_request(request, linked.source_run_id)
+                guard_catalogue_import(kind, linked, mode=run.mode)
+                run.pipeline_run_request = linked
             require_complete_run(run)
-            if kind == ImportRun.Kind.SONGS:
+            if kind == SONGS:
                 require_reviewed_contract(
                     {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}
                 )
             if not BulkImportRun.objects.filter(pk=run.pk, committed_on__isnull=True).update(
-                committed_on=timezone.now(), user_id=user_id, record=record
+                committed_on=timezone.now(),
+                user_id=user_id,
+                record=record,
+                pipeline_run_request_id=run.pipeline_run_request_id,
             ):
                 raise ValidationError("import run is already committed")
             run.user_id, run.record = user_id, record
@@ -343,3 +390,12 @@ def bulk_import_run_actions(
         commit_import_run,
         import_run_status_action(url_prefix, kind, merge),
     )
+
+
+def recovery_import_request(request, source_id):
+    if request.auth.role != "pipeline":
+        raise PermissionDenied
+    recovery = linked_pipeline_run(request)
+    if recovery is None or recovery.kind != Kind.SYNC_ARTISTS or recovery.source_run_id != source_id:
+        raise RecoveryConflict("La demande de reprise active doit être fournie et correspondre à la source.")
+    return recovery

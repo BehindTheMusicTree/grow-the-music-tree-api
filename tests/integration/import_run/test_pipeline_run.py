@@ -1,7 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+from threading import Barrier
+from unittest.mock import patch
 
+import pytest
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connections, transaction
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -9,8 +13,9 @@ from rest_framework.test import APIClient
 from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields import Fields
 
 from grow.authentication.Principal import Principal
+from grow.bulk_import.ImportAttempt import ImportAttempt, ImportReceipt
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
-from tests.utils.AppApiClient import ADMIN_EMAIL
+from tests.utils.AppApiClient import ADMIN_EMAIL, AppApiClient
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation
 
@@ -19,6 +24,47 @@ TREE = {
     Fields.TREE_NAME: "global",
     Fields.TREE: [{Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}],
 }
+
+
+@pytest.mark.postgres
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_recovery_requests_share_one_uuid():
+    source = PipelineRunRequest.objects.create(
+        kind="sync", status="failed", manifest_sha256="a" * 64, songs_snapshot_sha256="b" * 64
+    )
+    ImportAttempt.objects.create(
+        pipeline_run_request=source,
+        kind="songs",
+        mode="full",
+        run_id=142,
+        task_id="songs-142",
+        attempt=1,
+        state="succeeded",
+        data_applied=True,
+    )
+    admin = AppApiClient().admin
+    start = Barrier(2, timeout=10)
+
+    def submit():
+        try:
+            client = APIClient()
+            client.force_authenticate(user=admin, token=Principal("admin", ADMIN_EMAIL, settings.ADMIN_GOOGLE_SUB))
+            start.wait()
+            response = client.post(
+                reverse("pipeline-runs"),
+                data={"kind": "sync_artists", "sourceRunUuid": str(source.uuid)},
+                format="json",
+            )
+            return response.status_code, response.json()
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = [executor.submit(submit), executor.submit(submit)]
+        results = [response.result(timeout=20) for response in responses]
+    assert sorted(code for code, _ in results) == [200, 201], results
+    assert results[0][1]["uuid"] == results[1][1]["uuid"]
+    assert PipelineRunRequest.objects.filter(source_run=source).count() == 1
 
 
 class TestPipelineRun(AppTestCase):
@@ -67,6 +113,150 @@ class TestPipelineRun(AppTestCase):
 
     def _go_silent(self, uuid: str, minutes: int) -> None:
         PipelineRunRequest.objects.filter(uuid=uuid).update(heartbeat_on=timezone.now() - timedelta(minutes=minutes))
+
+    def _failed_gold(self, *, attested: bool = True, applied: bool = True) -> PipelineRunRequest:
+        source = PipelineRunRequest.objects.create(
+            kind="sync",
+            status="failed",
+            **({"manifest_sha256": "a" * 64, "songs_snapshot_sha256": "b" * 64} if attested else {}),
+        )
+        for kind, run_id, data_applied in (("songs", 142, applied), ("region_map", 143, True)):
+            ImportAttempt.objects.create(
+                pipeline_run_request=source,
+                kind=kind,
+                mode="full",
+                run_id=run_id,
+                task_id=f"task-{run_id}",
+                attempt=1,
+                state="succeeded",
+                data_applied=data_applied,
+            )
+        return source
+
+    def _resume_artists(self, source: PipelineRunRequest, client=None):
+        return (client or self.api_client).post(
+            path=reverse("pipeline-runs"),
+            data={"kind": "sync_artists", "sourceRunUuid": str(source.uuid)},
+            format="json",
+        )
+
+    def test_artists_recovery_uses_applied_songs_even_when_the_map_is_newer(self):
+        source = self._failed_gold()
+        history = self.api_client.get(reverse("pipeline-runs")).json()["results"][0]
+        assert history["status"] == "failed"
+        assert history["artistsRecovery"]["eligible"] is True
+
+        response = self._resume_artists(source)
+        assert response.status_code == status.HTTP_201_CREATED, response.content
+        duplicate = self._resume_artists(source)
+        assert duplicate.status_code == status.HTTP_200_OK
+        assert duplicate.json()["uuid"] == response.json()["uuid"]
+        claimed = self._claim().json()
+        assert claimed["sourceRunUuid"] == str(source.uuid)
+        assert claimed["manifestSha256"] == "a" * 64
+        assert claimed["songsSnapshotSha256"] == "b" * 64
+        source.refresh_from_db()
+        assert source.status == "failed"
+
+    def test_artists_recovery_requires_admin_and_a_source(self):
+        source = self._failed_gold()
+        assert self._resume_artists(source, self.pipeline).status_code == status.HTTP_403_FORBIDDEN
+        assert self._post("sync_artists").status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_artists_recovery_rejects_unattested_and_unapplied_sources(self):
+        for attested, applied in ((False, True), (True, False)):
+            with self.subTest(attested=attested, applied=applied):
+                source = self._failed_gold(attested=attested, applied=applied)
+                response = self._resume_artists(source)
+                assert response.status_code == status.HTTP_409_CONFLICT, response.content
+                ImportAttempt.objects.filter(pipeline_run_request=source).delete()
+
+    def test_artists_recovery_rejects_catalogue_replacement_or_live_merge(self):
+        source = self._failed_gold()
+        attempt = ImportAttempt.objects.create(
+            kind="songs", mode="full", run_id=144, task_id="new", attempt=1, state="committing"
+        )
+        assert self._resume_artists(source).status_code == status.HTTP_409_CONFLICT
+        attempt.state = "succeeded"
+        attempt.data_applied = True
+        attempt.save()
+        assert self._resume_artists(source).status_code == status.HTTP_409_CONFLICT
+
+    def test_artists_recovery_conflicts_with_another_active_request(self):
+        source = self._failed_gold()
+        self._request("sync")
+        assert self._resume_artists(source).status_code == status.HTTP_409_CONFLICT
+
+    def test_historical_gold_attestation_is_pipeline_only_and_immutable(self):
+        source = self._failed_gold(attested=False)
+        url = reverse("pipeline-gold-fingerprints", kwargs={"uuid": source.uuid})
+        data = {"manifestSha256": "a" * 64, "songsSnapshotSha256": "b" * 64, "songsRunId": 142}
+        assert self.api_client.patch(url, data=data, format="json").status_code == 403
+        assert self.pipeline.patch(url, data={**data, "songsRunId": 143}, format="json").status_code == 409
+        for _ in range(2):
+            response = self.pipeline.patch(url, data=data, format="json")
+            assert response.status_code == 204, response.content
+        conflict = self.pipeline.patch(url, data={**data, "manifestSha256": "c" * 64}, format="json")
+        assert conflict.status_code == 409, conflict.content
+        assert self._resume_artists(source).status_code == 201
+
+    def test_recovery_execution_rechecks_catalogue_replacement(self):
+        source = self._failed_gold()
+        uuid = self._resume_artists(source).json()["uuid"]
+        assert self._claim().status_code == 200
+        url = reverse("pipeline-artists-recovery", kwargs={"uuid": uuid})
+        assert self.pipeline.get(url).status_code == 200
+        ImportAttempt.objects.create(
+            kind="songs", mode="full", run_id=144, task_id="new", attempt=1, state="succeeded", data_applied=True
+        )
+        assert self.pipeline.get(url).status_code == 409
+
+    @patch("grow.view.viewset.mixin.BulkImportRunMixin.enqueue_merge")
+    def test_recovery_reuses_staging_and_durable_commit_across_requests(self, enqueue_merge):
+        source = self._failed_gold()
+        uuid = self._resume_artists(source).json()["uuid"]
+        assert self._claim().status_code == 200
+        fingerprints = reverse("pipeline-gold-fingerprints", kwargs={"uuid": uuid})
+        response = self.pipeline.patch(fingerprints, data={"artistsSnapshotSha256": "c" * 64}, format="json")
+        assert response.status_code == 204, response.content
+        artists = reverse("artist-list") + "import-runs/"
+        header = {"HTTP_X_PIPELINE_RUN_REQUEST": uuid}
+        assert self.pipeline.post(artists, data={}, format="json").status_code == 409
+        prepared = self.pipeline.post(artists, data={}, format="json", **header)
+        assert prepared.status_code == 201, prepared.content
+        run_id = prepared.json()["runId"]
+        assert self.pipeline.post(artists, data={}, format="json", **header).json() == {"runId": run_id}
+        commit = f"{artists}{run_id}/commit/"
+        first = self.pipeline.post(commit, **header)
+        assert first.status_code == 202, first.content
+        repeated = self.pipeline.post(commit, **header)
+        assert repeated.status_code == 202, repeated.content
+        assert repeated.json() == first.json()
+        enqueue_merge.assert_called_once()
+        attempt = ImportAttempt.objects.get(run_id=run_id)
+
+        assert self._patch(uuid, {"status": "failed"}).status_code == 200
+        next_uuid = self._resume_artists(source).json()["uuid"]
+        assert self._claim().status_code == 200
+        url = reverse("pipeline-artists-recovery", kwargs={"uuid": next_uuid})
+        state = self.pipeline.get(url).json()
+        assert (state["artistsRunId"], state["artistsTaskId"]) == (run_id, attempt.task_id)
+        assert state["artistsApplied"] is False
+        assert self._latest().json()["activeImport"]["taskId"] == attempt.task_id
+        assert self._patch(next_uuid, {"status": "succeeded"}).status_code == 409
+        ImportReceipt.objects.create(run_id=run_id, result={})
+        ImportAttempt.objects.filter(pk=attempt.pk).update(state="failed")
+        state = self.pipeline.get(url).json()
+        assert state["artistsApplied"] is True
+        assert state["snapshotsFinalized"] is False
+        assert (
+            self.api_client.patch(
+                reverse("pipeline-run", kwargs={"uuid": next_uuid}), data={"status": "succeeded"}, format="json"
+            ).status_code
+            == 403
+        )
+        assert self._patch(next_uuid, {"status": "succeeded"}).status_code == 200
+        assert self._resume_artists(source).status_code == 409
 
     def test_request_claim_progress_succeed(self):
         requested = self._request()
@@ -174,7 +364,10 @@ class TestPipelineRun(AppTestCase):
         assert done.json()["stepTelemetry"]["wikidata"] == [finished]
         assert done.json()["stepTelemetry"]["wikidataRetry"] is None
         assert self._latest_run() == done.json()
-        assert self.api_client.get(reverse("pipeline-runs")).json()["results"][0] == done.json()
+        assert self.api_client.get(reverse("pipeline-runs")).json()["results"][0] == {
+            **done.json(),
+            "artistsRecovery": None,
+        }
 
     def test_importing_graph_stage_follows_importing_tree(self):
         uuid = self._request("full")["uuid"]

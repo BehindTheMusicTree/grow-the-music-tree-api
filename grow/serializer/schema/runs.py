@@ -59,6 +59,24 @@ class ImportRunLatestSerializer(serializers.Serializer):
 ImportRunPageSerializer = paginated_serializer("ImportRunPage", ImportRunSerializer)
 
 
+class ArtistsRecoverySerializer(serializers.Serializer):
+    eligible = serializers.BooleanField()
+    reason = serializers.CharField(allow_null=True)
+    songs_applied = serializers.BooleanField()
+    songs_run_id = serializers.IntegerField()
+    artists_applied = serializers.BooleanField()
+    snapshots_finalized = serializers.BooleanField()
+    artists_run_id = serializers.IntegerField(allow_null=True)
+    artists_task_id = serializers.CharField(allow_null=True)
+
+
+class ArtistsRecoveryExecutionSerializer(ArtistsRecoverySerializer):
+    source_run_uuid = serializers.UUIDField()
+    manifest_sha256 = serializers.CharField()
+    songs_snapshot_sha256 = serializers.CharField()
+    artists_snapshot_sha256 = serializers.CharField(allow_null=True)
+
+
 class PipelineRunSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
     kind = serializers.ChoiceField(choices=PipelineRunRequest.Kind.choices)
@@ -75,6 +93,9 @@ class PipelineRunSerializer(serializers.Serializer):
     finished_on = serializers.DateTimeField(allow_null=True)
     requested_by = serializers.EmailField(allow_null=True)
     cancel_requested = serializers.BooleanField()
+    source_run_uuid = serializers.UUIDField(required=False)
+    manifest_sha256 = serializers.CharField(required=False)
+    songs_snapshot_sha256 = serializers.CharField(required=False)
 
 
 class PipelineRunLatestSerializer(PipelineRunSerializer):
@@ -86,4 +107,8 @@ class PipelineRunLatestSerializer(PipelineRunSerializer):
     )
 
 
-PipelineRunPageSerializer = paginated_serializer("PipelineRunPage", PipelineRunSerializer)
+class PipelineRunHistorySerializer(PipelineRunSerializer):
+    artists_recovery = ArtistsRecoverySerializer(allow_null=True)
+
+
+PipelineRunPageSerializer = paginated_serializer("PipelineRunPage", PipelineRunHistorySerializer)
