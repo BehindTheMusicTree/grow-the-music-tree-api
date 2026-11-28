@@ -52,6 +52,7 @@ from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlayl
 from grow.model.song.Song import Song
 from tests.utils.curation_export import record_export, record_graph_export
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.openapi import assert_response_matches_schema
 from tests.utils.song_graph import reject_scalar_genre_projection
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -324,8 +325,8 @@ def test_e01_graph_endpoint_round_trip_permissions_and_conflict(payload):
     assert response.status_code == 200, response.data
     loaded = APIClient().get(url)
     assert loaded.status_code == 200
-    result = loaded.json()
-    assert result["revision"] == response.json()["revision"]
+    result = assert_response_matches_schema(loaded, url)
+    assert result["revision"] == assert_response_matches_schema(response, url, "put")["revision"]
     assert result["graph"]["contractVersion"] == 5
     assert {node["id"] for node in result["graph"]["nodes"]} == set(body["mapping"])
     assert all(result["mapping"].values())

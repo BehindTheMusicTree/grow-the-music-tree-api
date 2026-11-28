@@ -3,6 +3,7 @@ from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.Fields
 
 from grow.model.criteria.children.genre.Genre import Genre
 from tests.integration.criteria.GenreTestCase import GenreTestCase
+from tests.utils.openapi import assert_response_matches_schema
 
 
 class TestStructure(GenreTestCase):
@@ -17,6 +18,8 @@ class TestStructure(GenreTestCase):
         data = [{Fields.ID: "Q102", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}, self._mainstream_pop_root()]
         response = self._post_genres_tree_import(data={Fields.TREE_NAME: "global", Fields.TREE: data})
         assert response.status_code == status.HTTP_201_CREATED
+        rendered = assert_response_matches_schema(response, "/v1/genres/tree/import/", "post")
+        assert sorted(genre["name"] for genre in rendered["results"]) == ["Mainstream Pop", "Rock"]
 
         genres = Genre.objects.filter(user=None)
         assert genres.count() == 2

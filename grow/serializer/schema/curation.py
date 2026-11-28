@@ -1,9 +1,6 @@
 """Output shapes of the curation views (`grow/view/curation.py`), declared only so the OpenAPI schema can describe them."""
 
-from typing import Any
-
 from rest_framework import serializers
-from the_music_tree_grow_contracts import load_schema
 
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.serializer.schema.common import paginated_serializer
@@ -67,17 +64,6 @@ class CurationStatusSerializer(serializers.Serializer):
     pending_count = serializers.IntegerField()
 
 
-class CurationViolationSerializer(serializers.Serializer):
-    kind = serializers.CharField()
-    message = serializers.CharField()
-    item_ids = serializers.ListField(child=serializers.CharField())
-
-
-class CurationExportConflictSerializer(serializers.Serializer):
-    detail = serializers.CharField()
-    violations = CurationViolationSerializer(many=True)
-
-
 class WikidataResolutionsResultSerializer(serializers.Serializer):
     remapped_count = serializers.IntegerField()
     review_count = serializers.IntegerField()
@@ -116,26 +102,3 @@ class CurationReviewItemSerializer(serializers.Serializer):
     target = serializers.CharField(allow_null=True)
     evidence = serializers.DictField(allow_null=True)
     reported_on = serializers.DateTimeField()
-
-
-def _openapi_compatible(node: Any) -> Any:
-    """JSON Schema 2020-12 to OpenAPI 3.0: `const` has no equivalent but a one-value `enum`."""
-    if isinstance(node, list):
-        return [_openapi_compatible(n) for n in node]
-    if not isinstance(node, dict):
-        return node
-    converted = {k: _openapi_compatible(v) for k, v in node.items() if k not in ("$schema", "$id", "const")}
-    if "const" in node:
-        converted["enum"] = [node["const"]]
-    return converted
-
-
-def curation_export_schema() -> dict[str, Any]:
-    """The export contract.
-
-    A raw schema rather than a serializer: the view renders with `JSONRenderer`, so its keys stay snake_case, which the
-    camelize hook would otherwise rewrite.
-    """
-    schema = _openapi_compatible(load_schema("curation_export"))
-    schema.pop("title", None)
-    return schema

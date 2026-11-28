@@ -1,0 +1,113 @@
+{
+  "regions": [
+    {
+      "id": "Q142",
+      "name": "Q142",
+      "kind": "country",
+      "parentId": null,
+      "childIds": [
+        "Q90"
+      ],
+      "zoneIds": [
+        "Q91"
+      ],
+      "bbox": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "centroid": [
+        0.5,
+        0.5
+      ],
+      "overviewItemId": null,
+      "inheritedOverviewItemId": null,
+      "genres": [
+        {
+          "itemId": "Q11399",
+          "relation": "global"
+        },
+        {
+          "itemId": "Q1062400",
+          "relation": "tradition"
+        }
+      ],
+      "songCount": 1,
+      "genreCount": 1,
+      "isoCode": "FR",
+      "cityIds": [
+        "Q90"
+      ],
+      "mainBbox": [
+        0,
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "id": "Q90",
+      "name": "Q90",
+      "kind": "city",
+      "parentId": "Q142",
+      "childIds": [],
+      "zoneIds": [],
+      "bbox": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "centroid": [
+        0.5,
+        0.5
+      ],
+      "overviewItemId": null,
+      "inheritedOverviewItemId": null,
+      "genres": [
+        {
+          "itemId": "Q11399",
+          "relation": "global"
+        }
+      ],
+      "songCount": 1,
+      "genreCount": 1
+    },
+    {
+      "id": "Q91",
+      "name": "Q91",
+      "kind": "zone",
+      "parentId": "Q142",
+      "childIds": [],
+      "zoneIds": [],
+      "bbox": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "centroid": [
+        0.5,
+        0.5
+      ],
+      "overviewItemId": null,
+      "inheritedOverviewItemId": null,
+      "genres": [
+        {
+          "itemId": "Q11399",
+          "relation": "global"
+        }
+      ],
+      "songCount": 1,
+      "genreCount": 1
+    }
+  ],
+  "tileset": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "worldChildIds": [
+    "Q142"
+  ],
+  "worldZoneIds": [
+    "Q91"
+  ]
+}

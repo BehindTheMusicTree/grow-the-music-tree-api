@@ -87,7 +87,7 @@ jobs:
         run: uv sync --all-extras
 
       - name: Regenerate openapi.yaml (drf-spectacular)
-        run: uv run django-admin spectacular --file openapi.yaml --validate
+        run: uv run django-admin spectacular --file openapi.yaml --validate --fail-on-warn
 
       - name: Committed openapi.yaml is current
         run: git diff --exit-code openapi.yaml

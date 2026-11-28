@@ -1,0 +1,10 @@
+{
+  "alerts": [
+    {
+      "regionId": "Q142",
+      "itemId": "LOCAL:region-q142",
+      "reason": "superseded",
+      "targetItemId": "Q11399"
+    }
+  ]
+}

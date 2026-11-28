@@ -1,0 +1,60 @@
+{
+  "columns": [
+    {
+      "id": "c0",
+      "position": 0,
+      "regionId": "r0",
+      "lanes": [
+        {
+          "entityId": "E1",
+          "label": "Blues",
+          "startYear": 1890,
+          "endYear": 2000
+        }
+      ]
+    }
+  ],
+  "regions": [
+    {
+      "id": "r0",
+      "label": "North America",
+      "startPosition": 0,
+      "endPosition": 0
+    }
+  ],
+  "bands": [
+    {
+      "entityId": "E1",
+      "label": "Blues",
+      "fragment": 0,
+      "startPosition": 0,
+      "endPosition": 0,
+      "startYear": 1890,
+      "endYear": null
+    }
+  ],
+  "successions": [
+    {
+      "predecessorId": "E1",
+      "successorId": "E2"
+    }
+  ],
+  "traditions": [
+    {
+      "wikidataId": "Q1",
+      "label": "Blues",
+      "start": 1890,
+      "end": null,
+      "anchorId": "Q2",
+      "inCanonicalTree": true,
+      "sitelinks": 120
+    }
+  ],
+  "traditionLinks": [
+    {
+      "sourceId": "Q1",
+      "targetId": "Q2",
+      "kind": "lineage"
+    }
+  ]
+}

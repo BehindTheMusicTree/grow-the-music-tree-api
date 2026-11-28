@@ -1,3 +1,6 @@
+from datetime import UTC, datetime
+from unittest.mock import patch
+
 import pytest
 from django.conf import settings
 from django.urls import reverse
@@ -6,8 +9,10 @@ from the_music_tree_grow_contracts import SCHEMA_NAMES, first_error, load_schema
 from the_music_tree_grow_contracts.curation_lists import CURATION_LISTS
 from the_music_tree_grow_contracts.generate import SCHEMA_PATH, render
 
+from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.openapi import assert_response_matches_schema, wire_fixture
 
 
 @pytest.mark.parametrize("name", SCHEMA_NAMES)
@@ -26,7 +31,7 @@ class TestCurationExportContract(AppTestCase):
         self.api_client.credentials(HTTP_X_API_KEY=settings.PIPELINE_API_KEY)
         response = self.api_client.get(reverse("curation-export"))
         assert response.status_code == 200, response.content
-        return response.json()
+        return assert_response_matches_schema(response, reverse("curation-export"))
 
     def test_seeded_export_then_valid(self):
         export = self.export()
@@ -34,6 +39,15 @@ class TestCurationExportContract(AppTestCase):
         assert first_error("curation_export", export) is None
         assert export["edges"]
         assert any(export[list_name] for list_name in CURATION_LISTS)
+
+    def test_anonymous_export_fixture_matches_public_response(self):
+        CurationEntry.objects.all().delete()
+        GenreEdgeRule.objects.all().delete()
+        CurationEntry.objects.upsert(
+            "global_genre_scene", {"item_id": "Q404", "scene": "commercial", "reason": "Example"}
+        )
+        with patch("grow.view.curation.timezone.now", return_value=datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)):
+            assert self.export() == wire_fixture("curation-export")
 
     def test_every_relation_and_action_then_valid(self):
         for relation in ("classification", "derivation", "influence"):

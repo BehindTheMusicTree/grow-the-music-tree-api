@@ -19,6 +19,7 @@ from grow.model.region_map.RegionMapSnapshot import RegionMapSnapshot
 from grow.region_map.bulk_import.part_loader import canonical_bytes
 from grow.region_map.bulk_import.RegionMapFileStaging import RegionMapFileStaging
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.openapi import assert_response_matches_schema, committed_schema, wire_fixture, wire_validator
 
 INDEX = reverse("region-map-index")
 RUNS = INDEX + "import-runs/"
@@ -79,6 +80,23 @@ def _gzip_ndjson(lines: list[dict]) -> bytes:
     return gzip.compress("".join(json.dumps(line) + "\n" for line in lines).encode())
 
 
+def test_ndjson_wire_schema_matches_the_gzip_part_and_document_paths():
+    document = committed_schema()
+    operation = document["paths"][f"{RUNS}{{run_id}}/parts/{{part}}/"]["put"]
+    media = operation["requestBody"]["content"]["application/x-ndjson"]
+    validator = wire_validator(document, media["x-ndjson-item-schema"])
+    fixture_by_path = {
+        "index.json": "region-map",
+        "hidden_regions.json": "hidden-regions",
+        "synthesized_overview_alerts.json": "synthesized-overview-alerts",
+    }
+    lines = [_line(path, wire_fixture(fixture)) for path, fixture in fixture_by_path.items()]
+
+    for line in gzip.decompress(_gzip_ndjson(lines)).splitlines():
+        validator.validate(json.loads(line))
+    assert not validator.is_valid(_line("index.json", lines[1]["document"]))
+
+
 def _file(body: bytes) -> str:
     sha256 = hashlib.sha256(body).hexdigest()
     compressed = gzip.compress(body)
@@ -101,7 +119,9 @@ class TestRegionMapReads(AppTestCase):
         self.public = APIClient()
 
     def test_index_without_snapshot_then_404(self):
-        assert self.public.get(INDEX).status_code == status.HTTP_404_NOT_FOUND
+        response = self.public.get(INDEX)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert_response_matches_schema(response, INDEX)
 
     def test_index_served_gzip_with_etag_then_304(self):
         snapshot = _snapshot(b'{"regions":[]}')
@@ -119,6 +139,19 @@ class TestRegionMapReads(AppTestCase):
         )
         assert revalidated.status_code == status.HTTP_304_NOT_MODIFIED
         assert revalidated["ETag"] == f'"{snapshot.checksum}-gzip"'
+
+    def test_index_fixture_matches_both_public_representations(self):
+        document = wire_fixture("region-map")
+        _snapshot(json.dumps(document).encode())
+
+        for encoding in ("identity", "gzip"):
+            response = self.public.get(INDEX, HTTP_ACCEPT_ENCODING=encoding)
+            assert response.status_code == status.HTTP_200_OK
+            assert assert_response_matches_schema(response, INDEX) == document
+            assert response.get("Content-Encoding") == ("gzip" if encoding == "gzip" else None)
+            revalidated = self.public.get(INDEX, HTTP_ACCEPT_ENCODING=encoding, HTTP_IF_NONE_MATCH=response["ETag"])
+            assert revalidated.status_code == status.HTTP_304_NOT_MODIFIED
+            assert_response_matches_schema(revalidated, INDEX)
 
     def test_each_encoding_revalidates_only_with_its_own_etag(self):
         snapshot = _snapshot(b'{"regions":[]}')
@@ -169,7 +202,10 @@ class TestRegionMapReads(AppTestCase):
 @pytest.mark.postgres
 class TestRegionMapAttachable(AppTestCase):
     def test_without_snapshot_then_404(self):
-        assert APIClient().get(reverse("region-map-attachable")).status_code == status.HTTP_404_NOT_FOUND
+        url = reverse("region-map-attachable")
+        response = APIClient().get(url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert_response_matches_schema(response, url)
 
     def test_lists_drawn_then_hidden_regions(self):
         drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
@@ -178,7 +214,7 @@ class TestRegionMapAttachable(AppTestCase):
 
         response = APIClient().get(reverse("region-map-attachable"))
 
-        assert response.json() == [
+        assert assert_response_matches_schema(response, reverse("region-map-attachable")) == [
             {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "hidden": False},
             {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "hidden": True},
         ]
@@ -216,7 +252,9 @@ class TestRegionMapGenres(AppTestCase):
         _snapshot(json.dumps({"regions": [region], "tileset": TILESET}).encode())
 
     def test_without_snapshot_then_404(self):
-        assert self.public.get(self.URL).status_code == status.HTTP_404_NOT_FOUND
+        response = self.public.get(self.URL)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert_response_matches_schema(response, self.URL)
 
     def test_lists_referenced_genres_only_and_skips_unknown_ids(self):
         chanson = self.model_fixture_factory.create_genre("Chanson", user=None, wikidata_id="Q1")
@@ -226,7 +264,7 @@ class TestRegionMapGenres(AppTestCase):
         response = self.public.get(self.URL)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == [
+        assert assert_response_matches_schema(response, self.URL) == [
             {
                 "wikidataId": "Q1",
                 "uuid": str(chanson.uuid),
@@ -256,7 +294,7 @@ class TestRegionMapGenres(AppTestCase):
             for validator in (initial["ETag"], "W/" + initial["ETag"], '"other", ' + initial["ETag"], "*"):
                 response = self.public.get(self.URL, HTTP_IF_NONE_MATCH=validator)
                 assert response.status_code == status.HTTP_304_NOT_MODIFIED
-                assert response.content == b""
+                assert_response_matches_schema(response, self.URL)
                 for header in ("ETag", "Cache-Control"):
                     assert response[header] == initial[header]
 
@@ -313,7 +351,8 @@ class TestRegionMapImportRun(AppTestCase):
         assert response.status_code == status.HTTP_202_ACCEPTED
         task = self.api_client.get(path=INDEX + f"import/{response.data['task_id']}/status/")
         assert task.data["status"] == "success", task.data
-        return task.data["result"]
+        body = assert_response_matches_schema(task, INDEX + "import/{task_id}/status/")
+        return body["result"]
 
     def test_round_trip_serves_index(self):
         result = self._sync(_parts())
@@ -353,6 +392,7 @@ class TestRegionMapImportRun(AppTestCase):
             [files[:2]],
             [[*files, _line("geometry/world.geojson", {"type": "FeatureCollection"})]],
             [[*files[:2], _line("other.json", _index())]],
+            [[_line("index.json", files[1]["document"]), *files[1:]]],
             _parts(_index(tileset=None)),
             _parts(_index(tileset="nope")),
             _parts(_index(files={"geometry/world.geojson": TILESET})),

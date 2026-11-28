@@ -1,16 +1,20 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
-from the_music_tree_genre_kit.serializer.model.criteria.input.tree_import.serializer import CriteriaTreeImportSerializer
 
+from grow.openapi.documents import component_ref
 from grow.serializer.model.playlist.children.criteria.output.minimum import CriteriaPlaylistMinimumSerializer
 from grow.serializer.model.playlist.children.criteria.output.simple import CriteriaPlaylistSimpleSerializer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
 
 
+@extend_schema_field({"type": "array", "items": component_ref("GenreTreeNode")})
+class GenreTreeChildrenField(serializers.ListField):
+    pass
+
+
 class GenreTreeNodeSerializer(serializers.Serializer):
     name = serializers.CharField()
-    children = serializers.ListField(
-        child=serializers.DictField(), help_text="Nodes of this same shape (`name`, `children`), recursively."
-    )
+    children = GenreTreeChildrenField(child=serializers.DictField())
 
 
 class GenreLinkSuggestionSerializer(SongWithoutPlaylistsSerializer):
@@ -42,12 +46,6 @@ class GenreCataloguePlaylistSerializer(CriteriaPlaylistMinimumSerializer):
             "genre_only_tracks_count",
             "genre_and_subgenres_tracks_count",
         ]
-
-
-class GenreTreeImportFileSerializer(CriteriaTreeImportSerializer):
-    """A Gold tree file: the import pops `curationExportedOn` before the tree serializer validates the rest."""
-
-    curation_exported_on = serializers.DateTimeField(required=False)
 
 
 class GenreTreeCatalogueSerializer(serializers.Serializer):

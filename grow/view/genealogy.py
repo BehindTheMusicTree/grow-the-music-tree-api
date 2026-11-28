@@ -5,8 +5,7 @@ from typing import Any
 from django.db import transaction
 from django.http import HttpResponseNotModified
 from django.utils.http import parse_etags
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.parsers import JSONParser
@@ -19,6 +18,7 @@ from the_music_tree_grow_contracts import first_error
 
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.import_run.ImportRun import ImportRun
+from grow.openapi.documents import component_ref, object_schema
 from grow.view.curation import CurationView
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
 
@@ -41,7 +41,8 @@ class GenealogyImportView(CurationView):
     renderer_classes = [JSONRenderer]
 
     @extend_schema(
-        request=OpenApiTypes.OBJECT,
+        request={"application/json": component_ref("Genealogy")},
+        extensions={"x-grow-required-body": True},
         responses={
             status.HTTP_200_OK: _IMPORT_RESULT,
             status.HTTP_201_CREATED: _IMPORT_RESULT,
@@ -84,7 +85,25 @@ class GenealogyView(APIView):
     renderer_classes = [JSONRenderer]
 
     @extend_schema(
-        responses={status.HTTP_200_OK: OpenApiTypes.OBJECT, status.HTTP_304_NOT_MODIFIED: None},
+        parameters=[
+            OpenApiParameter("If-None-Match", str, OpenApiParameter.HEADER),
+            OpenApiParameter("ETag", str, OpenApiParameter.HEADER, response=[200, 304], required=True),
+        ],
+        responses={
+            200: component_ref("Genealogy"),
+            304: None,
+            404: OpenApiResponse(
+                object_schema(
+                    {
+                        "code": {"const": 3001},
+                        "message": {"type": "string"},
+                        "success": {"const": False},
+                        "details": object_schema({"message": {"type": "string"}, "code": {"const": "not_found"}}),
+                    }
+                ),
+                description="No genealogy snapshot has been imported yet.",
+            ),
+        },
         description="The latest genealogy document, verbatim, with its checksum as `ETag`.",
     )
     def get(self, request: Request) -> Response | HttpResponseNotModified:

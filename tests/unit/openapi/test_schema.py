@@ -1,11 +1,21 @@
+from copy import deepcopy
+
 import pytest
+import yaml
+from django.urls import resolve, reverse
 from djangorestframework_camel_case.util import camelize
 from drf_spectacular.drainage import GENERATOR_STATS
 from drf_spectacular.generators import SchemaGenerator
+from drf_spectacular.validation import validate_schema
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
+from the_music_tree_grow_contracts import first_error
 
 from grow.model.history.HistoryAction import HistoryAction
 from grow.model.import_run.ImportRun import ImportRun
+from grow.openapi.documents import GROW_DOCUMENTS, adapt_document, component_ref
 from grow.openapi.views import CachedSchemaView
+from tests.utils.openapi import committed_schema, wire_fixture, wire_validator
 
 
 @pytest.fixture(scope="module")
@@ -63,7 +73,7 @@ def test_both_authentication_schemes_are_declared(schema):
 def test_schema_route_is_public_and_serves_the_api(client):
     response = client.get("/schema/")
     assert response.status_code == 200
-    assert "/v1/albums/" in response.content.decode()
+    assert yaml.safe_load(response.content) == committed_schema()
 
 
 def test_schema_is_generated_once_per_process(client):
@@ -90,7 +100,7 @@ def test_graph_revision_is_a_public_required_nullable_uuid(schema):
     component = _ok_body(schema, path)["$ref"].rsplit("/", 1)[-1]
     response = schema["components"]["schemas"][component]
     assert response["required"] == ["revision"]
-    assert response["properties"] == {"revision": {"type": "string", "format": "uuid", "nullable": True}}
+    assert wire_validator(schema, response).is_valid({"revision": None})
 
 
 def test_library_viewsets_generate_without_errors():
@@ -143,6 +153,25 @@ def test_region_map_import_run_accepts_only_full_mode(schema):
     assert schema["components"]["schemas"][ref.rsplit("/", 1)[-1]]["enum"] == ["full"]
 
 
+def test_song_ndjson_regional_policy_requires_a_video_and_valid_countries(schema):
+    path = "/v1/library/songs/songs/import-runs/{run_id}/parts/{part}/"
+    media = schema["paths"][path]["put"]["requestBody"]["content"]["application/x-ndjson"]
+    validator = wire_validator(schema, media["x-ndjson-item-schema"])
+    song = {
+        "musicbrainz_recording_id": "b3dea94e-671d-4256-99fa-a19422415b7a",
+        "title": "Example",
+        "artist": "Example artist",
+        "first_release_year": None,
+    }
+    validator.validate(song)
+    policy = {"mode": "allowed", "countries": ["FR"]}
+    assert not validator.is_valid({**song, "youtube_region_restriction": policy})
+    song["youtube_video_id"] = "example"
+    validator.validate({**song, "youtube_region_restriction": policy})
+    assert not validator.is_valid({**song, "youtube_region_restriction": {**policy, "mode": "unrestricted"}})
+    assert not validator.is_valid({**song, "youtube_region_restriction": {**policy, "countries": ["XX"]}})
+
+
 def test_song_import_run_declares_its_reviewed_revisions(schema):
     create = schema["paths"]["/v1/library/songs/songs/import-runs/"]["post"]
     request = create["requestBody"]["content"]["application/json"]["schema"]["$ref"].rsplit("/", 1)[-1]
@@ -157,7 +186,9 @@ def test_song_list_documents_the_optional_total_envelope(schema):
     envelope = schema["components"]["schemas"][_ok_body(schema, "/v1/library/songs/")["$ref"].rsplit("/", 1)[-1]]
     properties = envelope["properties"]
     assert set(properties) == {"overallTotal", "next", "previous", "results", "page", "pageSize", "totalPages"}
-    assert properties["overallTotal"]["nullable"] and properties["page"]["nullable"]
+    for key in ("overallTotal", "page", "next", "previous", "totalPages"):
+        assert key in envelope["required"]
+        assert wire_validator(schema, properties[key]).is_valid(None)
 
 
 def test_song_curation_operations_are_typed(schema):
@@ -239,7 +270,7 @@ def test_curation_list_and_detail_operations_have_distinct_ids(schema):
 
 def test_curation_export_stays_snake_case(schema):
     """The export renders with `JSONRenderer`: its keys are the pipeline's snake_case columns."""
-    body = _ok_body(schema, "/v1/curation/export/")
+    body = schema["components"]["schemas"][_ref(_ok_body(schema, "/v1/curation/export/"))]
     assert {"exported_on", "genre_alias", "edges"} <= set(body["properties"])
     assert "exportedOn" not in body["properties"]
     assert "genre_alias_version" not in body["properties"]
@@ -290,17 +321,149 @@ def test_play_post_content_is_a_uuid(schema):
     assert content["format"] == "uuid"
 
 
-def test_whole_api_generates_without_errors():
+def test_whole_api_generates_without_warnings_or_errors():
     GENERATOR_STATS.reset()
     with GENERATOR_STATS.silence():
         SchemaGenerator().get_schema(request=None, public=True)
     errors = list(GENERATOR_STATS._error_cache)
+    warnings = list(GENERATOR_STATS._warn_cache)
     GENERATOR_STATS.reset()
-    assert errors == []
+    assert errors == warnings == []
 
 
 def test_latest_import_runs_document_every_kind_and_runs_are_nullable(schema):
     latest = schema["components"]["schemas"]["ImportRunLatest"]["properties"]
     assert set(latest) == set(camelize({kind.value: 0 for kind in ImportRun.Kind}))
-    skipped = schema["components"]["schemas"]["ImportRun"]["properties"]["skippedCount"]
-    assert skipped["nullable"] is True
+    run = schema["components"]["schemas"]["ImportRun"]
+    assert "skippedCount" in run["required"]
+    assert wire_validator(schema, run["properties"]["skippedCount"]).is_valid(None)
+    assert wire_validator(schema, latest["artists"]).is_valid(None)
+
+
+def test_document_is_openapi_31_and_all_references_resolve_offline(schema):
+    assert schema["openapi"] == "3.1.0"
+    validate_schema(schema)
+    uri = "urn:grow:openapi"
+    resolver = Registry().with_resource(uri, Resource(schema, DRAFT202012)).resolver(uri)
+
+    def check(value):
+        if isinstance(value, dict):
+            if "$ref" in value:
+                ref = value["$ref"]
+                assert ref.startswith("#/")
+                resolver.lookup(ref)
+            for child in value.values():
+                check(child)
+        elif isinstance(value, list):
+            for child in value:
+                check(child)
+
+    check(schema)
+
+
+@pytest.mark.parametrize("name", ["region-map-index", "region-map-genres", "region-map-attachable"])
+def test_django_region_map_routes_are_public_and_resolve(schema, name):
+    path = reverse(name)
+    assert resolve(path).url_name == name
+    operation = schema["paths"][path]["get"]
+    assert operation["operationId"] == name.replace("-", "_")
+    assert operation["security"] == []
+    responses = operation["responses"]
+    assert "application/json" in responses["200"]["content"]
+    assert "application/json" in responses["404"]["content"]
+    if name == "region-map-attachable":
+        assert set(responses) == {"200", "404"}
+    else:
+        assert responses["200"]["headers"]["ETag"]["required"]
+        assert "content" not in responses["304"]
+
+
+def test_genealogy_import_and_read_use_the_same_json_contract(schema):
+    create = schema["paths"]["/v1/genealogy/import/"]["post"]
+    assert create["requestBody"]["required"]
+    assert create["requestBody"]["content"] == {"application/json": {"schema": component_ref("Genealogy")}}
+    assert set(create["responses"]) == {"200", "201"}
+    assert create["responses"]["200"]["content"] == create["responses"]["201"]["content"]
+    read = schema["paths"]["/v1/genealogy/"]["get"]
+    assert set(read["responses"]) == {"200", "304", "404"}
+    assert _ok_body(schema, "/v1/genealogy/") == component_ref("Genealogy")
+    assert "content" not in read["responses"]["304"]
+
+
+@pytest.mark.parametrize(
+    ("name", "key", "wrong_case", "wrong_type"),
+    [
+        ("genealogy", "traditionLinks", "tradition_links", {}),
+        ("region_map", "tileset", "tileSet", 123),
+        ("curation_export", "exported_on", "exportedOn", []),
+    ],
+)
+def test_embedded_contract_matches_package_on_positive_and_negative_examples(schema, name, key, wrong_case, wrong_type):
+    sample = wire_fixture(name.replace("_", "-"))
+    validator = wire_validator(schema, component_ref(GROW_DOCUMENTS[name]))
+    assert first_error(name, sample) is None
+    validator.validate(sample)
+    missing = {k: value for k, value in sample.items() if k != key}
+    for invalid in (
+        missing,
+        {**missing, wrong_case: sample[key]},
+        {**sample, key: wrong_type},
+        {**sample, "unexpected": True},
+    ):
+        assert first_error(name, invalid) is not None
+        assert not validator.is_valid(invalid)
+
+
+def test_region_bbox_rejects_invalid_nested_types_and_tuple_positions(schema):
+    sample = wire_fixture("region-map")
+    validator = wire_validator(schema, component_ref("RegionMap"))
+    for invalid in ([0, 91, 1, 1], [0, 0, 1], [False, 0, 1, 1], [0, 0, 1, 1, 2]):
+        changed = deepcopy(sample)
+        changed["regions"][0]["bbox"] = invalid
+        assert first_error("region_map", changed) is not None
+        assert not validator.is_valid(changed)
+
+
+def test_graph_input_and_response_embed_graph_with_distinct_mapping_nullability(schema):
+    components = schema["components"]["schemas"]
+    for name in ("GraphImportInput", "ReferenceGraph"):
+        component = components[name]
+        graph = component["properties"]["graph"]
+        assert _ref(graph.get("allOf", [graph])[0]) == "GenreGraph"
+        assert "graph" in component["required"]
+        mapping = wire_validator(schema, component["properties"]["mapping"])
+        assert mapping.is_valid({"LOCAL:opaque-key": None}) == (name == "GraphImportInput")
+    assert "expectedRevision" in components["GraphImportInput"]["required"]
+
+
+def test_tree_imports_use_the_same_recursive_contract_and_a_paginated_response(schema):
+    paths = schema["paths"]
+    single = paths["/v1/genres/tree/import/"]["post"]
+    batch = paths["/v1/genres/trees/import-runs/"]["post"]
+    assert single["requestBody"]["required"] and batch["requestBody"]["required"]
+    request = single["requestBody"]["content"]["application/json"]["schema"]
+    envelope = batch["requestBody"]["content"]["application/json"]["schema"]
+    assert envelope["properties"]["trees"]["items"] == request
+    response = single["responses"]["201"]["content"]["application/json"]["schema"]
+    assert _ref(response) == "GenreTreeImportPage"
+    tree = {"treeName": "global", "tree": [{"id": "Q1", "name": "Example", "children": []}]}
+    validator = wire_validator(schema, request)
+    validator.validate(tree)
+    validator.validate({**tree, "curationExportedOn": "2026-01-02T03:04:05Z"})
+    assert not validator.is_valid({**tree, "tree": []})
+    assert not validator.is_valid({**tree, "graph": {}})
+    tree["tree"][0]["children"] = [{"id": "Q2", "children": []}]
+    assert not validator.is_valid(tree)
+    assert set(batch["responses"]) == {"202"}
+
+
+@pytest.mark.parametrize("keyword", ["dependencies", "$anchor", "unsupported"])
+def test_adaptation_refuses_unsupported_draft_7_keywords(keyword):
+    with pytest.raises(ValueError, match="unsupported keywords"):
+        adapt_document("Example", {"$schema": "http://json-schema.org/draft-07/schema#", keyword: {}})
+
+
+@pytest.mark.parametrize("ref", ["#/definitions/missing", "https://example.invalid/schema"])
+def test_adaptation_refuses_unresolved_references(ref):
+    with pytest.raises(ValueError, match="unsupported reference"):
+        adapt_document("Example", {"$schema": "http://json-schema.org/draft-07/schema#", "$ref": ref})

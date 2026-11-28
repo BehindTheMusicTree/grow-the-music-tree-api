@@ -26,6 +26,10 @@ class CriteriaPlaylist(AbstractCriteriaPlaylist, KitPlaylist):  # type: ignore[d
 
     objects: CriteriaPlaylistManager = CriteriaPlaylistManager()
 
+    @property
+    def name(self) -> str:
+        return super().name
+
     class Meta:
         db_table = "grow_criteria_playlist"
         verbose_name = "Criteria Playlist"

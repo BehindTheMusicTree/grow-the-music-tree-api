@@ -6,41 +6,10 @@ from rest_framework.test import APIClient
 from grow.model.genealogy.GenealogySnapshot import GenealogySnapshot
 from grow.model.import_run.ImportRun import ImportRun
 from tests.utils.AppTestCase import AppTestCase
+from tests.utils.openapi import assert_response_matches_schema, wire_fixture
 
-TRADITION = {
-    "wikidataId": "Q1",
-    "label": "Blues",
-    "start": 1890,
-    "end": None,
-    "anchorId": "Q2",
-    "inCanonicalTree": True,
-    "sitelinks": 120,
-}
-DOCUMENT = {
-    "columns": [
-        {
-            "id": "c0",
-            "position": 0,
-            "regionId": "r0",
-            "lanes": [{"entityId": "E1", "label": "Blues", "startYear": 1890, "endYear": 2000}],
-        }
-    ],
-    "regions": [{"id": "r0", "label": "North America", "startPosition": 0, "endPosition": 0}],
-    "bands": [
-        {
-            "entityId": "E1",
-            "label": "Blues",
-            "fragment": 0,
-            "startPosition": 0,
-            "endPosition": 0,
-            "startYear": 1890,
-            "endYear": None,
-        }
-    ],
-    "successions": [{"predecessorId": "E1", "successorId": "E2"}],
-    "traditions": [TRADITION],
-    "traditionLinks": [{"sourceId": "Q1", "targetId": "Q2", "kind": "lineage"}],
-}
+DOCUMENT = wire_fixture("genealogy")
+TRADITION = DOCUMENT["traditions"][0]
 
 
 class TestGenealogy(AppTestCase):
@@ -57,7 +26,7 @@ class TestGenealogy(AppTestCase):
         assert response.status_code == status.HTTP_201_CREATED
         snapshot = GenealogySnapshot.objects.get()
         assert snapshot.document == DOCUMENT
-        assert snapshot.checksum == response.json()["checksum"]
+        assert snapshot.checksum == assert_response_matches_schema(response, self.import_url, "post")["checksum"]
         assert list(ImportRun.objects.values_list("kind", "count", "skipped_count")) == [("genealogy", 1, None)]
         assert snapshot.import_run == ImportRun.objects.get()
 
@@ -67,7 +36,7 @@ class TestGenealogy(AppTestCase):
         response = self.pipeline.post(self.import_url, {**DOCUMENT}, format="json")
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["created"] is False
+        assert assert_response_matches_schema(response, self.import_url, "post")["created"] is False
         assert GenealogySnapshot.objects.count() == 1
         assert list(ImportRun.objects.order_by("pk").values_list("count", "skipped_count")) == [(1, None), (1, 1)]
 
@@ -112,7 +81,7 @@ class TestGenealogy(AppTestCase):
         response = APIClient().get(self.url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json() == changed
+        assert assert_response_matches_schema(response, self.url) == changed
         assert response["ETag"] == f'"{checksum}"'
 
     def test_get_with_matching_etag_then_304(self):
@@ -121,6 +90,7 @@ class TestGenealogy(AppTestCase):
         response = APIClient().get(self.url, HTTP_IF_NONE_MATCH=f'"{checksum}"')
 
         assert response.status_code == status.HTTP_304_NOT_MODIFIED
+        assert_response_matches_schema(response, self.url)
         assert response["ETag"] == f'"{checksum}"'
 
     def test_get_with_stale_etag_then_200(self):
@@ -129,7 +99,9 @@ class TestGenealogy(AppTestCase):
         assert APIClient().get(self.url, HTTP_IF_NONE_MATCH='"stale"').status_code == status.HTTP_200_OK
 
     def test_get_without_snapshot_then_404(self):
-        assert APIClient().get(self.url).status_code == status.HTTP_404_NOT_FOUND
+        response = APIClient().get(self.url)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert_response_matches_schema(response, self.url)
 
     def test_admin_import_then_snapshot_without_import_run(self):
         response = self.api_client.post(self.import_url, DOCUMENT, format="json")
