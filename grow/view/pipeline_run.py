@@ -277,9 +277,7 @@ class PipelineRunView(CurationView):
         if run.kind == Kind.SYNC_ARTISTS and data.get("status") == Status.SUCCEEDED:
             if request.auth.role != "pipeline":
                 raise PermissionDenied
-            state = require_recovery(run.source_run)
-            if not state["artists_applied"]:
-                raise RecoveryConflict("La fusion des artistes n'est pas confirmée.")
+            require_recovery(run.source_run, finalize=True)
         if "step_telemetry" in data:
             if run.kind != Kind.FULL:
                 raise ValidationError({"step_telemetry": "Step telemetry is only available for full runs"})

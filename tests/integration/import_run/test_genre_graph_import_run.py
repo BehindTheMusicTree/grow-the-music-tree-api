@@ -32,6 +32,7 @@ from grow.genre_graph.bulk_import.merge import (
 from grow.genre_graph.models import GenreGraphAssignmentBackup, GenreGraphImport
 from grow.model.curation.CurationReviewItem import CurationReviewItem
 from grow.model.genre_tree_version.GenreTreeVersion import GenreTreeVersion
+from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
 from grow.model.playlist.children.criteria.genre.GenrePlaylist import GenrePlaylist
 from grow.model.song.Song import Song
 from tests.integration.criteria.test_reference_graph import _retirement, _without_identity
@@ -77,6 +78,16 @@ def runs_url():
 
 def status_of(api, task_id):
     return api.get(reverse("genre-list") + f"graph/import/{task_id}/status/").json()
+
+
+def test_graph_import_rejects_an_artists_recovery_request(payload):
+    source = PipelineRunRequest.objects.create(kind="sync", status="failed")
+    recovery = PipelineRunRequest.objects.create(kind="sync_artists", status="running", source_run=source)
+    response = client("pipeline").post(
+        runs_url(), body(payload), format="json", HTTP_X_PIPELINE_RUN_REQUEST=str(recovery.uuid)
+    )
+    assert response.status_code == status.HTTP_409_CONFLICT, response.content
+    assert not BulkImportRun.objects.filter(kind=GENRE_GRAPH_KIND).exists()
 
 
 @pytest.mark.parametrize("published", [False, True])

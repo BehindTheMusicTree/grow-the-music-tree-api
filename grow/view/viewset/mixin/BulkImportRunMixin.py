@@ -252,7 +252,7 @@ def bulk_import_run_actions(
         mode = request.data.get("mode", BulkImportRun.Mode.FULL)
         if mode not in modes:
             raise ValidationError(f"mode must be one of {', '.join(modes)}")
-        pipeline_run = linked_pipeline_run(request)
+        pipeline_run = linked_pipeline_run(request, allow_artists_recovery=kind == ARTISTS)
         metadata = run_metadata(request.data, mode) if kind == ImportRun.Kind.SONGS else {}
         with transaction.atomic():
             if kind == SONGS:
@@ -263,8 +263,6 @@ def bulk_import_run_actions(
             if kind == SONGS:
                 require_reviewed_contract(metadata)
             if pipeline_run is not None and pipeline_run.kind == Kind.SYNC_ARTISTS:
-                if kind != ARTISTS:
-                    raise RecoveryConflict("Cette demande est réservée à l'import artistes.")
                 if request.auth.role != "pipeline":
                     raise PermissionDenied
                 parts = request.data.get("expected_parts")
@@ -272,7 +270,7 @@ def bulk_import_run_actions(
                     not isinstance(parts, dict)
                     or parts.keys() != {"artists"}
                     or type(parts["artists"]) is not int
-                    or parts["artists"] < 0
+                    or parts["artists"] < 1
                 ):
                     raise ValidationError('expected_parts must declare {"artists": <number of parts>}')
                 metadata["expected_parts"] = parts
@@ -430,7 +428,7 @@ def bulk_import_run_actions(
 def recovery_import_request(request, source_id):
     if request.auth.role != "pipeline":
         raise PermissionDenied
-    recovery = linked_pipeline_run(request)
+    recovery = linked_pipeline_run(request, allow_artists_recovery=True)
     if recovery is None or recovery.kind != Kind.SYNC_ARTISTS or recovery.source_run_id != source_id:
         raise RecoveryConflict("La demande de reprise active doit être fournie et correspondre à la source.")
     return recovery

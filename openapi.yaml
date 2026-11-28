@@ -5875,7 +5875,7 @@ components:
           type: object
           additionalProperties:
             type: integer
-            minimum: 0
+            minimum: 1
           description: 'Required only for artists recovery: {"artists": <number of
             parts>}.'
     ArtistMinimum:

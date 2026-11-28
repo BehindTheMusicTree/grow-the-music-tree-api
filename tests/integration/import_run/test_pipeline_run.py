@@ -159,6 +159,14 @@ class TestPipelineRun(AppTestCase):
         source.refresh_from_db()
         assert source.status == "failed"
 
+    def test_successful_gold_with_empty_artists_delta_is_already_finalized(self):
+        source = self._failed_gold()
+        source.status = "succeeded"
+        source.save(update_fields=["status"])
+        history = self.api_client.get(reverse("pipeline-runs")).json()["results"][0]
+        assert history["artistsRecovery"]["snapshotsFinalized"] is True
+        assert self._resume_artists(source).status_code == 409
+
     def test_artists_recovery_requires_admin_and_a_source(self):
         source = self._failed_gold()
         assert self._resume_artists(source, self.pipeline).status_code == status.HTTP_403_FORBIDDEN
@@ -210,6 +218,9 @@ class TestPipelineRun(AppTestCase):
         ImportAttempt.objects.create(
             pipeline_run_request=source, kind="artists", mode="full", run_id=144, task_id="artists", attempt=1
         )
+        assert self._resume_artists(source).status_code == 409
+        source.artists_snapshot_sha256 = "c" * 64
+        source.save(update_fields=["artists_snapshot_sha256"])
         assert self._resume_artists(source).status_code == 201
         assert self._claim().status_code == 200
         assert self._latest().json()["activeImport"]["taskId"] == "artists"
@@ -251,6 +262,10 @@ class TestPipelineRun(AppTestCase):
         declaration = {"expectedParts": {"artists": 1}}
         assert self.pipeline.post(artists, data={}, format="json").status_code == 409
         assert self.pipeline.post(artists, data={}, format="json", **header).status_code == 400
+        assert (
+            self.pipeline.post(artists, data={"expectedParts": {"artists": 0}}, format="json", **header).status_code
+            == 400
+        )
         prepared = self.pipeline.post(artists, data=declaration, format="json", **header)
         assert prepared.status_code == 201, prepared.content
         run_id = prepared.json()["runId"]
@@ -263,7 +278,7 @@ class TestPipelineRun(AppTestCase):
         assert self.pipeline.post(commit, **header).status_code == 400
         body = {"data": gzip.compress(b""), "content_type": "application/x-ndjson", "HTTP_CONTENT_ENCODING": "gzip"}
         part = f"{artists}{run_id}/parts/0/"
-        assert self.api_client.put(part, **body, **header).status_code == 403
+        assert self.api_client.put(part, format=None, **body, **header).status_code == 403
         assert self.pipeline.put(part, **body).status_code == 409
         assert self.pipeline.put(f"{artists}{run_id}/parts/1/", **body, **header).status_code == 400
         PipelineRunRequest.objects.filter(uuid=uuid).update(cancel_requested_on=timezone.now())
@@ -290,6 +305,7 @@ class TestPipelineRun(AppTestCase):
         assert self._latest().json()["activeImport"]["taskId"] == attempt.task_id
         assert self._patch(next_uuid, {"status": "succeeded"}).status_code == 409
         ImportReceipt.objects.create(run_id=run_id, result={})
+        assert self._patch(next_uuid, {"status": "succeeded"}).status_code == 409
         ImportAttempt.objects.filter(pk=attempt.pk).update(state="failed")
         state = self.pipeline.get(url).json()
         assert state["artistsApplied"] is True

@@ -83,7 +83,7 @@ def recovery_states(sources: Iterable[PipelineRunRequest], *, attest: bool = Fal
         artists = [a for a in attempts if a.kind == ARTISTS and a.pipeline_run_request_id in related]
         applied = next((a for a in artists if a.data_applied or a.receipt_at is not None), None)
         submitted = next((a for a in artists if a.state in MERGING), None)
-        snapshots_finalized = source.pk in finalized or (source.status == Status.SUCCEEDED and applied is not None)
+        snapshots_finalized = source.pk in finalized or source.status == Status.SUCCEEDED
         songs_applied = songs.receipt_at is not None or (songs.state == State.SUCCEEDED and songs.data_applied)
         attempt = applied or submitted
         reason = None
@@ -113,8 +113,8 @@ def recovery_states(sources: Iterable[PipelineRunRequest], *, attest: bool = Fal
             reason = "Un autre import a modifié le catalogue depuis ce Gold."
         elif not attest and not (source.manifest_sha256 and source.songs_snapshot_sha256):
             reason = "La provenance du Gold doit être attestée."
-        elif applied is not None and not source.artists_snapshot_sha256:
-            reason = "L'empreinte du snapshot artistes appliqué est indisponible."
+        elif attempt is not None and not source.artists_snapshot_sha256:
+            reason = "L'empreinte du snapshot de l'import artistes est indisponible."
         states[source.pk] = {
             "eligible": reason is None,
             "reason": reason,
@@ -128,10 +128,15 @@ def recovery_states(sources: Iterable[PipelineRunRequest], *, attest: bool = Fal
     return states
 
 
-def require_recovery(source: PipelineRunRequest, *, attest: bool = False) -> dict[str, Any]:
+def require_recovery(source: PipelineRunRequest, *, attest: bool = False, finalize: bool = False) -> dict[str, Any]:
     state = recovery_states([source], attest=attest).get(source.pk)
     if not state or not state["eligible"]:
         raise RecoveryConflict(state["reason"] if state else "Aucune fusion chansons liée à cette demande.")
+    if finalize:
+        if not state["artists_applied"]:
+            raise RecoveryConflict("La fusion des artistes n'est pas confirmée.")
+        if _latest_attempts().filter(run_id=state["artists_run_id"], state__in=MERGING).exists():
+            raise RecoveryConflict("Le traitement de l'import artistes est toujours en cours.")
     return state
 
 
