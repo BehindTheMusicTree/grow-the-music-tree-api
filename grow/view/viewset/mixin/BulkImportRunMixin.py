@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from collections.abc import Callable
 from datetime import timedelta
-from typing import IO
+from typing import IO, Any
 
 from django.conf import settings
 from django.db import models, transaction
@@ -31,6 +31,8 @@ from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
 from grow.model.import_run.ImportRun import ImportRun
+from grow.openapi.documents import object_schema
+from grow.openapi.ndjson import ASSIGNMENT_ROW, UUID, part_row
 from grow.pipeline_run.artists_recovery import (
     ARTISTS,
     SONGS,
@@ -47,9 +49,9 @@ from grow.serializer.schema.common import (
     FullImportRunCreateRequestSerializer,
     ImportRunCreatedSerializer,
     ImportRunCreateRequestSerializer,
-    ImportRunStatusSerializer,
     TaskIdSerializer,
 )
+from grow.serializer.schema.import_status import IMPORT_RUN_STATUS_SERIALIZERS
 from grow.serializer.schema.song import SongImportRunCreateRequestSerializer
 from grow.track.bulk_import.assignment_part_loader import load_part as load_assignment_part
 from grow.track.bulk_import.contract import (
@@ -67,9 +69,10 @@ _RUN_ID_PARAM = OpenApiParameter("run_id", int, OpenApiParameter.PATH)
 _PART_PARAM = OpenApiParameter("part", int, OpenApiParameter.PATH)
 
 
-def _upload_schema(description: str, parameters: list[OpenApiParameter]) -> Callable:
+def _upload_schema(description: str, parameters: list[OpenApiParameter], item_schema: dict[str, Any]) -> Callable:
     return extend_schema(
         request={"application/x-ndjson": OpenApiTypes.BINARY},
+        extensions={"x-ndjson-item-schema": item_schema},
         parameters=parameters,
         responses=CountSerializer,
         description=description,
@@ -77,7 +80,9 @@ def _upload_schema(description: str, parameters: list[OpenApiParameter]) -> Call
 
 
 def assignment_part_upload_action(url_prefix: str) -> Callable:
-    @_upload_schema("One gzip NDJSON part of the run's genre assignments.", [_RUN_ID_PARAM, _PART_PARAM])
+    @_upload_schema(
+        "One gzip NDJSON part of the run's genre assignments.", [_RUN_ID_PARAM, _PART_PARAM], ASSIGNMENT_ROW
+    )
     @action(
         detail=False,
         methods=["put"],
@@ -197,7 +202,8 @@ def import_run_status_action(
         url_name=name.replace("_", "-"),
     )(import_run_status)
     return extend_schema(
-        parameters=[OpenApiParameter("task_id", str, OpenApiParameter.PATH)], responses=ImportRunStatusSerializer
+        parameters=[OpenApiParameter("task_id", str, OpenApiParameter.PATH)],
+        responses=IMPORT_RUN_STATUS_SERIALIZERS[kind],
     )(bound)
 
 
@@ -306,6 +312,7 @@ def bulk_import_run_actions(
     @_upload_schema(
         "One gzip NDJSON part of the run's rows.",
         [_RUN_ID_PARAM, _PART_PARAM, *([HEADER_PARAMETER] if kind == ARTISTS else [])],
+        part_row(kind),
     )
     @action(
         detail=False,
@@ -333,9 +340,14 @@ def bulk_import_run_actions(
                 record_part(run=run, stream=stream, part=index, count=count, body=body)
         return Response({"count": count})
 
-    @_upload_schema(
-        f'Delta runs only: the deleted ids, gzip NDJSON with one `{{"{deletion_key}": <uuid>}}` per line.',
-        [_RUN_ID_PARAM],
+    @(
+        _upload_schema(
+            f'Delta runs only: the deleted ids, gzip NDJSON with one `{{"{deletion_key}": <uuid>}}` per line.',
+            [_RUN_ID_PARAM],
+            object_schema({deletion_key: UUID}, closed=False),
+        )
+        if BulkImportRun.Mode.DELTA in modes
+        else extend_schema(exclude=True)
     )
     @action(
         detail=False,

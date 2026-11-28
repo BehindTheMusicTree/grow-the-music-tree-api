@@ -18,6 +18,7 @@ from grow.artist.bulk_import.part_loader import _row
 from grow.model.artist.Artist import Artist
 from grow.model.artist_link.ArtistLink import ArtistLink
 from tests.utils.json_schema import keys_used, property_names
+from tests.utils.openapi import committed_schema, wire_validator
 
 MBID = "0383dadf-2a4e-4d10-a46a-e9e041da8eb3"
 OTHER_MBID = "5b11f4ce-a62d-471e-81fc-a69a8278c7da"
@@ -75,6 +76,19 @@ def _accepted_by_row(artist: dict) -> bool:
 
 def _valid_for_schema(artist: dict) -> bool:
     return Draft202012Validator(load_schema("artist")).is_valid(artist)
+
+
+def test_artist_part_media_schema_matches_the_row_loader():
+    document = committed_schema()
+    path = "/v1/artists/import-runs/{run_id}/parts/{part}/"
+    media = document["paths"][path]["put"]["requestBody"]["content"]["application/x-ndjson"]
+    validator = wire_validator(document, media["x-ndjson-item-schema"])
+    invalid = {**SAMPLE, "name": None}
+    assert _accepted_by_row(SAMPLE) and validator.is_valid(SAMPLE)
+    assert not _accepted_by_row(invalid) and not validator.is_valid(invalid)
+    old_origin = {**SAMPLE, "origin": {**SAMPLE["origin"], "musicbrainz_area_id": None}}
+    assert _accepted_by_row(old_origin) and validator.is_valid(old_origin)
+    assert not _valid_for_schema(old_origin)
 
 
 def _mutated(path: tuple, value) -> dict:

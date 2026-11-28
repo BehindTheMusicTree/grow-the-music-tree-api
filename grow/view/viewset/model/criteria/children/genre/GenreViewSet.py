@@ -7,7 +7,7 @@ from django.db import transaction
 from django.http import QueryDict
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view, inline_serializer
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -47,6 +47,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from grow.model.playlist.GenreCatalogueCount import GenreCatalogueCount
 from grow.model.song.SongCurationManager import SongCurationManager
+from grow.openapi.documents import component_ref, object_schema
 from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.search.cache import SearchCache, cached_search
 from grow.serializer.model.criteria.children.genre.input.alias_of import GenreAliasOfSerializer
@@ -65,12 +66,11 @@ from grow.serializer.model.criteria.children.genre.output.simple import GenreSim
 from grow.serializer.model.criteria.children.genre.search import GenreSearchQuerySerializer, GenreSearchResultSerializer
 from grow.serializer.model.criteria.output.overview import CriteriaOverviewSerializer
 from grow.serializer.model.song.output.without_playlists import SongWithoutPlaylistsSerializer
-from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
+from grow.serializer.schema.common import PAGE_PARAMETERS, DetailSerializer, TaskIdSerializer, paginated_serializer
 from grow.serializer.schema.genre import (
     GenreAliasConflictSerializer,
     GenreAliasCountsSerializer,
     GenreLinkSuggestionSerializer,
-    GenreTreeImportFileSerializer,
     GenreTreeNodeSerializer,
 )
 from grow.view.permission.IsAdmin import IsAdmin
@@ -112,12 +112,20 @@ _TASK_ID_BODY = {status.HTTP_202_ACCEPTED: TaskIdSerializer}
         parameters=[GenreSearchQuerySerializer], responses=GenreSearchResultSerializer(many=True), filters=False
     ),
     import_tree=extend_schema(
-        request=GenreTreeImportFileSerializer,
-        responses={status.HTTP_201_CREATED: OpenApiTypes.OBJECT},
+        request={"application/json": component_ref("GenreTreeImport")},
+        extensions={"x-grow-required-body": True},
+        parameters=PAGE_PARAMETERS,
+        responses={status.HTTP_201_CREATED: paginated_serializer("GenreTreeImportPage", GenreSimpleSerializer)},
         description="Paginated simple genres of the imported tree.",
     ),
     import_trees=extend_schema(
-        request=inline_serializer("GenreTreesImportRequest", {"trees": GenreTreeImportFileSerializer(many=True)}),
+        extensions={"x-grow-required-body": True},
+        request={
+            "application/json": object_schema(
+                {"trees": {"type": "array", "minItems": 1, "items": component_ref("GenreTreeImport")}}
+            )
+        },
+        description="Pipeline entries require the same curationExportedOn on every tree.",
         parameters=[HEADER_PARAMETER],
         responses=_TASK_ID_BODY,
     ),

@@ -127,8 +127,8 @@ class OptionalTotalPagination(AppPagination):
         )
 
     def get_paginated_response_schema(self, schema):
-        nullable_int = {"type": "integer", "nullable": True}
-        link = {"type": "string", "format": "uri", "nullable": True}
+        nullable_int = {"type": ["integer", "null"]}
+        link = {"type": ["string", "null"], "format": "uri"}
         return {
             "type": "object",
             "required": [

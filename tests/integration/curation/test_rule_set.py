@@ -8,6 +8,7 @@ from grow.model.curation.CurationEntry import CurationEntry
 from grow.model.curation.GenreEdgeRule import GenreEdgeRule
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.ModelFixtureFactory import ModelFixtureFactory
+from tests.utils.openapi import assert_response_matches_schema
 
 A, B = "Q999991001", "Q999991002"
 
@@ -56,7 +57,7 @@ class TestRootRegionalConflict(AppTestCase):
         assert [v.kind for v in _violations()] == ["root_parent"]
         response = self.api_client.get(path=reverse("curation-export"))
         assert response.status_code == status.HTTP_409_CONFLICT
-        assert response.json()["violations"][0]["item_ids"] == [A]
+        assert assert_response_matches_schema(response, reverse("curation-export"))["violations"][0]["item_ids"] == [A]
 
     def test_valid_state_then_no_violation_and_export_200(self):
         assert _violations() == []

@@ -1,0 +1,10 @@
+{
+  "regions": [
+    {
+      "id": "Q1",
+      "name": "One",
+      "kind": "admin_unit",
+      "parentId": "world"
+    }
+  ]
+}

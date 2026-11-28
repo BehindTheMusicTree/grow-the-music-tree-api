@@ -18,20 +18,26 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "TheMusicTree grow API",
     # Static on purpose: a release bump must not stale the committed openapi.yaml.
     "VERSION": "1",
+    "OAS_VERSION": "3.1.0",
     "PREPROCESSING_HOOKS": ["grow.openapi.hooks.drop_unimplemented_actions"],
     "ENUM_NAME_OVERRIDES": {
+        "ImportRunStatusEnum": ["pending", "success", "failed"],
+        "StateEnum": ["running", "succeeded", "failed", "cancelled"],
+        "ImportAttemptStateEnum": "grow.bulk_import.ImportAttempt.ImportAttempt.State",
         "HistoryAction": "grow.model.history.HistoryAction.HistoryAction",
         "ImportRunModeEnum": "grow.bulk_import.BulkImportRun.BulkImportRun.Mode",
         "GenreEdgeActionEnum": "grow.model.curation.GenreEdgeRule.GenreEdgeRule.Action",
         "CurationListNameEnum": "grow.view.curation.CURATION_LIST_NAMES",
         "ImportRunKindEnum": "grow.model.import_run.ImportRun.ImportRun.Kind",
         "PipelineRunKindEnum": "grow.model.pipeline_run.PipelineRunRequest.PipelineRunRequest.Kind",
+        "PipelineRunStatusEnum": "grow.model.pipeline_run.PipelineRunRequest.PipelineRunRequest.Status",
         "PipelineRunStageEnum": "grow.model.pipeline_run.PipelineRunRequest.PipelineRunRequest.Stage",
     },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields",
         "drf_spectacular.hooks.postprocess_schema_enums",
+        "grow.openapi.hooks.embed_wire_contracts",
     ],
     "CAMELIZE_NAMES": False,
 }

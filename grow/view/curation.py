@@ -58,12 +58,12 @@ from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.curation.GenreEdgeRule import DECISION_ID_MAX_LENGTH, GenreEdgeRule
 from grow.model.curation.WikidataItem import WikidataItem
 from grow.model.history.HistoryEntry import HistoryEntry
+from grow.openapi.documents import component_ref, object_schema
 from grow.serializer.model.history.output.curation import CurationHistoryEntrySerializer
 from grow.serializer.schema.common import PAGE_PARAMETERS, DetailSerializer
 from grow.serializer.schema.curation import (
     CurationEdgesPageSerializer,
     CurationEntriesPageSerializer,
-    CurationExportConflictSerializer,
     CurationHistoryPageSerializer,
     CurationItemsSerializer,
     CurationListSerializer,
@@ -75,7 +75,6 @@ from grow.serializer.schema.curation import (
     GenreAliasTargetsSerializer,
     WikidataItemsResultSerializer,
     WikidataResolutionsResultSerializer,
-    curation_export_schema,
 )
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
@@ -517,8 +516,22 @@ class CurationExportView(CurationView):
 
     @extend_schema(
         responses={
-            status.HTTP_200_OK: OpenApiResponse(curation_export_schema()),
-            status.HTTP_409_CONFLICT: CurationExportConflictSerializer,
+            status.HTTP_200_OK: component_ref("CurationExport"),
+            status.HTTP_409_CONFLICT: object_schema(
+                {
+                    "detail": {"type": "string"},
+                    "violations": {
+                        "type": "array",
+                        "items": object_schema(
+                            {
+                                "kind": {"type": "string"},
+                                "message": {"type": "string"},
+                                "item_ids": {"type": "array", "items": {"type": "string"}},
+                            }
+                        ),
+                    },
+                }
+            ),
         },
     )
     @transaction.atomic

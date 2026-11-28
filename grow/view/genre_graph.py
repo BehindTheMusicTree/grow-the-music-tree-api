@@ -45,10 +45,14 @@ from grow.model.song.Song import Song
 from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
 from grow.serializer.schema.common import DetailSerializer, TaskIdSerializer
 from grow.serializer.schema.genre_graph import (
+    AttributionsField,
+    GenreGraphField,
     GraphAssignmentTokensSerializer,
+    GraphProvenanceField,
     GraphRevisionSerializer,
     GraphTokensSerializer,
     ReferenceGraphSerializer,
+    RetirementsField,
     SongAttributionsSerializer,
 )
 from grow.view.permission.IsCuratorOrAdmin import IsCuratorOrAdmin
@@ -72,20 +76,20 @@ class GraphInput(serializers.Serializer):
 
 
 class GraphImportInput(GraphInput):
-    graph = serializers.DictField()
+    graph = GenreGraphField()
     mapping = serializers.DictField(child=serializers.UUIDField(allow_null=True))
     expected_revision = serializers.UUIDField(allow_null=True)
-    retirements = serializers.DictField(child=serializers.DictField(), required=False)
+    retirements = RetirementsField(child=serializers.DictField(), required=False)
 
 
 class GraphRestoreInput(GraphInput):
     revision = serializers.UUIDField()
     expected_revision = serializers.UUIDField()
-    retirements = serializers.DictField(child=serializers.DictField(), required=False)
+    retirements = RetirementsField(child=serializers.DictField(), required=False)
 
 
 class AttributionInput(GraphInput):
-    attributions = serializers.DictField(child=serializers.ListField(child=serializers.DictField(), allow_empty=False))
+    attributions = AttributionsField(child=serializers.ListField(child=serializers.DictField(), allow_empty=False))
     expected_assignment_revision = serializers.UUIDField(allow_null=True)
     expected_revision = serializers.UUIDField()
     expected_membership_revision = serializers.UUIDField()
@@ -102,7 +106,7 @@ class InitialAssignmentsRestoreInput(GraphInput):
     revision = serializers.UUIDField()
     expected_revision = serializers.UUIDField()
     expected_membership_revision = serializers.UUIDField()
-    provenance = serializers.DictField()
+    provenance = GraphProvenanceField()
 
 
 def _assignment_token(dataset, song_id):
