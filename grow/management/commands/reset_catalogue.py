@@ -5,6 +5,7 @@ from django.db import connection, transaction
 from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
+from grow.pipeline_run.artists_recovery import lock_recovery_admission
 
 CATALOGUE_APPS = ("grow", "the_music_tree_genre_kit")
 
@@ -85,7 +86,10 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write("Dry run: nothing changed.")
             return
-        self._wipe(tables)
+        with transaction.atomic():
+            lock_recovery_admission()
+            self._check_idle()
+            self._wipe(tables)
         self._analyze(tables)
         self.stdout.write(f"Emptied {len(tables)} tables.")
 

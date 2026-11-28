@@ -18,8 +18,25 @@ logger = logging.getLogger(__name__)
 
 def queue_attempt(run: BulkImportRun) -> ImportAttempt:
     cutoff = timezone.now() - timedelta(days=30)
-    ImportAttempt.objects.filter(finished_at__lt=cutoff).exclude(run_id__in=BulkImportRun.objects.values("pk")).delete()
-    ImportReceipt.objects.filter(applied_at__lt=cutoff).exclude(run_id__in=BulkImportRun.objects.values("pk")).delete()
+    (
+        ImportAttempt.objects.filter(finished_at__lt=cutoff)
+        .exclude(run_id__in=BulkImportRun.objects.values("pk"))
+        .exclude(
+            models.Q(kind__in=("songs", "artists"))
+            & (
+                models.Q(pipeline_run_request_id__isnull=False)
+                | models.Q(data_applied=True)
+                | models.Q(run_id__in=ImportReceipt.objects.values("pk"))
+            )
+        )
+        .delete()
+    )
+    (
+        ImportReceipt.objects.filter(applied_at__lt=cutoff)
+        .exclude(run_id__in=BulkImportRun.objects.values("pk"))
+        .exclude(run_id__in=ImportAttempt.objects.filter(kind__in=("songs", "artists")).values("run_id"))
+        .delete()
+    )
     number = (ImportAttempt.objects.filter(run_id=run.pk).aggregate(n=models.Max("attempt"))["n"] or 0) + 1
     return ImportAttempt.objects.create(
         run_id=run.pk,

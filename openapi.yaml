@@ -317,13 +317,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
       security:
       - googleIdToken: []
       - apiKey: []
@@ -339,6 +339,12 @@ paths:
       operationId: v1_artists_import_runs_commit_create
       description: Queues the merge; poll its status with the returned task id.
       parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       - in: path
         name: run_id
         schema:
@@ -390,6 +396,12 @@ paths:
       operationId: v1_artists_import_runs_parts_update
       description: One gzip NDJSON part of the run's rows.
       parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       - in: path
         name: part
         schema:
@@ -4397,6 +4409,12 @@ paths:
       - googleIdToken: []
       - apiKey: []
       responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+          description: ''
         '201':
           content:
             application/json:
@@ -4447,6 +4465,28 @@ paths:
           description: No run has this uuid.
         '409':
           description: The run is not running (api-kit error envelope).
+  /v1/pipeline/runs/{uuid}/artists-recovery/:
+    get:
+      operationId: v1_pipeline_runs_artists_recovery_retrieve
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtistsRecoveryExecution'
+          description: ''
   /v1/pipeline/runs/{uuid}/cancel/:
     post:
       operationId: v1_pipeline_runs_cancel_create
@@ -4475,6 +4515,35 @@ paths:
           description: No run has this uuid.
         '409':
           description: The run is neither queued nor running (api-kit error envelope).
+  /v1/pipeline/runs/{uuid}/gold-fingerprints/:
+    patch:
+      operationId: v1_pipeline_runs_gold_fingerprints_partial_update
+      parameters:
+      - in: path
+        name: uuid
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedGoldFingerprints'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedGoldFingerprints'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedGoldFingerprints'
+      security:
+      - googleIdToken: []
+      - apiKey: []
+      responses:
+        '204':
+          description: No response body
   /v1/pipeline/runs/claim/:
     post:
       operationId: v1_pipeline_runs_claim_create
@@ -5791,6 +5860,24 @@ components:
       - genrePlaylist
       - songsCount
       - tracksCount
+    ArtistImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ImportRunModeEnum'
+          description: |-
+            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
+
+            * `full` - Full
+            * `delta` - Delta
+        expectedParts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 1
+          description: 'Required only for artists recovery: {"artists": <number of
+            parts>}.'
     ArtistMinimum:
       type: object
       description: |-
@@ -5909,6 +5996,82 @@ components:
       - name
       - tracksCount
       - uuid
+    ArtistsRecovery:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        songsApplied:
+          type: boolean
+        songsRunId:
+          type: integer
+        artistsApplied:
+          type: boolean
+        snapshotsFinalized:
+          type: boolean
+        artistsRunId:
+          type: integer
+          nullable: true
+        artistsTaskId:
+          type: string
+          nullable: true
+      required:
+      - artistsApplied
+      - artistsRunId
+      - artistsTaskId
+      - eligible
+      - reason
+      - snapshotsFinalized
+      - songsApplied
+      - songsRunId
+    ArtistsRecoveryExecution:
+      type: object
+      properties:
+        eligible:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        songsApplied:
+          type: boolean
+        songsRunId:
+          type: integer
+        artistsApplied:
+          type: boolean
+        snapshotsFinalized:
+          type: boolean
+        artistsRunId:
+          type: integer
+          nullable: true
+        artistsTaskId:
+          type: string
+          nullable: true
+        sourceRunUuid:
+          type: string
+          format: uuid
+        manifestSha256:
+          type: string
+        songsSnapshotSha256:
+          type: string
+        artistsSnapshotSha256:
+          type: string
+          nullable: true
+      required:
+      - artistsApplied
+      - artistsRunId
+      - artistsSnapshotSha256
+      - artistsTaskId
+      - eligible
+      - manifestSha256
+      - reason
+      - snapshotsFinalized
+      - songsApplied
+      - songsRunId
+      - songsSnapshotSha256
+      - sourceRunUuid
     AttributionInput:
       type: object
       properties:
@@ -7987,17 +8150,6 @@ components:
       - importedOn
       - kind
       - skippedCount
-    ImportRunCreateRequest:
-      type: object
-      properties:
-        mode:
-          allOf:
-          - $ref: '#/components/schemas/ImportRunModeEnum'
-          description: |-
-            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
-
-            * `full` - Full
-            * `delta` - Delta
     ImportRunCreated:
       type: object
       properties:
@@ -8622,6 +8774,21 @@ components:
           nullable: true
         side:
           $ref: '#/components/schemas/SideEnum'
+    PatchedGoldFingerprints:
+      type: object
+      properties:
+        manifestSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        songsSnapshotSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        artistsSnapshotSha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+        songsRunId:
+          type: integer
+          minimum: 1
     PatchedManualPlaylistPut:
       type: object
       description: |-
@@ -8737,6 +8904,13 @@ components:
           nullable: true
         cancelRequested:
           type: boolean
+        sourceRunUuid:
+          type: string
+          format: uuid
+        manifestSha256:
+          type: string
+        songsSnapshotSha256:
+          type: string
       required:
       - cancelRequested
       - error
@@ -8758,18 +8932,103 @@ components:
       properties:
         kind:
           $ref: '#/components/schemas/PipelineRunKindEnum'
+        sourceRunUuid:
+          type: string
+          format: uuid
       required:
       - kind
+    PipelineRunHistory:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        kind:
+          $ref: '#/components/schemas/PipelineRunKindEnum'
+        trigger:
+          $ref: '#/components/schemas/TriggerEnum'
+        status:
+          $ref: '#/components/schemas/Status18bEnum'
+        stage:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStageEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        stageCurrent:
+          type: integer
+          nullable: true
+        stageTotal:
+          type: integer
+          nullable: true
+        stepTelemetry:
+          type: object
+          additionalProperties: {}
+          nullable: true
+          description: '`StepTelemetry` of a full run.'
+        error:
+          type: string
+          nullable: true
+        requestedOn:
+          type: string
+          format: date-time
+        startedOn:
+          type: string
+          format: date-time
+          nullable: true
+        heartbeatOn:
+          type: string
+          format: date-time
+          nullable: true
+        finishedOn:
+          type: string
+          format: date-time
+          nullable: true
+        requestedBy:
+          type: string
+          format: email
+          nullable: true
+        cancelRequested:
+          type: boolean
+        sourceRunUuid:
+          type: string
+          format: uuid
+        manifestSha256:
+          type: string
+        songsSnapshotSha256:
+          type: string
+        artistsRecovery:
+          allOf:
+          - $ref: '#/components/schemas/ArtistsRecovery'
+          nullable: true
+      required:
+      - artistsRecovery
+      - cancelRequested
+      - error
+      - finishedOn
+      - heartbeatOn
+      - kind
+      - requestedBy
+      - requestedOn
+      - stage
+      - stageCurrent
+      - stageTotal
+      - startedOn
+      - status
+      - stepTelemetry
+      - trigger
+      - uuid
     PipelineRunKindEnum:
       enum:
       - curation
       - full
       - sync
+      - sync_artists
       type: string
       description: |-
         * `curation` - Curation
         * `full` - Full
         * `sync` - Sync
+        * `sync_artists` - Sync Artists
     PipelineRunLatest:
       type: object
       properties:
@@ -8822,6 +9081,13 @@ components:
           nullable: true
         cancelRequested:
           type: boolean
+        sourceRunUuid:
+          type: string
+          format: uuid
+        manifestSha256:
+          type: string
+        songsSnapshotSha256:
+          type: string
         activeImport:
           nullable: true
           description: Progress of the newest import attempt made for the run, plus
@@ -8864,7 +9130,7 @@ components:
         results:
           type: array
           items:
-            $ref: '#/components/schemas/PipelineRun'
+            $ref: '#/components/schemas/PipelineRunHistory'
         page:
           type: integer
         pageSize:

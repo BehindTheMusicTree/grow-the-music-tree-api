@@ -1,12 +1,13 @@
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.db.models.fields.json import KeyTransform
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import serializers, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 from the_music_tree_api_kit.view.error.ApiErrorCode import ApiErrorCodeNumeric
@@ -19,9 +20,21 @@ from grow.bulk_import.status import progress_payload
 from grow.genre_graph.bulk_import.GenreGraphImportPayload import GenreGraphImportPayload
 from grow.model.curation.CurationSyncState import CurationSyncState
 from grow.model.pipeline_run.PipelineRunRequest import PipelineRunRequest
+from grow.pipeline_run.artists_recovery import (
+    ACTIVE,
+    RecoveryConflict,
+    lock_recovery_admission,
+    recovery_states,
+    require_recovery,
+)
 from grow.pipeline_run.typical_durations import typical_stage_seconds
 from grow.serializer.schema.common import PAGE_PARAMETERS
-from grow.serializer.schema.runs import PipelineRunLatestSerializer, PipelineRunPageSerializer, PipelineRunSerializer
+from grow.serializer.schema.runs import (
+    ArtistsRecoveryExecutionSerializer,
+    PipelineRunLatestSerializer,
+    PipelineRunPageSerializer,
+    PipelineRunSerializer,
+)
 from grow.view.curation import CurationView
 from grow.view.permission.IsAdmin import IsAdmin
 from grow.view.permission.IsPipelineOrAdmin import IsPipelineOrAdmin
@@ -54,6 +67,15 @@ def _serialize(run: PipelineRunRequest) -> dict[str, Any]:
         },
         "requested_by": run.requested_by.email if run.requested_by else None,
         "cancel_requested": run.cancel_requested_on is not None,
+        **(
+            {
+                "source_run_uuid": run.source_run.uuid,
+                "manifest_sha256": run.source_run.manifest_sha256,
+                "songs_snapshot_sha256": run.source_run.songs_snapshot_sha256,
+            }
+            if run.source_run_id is not None
+            else {}
+        ),
     }
 
 
@@ -74,14 +96,25 @@ def _is_bootstrap(attempt: ImportAttempt) -> bool | None:
 
 def _active_import(run: PipelineRunRequest) -> dict[str, Any] | None:
     """The newest import attempt made for `run`, terminal or not: the front decides whether to show it."""
-    attempt = run.import_attempts.order_by("-queued_at", "-attempt").first()
+    if run.kind == Kind.SYNC_ARTISTS:
+        attempt = (
+            ImportAttempt.objects.filter(
+                Q(pipeline_run_request_id=run.source_run_id) | Q(pipeline_run_request__source_run_id=run.source_run_id),
+                kind="artists",
+                user_id=None,
+            )
+            .order_by("-run_id", "-attempt")
+            .first()
+        )
+    else:
+        attempt = run.import_attempts.order_by("-queued_at", "-attempt").first()
     if attempt is None:
         return None
     return {**progress_payload(attempt), "bootstrap": _is_bootstrap(attempt)}
 
 
 def _newest_first():
-    return PipelineRunRequest.objects.select_related("requested_by").order_by("-requested_on", "-pk")
+    return PipelineRunRequest.objects.select_related("requested_by", "source_run").order_by("-requested_on", "-pk")
 
 
 def _conflict(message: str, api_error_code: ApiErrorCodeNumeric):
@@ -96,6 +129,12 @@ def _not_running(run: PipelineRunRequest):
 
 class PipelineRunCreateSerializer(serializers.Serializer):
     kind = serializers.ChoiceField(choices=PipelineRunRequest.Kind.choices)
+    source_run_uuid = serializers.UUIDField(required=False)
+
+    def validate(self, attrs):
+        if (attrs["kind"] == Kind.SYNC_ARTISTS) != ("source_run_uuid" in attrs):
+            raise ValidationError({"source_run_uuid": "Required for sync_artists and disallowed for other kinds"})
+        return attrs
 
 
 class PipelineRunsView(CurationView):
@@ -112,11 +151,16 @@ class PipelineRunsView(CurationView):
         PipelineRunRequest.objects.expire_stale()
         paginator = AppPagination()
         page = paginator.paginate_queryset(_newest_first(), request, view=self)
-        return paginator.get_paginated_response([_serialize(run) for run in page or []])
+        runs = page or []
+        states = recovery_states(runs)
+        return paginator.get_paginated_response(
+            [{**_serialize(run), "artists_recovery": states.get(run.pk)} for run in runs]
+        )
 
     @extend_schema(
         request=PipelineRunCreateSerializer,
         responses={
+            status.HTTP_200_OK: PipelineRunSerializer,
             status.HTTP_201_CREATED: PipelineRunSerializer,
             status.HTTP_409_CONFLICT: OpenApiResponse(
                 description="A pipeline run is already queued or running (api-kit error envelope)."
@@ -127,6 +171,8 @@ class PipelineRunsView(CurationView):
         serializer = PipelineRunCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         kind = serializer.validated_data["kind"]
+        if kind == Kind.SYNC_ARTISTS and request.auth.role != "admin":
+            raise PermissionDenied
         if request.auth.role == "pipeline":
             if kind != Kind.FULL:
                 raise ValidationError({"kind": "The pipeline key may only request a full run"})
@@ -138,6 +184,15 @@ class PipelineRunsView(CurationView):
         PipelineRunRequest.objects.expire_stale()
         try:
             with transaction.atomic():
+                lock_recovery_admission()
+                if kind == Kind.SYNC_ARTISTS:
+                    source_uuid = serializer.validated_data["source_run_uuid"]
+                    source = get_object_or_404(PipelineRunRequest, uuid=source_uuid)
+                    existing = PipelineRunRequest.objects.filter(source_run=source, status__in=ACTIVE).first()
+                    if existing is not None:
+                        return Response(_serialize(existing))
+                    require_recovery(source)
+                    origin["source_run"] = source
                 run = PipelineRunRequest.objects.create(kind=kind, **origin)
         except IntegrityError:
             return _conflict("A pipeline run is already queued or running", ApiErrorCodeNumeric.RESOURCE_ALREADY_EXISTS)
@@ -219,6 +274,10 @@ class PipelineRunView(CurationView):
         serializer = PipelineRunProgressSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        if run.kind == Kind.SYNC_ARTISTS and data.get("status") == Status.SUCCEEDED:
+            if request.auth.role != "pipeline":
+                raise PermissionDenied
+            require_recovery(run.source_run, finalize=True)
         if "step_telemetry" in data:
             if run.kind != Kind.FULL:
                 raise ValidationError({"step_telemetry": "Step telemetry is only available for full runs"})
@@ -246,6 +305,89 @@ class PipelineRunView(CurationView):
             run.finished_on = run.heartbeat_on
         run.save()
         return Response(_serialize(run))
+
+
+class GoldFingerprintsSerializer(serializers.Serializer):
+    manifest_sha_256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", source="manifest_sha256", required=False)
+    songs_snapshot_sha_256 = serializers.RegexField(r"^[0-9a-f]{64}\Z", source="songs_snapshot_sha256", required=False)
+    artists_snapshot_sha_256 = serializers.RegexField(
+        r"^[0-9a-f]{64}\Z", source="artists_snapshot_sha256", required=False
+    )
+    songs_run_id = serializers.IntegerField(min_value=1, required=False)
+
+    def validate(self, attrs):
+        if ("manifest_sha256" in attrs) != ("songs_snapshot_sha256" in attrs):
+            raise ValidationError("The manifest and songs fingerprints must be supplied together")
+        if not attrs or attrs.keys() == {"songs_run_id"}:
+            raise ValidationError("At least one snapshot fingerprint is required")
+        return attrs
+
+
+class PipelineGoldFingerprintsView(CurationView):
+    permission_classes = [IsPipelineOrAdmin]
+
+    @extend_schema(request=GoldFingerprintsSerializer, responses={204: None})
+    @transaction.atomic
+    def patch(self, request: Request, uuid: str) -> Response:
+        if request.auth.role != "pipeline":
+            raise PermissionDenied
+        serializer = GoldFingerprintsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        songs_run_id = data.pop("songs_run_id", None)
+        lock_recovery_admission()
+        run = get_object_or_404(PipelineRunRequest.objects.select_for_update(), uuid=uuid)
+        source = run
+        if run.kind == Kind.SYNC_ARTISTS:
+            if (
+                run.status != Status.RUNNING
+                or run.cancel_requested_on is not None
+                or data.keys() != {"artists_snapshot_sha256"}
+                or songs_run_id is not None
+            ):
+                raise RecoveryConflict(
+                    "Seule l'empreinte du snapshot artistes peut être enregistrée pendant la reprise."
+                )
+            source = PipelineRunRequest.objects.select_for_update().get(pk=run.source_run_id)
+            require_recovery(source)
+        elif run.status != Status.RUNNING:
+            if songs_run_id is None or data.keys() != {"manifest_sha256", "songs_snapshot_sha256"}:
+                raise RecoveryConflict("L'attestation historique exige le numéro de l'import chansons.")
+            if require_recovery(source, attest=True)["songs_run_id"] != songs_run_id:
+                raise RecoveryConflict("L'import chansons ne correspond pas à la demande source.")
+        elif songs_run_id is not None:
+            raise ValidationError("A running source does not accept a historical attestation")
+        for field, value in data.items():
+            previous = getattr(source, field)
+            if previous is not None and previous != value:
+                raise RecoveryConflict("L'empreinte enregistrée ne correspond pas au fichier.")
+            setattr(source, field, value)
+        source.save(update_fields=data.keys())
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PipelineArtistsRecoveryView(CurationView):
+    permission_classes = [IsPipelineOrAdmin]
+
+    @extend_schema(responses=ArtistsRecoveryExecutionSerializer)
+    def get(self, request: Request, uuid: str) -> Response:
+        if request.auth.role != "pipeline":
+            raise PermissionDenied
+        run = get_object_or_404(
+            PipelineRunRequest.objects.select_related("source_run"), uuid=uuid, kind=Kind.SYNC_ARTISTS
+        )
+        if run.status != Status.RUNNING:
+            return _not_running(run)
+        source = run.source_run
+        return Response(
+            {
+                **require_recovery(source),
+                "source_run_uuid": source.uuid,
+                "manifest_sha256": source.manifest_sha256,
+                "songs_snapshot_sha256": source.songs_snapshot_sha256,
+                "artists_snapshot_sha256": source.artists_snapshot_sha256,
+            }
+        )
 
 
 class PipelineRunCancelView(CurationView):

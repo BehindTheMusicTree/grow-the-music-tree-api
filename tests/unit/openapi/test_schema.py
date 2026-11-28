@@ -126,7 +126,11 @@ def test_import_run_protocol_is_typed(schema, runs):
     assert created.endswith("/ImportRunCreated")
     part = paths[f"{runs}{{run_id}}/parts/{{part}}/"]["put"]
     assert "application/x-ndjson" in part["requestBody"]["content"]
-    assert {p["name"]: p["schema"]["type"] for p in part["parameters"]} == {"run_id": "integer", "part": "integer"}
+    parameters = {p["name"]: p["schema"]["type"] for p in part["parameters"]}
+    expected = {"run_id": "integer", "part": "integer"}
+    if runs == "/v1/artists/import-runs/":
+        expected["X-Pipeline-Run-Request"] = "string"
+    assert parameters == expected
     assert set(paths[f"{runs}{{run_id}}/deletions/"]["put"]["responses"]) == {"200"}
     assert set(paths[f"{runs}{{run_id}}/commit/"]["post"]["responses"]) == {"202"}
 

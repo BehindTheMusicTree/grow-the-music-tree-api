@@ -49,6 +49,12 @@ class BulkImportRun(models.Model):
                         membership_revision__isnull=False,
                         expected_parts__isnull=False,
                     )
+                    | models.Q(
+                        kind=ImportRun.Kind.ARTISTS,
+                        graph_revision__isnull=True,
+                        membership_revision__isnull=True,
+                        expected_parts__isnull=False,
+                    )
                 ),
                 name="grow_import_review_metadata_complete",
             )

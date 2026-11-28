@@ -21,7 +21,7 @@ class PipelineRunNotRunning(APIException):
     default_detail = "The pipeline run is not running"
 
 
-def linked_pipeline_run(request: Request) -> PipelineRunRequest | None:
+def linked_pipeline_run(request: Request, *, allow_artists_recovery: bool = False) -> PipelineRunRequest | None:
     """
     The pipeline run an import is made for, named by the `X-Pipeline-Run-Request` header; None when it is absent.
     A malformed or unknown uuid is a 400, and a run that is not `running` a 409: `expire_stale` ends a run whose
@@ -40,4 +40,6 @@ def linked_pipeline_run(request: Request) -> PipelineRunRequest | None:
         raise ValidationError({"message": f"Unknown pipeline run {raw}"})
     if run.status != PipelineRunRequest.Status.RUNNING:
         raise PipelineRunNotRunning(f"Pipeline run {raw} is {run.status}, not running")
+    if run.kind == PipelineRunRequest.Kind.SYNC_ARTISTS and not allow_artists_recovery:
+        raise PipelineRunNotRunning("Cette demande est réservée à l'import artistes.")
     return run

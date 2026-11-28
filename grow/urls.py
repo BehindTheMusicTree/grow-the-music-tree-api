@@ -33,6 +33,8 @@ from grow.view.genre_graph import (
 from grow.view.health import HealthCheckView
 from grow.view.import_run import ImportRunLatestView, ImportRunListView, ImportRunUnresolvedGenreTagsView
 from grow.view.pipeline_run import (
+    PipelineArtistsRecoveryView,
+    PipelineGoldFingerprintsView,
     PipelineRunCancelView,
     PipelineRunClaimView,
     PipelineRunLatestView,
@@ -164,6 +166,16 @@ urlpatterns += [
         f"{settings.API_ROOT_BASE}pipeline/runs/latest/", PipelineRunLatestView.as_view(), name="pipeline-runs-latest"
     ),
     path(f"{settings.API_ROOT_BASE}pipeline/runs/claim/", PipelineRunClaimView.as_view(), name="pipeline-runs-claim"),
+    path(
+        f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/gold-fingerprints/",
+        PipelineGoldFingerprintsView.as_view(),
+        name="pipeline-gold-fingerprints",
+    ),
+    path(
+        f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/artists-recovery/",
+        PipelineArtistsRecoveryView.as_view(),
+        name="pipeline-artists-recovery",
+    ),
     path(f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/", PipelineRunView.as_view(), name="pipeline-run"),
     path(
         f"{settings.API_ROOT_BASE}pipeline/runs/<uuid:uuid>/cancel/",

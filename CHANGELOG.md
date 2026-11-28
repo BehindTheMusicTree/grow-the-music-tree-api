@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- Admins can request an artists-only Gold recovery from pipeline history after the songs merge has applied. The API verifies the source and tracks the artist merge independently of snapshot finalization, so a request can resume after a timeout.
 - Public `GET /v1/genres/graph/revision/` returns the current graph revision, or null before publication, without loading the graph or its bindings.
 - `manage.py reset_catalogue --confirm <db>` empties the catalogue (songs, artists, genres, playlists, graph, import state) in one `TRUNCATE` and keeps curation, users, run history and the curation history, so the next import starts from an empty base. It refuses while an import or pipeline run is active, or when user-owned data exists without `--include-user-data`; `--dry-run` lists the tables. Tests cover the wipe, the refusals and the table classification.
 
