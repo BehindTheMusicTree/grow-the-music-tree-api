@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 
 from the_music_tree_grow_contracts.curation_lists import ITEM_ID_PATTERN
@@ -37,7 +38,7 @@ def song_row() -> dict[str, Any]:
                             "mode": {"enum": ["allowed", "blocked", "unrestricted"]},
                             "countries": {
                                 "type": "array",
-                                "items": {"type": "string", "pattern": "^(?!XX$)[A-Z]{2}$"},
+                                "items": {"type": "string", "pattern": "^(?!XX$)[A-Z]{2}$", "maxLength": 2},
                             },
                         }
                     ),
@@ -59,10 +60,34 @@ def song_row() -> dict[str, Any]:
     }
 
 
+def artist_upload_row(producer_row: dict[str, Any]) -> dict[str, Any]:
+    # The loader defaults missing values in older artist parts and tolerates additional keys.
+    row = deepcopy(producer_row)
+    row["title"] = "Artist upload row"
+    row["description"] = "An artist NDJSON line. Older exports may omit optional fields."
+    row["required"] = ["musicbrainz_artist_id", "name", "ended", "members", "links", "release_groups"]
+    row.pop("additionalProperties")
+    properties = row["properties"]
+    for key, optional in (
+        ("members", ("begin_year", "end_year")),
+        ("links", ()),
+        ("release_groups", ("primary_type", "first_release_year")),
+    ):
+        item = properties[key]["items"]
+        item["required"] = [field for field in item["required"] if field not in optional]
+        item.pop("additionalProperties")
+    properties["origin"]["required"] = ["name", "source"]
+    properties["origin"].pop("additionalProperties")
+    image = properties["image"]["oneOf"][1]
+    image["required"] = ["url", "page_url", "license"]
+    image.pop("additionalProperties")
+    return row
+
+
 def part_row(kind: str) -> dict[str, Any]:
     match kind:
         case "artists":
-            return component_ref("ArtistImportRow")
+            return component_ref("ArtistUploadRow")
         case "region_map":
             return component_ref("RegionMapImportRow")
         case "songs":

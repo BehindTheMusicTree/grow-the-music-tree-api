@@ -429,7 +429,7 @@ paths:
               type: string
               format: binary
             x-ndjson-item-schema:
-              $ref: '#/components/schemas/ArtistImportRow'
+              $ref: '#/components/schemas/ArtistUploadRow'
       security:
       - googleIdToken: []
       - apiKey: []
@@ -3123,6 +3123,7 @@ paths:
                         items:
                           type: string
                           pattern: ^(?!XX$)[A-Z]{2}$
+                          maxLength: 2
                     required:
                     - mode
                     - countries
@@ -4137,43 +4138,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaskId'
           description: ''
-  /v1/regions/map/import-runs/{run_id}/deletions/:
-    put:
-      operationId: v1_regions_map_import_runs_deletions_update
-      description: 'Delta runs only: the deleted ids, gzip NDJSON with one `{"path":
-        <uuid>}` per line.'
-      parameters:
-      - in: path
-        name: run_id
-        schema:
-          type: integer
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/x-ndjson:
-            schema:
-              type: string
-              format: binary
-            x-ndjson-item-schema:
-              type: object
-              properties:
-                path:
-                  type: string
-                  format: uuid
-              required:
-              - path
-      security:
-      - googleIdToken: []
-      - apiKey: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Count'
-          description: ''
   /v1/regions/map/import-runs/{run_id}/parts/{part}/:
     put:
       operationId: v1_regions_map_import_runs_parts_update
@@ -4758,7 +4722,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegionMap'
+                anyOf:
+                - $ref: '#/components/schemas/RegionMap'
+                - $ref: '#/components/schemas/LegacyRegionMap'
           headers:
             ETag:
               schema:
@@ -12365,7 +12331,7 @@ components:
         tree:
           type: array
           items:
-            $ref: '#/components/schemas/GenreTree_node'
+            $ref: '#/components/schemas/GenreTreeImportNode'
           minItems: 1
         crossTreeSecondaryParents:
           type: array
@@ -12376,7 +12342,11 @@ components:
                 type: string
                 minLength: 1
               secondaryParents:
-                $ref: '#/components/schemas/GenreTree_parentRefs'
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+                minItems: 1
             required:
             - id
             - secondaryParents
@@ -12385,8 +12355,354 @@ components:
       - treeName
       - tree
       additionalProperties: false
-      description: Pipeline imports require curationExportedOn. It is optional for
-        other callers.
+      description: Pipeline imports require curationExportedOn.
+    GenreTreeImportNode:
+      type: object
+      properties:
+        id:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          pattern: ^(Q\d+|LOCAL:[a-z0-9-]+)$
+        name:
+          type: string
+          minLength: 1
+          maxLength: 256
+        side:
+          enum:
+          - core
+          - pop
+          - null
+        isUnacceptedRoot:
+          type: boolean
+          default: false
+        isUmbrella:
+          type: boolean
+          default: false
+        overviewType:
+          enum:
+          - current
+          - historical
+          - null
+        scene:
+          enum:
+          - commercial
+          - underground
+          - null
+        children:
+          type:
+          - array
+          - 'null'
+          items:
+            $ref: '#/components/schemas/GenreTreeImportNode'
+        primaryParents:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        secondaryParents:
+          type: array
+          items:
+            type: string
+            minLength: 1
+        summary:
+          type:
+          - string
+          - 'null'
+        description:
+          type:
+          - string
+          - 'null'
+        summarySourceUrl:
+          anyOf:
+          - type: 'null'
+          - const: ''
+          - type: string
+            format: uri
+            pattern: ^https?://
+            maxLength: 500
+        image:
+          type:
+          - object
+          - 'null'
+          properties:
+            url:
+              type: string
+              pattern: ^https://
+              maxLength: 2048
+            pageUrl:
+              type: string
+              pattern: ^https://
+              maxLength: 2048
+            author:
+              type:
+              - string
+              - 'null'
+              minLength: 1
+            license:
+              type: string
+              minLength: 1
+            licenseUrl:
+              type:
+              - string
+              - 'null'
+              pattern: ^https?://
+              maxLength: 2048
+          required:
+          - url
+          - pageUrl
+          - license
+          additionalProperties: false
+      required:
+      - name
+      additionalProperties: false
+    ArtistUploadRow:
+      title: Artist upload row
+      description: An artist NDJSON line. Older exports may omit optional fields.
+      type: object
+      required:
+      - musicbrainz_artist_id
+      - name
+      - ended
+      - members
+      - links
+      - release_groups
+      properties:
+        origin:
+          type:
+          - object
+          - 'null'
+          required:
+          - name
+          - source
+          properties:
+            name:
+              type: string
+              minLength: 1
+            musicbrainz_area_id:
+              $ref: '#/components/schemas/ArtistImportRow_mbid'
+            kind:
+              type:
+              - string
+              - 'null'
+              minLength: 1
+            source:
+              enum:
+              - begin_area
+              - area
+            wikidata_id:
+              type:
+              - string
+              - 'null'
+              pattern: ^Q[1-9][0-9]*$
+            longitude:
+              type:
+              - number
+              - 'null'
+              minimum: -180
+              maximum: 180
+            latitude:
+              type:
+              - number
+              - 'null'
+              minimum: -90
+              maximum: 90
+            region_id:
+              type:
+              - string
+              - 'null'
+              minLength: 1
+              maxLength: 64
+        musicbrainz_artist_id:
+          $ref: '#/components/schemas/ArtistImportRow_mbid'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 2048
+        type:
+          enum:
+          - person
+          - group
+          - orchestra
+          - choir
+          - character
+          - other
+          - null
+        country:
+          type:
+          - string
+          - 'null'
+          pattern: ^[A-Z]{2}$
+        begin_year:
+          $ref: '#/components/schemas/ArtistImportRow_year'
+        end_year:
+          $ref: '#/components/schemas/ArtistImportRow_year'
+        ended:
+          type: boolean
+        disambiguation:
+          type:
+          - string
+          - 'null'
+          minLength: 1
+          maxLength: 2048
+        aliases:
+          type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 2048
+        members:
+          type: array
+          items:
+            type: object
+            required:
+            - musicbrainz_artist_id
+            - ended
+            - roles
+            properties:
+              musicbrainz_artist_id:
+                $ref: '#/components/schemas/ArtistImportRow_mbid'
+              begin_year:
+                $ref: '#/components/schemas/ArtistImportRow_year'
+              end_year:
+                $ref: '#/components/schemas/ArtistImportRow_year'
+              ended:
+                type: boolean
+              roles:
+                type: array
+                items:
+                  type: string
+                  minLength: 1
+        links:
+          type: array
+          items:
+            type: object
+            required:
+            - kind
+            - url
+            properties:
+              kind:
+                enum:
+                - official
+                - wikipedia
+                - wikidata
+                - spotify
+                - youtube
+                - bandcamp
+                - soundcloud
+                - discogs
+                - social
+              url:
+                type: string
+                pattern: ^https?://
+                maxLength: 2048
+        release_groups:
+          type: array
+          items:
+            type: object
+            required:
+            - musicbrainz_release_group_id
+            - title
+            - secondary_types
+            properties:
+              musicbrainz_release_group_id:
+                $ref: '#/components/schemas/ArtistImportRow_mbid'
+              title:
+                type: string
+                minLength: 1
+                maxLength: 2048
+              primary_type:
+                type:
+                - string
+                - 'null'
+              secondary_types:
+                type: array
+                items:
+                  type: string
+              first_release_year:
+                type:
+                - integer
+                - 'null'
+                minimum: 1000
+                maximum: 9999
+        image:
+          oneOf:
+          - type: 'null'
+          - type: object
+            required:
+            - url
+            - page_url
+            - license
+            properties:
+              url:
+                type: string
+                pattern: ^https://
+                maxLength: 2048
+              page_url:
+                type: string
+                pattern: ^https://
+                maxLength: 2048
+              author:
+                type:
+                - string
+                - 'null'
+                minLength: 1
+              license:
+                type: string
+                minLength: 1
+              license_url:
+                type:
+                - string
+                - 'null'
+                pattern: ^https?://
+                maxLength: 2048
+    LegacyRegionMap:
+      type: object
+      description: Index archived before the current region map contract. Hidden regions
+        may be inline.
+      required:
+      - tileset
+      - regions
+      not:
+        required:
+        - files
+      properties:
+        tileset:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          maxLength: 64
+        regions:
+          type: array
+          items:
+            type: object
+            properties:
+              genres:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    itemId:
+                      type: string
+                  required:
+                  - itemId
+            required:
+            - genres
+        hiddenRegions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              kind:
+                type: string
+            required:
+            - id
+            - name
+            - kind
     RegionMapImportRow:
       oneOf:
       - type: object

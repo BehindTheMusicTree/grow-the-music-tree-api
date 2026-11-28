@@ -16,6 +16,7 @@ from grow.model.import_run.ImportRun import ImportRun
 from grow.model.playlist.children.criteria.CriteriaPlaylist import CriteriaPlaylist
 from tests.utils.AppTestCase import AppTestCase
 from tests.utils.curation_export import export_curation, record_export
+from tests.utils.openapi import committed_schema, wire_validator
 
 POP = {Fields.ID: "Q373342", Fields.NAME_PUBLIC: "Mainstream Pop", Fields.CHILDREN: []}
 ROCK = {Fields.ID: "Q11399", Fields.NAME_PUBLIC: "Rock", Fields.CHILDREN: []}
@@ -95,7 +96,11 @@ class TestGenreTreesImportRun(AppTestCase):
         assert not GenreTreeImportPayload.objects.exists()
 
     def test_admin_run_then_not_recorded(self):
-        response = self.api_client.post(self.url, data=self._body([("global", [POP, ROCK])]), format="json")
+        body = self._body([("global", [POP, {**ROCK, Fields.CHILDREN: None, "summary": None}])])
+        schema = committed_schema()
+        request = schema["paths"][self.url]["post"]["requestBody"]["content"]["application/json"]["schema"]
+        wire_validator(schema, request).validate(body)
+        response = self.api_client.post(self.url, data=body, format="json")
 
         assert response.status_code == status.HTTP_202_ACCEPTED
         assert self._status(self.api_client, response.json()["taskId"]).json()["status"] == "success"

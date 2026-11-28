@@ -141,7 +141,11 @@ def test_import_run_protocol_is_typed(schema, runs):
     if runs == "/v1/artists/import-runs/":
         expected["X-Pipeline-Run-Request"] = "string"
     assert parameters == expected
-    assert set(paths[f"{runs}{{run_id}}/deletions/"]["put"]["responses"]) == {"200"}
+    deletions = f"{runs}{{run_id}}/deletions/"
+    if runs == "/v1/regions/map/import-runs/":
+        assert deletions not in paths
+    else:
+        assert set(paths[deletions]["put"]["responses"]) == {"200"}
     assert set(paths[f"{runs}{{run_id}}/commit/"]["post"]["responses"]) == {"202"}
 
 
@@ -169,7 +173,25 @@ def test_song_ndjson_regional_policy_requires_a_video_and_valid_countries(schema
     song["youtube_video_id"] = "example"
     validator.validate({**song, "youtube_region_restriction": policy})
     assert not validator.is_valid({**song, "youtube_region_restriction": {**policy, "mode": "unrestricted"}})
-    assert not validator.is_valid({**song, "youtube_region_restriction": {**policy, "countries": ["XX"]}})
+    for invalid in ("XX", "FR\n"):
+        assert not validator.is_valid({**song, "youtube_region_restriction": {**policy, "countries": [invalid]}})
+
+
+def test_artist_ndjson_allows_older_rows_without_optional_fields(schema):
+    path = "/v1/artists/import-runs/{run_id}/parts/{part}/"
+    media = schema["paths"][path]["put"]["requestBody"]["content"]["application/x-ndjson"]
+    validator = wire_validator(schema, media["x-ndjson-item-schema"])
+    artist = {
+        "musicbrainz_artist_id": "b3dea94e-671d-4256-99fa-a19422415b7a",
+        "name": "Example",
+        "ended": False,
+        "members": [],
+        "links": [],
+        "release_groups": [],
+    }
+    validator.validate(artist)
+    assert not validator.is_valid({key: val for key, val in artist.items() if key != "ended"})
+    assert not wire_validator(schema, component_ref("ArtistImportRow")).is_valid(artist)
 
 
 def test_song_import_run_declares_its_reviewed_revisions(schema):

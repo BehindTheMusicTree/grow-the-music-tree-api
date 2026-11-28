@@ -1,10 +1,11 @@
-from copy import deepcopy
 from typing import Any
 
 from the_music_tree_api_kit.view.viewset.model.AppModelViewSet import AppModelViewSet
 
 from grow.openapi.documents import DOCUMENTS, GROW_DOCUMENTS, adapt_document
-from grow.openapi.regions import region_map_import_row, region_map_paths
+from grow.openapi.ndjson import artist_upload_row
+from grow.openapi.regions import legacy_region_map, region_map_import_row, region_map_paths
+from grow.openapi.trees import tree_import_components
 
 
 def _is_inherited(view_cls: type, name: str) -> bool:
@@ -60,11 +61,15 @@ def embed_wire_contracts(result: dict[str, Any], **kwargs: Any) -> dict[str, Any
     for name, load in DOCUMENTS.items():
         _add_unique(components, adapt_document(name, load()))
 
-    tree = deepcopy(components["GenreTree"])
-    tree["required"].remove("curationExportedOn")
-    tree["properties"]["tree"]["minItems"] = 1
-    tree["description"] = "Pipeline imports require curationExportedOn. It is optional for other callers."
-    _add_unique(components, {"GenreTreeImport": tree, "RegionMapImportRow": region_map_import_row(GROW_DOCUMENTS)})
+    _add_unique(components, tree_import_components(components))
+    _add_unique(
+        components,
+        {
+            "ArtistUploadRow": artist_upload_row(components["ArtistImportRow"]),
+            "LegacyRegionMap": legacy_region_map(),
+            "RegionMapImportRow": region_map_import_row(GROW_DOCUMENTS),
+        },
+    )
     _add_unique(result["paths"], region_map_paths())
     for path in result["paths"].values():
         for operation in path.values():

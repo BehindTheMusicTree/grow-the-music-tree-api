@@ -340,10 +340,14 @@ def bulk_import_run_actions(
                 record_part(run=run, stream=stream, part=index, count=count, body=body)
         return Response({"count": count})
 
-    @_upload_schema(
-        f'Delta runs only: the deleted ids, gzip NDJSON with one `{{"{deletion_key}": <uuid>}}` per line.',
-        [_RUN_ID_PARAM],
-        object_schema({deletion_key: UUID}, closed=False),
+    @(
+        _upload_schema(
+            f'Delta runs only: the deleted ids, gzip NDJSON with one `{{"{deletion_key}": <uuid>}}` per line.',
+            [_RUN_ID_PARAM],
+            object_schema({deletion_key: UUID}, closed=False),
+        )
+        if BulkImportRun.Mode.DELTA in modes
+        else extend_schema(exclude=True)
     )
     @action(
         detail=False,

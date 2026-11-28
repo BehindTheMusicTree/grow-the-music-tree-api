@@ -208,9 +208,20 @@ class TestRegionMapAttachable(AppTestCase):
         assert_response_matches_schema(response, url)
 
     def test_lists_drawn_then_hidden_regions(self):
-        drawn = {"id": "Q1356", "name": "Maharashtra", "kind": "admin_unit", "genres": []}
+        drawn = {
+            "id": "Q1356",
+            "name": "Maharashtra",
+            "kind": "admin_unit",
+            "genres": [{"itemId": GENRE, "relation": "canonical"}],
+        }
         hidden = {"id": "Q18677875", "name": "Normandy", "kind": "admin_unit", "parentId": "Q142", "centroid": [1, 49]}
-        _snapshot(json.dumps(_index(regions=[drawn], hiddenRegions=[hidden])).encode())
+        index = _index(regions=[drawn], hiddenRegions=[hidden])
+        _snapshot(json.dumps(index).encode())
+
+        assert assert_response_matches_schema(APIClient().get(INDEX), INDEX) == index
+        assert not wire_validator(committed_schema(), {"$ref": "#/components/schemas/RegionMapImportRow"}).is_valid(
+            _line("index.json", index)
+        )
 
         response = APIClient().get(reverse("region-map-attachable"))
 
