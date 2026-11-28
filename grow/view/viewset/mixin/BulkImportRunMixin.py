@@ -26,7 +26,7 @@ from grow.bulk_import.BulkImportRun import BulkImportRun
 from grow.bulk_import.copy_part import copy_part
 from grow.bulk_import.ImportAttempt import ImportAttempt
 from grow.bulk_import.lifecycle import queue_attempt
-from grow.bulk_import.manifests import record_part
+from grow.bulk_import.manifests import record_part, require_complete_parts
 from grow.bulk_import.merge_lock import claim_lost_merge
 from grow.bulk_import.status import progress_payload, reconcile
 from grow.genre_music.source_gate import lock_catalogue_sources
@@ -37,9 +37,11 @@ from grow.pipeline_run.artists_recovery import (
     Kind,
     RecoveryConflict,
     guard_catalogue_import,
+    lock_active_recovery,
     lock_recovery_admission,
 )
 from grow.pipeline_run.link import HEADER_PARAMETER, linked_pipeline_run
+from grow.serializer.schema.artist import ArtistImportRunCreateRequestSerializer
 from grow.serializer.schema.common import (
     CountSerializer,
     FullImportRunCreateRequestSerializer,
@@ -132,7 +134,7 @@ def enqueue_merge(merge: Callable[..., dict[str, int]], run: BulkImportRun, atte
     try:
         async_task(merge, run.pk, run.user_id, run.record, group=attempt.task_id, attempt_id=attempt.pk)
     except Exception:
-        ImportAttempt.objects.filter(pk=attempt.pk).update(
+        ImportAttempt.objects.filter(pk=attempt.pk, state=ImportAttempt.State.QUEUED).update(
             state=ImportAttempt.State.FAILED,
             error="Could not enqueue import; see API logs",
             finished_at=timezone.now(),
@@ -219,6 +221,8 @@ def bulk_import_run_actions(
     runs = f"{url_prefix}import-runs"
     if kind == ImportRun.Kind.SONGS:
         create_request: type = SongImportRunCreateRequestSerializer
+    elif kind == ARTISTS:
+        create_request = ArtistImportRunCreateRequestSerializer
     elif BulkImportRun.Mode.DELTA in modes:
         create_request = ImportRunCreateRequestSerializer
     else:
@@ -253,22 +257,36 @@ def bulk_import_run_actions(
         with transaction.atomic():
             if kind == SONGS:
                 lock_catalogue_sources()
-                require_reviewed_contract(metadata)
             if kind in (SONGS, ARTISTS):
                 lock_recovery_admission()
                 guard_catalogue_import(kind, pipeline_run, mode=mode)
+            if kind == SONGS:
+                require_reviewed_contract(metadata)
             if pipeline_run is not None and pipeline_run.kind == Kind.SYNC_ARTISTS:
                 if kind != ARTISTS:
                     raise RecoveryConflict("Cette demande est réservée à l'import artistes.")
                 if request.auth.role != "pipeline":
                     raise PermissionDenied
+                parts = request.data.get("expected_parts")
+                if (
+                    not isinstance(parts, dict)
+                    or parts.keys() != {"artists"}
+                    or type(parts["artists"]) is not int
+                    or parts["artists"] < 0
+                ):
+                    raise ValidationError('expected_parts must declare {"artists": <number of parts>}')
+                metadata["expected_parts"] = parts
                 existing = BulkImportRun.objects.filter(
                     kind=ARTISTS,
                     committed_on=None,
                     pipeline_run_request__source_run_id=pipeline_run.source_run_id,
                 ).first()
                 if existing is not None:
+                    if existing.expected_parts != parts:
+                        raise RecoveryConflict("Le nombre de parties diffère de l'import artistes déjà préparé.")
                     return Response({"run_id": existing.pk}, status=status.HTTP_201_CREATED)
+            elif kind == ARTISTS and "expected_parts" in request.data:
+                raise ValidationError("expected_parts is reserved for artists recovery")
             # A new run abandons every uncommitted one of its kind, and every committed one older than twice the task
             # timeout: django-q kills a timed-out merge without running its cleanup, so its rows would leak. Twice,
             # because committed_on is the enqueue time and a run can wait one full merge in the single-worker queue
@@ -287,7 +305,10 @@ def bulk_import_run_actions(
             run = BulkImportRun.objects.create(kind=kind, mode=mode, pipeline_run_request=pipeline_run, **metadata)
         return Response({"run_id": run.pk}, status=status.HTTP_201_CREATED)
 
-    @_upload_schema("One gzip NDJSON part of the run's rows.", [_RUN_ID_PARAM, _PART_PARAM])
+    @_upload_schema(
+        "One gzip NDJSON part of the run's rows.",
+        [_RUN_ID_PARAM, _PART_PARAM, *([HEADER_PARAMETER] if kind == ARTISTS else [])],
+    )
     @action(
         detail=False,
         methods=["put"],
@@ -298,10 +319,20 @@ def bulk_import_run_actions(
         uncommitted_run(run_id)
         with spooled_body(request) as body, transaction.atomic():
             run = uncommitted_run(run_id, lock=True)
-            require_declared_part(run, "songs", int(part))
-            count = load_part(run.pk, int(part), body)
+            index = int(part)
+            stream = "artists" if kind == ARTISTS else "songs"
+            if (
+                kind == ARTISTS
+                and (linked := run.pipeline_run_request) is not None
+                and linked.kind == Kind.SYNC_ARTISTS
+            ):
+                lock_active_recovery(recovery_import_request(request, linked.source_run_id))
+                if run.expected_parts is None or index >= run.expected_parts["artists"]:
+                    raise ValidationError("Part is outside the run's declared import streams")
+            require_declared_part(run, stream, index)
+            count = load_part(run.pk, index, body)
             if run.expected_parts is not None:
-                record_part(run=run, stream="songs", part=int(part), count=count, body=body)
+                record_part(run=run, stream=stream, part=index, count=count, body=body)
         return Response({"count": count})
 
     @_upload_schema(
@@ -367,6 +398,10 @@ def bulk_import_run_actions(
                 guard_catalogue_import(kind, linked, mode=run.mode)
                 run.pipeline_run_request = linked
             require_complete_run(run)
+            if kind == ARTISTS and linked is not None and linked.kind == Kind.SYNC_ARTISTS:
+                if run.expected_parts is None:
+                    raise ValidationError("Artists recovery requires declared import parts")
+                require_complete_parts(run, {"artists": (staging_model, run.expected_parts["artists"])})
             if kind == SONGS:
                 require_reviewed_contract(
                     {"graph_revision": run.graph_revision, "membership_revision": run.membership_revision}

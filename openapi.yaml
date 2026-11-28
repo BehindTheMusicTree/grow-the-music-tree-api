@@ -317,13 +317,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/ImportRunCreateRequest'
+              $ref: '#/components/schemas/ArtistImportRunCreateRequest'
       security:
       - googleIdToken: []
       - apiKey: []
@@ -396,6 +396,12 @@ paths:
       operationId: v1_artists_import_runs_parts_update
       description: One gzip NDJSON part of the run's rows.
       parameters:
+      - in: header
+        name: X-Pipeline-Run-Request
+        schema:
+          type: string
+        description: UUID of the running pipeline run this import belongs to, so its
+          progress shows on that run.
       - in: path
         name: part
         schema:
@@ -5854,6 +5860,24 @@ components:
       - genrePlaylist
       - songsCount
       - tracksCount
+    ArtistImportRunCreateRequest:
+      type: object
+      properties:
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ImportRunModeEnum'
+          description: |-
+            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
+
+            * `full` - Full
+            * `delta` - Delta
+        expectedParts:
+          type: object
+          additionalProperties:
+            type: integer
+            minimum: 0
+          description: 'Required only for artists recovery: {"artists": <number of
+            parts>}.'
     ArtistMinimum:
       type: object
       description: |-
@@ -8126,17 +8150,6 @@ components:
       - importedOn
       - kind
       - skippedCount
-    ImportRunCreateRequest:
-      type: object
-      properties:
-        mode:
-          allOf:
-          - $ref: '#/components/schemas/ImportRunModeEnum'
-          description: |-
-            Defaults to `full`. A `delta` run carries only changed rows plus a deletions upload.
-
-            * `full` - Full
-            * `delta` - Delta
     ImportRunCreated:
       type: object
       properties:

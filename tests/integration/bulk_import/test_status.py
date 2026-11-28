@@ -84,6 +84,22 @@ class TestProgressStatus(AppTestCase):
         assert "enqueue" in retry.error
         assert self.api_client.get(self.path).json()["status"] == "failed"
 
+    def test_enqueue_ack_loss_does_not_fail_a_claimed_attempt(self):
+        def claim_then_lose_ack(*args, attempt_id, **kwargs):
+            ImportAttempt.objects.filter(pk=attempt_id).update(state=ImportAttempt.State.RUNNING)
+            raise RuntimeError("broker acknowledgement lost")
+
+        with (
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_complete_run"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.require_reviewed_contract"),
+            patch("grow.view.viewset.mixin.BulkImportRunMixin.async_task", side_effect=claim_then_lose_ack),
+        ):
+            response = self.api_client.post(f"{PREFIX}import-runs/{self.run.pk}/commit/")
+        assert response.status_code == 500
+        attempt = ImportAttempt.objects.filter(run_id=self.run.pk).latest("attempt")
+        assert attempt.state == ImportAttempt.State.RUNNING
+        assert attempt.finished_at is None
+
     def test_legacy_recovery_enqueue_failure_is_durable(self):
         ImportAttempt.objects.all().delete()
         with (

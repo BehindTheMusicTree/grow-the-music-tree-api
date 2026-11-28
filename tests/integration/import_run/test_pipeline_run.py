@@ -1,3 +1,4 @@
+import gzip
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -187,6 +188,32 @@ class TestPipelineRun(AppTestCase):
         self._request("sync")
         assert self._resume_artists(source).status_code == status.HTTP_409_CONFLICT
 
+    def test_song_receipt_allows_recovery_unless_another_song_merge_is_pending_on_the_source(self):
+        source = self._failed_gold(applied=False)
+        ImportAttempt.objects.filter(run_id=142).update(state="committing")
+        ImportReceipt.objects.create(run_id=142, result={})
+        other = ImportAttempt.objects.create(
+            pipeline_run_request=source,
+            kind="songs",
+            mode="full",
+            run_id=141,
+            task_id="old",
+            attempt=1,
+            state="running",
+        )
+        assert self._resume_artists(source).status_code == 409
+        other.delete()
+        assert self._resume_artists(source).status_code == 201
+
+    def test_active_recovery_tracks_artist_import_from_the_original_request(self):
+        source = self._failed_gold()
+        ImportAttempt.objects.create(
+            pipeline_run_request=source, kind="artists", mode="full", run_id=144, task_id="artists", attempt=1
+        )
+        assert self._resume_artists(source).status_code == 201
+        assert self._claim().status_code == 200
+        assert self._latest().json()["activeImport"]["taskId"] == "artists"
+
     def test_historical_gold_attestation_is_pipeline_only_and_immutable(self):
         source = self._failed_gold(attested=False)
         url = reverse("pipeline-gold-fingerprints", kwargs={"uuid": source.uuid})
@@ -221,12 +248,30 @@ class TestPipelineRun(AppTestCase):
         assert response.status_code == 204, response.content
         artists = reverse("artist-list") + "import-runs/"
         header = {"HTTP_X_PIPELINE_RUN_REQUEST": uuid}
+        declaration = {"expectedParts": {"artists": 1}}
         assert self.pipeline.post(artists, data={}, format="json").status_code == 409
-        prepared = self.pipeline.post(artists, data={}, format="json", **header)
+        assert self.pipeline.post(artists, data={}, format="json", **header).status_code == 400
+        prepared = self.pipeline.post(artists, data=declaration, format="json", **header)
         assert prepared.status_code == 201, prepared.content
         run_id = prepared.json()["runId"]
-        assert self.pipeline.post(artists, data={}, format="json", **header).json() == {"runId": run_id}
+        assert self.pipeline.post(artists, data=declaration, format="json", **header).json() == {"runId": run_id}
+        assert (
+            self.pipeline.post(artists, data={"expectedParts": {"artists": 2}}, format="json", **header).status_code
+            == 409
+        )
         commit = f"{artists}{run_id}/commit/"
+        assert self.pipeline.post(commit, **header).status_code == 400
+        body = {"data": gzip.compress(b""), "content_type": "application/x-ndjson", "HTTP_CONTENT_ENCODING": "gzip"}
+        part = f"{artists}{run_id}/parts/0/"
+        assert self.api_client.put(part, **body, **header).status_code == 403
+        assert self.pipeline.put(part, **body).status_code == 409
+        assert self.pipeline.put(f"{artists}{run_id}/parts/1/", **body, **header).status_code == 400
+        PipelineRunRequest.objects.filter(uuid=uuid).update(cancel_requested_on=timezone.now())
+        assert self.pipeline.put(part, **body, **header).status_code == 409
+        PipelineRunRequest.objects.filter(uuid=uuid).update(cancel_requested_on=None)
+        with patch("grow.artist.bulk_import.part_loader.copy_part", return_value=0):
+            response = self.pipeline.put(part, **body, **header)
+        assert response.status_code == 200, response.content
         first = self.pipeline.post(commit, **header)
         assert first.status_code == 202, first.content
         repeated = self.pipeline.post(commit, **header)

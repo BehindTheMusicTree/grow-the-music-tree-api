@@ -84,13 +84,17 @@ def recovery_states(sources: Iterable[PipelineRunRequest], *, attest: bool = Fal
         applied = next((a for a in artists if a.data_applied or a.receipt_at is not None), None)
         submitted = next((a for a in artists if a.state in MERGING), None)
         snapshots_finalized = source.pk in finalized or (source.status == Status.SUCCEEDED and applied is not None)
-        songs_applied = songs.state == State.SUCCEEDED and songs.data_applied
+        songs_applied = songs.receipt_at is not None or (songs.state == State.SUCCEEDED and songs.data_applied)
+        attempt = applied or submitted
         reason = None
         if not songs_applied:
             reason = "La fusion des chansons de ce Gold n'est pas confirmée."
         elif snapshots_finalized:
             reason = "Les snapshots de ce Gold sont déjà finalisés."
-        elif any(a.state in MERGING and a.pipeline_run_request_id not in related for a in attempts):
+        elif any(
+            a.state in MERGING and a.run_id != songs.run_id and (attempt is None or a.run_id != attempt.run_id)
+            for a in attempts
+        ):
             reason = "Une autre fusion du catalogue est en cours."
         elif any(
             (a.data_applied or a.receipt_at is not None)
@@ -111,7 +115,6 @@ def recovery_states(sources: Iterable[PipelineRunRequest], *, attest: bool = Fal
             reason = "La provenance du Gold doit être attestée."
         elif applied is not None and not source.artists_snapshot_sha256:
             reason = "L'empreinte du snapshot artistes appliqué est indisponible."
-        attempt = applied or submitted
         states[source.pk] = {
             "eligible": reason is None,
             "reason": reason,
@@ -132,18 +135,20 @@ def require_recovery(source: PipelineRunRequest, *, attest: bool = False) -> dic
     return state
 
 
+def lock_active_recovery(request: PipelineRunRequest) -> PipelineRunRequest:
+    request = PipelineRunRequest.objects.select_for_update().get(pk=request.pk)
+    if request.status != Status.RUNNING or request.cancel_requested_on is not None:
+        raise RecoveryConflict("La demande de reprise artistes doit être en cours et sans annulation.")
+    return request
+
+
 def guard_catalogue_import(
     kind: str, request: PipelineRunRequest | None, *, mode: str, submitted: bool = False
 ) -> None:
     """Called under the recovery admission lock, before a run can be staged or committed."""
     if request is not None and request.kind == Kind.SYNC_ARTISTS:
-        request = PipelineRunRequest.objects.select_for_update().get(pk=request.pk)
-        if (
-            kind != ARTISTS
-            or mode != BulkImportRun.Mode.FULL
-            or request.status != Status.RUNNING
-            or request.cancel_requested_on is not None
-        ):
+        request = lock_active_recovery(request)
+        if kind != ARTISTS or mode != BulkImportRun.Mode.FULL:
             raise RecoveryConflict("La reprise active exige un import artistes complet.")
         state = require_recovery(request.source_run)
         if not request.source_run.artists_snapshot_sha256 or (not submitted and state["artists_task_id"] is not None):

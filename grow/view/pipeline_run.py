@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.db.models.fields.json import KeyTransform
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -97,7 +98,11 @@ def _active_import(run: PipelineRunRequest) -> dict[str, Any] | None:
     """The newest import attempt made for `run`, terminal or not: the front decides whether to show it."""
     if run.kind == Kind.SYNC_ARTISTS:
         attempt = (
-            ImportAttempt.objects.filter(kind="artists", pipeline_run_request__source_run_id=run.source_run_id)
+            ImportAttempt.objects.filter(
+                Q(pipeline_run_request_id=run.source_run_id) | Q(pipeline_run_request__source_run_id=run.source_run_id),
+                kind="artists",
+                user_id=None,
+            )
             .order_by("-run_id", "-attempt")
             .first()
         )
